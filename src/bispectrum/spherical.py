@@ -1,15 +1,13 @@
-"""Spherical harmonics utilities and bispectrum computation.
+"""Spherical harmonics utilities.
 
-This module provides functions for computing the bispectrum of spherical functions
-using complex spherical harmonics coefficients from torch-harmonics.
+This module provides utility functions for working with spherical harmonics
+coefficients from torch-harmonics.
 
 CRITICAL: RealSHT from torch-harmonics computes COMPLEX spherical harmonics
 coefficients F_l^m of a REAL-valued function. The "Real" refers to the input
 function being real, NOT the output coefficients. Do NOT confuse with "real
 spherical harmonics" R_l^m.
 """
-
-from collections.abc import Callable
 
 import torch
 
@@ -128,83 +126,3 @@ def pad_sh_coefficients(f_l: torch.Tensor, l1: int, l2: int, l: int) -> torch.Te
     padded[:, n_p : n_p + f_l_size] = f_l
 
     return padded
-
-
-def bispectrum(
-    f_coeffs: dict[int, torch.Tensor],
-    l1: int,
-    l2: int,
-    clebsch_gordan_fn: Callable[[int, int], torch.Tensor],
-) -> torch.Tensor:
-    """Compute bispectrum beta(f)_{l1,l2}[l] for all valid l values.
-
-    Formula: beta_{l1,l2}[l] = (F_l1 ⊗ F_l2) @ C_{l1,l2} @ F_hat_l^†
-
-    where:
-        - F_l1, F_l2 are the SH coefficient vectors for degrees l1, l2
-        - ⊗ denotes the tensor (Kronecker) product
-        - C_{l1,l2} is the Clebsch-Gordan matrix
-        - F_hat_l is the zero-padded F_l vector
-        - † denotes conjugate transpose
-
-    Args:
-        f_coeffs: Dict mapping l -> (batch, 2l+1) complex tensor containing
-            the full SH coefficients (for all m from -l to l).
-        l1: First degree index.
-        l2: Second degree index.
-        clebsch_gordan_fn: Function(l1, l2) -> square matrix of shape (d, d)
-            where d = (2l1+1)*(2l2+1). Returns the Clebsch-Gordan matrix.
-
-    Returns:
-        torch.Tensor of shape (batch, num_l) where num_l = l1 + l2 - |l1 - l2| + 1.
-        Entry [..., i] corresponds to l = |l1 - l2| + i.
-    """
-    # Get the coefficient vectors for l1 and l2
-    f_l1 = f_coeffs[l1]  # (batch, 2*l1+1)
-    f_l2 = f_coeffs[l2]  # (batch, 2*l2+1)
-
-    batch_size = f_l1.shape[0]
-
-    # Compute batch-wise tensor product using einsum (NOT torch.kron!)
-    # f_l1: (batch, 2*l1+1), f_l2: (batch, 2*l2+1)
-    outer = torch.einsum('bi,bj->bij', f_l1, f_l2)
-    # Flatten to (batch, (2*l1+1)*(2*l2+1))
-    tensor_product = outer.reshape(batch_size, -1)
-
-    # Get Clebsch-Gordan matrix
-    cg_matrix = clebsch_gordan_fn(l1, l2)  # (d, d) where d = (2l1+1)*(2l2+1)
-
-    # Move CG matrix to same device as coefficients
-    cg_matrix = cg_matrix.to(device=tensor_product.device, dtype=tensor_product.dtype)
-
-    # Apply CG matrix: (batch, d) @ (d, d) -> (batch, d)
-    transformed = tensor_product @ cg_matrix
-
-    # Compute bispectrum for each valid l
-    l_min = abs(l1 - l2)
-    l_max = l1 + l2
-    num_l = l_max - l_min + 1
-
-    # Result tensor
-    result = torch.zeros(
-        batch_size, num_l, dtype=tensor_product.dtype, device=tensor_product.device
-    )
-
-    for i, l in enumerate(range(l_min, l_max + 1)):
-        if l not in f_coeffs:
-            # Skip if we don't have coefficients for this l
-            continue
-
-        f_l = f_coeffs[l]  # (batch, 2l+1)
-
-        # Create zero-padded version
-        f_hat_l = pad_sh_coefficients(f_l, l1, l2, l)  # (batch, d)
-
-        # Compute inner product: sum over d dimension
-        # beta = transformed @ f_hat_l^†
-        # For each batch element: (d,) @ (d,)^† = scalar
-        # f_hat_l^† means conjugate transpose, but since we're doing dot product
-        # with row vectors, we use conj and sum
-        result[:, i] = torch.sum(transformed * torch.conj(f_hat_l), dim=-1)
-
-    return result
