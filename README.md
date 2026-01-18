@@ -1,5 +1,9 @@
 # bispectrum
 
+[![Tests](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml)
+[![Pre-commit](https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml)
+[![codecov](https://codecov.io/gh/geometric-intelligence/bispectrum/branch/main/graph/badge.svg)](https://codecov.io/gh/geometric-intelligence/bispectrum)
+
 Bispectrum analysis for machine learning.
 
 ## Installation
@@ -20,6 +24,22 @@ uv pip install bispectrum
 git clone https://github.com/geometric-intelligence/bispectrum.git
 cd bispectrum
 uv pip install -e ".[dev]"
+pre-commit install
+```
+
+### Pre-commit Hooks
+
+This project uses [pre-commit](https://pre-commit.com/) for code quality checks. After installing dev dependencies, the hooks run automatically on each commit.
+
+```bash
+# Run hooks on all files (useful for first-time setup or CI)
+pre-commit run --all-files
+
+# Run a specific hook
+pre-commit run ruff --all-files
+
+# Update hooks to latest versions
+pre-commit autoupdate
 ```
 
 ## Usage

@@ -1,0 +1,108 @@
+default_stages: [pre-commit]
+fail_fast: false
+
+default_language_version:
+  python: python3
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # list of supported hooks: https://pre-commit.com/hooks.html
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-docstring-first
+      - id: check-yaml
+      - id: debug-statements
+      - id: detect-private-key
+      - id: check-executables-have-shebangs
+      - id: check-toml
+      - id: check-case-conflict
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # python code formatting and linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.11
+    hooks:
+      - id: ruff
+        types: [python]
+        args: [--fix, --unsafe-fixes, --exit-non-zero-on-fix, --ignore=T201]
+      - id: ruff-format
+        types: [python]
+        args: [--line-length=99]
+
+  # python upgrading syntax to newer version
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.2
+    hooks:
+      - id: pyupgrade
+        args: [--py312-plus]
+
+  # python docstring formatting
+  - repo: https://github.com/myint/docformatter
+    rev: v1.7.7
+    hooks:
+      - id: docformatter
+        args:
+          [
+            --in-place,
+            --wrap-summaries=99,
+            --wrap-descriptions=99,
+            --style=google,
+            --black,
+          ]
+
+  # python security linter
+  - repo: https://github.com/PyCQA/bandit
+    rev: "1.9.2"
+    hooks:
+      - id: bandit
+        args: ["-s", "B101"]
+
+  # yaml formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types: [yaml]
+        exclude: "environment.yaml"
+
+  # shell scripts linter
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  # md formatting
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.22
+    hooks:
+      - id: mdformat
+        args: ["--number"]
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-tables
+          - mdformat_frontmatter
+          # - mdformat-toc
+          # - mdformat-black
+
+  # word spelling linter
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args:
+          - --skip=logs/**,data/**,*.ipynb
+          - --ignore-words=.codespell-ignore-words
+
+  # jupyter notebook cell output clearing
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.2
+    hooks:
+      - id: nbstripout
