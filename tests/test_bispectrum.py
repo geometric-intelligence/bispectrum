@@ -10,7 +10,6 @@ from torch_harmonics import RealSHT
 
 from bispectrum import (
     SO3onS2,
-    bispectrum,
     compute_padding_indices,
     get_full_sh_coefficients,
     pad_sh_coefficients,
@@ -196,70 +195,6 @@ class TestRotateSphericalFunction:
         assert f_rotated.shape == f.shape
 
 
-class TestBispectrumRotationInvariance:
-    """Test that bispectrum is invariant under rotations.
-
-    NOTE: This test requires a working Clebsch-Gordan implementation.
-    It is marked as expected to fail until CG coefficients are provided.
-    """
-
-    @pytest.mark.xfail(reason='Clebsch-Gordan coefficients not yet implemented')
-    def test_bispectrum_rotation_invariance(self):
-        """Test that bispectrum is invariant under rotations.
-
-        Steps:
-        1. Create a random spherical function f
-        2. Compute bispectrum beta(f)
-        3. Generate random rotation R
-        4. Rotate f -> R*f
-        5. Compute bispectrum beta(R*f)
-        6. Assert beta(f) ≈ beta(R*f) for all (l1, l2, l)
-        """
-        # Setup parameters
-        nlat, nlon = 64, 128
-        batch_size = 2
-        lmax = 8  # Maximum degree to test
-        l1, l2 = 2, 3  # Test specific degree pair
-
-        # Create SHT transform
-        # REMINDER: RealSHT outputs COMPLEX coefficients for a REAL function!
-        sht = RealSHT(nlat, nlon, lmax=lmax, mmax=lmax, grid='equiangular', norm='ortho')
-
-        # Create a random real-valued spherical function
-        f = torch.randn(batch_size, nlat, nlon, dtype=torch.float64)
-
-        # Compute SH coefficients (complex, for m >= 0)
-        f_coeffs_raw = sht(f.float()).to(torch.complex128)
-
-        # Extend to all m values
-        f_coeffs = get_full_sh_coefficients(f_coeffs_raw)
-
-        # Compute bispectrum
-        beta_f = bispectrum(f_coeffs, l1, l2, clebsch_gordan)
-
-        # Generate random rotation
-        R = random_rotation_matrix()
-
-        # Rotate the function
-        f_rotated = rotate_spherical_function(f, R)
-
-        # Compute SH coefficients of rotated function
-        f_rotated_coeffs_raw = sht(f_rotated.float()).to(torch.complex128)
-        f_rotated_coeffs = get_full_sh_coefficients(f_rotated_coeffs_raw)
-
-        # Compute bispectrum of rotated function
-        beta_f_rotated = bispectrum(f_rotated_coeffs, l1, l2, clebsch_gordan)
-
-        # Assert invariance
-        torch.testing.assert_close(
-            beta_f,
-            beta_f_rotated,
-            atol=1e-3,
-            rtol=1e-3,
-            msg='Bispectrum should be invariant under rotation',
-        )
-
-
 class TestSO3onS2:
     """Tests for SO3onS2 module."""
 
@@ -276,22 +211,23 @@ class TestSO3onS2:
 
     def test_lmax_exceeds_json_raises(self):
         """Test that lmax exceeding JSON limits raises ValueError."""
-        with pytest.raises(ValueError, match='exceeds JSON limits'):
+        with pytest.raises(ValueError, match='exceed JSON limits'):
             SO3onS2(lmax=100)
 
     def test_index_map_structure(self):
         """Test that index_map contains valid (l1, l2, l) tuples."""
-        bsp = SO3onS2(lmax=3)
+        bsp = SO3onS2(lmax=4)
 
         for l1, l2, l in bsp.index_map:
             # l1 <= l2 (by design)
             assert l1 <= l2
             # l in valid range
             assert abs(l1 - l2) <= l <= l1 + l2
-            # All values <= lmax
-            assert l1 <= bsp.lmax
-            assert l2 <= bsp.lmax
-            assert l <= bsp.lmax
+            # l1, l2 within bounds (exclusive of l1_max/l2_max)
+            assert l1 < bsp.l1_max
+            assert l2 < bsp.l2_max
+            # l is automatically < lmax since l <= l1 + l2 < l1_max + l2_max = lmax
+            assert l < bsp.lmax
 
     def test_output_size_matches_index_map(self):
         """Test that output_size equals len(index_map)."""
@@ -300,11 +236,11 @@ class TestSO3onS2:
 
     def test_cg_buffers_registered(self):
         """Test that CG matrices are registered as buffers."""
-        bsp = SO3onS2(lmax=2)
+        bsp = SO3onS2(lmax=4)
 
-        # Check that buffers exist for all (l1, l2) pairs with l1 <= l2
-        for l1 in range(3):
-            for l2 in range(l1, 3):
+        # Check that buffers exist for all (l1, l2) pairs with l1 < l2 < l1_max/l2_max
+        for l1 in range(bsp.l1_max):
+            for l2 in range(l1, bsp.l2_max):
                 buffer_name = f'cg_{l1}_{l2}'
                 assert hasattr(bsp, buffer_name), f'Missing buffer {buffer_name}'
                 buffer = getattr(bsp, buffer_name)
