@@ -42,11 +42,15 @@ class SO3onS2(nn.Module):
         >>> bsp = SO3onS2(lmax=4)
         >>> # coeffs: (batch, lmax, mmax) complex tensor from RealSHT
         >>> output = bsp(coeffs)  # (batch, num_bispectrum_values)
+
+    Note:
+    The notation "lmax" does not refer to the maximum value of l,
+    it's the maximum length of the spherical harmomics coefficient, ie, lmax = lmaxvalue + 1.
     """
 
     def __init__(self, lmax: int = 5, cg_path: str | Path | None = None) -> None:
         super().__init__()
-        self.lmax = lmax
+        self.lmax = lmax  # FIXME: the "lmax" in RealSHT is not the maximum value of l, it's the length of [0, lmax]
         self.l1_max = lmax // 2
         self.l2_max = lmax // 2
 
@@ -69,16 +73,16 @@ class SO3onS2(nn.Module):
         # Build index map: maps flat output index to (l1, l2, l) tuple
         # Since l1, l2 <= lmax // 2, we have l <= l1 + l2 <= lmax
         self._index_map: list[tuple[int, int, int]] = []
-        for l1 in range(self.l1_max + 1):
-            for l2 in range(l1, self.l2_max + 1):
+        for l1 in range(self.l1_max):
+            for l2 in range(l1, self.l2_max):
                 l_min = abs(l1 - l2)
                 l_max_pair = l1 + l2
                 for l in range(l_min, l_max_pair + 1):
                     self._index_map.append((l1, l2, l))
 
         # Register CG matrices as buffers for all (l1, l2) pairs
-        for l1 in range(self.l1_max + 1):
-            for l2 in range(l1, self.l2_max + 1):
+        for l1 in range(self.l1_max):
+            for l2 in range(l1, self.l2_max):
                 key = f'{l1}_{l2}'
                 matrix_data = cg_data['matrices'][key]['matrix']
                 matrix = torch.tensor(matrix_data, dtype=torch.float64)
