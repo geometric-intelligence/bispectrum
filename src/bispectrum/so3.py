@@ -24,35 +24,26 @@ class SO3onS2(nn.Module):
     """Bispectrum operator for spherical harmonic coefficients.
 
     Computes the SO(3)-invariant bispectrum for all (l1, l2) pairs where
-    l1 <= l2 <= lmax // 2. The bispectrum is defined as:
+    l1 <= l2 <= lmax. The bispectrum is defined as:
 
         beta_{l1,l2}[l] = (F_l1 ⊗ F_l2) @ C_{l1,l2} @ F_hat_l^†
 
-    where C_{l1,l2} is the Clebsch-Gordan matrix and l ranges from |l1-l2| to l1+l2.
-
-    By constraining l1, l2 <= lmax // 2, we ensure that l <= l1 + l2 <= lmax,
-    so all required coefficients are available.
+    where C_{l1,l2} is the Clebsch-Gordan matrix.
 
     Args:
-        lmax: Maximum spherical harmonic degree for input coefficients. Default is 5.
+        lmax: Maximum spherical harmonic degree. Default is 5.
         cg_path: Path to JSON file containing Clebsch-Gordan matrices.
             If None, uses the bundled cg_lmax5.json file.
 
     Example:
-        >>> bsp = SO3onS2(lmax=4)
+        >>> bsp = SO3onS2(lmax=5)
         >>> # coeffs: (batch, lmax, mmax) complex tensor from RealSHT
         >>> output = bsp(coeffs)  # (batch, num_bispectrum_values)
-
-    Note:
-    The notation "lmax" does not refer to the maximum value of l,
-    it's the maximum length of the spherical harmomics coefficient, ie, lmax = lmaxvalue + 1.
     """
 
     def __init__(self, lmax: int = 5, cg_path: str | Path | None = None) -> None:
         super().__init__()
-        self.lmax = lmax  # FIXME: the "lmax" in RealSHT is not the maximum value of l, it's the length of [0, lmax]
-        self.l1_max = lmax // 2
-        self.l2_max = lmax // 2
+        self.lmax = lmax
 
         # Load CG matrices from JSON
         if cg_path is None:
@@ -61,28 +52,27 @@ class SO3onS2(nn.Module):
         with open(cg_path) as f:
             cg_data = json.load(f)
 
-        # Validate that CG data has the matrices we need
+        # Validate lmax against JSON metadata
         json_l1_max = cg_data['metadata']['l1_max']
         json_l2_max = cg_data['metadata']['l2_max']
-        if self.l1_max > json_l1_max or self.l2_max > json_l2_max:
+        if lmax > json_l1_max or lmax > json_l2_max:
             raise ValueError(
-                f'l1_max={self.l1_max}, l2_max={self.l2_max} exceed JSON limits '
-                f'(l1_max={json_l1_max}, l2_max={json_l2_max})'
+                f'lmax={lmax} exceeds JSON limits (l1_max={json_l1_max}, l2_max={json_l2_max})'
             )
 
         # Build index map: maps flat output index to (l1, l2, l) tuple
-        # Since l1, l2 <= lmax // 2, we have l <= l1 + l2 <= lmax
         self._index_map: list[tuple[int, int, int]] = []
-        for l1 in range(self.l1_max):
-            for l2 in range(l1, self.l2_max):
+        for l1 in range(lmax + 1):
+            for l2 in range(l1, lmax + 1):
                 l_min = abs(l1 - l2)
                 l_max_pair = l1 + l2
                 for l in range(l_min, l_max_pair + 1):
-                    self._index_map.append((l1, l2, l))
+                    if l <= lmax:  # Only include if we have coefficients for this l
+                        self._index_map.append((l1, l2, l))
 
         # Register CG matrices as buffers for all (l1, l2) pairs
-        for l1 in range(self.l1_max):
-            for l2 in range(l1, self.l2_max):
+        for l1 in range(lmax + 1):
+            for l2 in range(l1, lmax + 1):
                 key = f'{l1}_{l2}'
                 matrix_data = cg_data['matrices'][key]['matrix']
                 matrix = torch.tensor(matrix_data, dtype=torch.float64)
@@ -164,12 +154,13 @@ class SO3onS2(nn.Module):
             transformed = computed_transforms[(l1, l2)]
 
             # Get F_l coefficients and compute inner product
-            f_l = f_coeffs[l]
-            f_hat_l = pad_sh_coefficients(f_l, l1, l2, l)
-            result[:, out_idx] = torch.sum(transformed * torch.conj(f_hat_l), dim=-1)
+            if l in f_coeffs:
+                f_l = f_coeffs[l]
+                f_hat_l = pad_sh_coefficients(f_l, l1, l2, l)
+                result[:, out_idx] = torch.sum(transformed * torch.conj(f_hat_l), dim=-1)
 
         return result
 
     def extra_repr(self) -> str:
         """Extra representation for printing the module."""
-        return f'lmax={self.lmax}, l1_max={self.l1_max}, l2_max={self.l2_max}, output_size={self.output_size}'
+        return f'lmax={self.lmax}, output_size={self.output_size}'
