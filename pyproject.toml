@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bispectrum"]
+
+[project]
+name = "bispectrum"
+version = "0.1.0"
+description = "Bispectrum analysis for machine learning"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "Johan Mathe", email = "johan.mathe@gmail.com" }]
+keywords = [
+    "deep learning",
+    "neural networks",
+    "tensor manipulation",
+    "machine learning",
+    "scientific computations",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+  "torch>=2.4.0",
+  "numpy>=1.22.4",
+  "torch-harmonics",
+]
+
+optional-dependencies.dev = [
+  "pytest>=8",
+  "pytest-cov>=4.0.0",
+  "ruff>=0.4.0",
+  "mypy>=1.5.0",
+  "pre-commit>=3.3.3",
+]
+optional-dependencies.plotting = ["matplotlib>=3.7.0"]
+
+urls.Homepage = "https://github.com/geometric-intelligence/bispectrum"
+urls.Repository = "https://github.com/geometric-intelligence/bispectrum"
+urls.Issues = "https://github.com/geometric-intelligence/bispectrum/issues"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501", "B008", "C901"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.coverage.run]
+source = ["src/bispectrum"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
