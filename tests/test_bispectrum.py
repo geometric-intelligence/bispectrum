@@ -1,7 +1,7 @@
 """Tests for bispectrum computation and rotation invariance.
 
-These tests verify that the bispectrum is invariant under 3D rotations
-of the input spherical function, as proven mathematically in the lecture notes.
+These tests verify that the bispectrum is invariant under 3D rotations of the input spherical
+function, as proven mathematically in the lecture notes.
 """
 
 import pytest
@@ -151,7 +151,9 @@ class TestRandomRotationMatrix:
         """Test that det(R) = +1 (proper rotation)."""
         R = random_rotation_matrix()
         det = torch.det(R)
-        torch.testing.assert_close(det, torch.tensor(1.0, dtype=torch.float64), atol=1e-10, rtol=1e-10)
+        torch.testing.assert_close(
+            det, torch.tensor(1.0, dtype=torch.float64), atol=1e-10, rtol=1e-10
+        )
 
     def test_different_each_call(self):
         """Test that different calls produce different matrices."""

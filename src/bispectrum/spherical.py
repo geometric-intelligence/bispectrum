@@ -9,7 +9,7 @@ function being real, NOT the output coefficients. Do NOT confuse with "real
 spherical harmonics" R_l^m.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 import torch
 
@@ -100,9 +100,7 @@ def compute_padding_indices(l1: int, l2: int, l: int) -> tuple[int, int]:
     return n_p, n_s
 
 
-def pad_sh_coefficients(
-    f_l: torch.Tensor, l1: int, l2: int, l: int
-) -> torch.Tensor:
+def pad_sh_coefficients(f_l: torch.Tensor, l1: int, l2: int, l: int) -> torch.Tensor:
     """Create zero-padded vector F_hat_l of size (2l1+1)(2l2+1).
 
     F_hat_l = [0, ..., 0, F_l, 0, ..., 0]
@@ -123,9 +121,7 @@ def pad_sh_coefficients(
     n_p, n_s = compute_padding_indices(l1, l2, l)
 
     # Create zero-padded tensor
-    padded = torch.zeros(
-        batch_size, total_size, dtype=f_l.dtype, device=f_l.device
-    )
+    padded = torch.zeros(batch_size, total_size, dtype=f_l.dtype, device=f_l.device)
 
     # Place F_l at the correct position
     f_l_size = 2 * l + 1
@@ -190,7 +186,9 @@ def bispectrum(
     num_l = l_max - l_min + 1
 
     # Result tensor
-    result = torch.zeros(batch_size, num_l, dtype=tensor_product.dtype, device=tensor_product.device)
+    result = torch.zeros(
+        batch_size, num_l, dtype=tensor_product.dtype, device=tensor_product.device
+    )
 
     for i, l in enumerate(range(l_min, l_max + 1)):
         if l not in f_coeffs:

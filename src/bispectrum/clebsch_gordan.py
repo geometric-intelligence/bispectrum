@@ -1,7 +1,7 @@
 """Clebsch-Gordan coefficients for spherical harmonics coupling.
 
-This module provides a placeholder for the Clebsch-Gordan matrix computation.
-The actual implementation should be provided externally.
+This module provides a placeholder for the Clebsch-Gordan matrix computation. The actual
+implementation should be provided externally.
 """
 
 import torch
@@ -36,5 +36,5 @@ def clebsch_gordan(l1: int, l2: int) -> torch.Tensor:
         'Clebsch-Gordan coefficients not yet implemented. '
         'Please provide external implementation. '
         f'Called with l1={l1}, l2={l2}. '
-        f'Expected output shape: ({(2*l1+1)*(2*l2+1)}, {(2*l1+1)*(2*l2+1)})'
+        f'Expected output shape: ({(2 * l1 + 1) * (2 * l2 + 1)}, {(2 * l1 + 1) * (2 * l2 + 1)})'
     )

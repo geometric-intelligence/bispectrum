@@ -1,7 +1,7 @@
 """Rotation utilities for spherical functions.
 
-This module provides functions for rotating spherical functions in spatial domain
-and generating random SO(3) rotation matrices.
+This module provides functions for rotating spherical functions in spatial domain and generating
+random SO(3) rotation matrices.
 """
 
 import torch
@@ -104,7 +104,7 @@ def create_spherical_grid(
         theta = torch.linspace(0, torch.pi, nlat, device=device, dtype=torch.float64)
         phi = torch.linspace(0, 2 * torch.pi, nlon + 1, device=device, dtype=torch.float64)[:-1]
     else:
-        raise ValueError(f"Unsupported grid type: {grid}")
+        raise ValueError(f'Unsupported grid type: {grid}')
 
     # Create meshgrid
     theta_grid, phi_grid = torch.meshgrid(theta, phi, indexing='ij')
@@ -157,28 +157,28 @@ def rotate_spherical_function(
     # For grid_sample, we need normalized coordinates in [-1, 1]
     # The input image has theta on the height axis (0 to pi) and phi on width axis (0 to 2*pi)
     # grid_sample expects (x, y) where x is width and y is height
-    
+
     # Pad the function for periodic boundary conditions in phi
     # Wrap around by appending first columns to the end and last columns to the beginning
     pad_width = 4
     f_input = f_grid.to(torch.float64).unsqueeze(1)  # (batch, 1, nlat, nlon)
     f_padded = F.pad(f_input, (pad_width, pad_width, 0, 0), mode='circular')
-    
+
     # Adjust phi to account for padding
     # Original phi range: [0, 2*pi) mapped to pixel indices [0, nlon)
     # With padding: pixel indices become [pad_width, nlon + pad_width)
     # We need to map phi to the padded coordinate system
-    
+
     nlon_padded = nlon + 2 * pad_width
-    
+
     # Convert theta and phi to normalized grid coordinates for the padded image
     # theta: [0, pi] -> pixel [0, nlat-1] -> normalized [-1, 1]
     # phi: [0, 2*pi) -> pixel [0, nlon-1] -> with padding -> normalized
-    
+
     # Pixel coordinates (before normalization)
     theta_pixel = theta_new / torch.pi * (nlat - 1)
     phi_pixel = phi_new / (2 * torch.pi) * nlon + pad_width
-    
+
     # Normalize to [-1, 1] for grid_sample with align_corners=True
     # For align_corners=True: pixel 0 -> -1, pixel (size-1) -> 1
     theta_norm = 2.0 * theta_pixel / (nlat - 1) - 1.0
