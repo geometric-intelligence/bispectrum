@@ -223,11 +223,11 @@ class TestSO3onS2:
             assert l1 <= l2
             # l in valid range
             assert abs(l1 - l2) <= l <= l1 + l2
-            # l1, l2 within bounds
-            assert l1 <= bsp.l1_max
-            assert l2 <= bsp.l2_max
-            # l is automatically <= lmax since l <= l1 + l2 <= l1_max + l2_max = lmax
-            assert l <= bsp.lmax
+            # l1, l2 within bounds (exclusive of l1_max/l2_max)
+            assert l1 < bsp.l1_max
+            assert l2 < bsp.l2_max
+            # l is automatically < lmax since l <= l1 + l2 < l1_max + l2_max = lmax
+            assert l < bsp.lmax
 
     def test_output_size_matches_index_map(self):
         """Test that output_size equals len(index_map)."""
@@ -238,9 +238,9 @@ class TestSO3onS2:
         """Test that CG matrices are registered as buffers."""
         bsp = SO3onS2(lmax=4)
 
-        # Check that buffers exist for all (l1, l2) pairs with l1 <= l2 <= l1_max/l2_max
-        for l1 in range(bsp.l1_max + 1):
-            for l2 in range(l1, bsp.l2_max + 1):
+        # Check that buffers exist for all (l1, l2) pairs with l1 < l2 < l1_max/l2_max
+        for l1 in range(bsp.l1_max):
+            for l2 in range(l1, bsp.l2_max):
                 buffer_name = f'cg_{l1}_{l2}'
                 assert hasattr(bsp, buffer_name), f'Missing buffer {buffer_name}'
                 buffer = getattr(bsp, buffer_name)
