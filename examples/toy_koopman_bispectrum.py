@@ -19,7 +19,7 @@ Run from repo root:
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404 - used for local ffmpeg invocation with fixed args
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -42,17 +42,19 @@ NLON = 64  # Longitude points
 LMAX = 5  # Max SH degree (CG limit)
 # Advected Swift-Hohenberg parameters
 DT_FINE = 5e-4  # Time step (larger is safe with spectral methods)
-DT_COARSE = 0.1  # Snapshot interval
-T_TOTAL = 5.0  # Total simulation time
+DT_COARSE = 0.05  # Snapshot interval (reduced for more training pairs)
+T_TOTAL = 8.0  # Total simulation time (includes growth + saturation)
+T_TRAIN_START = 3.5  # Start training from saturation regime (patterns formed)
 R_PARAM = 1.0  # Instability parameter (strength of pattern growth)
 L0_TARGET = 2  # Target degree for instability (l=2 modes grow)
 OMEGA = 2.0  # Rotation speed (radians per unit time)
-LAM = 0.1  # Bispectrum weight in lift
-GAMMA = 1e-4  # Frobenius regularization
+LAM = 1.0  # Bispectrum weight in lift (equal weight to SH coefficients)
+GAMMA = 1e-3  # Frobenius regularization
 LR = 0.01  # Adam learning rate
 TRAIN_STEPS = 500  # Koopman training iterations
 NUM_SUBSTEPS = 10  # Substeps between coarse snapshots
 EPS = 0.1  # sinθ clamping (larger to avoid pole instabilities)
+PCA_DIM = 50  # Dimension for PCA projection of full lift (reduces overfitting)
 
 
 # =============================================================================
@@ -232,6 +234,21 @@ def build_lift(
     return torch.cat([sh_part, bsp_part])
 
 
+def build_lift_no_bispectrum(coeffs: torch.Tensor) -> torch.Tensor:
+    """Build lifted feature vector using ONLY SH coefficients (no bispectrum).
+
+    This serves as a baseline to compare against the full bispectrum lift.
+
+    Args:
+        coeffs: (1, L, M) complex SH coefficients
+
+    Returns:
+        (2*L*M,) real feature vector [Re(coeffs), Im(coeffs)]
+    """
+    c_flat = coeffs.flatten()  # complex
+    return torch.cat([c_flat.real, c_flat.imag])
+
+
 def lift_to_sh(
     lift: torch.Tensor,
     lmax: int,
@@ -264,6 +281,7 @@ def train_koopman_generator(
     lr: float,
     steps: int,
     device: torch.device,
+    antisymmetric: bool = True,
 ) -> torch.Tensor:
     """Learn Koopman generator L via gradient descent.
 
@@ -276,13 +294,21 @@ def train_koopman_generator(
         lr: Learning rate
         steps: Number of optimization steps
         device: Torch device
+        antisymmetric: If True, constrain L to be antisymmetric (L = -L^T),
+            which guarantees bounded (oscillatory) dynamics with no growth/decay.
 
     Returns:
         (N, N) learned generator matrix
     """
     N = lifts[0].shape[0]
-    L = torch.zeros(N, N, device=device, dtype=torch.float32, requires_grad=True)
-    optimizer = torch.optim.Adam([L], lr=lr)
+
+    if antisymmetric:
+        # Parameterize L = A - A^T (antisymmetric, eigenvalues are purely imaginary)
+        A = torch.zeros(N, N, device=device, dtype=torch.float32, requires_grad=True)
+        optimizer = torch.optim.Adam([A], lr=lr)
+    else:
+        L_raw = torch.zeros(N, N, device=device, dtype=torch.float32, requires_grad=True)
+        optimizer = torch.optim.Adam([L_raw], lr=lr)
 
     # Stack pairs: (Phi_t, Phi_{t+dt})
     Phi_t = torch.stack([lift.float() for lift in lifts[:-1]])  # (T-1, N)
@@ -291,6 +317,12 @@ def train_koopman_generator(
     initial_loss = None
     for step in range(steps):
         optimizer.zero_grad()
+
+        # Construct L (antisymmetric if requested)
+        if antisymmetric:
+            L = A - A.T
+        else:
+            L = L_raw
 
         # exp(L*dt) @ Phi_t^T -> (N, T-1), then transpose
         expLdt = torch.matrix_exp(L * dt_coarse)
@@ -309,12 +341,18 @@ def train_koopman_generator(
         if step % 50 == 0 or step == steps - 1:
             print(f'  Step {step:4d}: loss={loss.item():.6e} (fit={loss_fit.item():.6e})')
 
+    # Final L
+    if antisymmetric:
+        L = (A - A.T).detach()
+    else:
+        L = L_raw.detach()
+
     final_loss = loss.item()
     print(f'  Training complete: initial={initial_loss:.6e} -> final={final_loss:.6e}')
     if final_loss > initial_loss / 10:
         print('  Warning: Loss did not decrease by 10x. Consider more steps or tuning.')
 
-    return L.detach()
+    return L
 
 
 def koopman_predict(phi_t: torch.Tensor, L: torch.Tensor, dt: float) -> torch.Tensor:
@@ -548,6 +586,287 @@ def save_animation_frames(
     return vmin, vmax
 
 
+def save_animation_frames_enhanced(
+    truth_fields: list[np.ndarray],
+    pred_fields: list[np.ndarray],
+    pred_fields_baseline: list[np.ndarray],
+    times: list[float],
+    frames_dir: Path,
+    lift_dim_pca: int,
+    lift_dim_full: int,
+    lift_dim_baseline: int,
+    pca_var_ratio: float,
+    lmax: int,
+) -> tuple[float, float]:
+    """Save enhanced animation frames with metrics panels and explanations.
+
+    Args:
+        truth_fields: List of (nlat, nlon) ground truth fields
+        pred_fields: List of (nlat, nlon) predicted fields (with bispectrum + PCA)
+        pred_fields_baseline: List of (nlat, nlon) baseline predictions (no bispectrum)
+        times: List of time values
+        frames_dir: Directory to save frames
+        lift_dim_pca: Dimension after PCA projection
+        lift_dim_full: Original full lift dimension (before PCA)
+        lift_dim_baseline: Dimension of the baseline lift (SH only)
+        pca_var_ratio: Percentage of variance explained by PCA
+        lmax: Maximum spherical harmonic degree
+
+    Returns:
+        (vmin, vmax) global colorbar limits used
+    """
+    frames_dir.mkdir(parents=True, exist_ok=True)
+
+    # Compute global colorbar limits
+    all_data = truth_fields + pred_fields + pred_fields_baseline
+    vmin = min(f.min() for f in all_data)
+    vmax = max(f.max() for f in all_data)
+
+    # Precompute all MSEs and errors for the time series plot
+    mses = []
+    mses_baseline = []
+    max_vals_truth = []
+    max_vals_pred = []
+    all_errors = []
+    all_errors_baseline = []
+    for truth, pred, pred_base in zip(
+        truth_fields, pred_fields, pred_fields_baseline, strict=True
+    ):
+        error = pred - truth
+        error_base = pred_base - truth
+        mses.append(np.mean(error**2))
+        mses_baseline.append(np.mean(error_base**2))
+        max_vals_truth.append(np.abs(truth).max())
+        max_vals_pred.append(np.abs(pred).max())
+        all_errors.append(error)
+        all_errors_baseline.append(error_base)
+
+    # Global error scale for consistent normalization across all frames
+    global_err_max = max(
+        max(np.abs(e).max() for e in all_errors),
+        max(np.abs(e).max() for e in all_errors_baseline),
+        1e-10,
+    )
+
+    nlat, nlon = truth_fields[0].shape
+
+    for i, (truth, pred, pred_base, t) in enumerate(
+        zip(truth_fields, pred_fields, pred_fields_baseline, times, strict=True)
+    ):
+        frame_path = frames_dir / f'frame_{i:04d}.png'
+        _plot_frame_enhanced(
+            truth,
+            pred,
+            pred_base,
+            t,
+            times,
+            mses,
+            mses_baseline,
+            max_vals_truth,
+            max_vals_pred,
+            i,
+            frame_path,
+            vmin,
+            vmax,
+            global_err_max,
+            nlat,
+            nlon,
+            lift_dim_pca,
+            lift_dim_full,
+            lift_dim_baseline,
+            pca_var_ratio,
+            lmax,
+        )
+
+    print(f'Saved {len(times)} frames to {frames_dir}')
+    return vmin, vmax
+
+
+def _plot_frame_enhanced(
+    truth: np.ndarray,
+    pred: np.ndarray,
+    pred_baseline: np.ndarray,
+    t: float,
+    all_times: list[float],
+    all_mses: list[float],
+    all_mses_baseline: list[float],
+    max_vals_truth: list[float],
+    max_vals_pred: list[float],
+    frame_idx: int,
+    out_path: Path,
+    vmin: float,
+    vmax: float,
+    global_err_max: float,
+    nlat: int,
+    nlon: int,
+    lift_dim_pca: int,
+    lift_dim_full: int,
+    lift_dim_baseline: int,
+    pca_var_ratio: float,
+    lmax: int,
+) -> None:
+    """Plot a single enhanced frame with spheres, metrics, and explanation."""
+    error = pred - truth
+    error_baseline = pred_baseline - truth
+    mse = all_mses[frame_idx]
+    mse_baseline = all_mses_baseline[frame_idx]
+    # Use global error scale for consistent normalization across all frames
+    err_abs = global_err_max
+
+    # Create figure with GridSpec for complex layout (3 rows)
+    fig = plt.figure(figsize=(22, 14), dpi=100)
+
+    # Row 1: Truth + With Bispectrum + Error (with bisp)
+    ax_truth = fig.add_subplot(3, 4, 1, projection='3d')
+    ax_pred = fig.add_subplot(3, 4, 2, projection='3d')
+    ax_error = fig.add_subplot(3, 4, 3, projection='3d')
+
+    # Row 1: Baseline (no bisp) + Error (no bisp)
+    ax_pred_base = fig.add_subplot(3, 4, 5, projection='3d')
+    ax_error_base = fig.add_subplot(3, 4, 6, projection='3d')
+
+    # Plot spheres - Row 1
+    plot_sphere(truth, ax_truth, 'Ground Truth (PDE)', vmin, vmax, nlat, nlon)
+    plot_sphere(pred, ax_pred, f'Bispectrum+PCA (MSE={mse:.2e})', vmin, vmax, nlat, nlon)
+    plot_sphere(error, ax_error, 'Error (Bisp+PCA)', -err_abs, err_abs, nlat, nlon)
+
+    # Plot spheres - Row 2 (baseline)
+    plot_sphere(
+        pred_baseline, ax_pred_base, f'SH Only (MSE={mse_baseline:.2e})', vmin, vmax, nlat, nlon
+    )
+    plot_sphere(error_baseline, ax_error_base, 'Error (SH Only)', -err_abs, err_abs, nlat, nlon)
+
+    # Top right: Model explanation
+    ax_text = fig.add_subplot(3, 4, 4)
+    ax_text.axis('off')
+    improvement = (mse_baseline - mse) / mse_baseline * 100 if mse_baseline > 0 else 0
+
+    # Compute irrep stats for lmax
+    n_sh_modes = (lmax + 1) ** 2  # Total SH modes (all m)
+    n_l_pairs = (lmax + 1) * (lmax + 2) // 2  # (l1, l2) pairs with l1 <= l2
+    n_bisp = lift_dim_full - lift_dim_baseline  # Bispectrum features (real+imag)
+
+    explanation = (
+        r'$\bf{SO(3)\ Bispectrum\ on\ S^2}$'
+        '\n\n'
+        r'$\bf{PDE:}$ Advected Swift-Hohenberg'
+        '\n'
+        r'$\partial_t f = rf - (1+\nabla^2)^2 f - f^3 + \Omega \partial_\phi f$'
+        '\n\n'
+        r'$\bf{Irrep\ Statistics:}$'
+        '\n'
+        f'• $\\ell_{{max}}$={lmax}, SH modes: {n_sh_modes}\n'
+        f'• $(\\ell_1,\\ell_2)$ pairs: {n_l_pairs}\n'
+        f'• Bispectrum values: {n_bisp // 2} complex\n'
+        f'• Improvement: {improvement:.1f}%'
+    )
+    ax_text.text(
+        0.05,
+        0.95,
+        explanation,
+        transform=ax_text.transAxes,
+        fontsize=11,
+        verticalalignment='top',
+        fontfamily='monospace',
+        bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.8},
+    )
+
+    # Middle right: Method comparison box
+    ax_method = fig.add_subplot(3, 4, 8)
+    ax_method.axis('off')
+    method_text = (
+        r'$\bf{SO(3)\ Bispectrum:}$'
+        '\n'
+        r'$B_{\ell_1\ell_2}^\ell = (F_{\ell_1} \otimes F_{\ell_2}) \cdot C_{\ell_1\ell_2}^\ell \cdot F_\ell^*$'
+        '\n'
+        '  Clebsch-Gordan coupling\n'
+        '  SO(3)-invariant features\n'
+        '\n'
+        r'$\bf{Lift\ Dimensions:}$'
+        '\n'
+        f'  Full: {lift_dim_full}→{lift_dim_pca} (PCA)\n'
+        f'  Baseline: {lift_dim_baseline} (SH only)\n'
+        '\n'
+        r'$\bf{Koopman:}$ $\Phi_{t+\Delta} = e^{L\Delta} \Phi_t$'
+        '\n'
+        '  L: antisymmetric generator\n'
+        '  One-step predictions'
+    )
+    ax_method.text(
+        0.05,
+        0.95,
+        method_text,
+        transform=ax_method.transAxes,
+        fontsize=10,
+        verticalalignment='top',
+        fontfamily='monospace',
+        bbox={'boxstyle': 'round', 'facecolor': 'lightblue', 'alpha': 0.8},
+    )
+
+    # Bottom row: MSE comparison plot
+    ax_mse = fig.add_subplot(3, 4, 9)
+    ax_mse.plot(all_times, all_mses, 'b-', linewidth=2.5, label='With Bispectrum')
+    ax_mse.plot(all_times, all_mses_baseline, 'r--', linewidth=2.5, label='No Bispectrum')
+    ax_mse.axvline(t, color='gray', linestyle=':', linewidth=2)
+    ax_mse.scatter([t], [mse], color='b', s=120, zorder=5, edgecolors='white', linewidth=2)
+    ax_mse.scatter(
+        [t], [mse_baseline], color='r', s=120, zorder=5, edgecolors='white', linewidth=2
+    )
+    ax_mse.set_xlabel('Time', fontsize=12)
+    ax_mse.set_ylabel('MSE', fontsize=12)
+    ax_mse.set_title('MSE Comparison: Bispectrum vs Baseline', fontsize=12, fontweight='bold')
+    ax_mse.legend(loc='upper right', fontsize=10)
+    ax_mse.grid(True, alpha=0.3)
+    ax_mse.set_xlim(all_times[0], all_times[-1])
+    ax_mse.set_ylim(0, max(max(all_mses), max(all_mses_baseline)) * 1.2)
+
+    # Bottom: Improvement over time
+    ax_imp = fig.add_subplot(3, 4, 10)
+    improvements = [
+        (mb - m) / mb * 100 if mb > 0 else 0
+        for m, mb in zip(all_mses, all_mses_baseline, strict=True)
+    ]
+    ax_imp.fill_between(all_times, improvements, alpha=0.3, color='green')
+    ax_imp.plot(all_times, improvements, 'g-', linewidth=2.5)
+    ax_imp.axvline(t, color='gray', linestyle=':', linewidth=2)
+    ax_imp.scatter(
+        [t], [improvement], color='green', s=120, zorder=5, edgecolors='white', linewidth=2
+    )
+    ax_imp.axhline(0, color='black', linestyle='-', linewidth=0.5)
+    ax_imp.set_xlabel('Time', fontsize=12)
+    ax_imp.set_ylabel('Improvement (%)', fontsize=12)
+    ax_imp.set_title('Bispectrum Improvement Over Baseline', fontsize=12, fontweight='bold')
+    ax_imp.grid(True, alpha=0.3)
+    ax_imp.set_xlim(all_times[0], all_times[-1])
+
+    # Bottom: Flat projections
+    ax_flat_truth = fig.add_subplot(3, 4, 11)
+    im_flat = ax_flat_truth.imshow(truth, cmap='RdBu_r', vmin=vmin, vmax=vmax, aspect='auto')
+    ax_flat_truth.set_title('Truth (Mercator)', fontsize=11)
+    ax_flat_truth.set_xlabel('Longitude')
+    ax_flat_truth.set_ylabel('Latitude')
+    fig.colorbar(im_flat, ax=ax_flat_truth, shrink=0.7)
+
+    ax_flat_pred = fig.add_subplot(3, 4, 12)
+    im_flat2 = ax_flat_pred.imshow(pred, cmap='RdBu_r', vmin=vmin, vmax=vmax, aspect='auto')
+    ax_flat_pred.set_title('With Bispectrum (Mercator)', fontsize=11)
+    ax_flat_pred.set_xlabel('Longitude')
+    fig.colorbar(im_flat2, ax=ax_flat_pred, shrink=0.7)
+
+    # Main title
+    plt.suptitle(
+        f'Koopman with SO(3) Bispectrum on S²    |    t = {t:.3f}    |    '
+        f'Bisp MSE: {mse:.2e}    |    Baseline MSE: {mse_baseline:.2e}',
+        fontsize=14,
+        fontweight='bold',
+        y=0.99,
+    )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
+    plt.savefig(out_path, dpi=100, bbox_inches='tight', facecolor='white')
+    plt.close()
+
+
 def run_ffmpeg(frames_dir: Path, out_mp4: Path) -> bool:
     """Stitch frames into MP4 using ffmpeg.
 
@@ -575,7 +894,7 @@ def run_ffmpeg(frames_dir: Path, out_mp4: Path) -> bool:
         str(out_mp4),
     ]
     try:
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run(cmd, check=True, capture_output=True)  # nosec B603 - cmd is fixed
         print(f'Saved animation to {out_mp4}')
         return True
     except FileNotFoundError:
@@ -593,7 +912,7 @@ def run_ffmpeg(frames_dir: Path, out_mp4: Path) -> bool:
 def main() -> None:
     """Run the toy Koopman bispectrum demo."""
     print('=' * 70)
-    print('Toy Koopman Bispectrum Demo')
+    print('Koopman with SO(3) Bispectrum on S² Demo')
     print('=' * 70)
 
     # Device selection
@@ -613,7 +932,9 @@ def main() -> None:
     # torch-harmonics uses lmax/mmax as the number of modes (0 to lmax-1)
     # So for max degree LMAX, we need lmax=LMAX+1
     sht = RealSHT(NLAT, NLON, lmax=LMAX + 1, mmax=LMAX + 1, grid='equiangular', norm='ortho')
-    isht = InverseRealSHT(NLAT, NLON, lmax=LMAX + 1, mmax=LMAX + 1, grid='equiangular', norm='ortho')
+    isht = InverseRealSHT(
+        NLAT, NLON, lmax=LMAX + 1, mmax=LMAX + 1, grid='equiangular', norm='ortho'
+    )
     sht = sht.to(device).double()
     isht = isht.to(device).double()
 
@@ -633,7 +954,9 @@ def main() -> None:
     # --- Validation: SHT round-trip ---
     print('\n[2] Validating SHT round-trip...')
     # Use function within bandwidth (l <= LMAX)
-    f_test = (torch.cos(theta) + 0.3 * torch.sin(theta) ** 2 * torch.cos(2 * phi)).squeeze().double()
+    f_test = (
+        (torch.cos(theta) + 0.3 * torch.sin(theta) ** 2 * torch.cos(2 * phi)).squeeze().double()
+    )
     coeffs_test = grid_to_sh(f_test, sht)
     f_recon = sh_to_grid(coeffs_test, isht).double()
     rel_error = torch.norm(f_recon - f_test) / torch.norm(f_test)
@@ -650,7 +973,9 @@ def main() -> None:
     # Convert to spectral space (simulation happens in spectral space)
     coeffs = grid_to_sh(f0_grid, sht)
     f0_grid = sh_to_grid(coeffs, isht)  # Bandlimited version
-    print(f'  f0 shape: {f0_grid.shape}, range: [{f0_grid.min().item():.3f}, {f0_grid.max().item():.3f}]')
+    print(
+        f'  f0 shape: {f0_grid.shape}, range: [{f0_grid.min().item():.3f}, {f0_grid.max().item():.3f}]'
+    )
 
     # --- PDE simulation ---
     print('\n[4] Simulating advected Swift-Hohenberg equation...')
@@ -687,85 +1012,168 @@ def main() -> None:
 
     print(f'  Collected {len(snapshots)} coarse snapshots')
 
-    # --- Build lifts ---
+    # --- Build lifts (with bispectrum and baseline without) ---
     print('\n[5] Building lifted feature vectors...')
+
+    # Full lift: SH + bispectrum
     lifts: list[torch.Tensor] = []
+    # Baseline lift: SH only (no bispectrum)
+    lifts_baseline: list[torch.Tensor] = []
+
     for snap in snapshots:
         coeffs = grid_to_sh(snap.double(), sht)
         lift = build_lift(coeffs, bsp_module, LAM)
         lifts.append(lift)
+        lift_baseline = build_lift_no_bispectrum(coeffs)
+        lifts_baseline.append(lift_baseline)
 
-    lift_dim = lifts[0].shape[0]
-    print(f'  Lift dimension: {lift_dim}')
+    lift_dim_full = lifts[0].shape[0]
+    lift_dim_baseline = lifts_baseline[0].shape[0]
+    print(f'  Full lift dimension (SH + Bispectrum): {lift_dim_full}')
+    print(f'  Baseline lift dimension (SH only): {lift_dim_baseline}')
 
-    # --- Train Koopman generator ---
-    print('\n[6] Training Koopman generator L...')
-    L = train_koopman_generator(lifts, DT_COARSE, GAMMA, LR, TRAIN_STEPS, device)
-    print(f'  L shape: {L.shape}, ||L||_F = {torch.norm(L).item():.4f}')
+    # --- PCA projection for full lifts (reduces overfitting) ---
+    print('\n[5b] Applying PCA to full lifts...')
+    lifts_stack = torch.stack(lifts, dim=0).float()  # [N, lift_dim_full]
 
-    # --- Substep predictions ---
-    print('\n[7] Generating substep predictions...')
-    # Pick a coarse interval in the middle for visualization
-    mid_idx = len(snapshots) // 2
-    phi_start = lifts[mid_idx].float()
+    # Center the data
+    lift_mean = lifts_stack.mean(dim=0)
+    lifts_centered = lifts_stack - lift_mean
 
-    substep_lifts = substep_rollout(phi_start, L, DT_COARSE, NUM_SUBSTEPS)
+    # Compute PCA via SVD
+    U, S, Vh = torch.linalg.svd(lifts_centered, full_matrices=False)
+    # Keep top PCA_DIM components
+    pca_dim = min(PCA_DIM, lift_dim_full, len(lifts))
+    V_pca = Vh[:pca_dim, :].T  # [lift_dim_full, pca_dim]
 
-    # Decode lifts to spatial fields
+    # Project lifts to PCA space
+    lifts_pca = [((lift.float() - lift_mean) @ V_pca) for lift in lifts]
+
+    # Compute variance explained
+    total_var = (S**2).sum().item()
+    explained_var = (S[:pca_dim] ** 2).sum().item()
+    var_ratio = explained_var / total_var * 100
+
+    print(f'  PCA: {lift_dim_full} -> {pca_dim} dims ({var_ratio:.1f}% variance explained)')
+    lift_dim = pca_dim  # Use PCA dimension for Koopman
+
+    # --- Train Koopman generators (on saturated regime only) ---
+    print('\n[6] Training Koopman generators...')
+    # Find index where training starts (after pattern saturation)
+    train_start_idx = int(T_TRAIN_START / DT_COARSE)
+    lifts_train = lifts_pca[train_start_idx:]  # Use PCA-projected lifts
+    lifts_train_baseline = lifts_baseline[train_start_idx:]
+    print(f'  Training on saturated regime: t >= {T_TRAIN_START} ({len(lifts_train)} snapshots)')
+
+    print('  [6a] Training WITH bispectrum (PCA-projected)...')
+    L = train_koopman_generator(lifts_train, DT_COARSE, GAMMA, LR, TRAIN_STEPS, device)
+    print(f'       L shape: {L.shape}, ||L||_F = {torch.norm(L).item():.4f}')
+
+    print('  [6b] Training WITHOUT bispectrum (baseline)...')
+    L_baseline = train_koopman_generator(
+        lifts_train_baseline, DT_COARSE, GAMMA, LR, TRAIN_STEPS, device
+    )
+    print(
+        f'       L_baseline shape: {L_baseline.shape}, ||L||_F = {torch.norm(L_baseline).item():.4f}'
+    )
+
+    # --- Generate predictions for saturated timeline ---
+    print('\n[7] Generating Koopman predictions for saturated regime...')
+
+    # Generate predictions using ONE-STEP Koopman from TRUE lifts
+    # This shows model accuracy without error compounding
     truth_fields: list[np.ndarray] = []
-    pred_fields: list[np.ndarray] = []
-    substep_times: list[float] = []
+    pred_fields: list[np.ndarray] = []  # With bispectrum (PCA)
+    pred_fields_baseline: list[np.ndarray] = []  # Without bispectrum
+    frame_times: list[float] = []
 
-    t_start = coarse_times[mid_idx]
-    delta = DT_COARSE / NUM_SUBSTEPS
+    # Precompute exp(L * dt) for one-step prediction
+    expLdt = torch.matrix_exp(L * DT_COARSE)
+    expLdt_baseline = torch.matrix_exp(L_baseline * DT_COARSE)
 
-    for j, lift_pred in enumerate(substep_lifts):
-        # Predicted field
-        coeffs_pred = lift_to_sh(lift_pred, LMAX, LMAX)
+    # Work with saturated regime snapshots only
+    snapshots_sat = snapshots[train_start_idx:]
+    times_sat = coarse_times[train_start_idx:]
+    lifts_sat_pca = lifts_pca[train_start_idx:]  # PCA-projected full lifts
+    lifts_sat_baseline = lifts_baseline[train_start_idx:]
+
+    for i, (snap, t) in enumerate(zip(snapshots_sat, times_sat, strict=True)):
+        # Truth: directly from simulation
+        truth_fields.append(snap.detach().cpu().numpy())
+        frame_times.append(t)
+
+        # Prediction WITH bispectrum (PCA): one-step from TRUE previous lift
+        if i == 0:
+            pred_lift_pca = lifts_sat_pca[0].float()
+            pred_lift_baseline = lifts_sat_baseline[0].float()
+        else:
+            # Predict from TRUE previous lift (in PCA space)
+            prev_lift_pca = lifts_sat_pca[i - 1].float()
+            pred_lift_pca = expLdt @ prev_lift_pca
+
+            prev_lift_baseline = lifts_sat_baseline[i - 1].float()
+            pred_lift_baseline = expLdt_baseline @ prev_lift_baseline
+
+        # Decode full prediction: PCA space -> original space -> SH coeffs
+        # Project back from PCA: pred_lift_full = pred_lift_pca @ V_pca.T + lift_mean
+        pred_lift_full = pred_lift_pca @ V_pca.T + lift_mean
+        coeffs_pred = lift_to_sh(pred_lift_full, LMAX, LMAX)
         f_pred = sh_to_grid(coeffs_pred, isht).detach().cpu().numpy()
         pred_fields.append(f_pred)
 
-        # True field: simulate from mid_idx snapshot in spectral space
-        t_sub = t_start + j * delta
-        substep_times.append(t_sub)
+        # Decode baseline prediction
+        coeffs_pred_baseline = lift_to_sh(pred_lift_baseline, LMAX, LMAX)
+        f_pred_baseline = sh_to_grid(coeffs_pred_baseline, isht).detach().cpu().numpy()
+        pred_fields_baseline.append(f_pred_baseline)
 
-        # Get true field at this substep time
-        coeffs_sub = grid_to_sh(snapshots[mid_idx], sht)
-        n_fine_steps = int(j * delta / DT_FINE)
-        for _ in range(n_fine_steps):
-            coeffs_sub = rk4_step_spectral(coeffs_sub, DT_FINE, rhs_fn)
-        f_true = sh_to_grid(coeffs_sub, isht)
-        truth_fields.append(f_true.detach().cpu().numpy())
+    print(
+        f'  Generated {len(frame_times)} frames from t={frame_times[0]:.2f} to t={frame_times[-1]:.2f}'
+    )
 
-    # --- Validation: intermediate prediction quality ---
-    print('\n[8] Validating intermediate predictions...')
-    mid_sub_idx = NUM_SUBSTEPS // 2
-    truth_mid = truth_fields[mid_sub_idx]
-    pred_mid = pred_fields[mid_sub_idx]
-    mse_koopman = np.mean((pred_mid - truth_mid) ** 2)
+    # --- Validation: prediction quality over time ---
+    print('\n[8] Validating predictions...')
+    mid_idx = len(frame_times) // 2
 
-    # Linear interpolation baseline
-    f_start_np = snapshots[mid_idx].detach().cpu().numpy()
-    f_end_np = snapshots[mid_idx + 1].detach().cpu().numpy()
-    f_linear = 0.5 * (f_start_np + f_end_np)
-    mse_linear = np.mean((f_linear - truth_mid) ** 2)
+    # With bispectrum
+    truth_mid = truth_fields[mid_idx]
+    pred_mid = pred_fields[mid_idx]
+    mse_mid = np.mean((pred_mid - truth_mid) ** 2)
+    mse_final = np.mean((pred_fields[-1] - truth_fields[-1]) ** 2)
 
-    print(f'  Midpoint MSE (Koopman): {mse_koopman:.6e}')
-    print(f'  Midpoint MSE (linear):  {mse_linear:.6e}')
-    if mse_koopman < mse_linear:
-        print('  Koopman beats linear interpolation!')
-    else:
-        print('  Note: Linear interpolation is competitive (normal for smooth dynamics)')
+    # Baseline (no bispectrum)
+    pred_mid_baseline = pred_fields_baseline[mid_idx]
+    mse_mid_baseline = np.mean((pred_mid_baseline - truth_mid) ** 2)
+    mse_final_baseline = np.mean((pred_fields_baseline[-1] - truth_fields[-1]) ** 2)
+
+    print('  WITH Bispectrum:')
+    print(f'    MSE at t={frame_times[mid_idx]:.2f} (midpoint): {mse_mid:.6e}')
+    print(f'    MSE at t={frame_times[-1]:.2f} (final): {mse_final:.6e}')
+    print('  WITHOUT Bispectrum (baseline):')
+    print(f'    MSE at t={frame_times[mid_idx]:.2f} (midpoint): {mse_mid_baseline:.6e}')
+    print(f'    MSE at t={frame_times[-1]:.2f} (final): {mse_final_baseline:.6e}')
+    improvement = (mse_final_baseline - mse_final) / mse_final_baseline * 100
+    print(f'  Bispectrum improvement: {improvement:.1f}% lower MSE')
 
     # --- Static comparison plot ---
     print('\n[9] Saving static comparison plot (sphere)...')
-    static_path = out_dir / f'comparison_t{substep_times[mid_sub_idx]:.4f}.png'
-    plot_comparison_sphere(truth_mid, pred_mid, substep_times[mid_sub_idx], static_path)
+    static_path = out_dir / f'comparison_t{frame_times[mid_idx]:.4f}.png'
+    plot_comparison_sphere(truth_mid, pred_mid, frame_times[mid_idx], static_path)
     print(f'  Saved: {static_path}')
 
-    # --- Animation frames ---
-    print('\n[10] Saving animation frames...')
-    save_animation_frames(truth_fields, pred_fields, substep_times, frames_dir)
+    # --- Animation frames (enhanced with metrics and baseline comparison) ---
+    print('\n[10] Saving animation frames with metrics...')
+    save_animation_frames_enhanced(
+        truth_fields,
+        pred_fields,
+        pred_fields_baseline,
+        frame_times,
+        frames_dir,
+        lift_dim,  # PCA dimension
+        lift_dim_full,  # Original full dimension
+        lift_dim_baseline,
+        var_ratio,  # PCA variance explained
+        LMAX,
+    )
 
     # --- Create MP4 ---
     print('\n[11] Creating MP4 animation...')
