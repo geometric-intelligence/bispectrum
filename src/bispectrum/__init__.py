@@ -4,6 +4,7 @@ __version__ = '0.1.0'
 
 from bispectrum.clebsch_gordan import clebsch_gordan
 from bispectrum.rotation import random_rotation_matrix, rotate_spherical_function
+from bispectrum.so2 import SO2onS2
 from bispectrum.so3 import SO3onS2
 from bispectrum.spherical import (
     bispectrum,
@@ -13,6 +14,7 @@ from bispectrum.spherical import (
 )
 
 __all__ = [
+    'SO2onS2',
     'SO3onS2',
     'bispectrum',
     'clebsch_gordan',
