@@ -10,8 +10,9 @@ from __future__ import annotations
 import importlib.resources
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -19,6 +20,86 @@ from bispectrum.spherical import compute_padding_indices, get_full_sh_coefficien
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+
+def _unwrap_npz_dict(value: np.ndarray | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if isinstance(value, np.ndarray) and value.shape == ():
+        item = value.item()
+        if isinstance(item, dict):
+            return item
+    if isinstance(value, dict):
+        return value
+    return None
+
+
+def _infer_npz_limits(
+    keys: list[str],
+    metadata: dict[str, Any] | None,
+    matrix_info: dict[str, Any] | None,
+) -> tuple[int, int]:
+    l1_max: int | None = None
+    l2_max: int | None = None
+
+    if metadata is not None:
+        if 'l1_max' in metadata:
+            l1_max = int(metadata['l1_max'])
+        if 'l2_max' in metadata:
+            l2_max = int(metadata['l2_max'])
+
+    if (l1_max is None or l2_max is None) and matrix_info:
+        l1_values = [int(info['l1']) for info in matrix_info.values()]
+        l2_values = [int(info['l2']) for info in matrix_info.values()]
+        if l1_values:
+            l1_max = max(l1_values)
+        if l2_values:
+            l2_max = max(l2_values)
+
+    if l1_max is None or l2_max is None:
+        l1_max = max(int(key.split('_')[0]) for key in keys)
+        l2_max = max(int(key.split('_')[1]) for key in keys)
+
+    return l1_max, l2_max
+
+
+def _load_cg_npz(cg_path: Path) -> tuple[dict[tuple[int, int], torch.Tensor], int, int]:
+    matrices: dict[tuple[int, int], torch.Tensor] = {}
+
+    with np.load(cg_path, allow_pickle=True) as data:
+        keys = [key for key in data.files if '_' in key and not key.startswith('_')]
+        metadata = _unwrap_npz_dict(data.get('_metadata'))
+        matrix_info = _unwrap_npz_dict(data.get('_matrix_info'))
+        l1_max, l2_max = _infer_npz_limits(keys, metadata, matrix_info)
+
+        for key in keys:
+            l1, l2 = (int(part) for part in key.split('_'))
+            matrices[(l1, l2)] = torch.tensor(data[key], dtype=torch.float64)
+
+    return matrices, l1_max, l2_max
+
+
+def _load_cg_json(cg_path: Path) -> tuple[dict[tuple[int, int], torch.Tensor], int, int]:
+    with open(cg_path) as f:
+        cg_data = json.load(f)
+
+    l1_max = int(cg_data['metadata']['l1_max'])
+    l2_max = int(cg_data['metadata']['l2_max'])
+    matrices = {}
+
+    for key, entry in cg_data['matrices'].items():
+        l1, l2 = (int(part) for part in key.split('_'))
+        matrices[(l1, l2)] = torch.tensor(entry['matrix'], dtype=torch.float64)
+
+    return matrices, l1_max, l2_max
+
+
+def _load_cg_matrices(cg_path: Path) -> tuple[dict[tuple[int, int], torch.Tensor], int, int]:
+    if cg_path.suffix == '.npz':
+        return _load_cg_npz(cg_path)
+    if cg_path.suffix == '.json':
+        return _load_cg_json(cg_path)
+    raise ValueError(f'Unsupported CG file type: {cg_path.suffix}')
 
 
 class SO2onS2(nn.Module):
@@ -29,27 +110,22 @@ class SO2onS2(nn.Module):
     F_l^m -> e^{-im alpha} F_l^m, so the m=0 component is invariant.
 
     Args:
-        lmax: Maximum spherical harmonic degree. Default is 5.
-        cg_path: Path to JSON file containing Clebsch-Gordan matrices.
-            If None, uses the bundled cg_lmax5.json file.
+        lmax: Maximum spherical harmonic degree. Default is 10.
+        cg_path: Path to .npz/.json file containing Clebsch-Gordan matrices.
+            If None, uses the bundled cg_lmax10.npz file.
     """
 
-    def __init__(self, lmax: int = 5, cg_path: str | Path | None = None) -> None:
+    def __init__(self, lmax: int = 10, cg_path: str | Path | None = None) -> None:
         super().__init__()
         self.lmax = lmax
 
         if cg_path is None:
-            cg_path = importlib.resources.files('bispectrum') / 'data' / 'cg_lmax5.json'
+            cg_path = importlib.resources.files('bispectrum') / 'data' / 'cg_lmax10.npz'
 
-        with open(cg_path) as f:
-            cg_data = json.load(f)
-
-        json_l1_max = cg_data['metadata']['l1_max']
-        json_l2_max = cg_data['metadata']['l2_max']
-        if lmax > json_l1_max or lmax > json_l2_max:
-            raise ValueError(
-                f'lmax={lmax} exceeds JSON limits (l1_max={json_l1_max}, l2_max={json_l2_max})'
-            )
+        cg_path = Path(cg_path)
+        matrices, l1_max, l2_max = _load_cg_matrices(cg_path)
+        if lmax > l1_max or lmax > l2_max:
+            raise ValueError(f'lmax={lmax} exceeds CG limits (l1_max={l1_max}, l2_max={l2_max})')
 
         self._index_map: list[tuple[int, int, int]] = []
         for l1 in range(lmax + 1):
@@ -62,9 +138,9 @@ class SO2onS2(nn.Module):
 
         for l1 in range(lmax + 1):
             for l2 in range(l1, lmax + 1):
-                key = f'{l1}_{l2}'
-                matrix_data = cg_data['matrices'][key]['matrix']
-                matrix = torch.tensor(matrix_data, dtype=torch.float64)
+                matrix = matrices.get((l1, l2))
+                if matrix is None:
+                    raise KeyError(f'Missing CG matrix for (l1={l1}, l2={l2}) in {cg_path}')
                 self.register_buffer(f'cg_{l1}_{l2}', matrix)
 
     @property
@@ -85,7 +161,7 @@ class SO2onS2(nn.Module):
         """Compute SO(2)-invariant bispectrum for input SH coefficients.
 
         Args:
-            coeffs: Complex tensor of shape (batch, lmax, mmax) containing
+            coeffs: Complex tensor of shape (batch, lmax + 1, mmax) containing
                 SH coefficients for m >= 0 (output of RealSHT).
 
         Returns:

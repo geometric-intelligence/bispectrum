@@ -23,14 +23,14 @@ def get_full_sh_coefficients(
 ) -> dict[int, torch.Tensor]:
     """Extend SHT output to include negative m values.
 
-    From coeffs of shape (batch, lmax, mmax) for m >= 0,
+    From coeffs of shape (batch, lmax + 1, mmax) for m >= 0,
     build full coefficients for m in [-l, l] for each l.
 
     Uses the symmetry relation for real functions:
         F_l^{-m} = (-1)^m * conj(F_l^m)
 
     Args:
-        coeffs_positive_m: Complex tensor of shape (batch, lmax, mmax)
+        coeffs_positive_m: Complex tensor of shape (batch, lmax + 1, mmax)
             containing SH coefficients for m >= 0 from RealSHT.
 
     Returns:

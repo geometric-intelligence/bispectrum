@@ -13,7 +13,7 @@ class TestSO3onS2:
     def test_instantiation(self):
         """Test that SO3onS2 can be instantiated with default parameters."""
         bsp = SO3onS2()
-        assert bsp.lmax == 5
+        assert bsp.lmax == 10
         assert bsp.output_size > 0
 
     def test_instantiation_custom_lmax(self):
@@ -21,9 +21,9 @@ class TestSO3onS2:
         bsp = SO3onS2(lmax=3)
         assert bsp.lmax == 3
 
-    def test_lmax_exceeds_json_raises(self):
-        """Test that lmax exceeding JSON limits raises ValueError."""
-        with pytest.raises(ValueError, match='exceeds JSON limits'):
+    def test_lmax_exceeds_cg_raises(self):
+        """Test that lmax exceeding CG limits raises ValueError."""
+        with pytest.raises(ValueError, match='exceeds CG limits'):
             SO3onS2(lmax=100)
 
     def test_index_map_structure(self):

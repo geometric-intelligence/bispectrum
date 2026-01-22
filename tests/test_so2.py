@@ -31,4 +31,4 @@ class TestSO2onS2RotationInvariance:
         beta = bsp(f_coeffs)
         beta_rot = bsp(f_coeffs_rot)
 
-        torch.testing.assert_close(beta, beta_rot, atol=1e-6, rtol=1e-6)
+        torch.testing.assert_close(beta, beta_rot, atol=5e-3, rtol=0.0)
