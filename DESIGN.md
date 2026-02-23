@@ -175,9 +175,9 @@ Signal $f: S^2 \to \mathbb{R}$. Group $\mathrm{SO}(3)$ acts by 3D rotation.
 
 **Bispectrum formula** [Kakarala 1992, Cohen et al.]:
 
-$$\beta(f)_{l_1, l_2}[l] = \bigl(\mathcal{F}_{l_1} \otimes \mathcal{F}_{l_2}\bigr)\, C_{l_1, l_2}\, \hat{\mathcal{F}}_l^\dagger$$
+$$\beta(f)_{l_1, l_2}^{(l)} = \bigl(\mathcal{F}_{l_1} \otimes \mathcal{F}_{l_2}\bigr)\, C_{l_1, l_2}^{(l)}\, \mathcal{F}_l^\dagger$$
 
-where $\mathcal{F}_l$ are spherical harmonic coefficients and $C_{l_1,l_2}$ are Clebsch-Gordan matrices.
+where $\mathcal{F}_l$ are spherical harmonic coefficients and $C_{l_1, l_2}^{(l)}$ are Clebsch-Gordan matrices.
 
 **Usage:**
 ```python
@@ -289,7 +289,7 @@ The bispectrum is complex-valued. But for use as neural network features, users 
 
 *Lean toward*: return complex, document clearly. Real conversion is one line.
 
-**Q3: $\mathrm{SO}(3)\text{onS}^2$ grid parameters**
+**Q3: $\mathrm{SO}(3)\text{ on }S^2$ grid parameters**
 Should `nlat` and `nlon` be constructor params (pre-initialize SHT) or inferred from input at forward time?
 *Lean toward*: constructor params for efficiency (SHT is precomputed at init).
 
@@ -309,7 +309,7 @@ The inversion algorithms (recovering $f$ from $\beta$) are mathematically signif
 |---|---|---|
 | `SO3onS2(lmax=5)(coeffs)` | `SO3onS2(lmax=5, nlat=64, nlon=128)(f_spatial)` | Now takes spatial signal |
 | `bispectrum(f_coeffs, l1, l2, cg_fn)` | Removed | Use `SO3onS2` module |
-| `clebsch_gordan(l1, l2)` | Removed | Use `escnn` if needed |
+| `clebsch_gordan(l1, l2)` | Removed | Internal; use bundled `cg_lmax5.json` |
 | `compute_padding_indices(...)` | Removed (internal) | |
 | `pad_sh_coefficients(...)` | Removed (internal) | |
 | `get_full_sh_coefficients(...)` | Removed (internal) | |
