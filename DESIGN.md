@@ -203,6 +203,56 @@ SO3onS2(
 
 ---
 
+## Selectivity Roadmap
+
+The central value proposition of the library is the *selective* G-bispectrum: a minimal subset of bispectral pairs $(\rho_1, \rho_2)$ that suffices for complete signal reconstruction, reducing coefficient count from $O(|G|^2)$ to $O(|G|)$.
+
+This is proven for finite groups only. The table below tracks the current state across all group/domain combinations of interest.
+
+| Class | Group | Domain | Selective? | Inversion? | Status |
+|---|---|---|---|---|---|
+| `CnonZn` | $C_n$ | $\mathbb{Z}/n\mathbb{Z}$ | ✅ $n$ coefficients | ✅ Algorithm 1 | Implementing |
+| `DnonR2` | $D_n$ | $\mathbb{R}^2$ | ✅ $\lfloor(n{-}1)/2\rfloor{+}2$ matrix coefs | ✅ Algorithm 3 | Implementing |
+| `OonR3` | $O$ | $\mathbb{R}^3$ | ✅ 4 matrix coefs (paper App. B) | ✅ | Planned |
+| — | All commutative $G$ | $G$ | ✅ $\|G\|$ coefs | ✅ Algorithm 2 | — |
+| `SO3onS2` | $\mathrm{SO}(3)$ | $S^2$ | ❌ Full only | ❌ | **Open problem** |
+| — | $\mathrm{SO}(2)$ | $S^1 \times \mathbb{R}_{+}^{*}$ (disk) | ❌ Full only | ❌ | Open problem |
+| — | $\mathrm{SO}(3)$ | $S^2 \times \mathbb{R}_{+}^{*}$ (ball) | ❌ Full only | ❌ | Open problem |
+| — | Compact $G$ | $G$ | ❌ Full only | ❌ | Open problem |
+| — | Homogeneous $(H, G)$ | $H = G/G_0$ | ❌ Full only | ❌ | Open problem |
+
+Sources: Mataigne et al. 2024 for all ✅ entries; "Bispectral Signatures of Data" (internal draft) for the full-bispectrum formulas of the remaining cases.
+
+### Mathematical TODOs
+
+The following are open mathematical problems whose solutions would directly extend the library:
+
+**TODO-M1: Selective bispectrum for $\mathrm{SO}(3)$ on $S^2$**
+
+The full bispectrum $\beta(f)_{l_1, l_2}^{(l)}$ involves all triples $(l_1, l_2, l)$ with $|l_1 - l_2| \leq l \leq l_1 + l_2$, giving $O(l_\mathrm{max}^3)$ coefficients. A selective version would identify the minimal set of $(l_1, l_2)$ pairs needed for inversion. The Kronecker product rule for $\mathrm{SO}(3)$ is:
+
+$$\rho_{l_1} \otimes \rho_{l_2} = \bigoplus_{l=|l_1-l_2|}^{l_1+l_2} \rho_l$$
+
+The challenge: $\mathrm{SO}(3)$ has infinitely many irreps $\{\rho_0, \rho_1, \rho_2, \ldots\}$ and the BFS on irreps (used for finite groups) does not terminate. A truncated/approximate selective version with guaranteed reconstruction error bounds would be a meaningful contribution.
+
+**TODO-M2: Selective bispectrum for $\mathrm{SO}(2)$ on the disk $S^1 \times \mathbb{R}_{+}^{*}$**
+
+Fourier coefficients are indexed by $(m, n)$ (angular frequency $m$, radial zero $n$) via the Fourier-Bessel transform $F(f)_{nm} \propto \int f(r,\theta) J_m(2\pi l_{nm} r) e^{-im\theta} r\, dr\, d\theta$. The bispectrum is:
+
+$$\beta(f)_{(m_1, n_1),(m_2, n_2)} = F(f)_{m_1 n_1} \cdot F(f)_{m_2 n_2} \cdot F(f)^*_{(m_1+m_2), n_{12}}$$
+
+($\mathrm{SO}(2)$ is commutative, so no CG needed.) A selective version analogous to $C_n$ — exploiting the same cyclic structure in the angular index $m$ — likely exists.
+
+**TODO-M3: Selective bispectrum for $\mathrm{SO}(3)$ on the ball $S^2 \times \mathbb{R}_{+}^{*}$**
+
+Same challenge as TODO-M1 plus the radial dimension. The bispectrum formula is identical to the $S^2$ case (same equivariance); selectivity is the open question.
+
+**TODO-M4: Inversion algorithms for continuous groups**
+
+For finite groups, inversion follows from recovering each $F(f)_\rho$ via a bootstrap from the trivial representation. For compact/continuous groups (where irreps are infinite-dimensional in the $l \to \infty$ limit), the analogous reconstruction strategy needs to contend with truncation and stability. Conditioning of the bootstrap in the presence of $l_\mathrm{max}$ truncation is the key question.
+
+---
+
 ## Public API Surface
 
 The top-level `bispectrum` namespace exposes only what a user needs:
