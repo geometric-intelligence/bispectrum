@@ -106,7 +106,10 @@ Signal $f: \mathbb{Z}/n\mathbb{Z} \to \mathbb{R}$. Group $C_n$ acts by cyclic sh
 
 $$\beta(f)_{k_1, k_2} = \hat{f}_{k_1} \cdot \hat{f}_{k_2} \cdot \hat{f}^*_{k_1 + k_2 \bmod n}$$
 
-where $\hat{f}_k = \sum_{x=0}^{n-1} f(x)\, e^{-i \frac{2\pi k x}{n}}$  is the DFT.
+where:
+$$ \hat{f}_k = \sum_{x=0}^{n-1} f(x)\, e^{-i \frac{2\pi k x}{n}} $$
+
+is the DFT.
 
 **Selective coefficients** (Algorithm 1, [Mataigne et al. 2024]):
 Full bispectrum has $n^2$ coefficients. Selective version needs only $n$:
