@@ -217,7 +217,13 @@ from bispectrum import random_rotation_matrix, rotate_spherical_function
 - `compute_padding_indices`, `pad_sh_coefficients`, `get_full_sh_coefficients` (SO(3) internals)
 - Any `_private` helper functions
 
-If users need Clebsch-Gordan matrices directly, they should use the `escnn` library.
+We do not depend on `escnn` or any external library for Clebsch-Gordan coefficients. Instead:
+
+- **$C_n$**: No CG matrices needed. The bispectrum for commutative groups reduces to scalar products — no change-of-basis required.
+- **$D_n$**: CG matrices are computed analytically from the explicit 2D irrep formulas (given in the paper). These are closed-form rotation matrices; no library is needed.
+- **$\mathrm{SO}(3)$**: CG matrices are pre-computed and stored as a bundled JSON file (`data/cg_lmax5.json`). A generation script is provided so users can extend to higher $l_\mathrm{max}$ if needed.
+
+This keeps the dependency footprint minimal and makes the math transparent — CG coefficients are computed from first principles, not treated as a black box.
 
 ---
 
