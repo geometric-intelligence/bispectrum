@@ -1,7 +1,7 @@
 # Bispectrum Module — API Design Document
 
 **Status**: Draft for discussion
-**Authors**: Johan Mathe, Gauss
+**Authors**: Johan Mathe
 **Date**: 2026-02-23
 
 ---
