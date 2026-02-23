@@ -18,6 +18,18 @@ This document specifies the API design for the `bispectrum` Python module. The g
 2. **`nn.Module` only.** No parallel functional APIs. One way to compute a bispectrum.
 3. **Naming encodes the math.** Class names follow `{Group}on{Domain}` — a reader unfamiliar with the codebase can immediately identify the group and the domain it acts on.
 4. **Raw signals in.** Modules take real-valued signals in the natural domain (spatial, discrete cycle, etc.) and handle the Fourier transform internally. This keeps the interface clean and the math self-contained.
+
+   *This is a breaking change for `SO3onS2`.* The current v0.1.0 implementation accepts pre-computed spherical harmonic coefficients (output of `RealSHT`) rather than raw spatial signals. We are proposing to change this so that `SO3onS2` — like all other modules — accepts a raw spatial signal `f: (batch, nlat, nlon)` and handles the SHT internally.
+
+   **Why this breaks things:** Any existing code that pre-computes SH coefficients and passes them directly to `SO3onS2.forward()` will break. The module will also need `nlat` and `nlon` as constructor arguments so it can pre-initialize the `RealSHT` transform.
+
+   **Why it's better this way:**
+   - *Consistency*: all modules in the library share the same contract. A user switching from `CnonZn` to `SO3onS2` doesn't need to learn a different calling convention.
+   - *Encapsulation*: the Fourier transform is an implementation detail of the bispectrum computation, not something the user should have to manage. Exposing it forces the user to know which transform corresponds to which group — exactly the knowledge the library should abstract away.
+   - *Correctness by default*: the current interface accepts any complex tensor of the right shape, with no guarantee it came from `RealSHT`. With raw signals in, the module owns the full pipeline and can guarantee its own preconditions.
+   - *Easier testing*: invariance tests become simpler — generate a random spatial signal, rotate it spatially, check bispectrum matches. No need to manage SHT objects in test code.
+
+   The trade-off is a small loss of flexibility for advanced users who may want to supply pre-computed coefficients (e.g., from a different SHT library). This can be addressed if needed by exposing an internal `_forward_from_coeffs()` method, clearly marked as non-public API.
 5. **float32 throughout.** For compatibility with GPU training pipelines.
 6. **Minimal dependencies.** Don't add a dependency if standard PyTorch/numpy can do the job.
 7. **Code is the math documentation.** Every module docstring references the exact paper theorem it implements. Every non-obvious operation cites an equation number.
