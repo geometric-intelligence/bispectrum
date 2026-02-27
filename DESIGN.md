@@ -24,7 +24,7 @@ This document specifies the API design for the `bispectrum` Python module. The g
    **Why this breaks things:** Any existing code that pre-computes SH coefficients and passes them directly to `SO3onS2.forward()` will break. The module will also need `nlat` and `nlon` as constructor arguments so it can pre-initialize the `RealSHT` transform.
 
    **Why it's better this way:**
-   - *Consistency*: all modules in the library share the same contract. A user switching from `CnonZn` to `SO3onS2` doesn't need to learn a different calling convention.
+   - *Consistency*: all modules in the library share the same contract. A user switching from `CnonCn` to `SO3onS2` doesn't need to learn a different calling convention.
    - *Encapsulation*: the Fourier transform is an implementation detail of the bispectrum computation, not something the user should have to manage. Exposing it forces the user to know which transform corresponds to which group — exactly the knowledge the library should abstract away.
    - *Correctness by default*: the current interface accepts any complex tensor of the right shape, with no guarantee it came from `RealSHT`. With raw signals in, the module owns the full pipeline and can guarantee its own preconditions.
    - *Easier testing*: invariance tests become simpler — generate a random spatial signal, rotate it spatially, check bispectrum matches. No need to manage SHT objects in test code.
@@ -43,10 +43,10 @@ Groups act on domains. Both matter. The class name encodes both, in mathematical
 
 | Class | Group | Domain | Description |
 |---|---|---|---|
-| `CnonZn` | $C_n$ | $\mathbb{Z}/n\mathbb{Z}$ | Cyclic rotations on a discrete cycle |
-| `DnonR2` | $D_n$ | $\mathbb{R}^2$ | Dihedral symmetries (rotations + reflections) on 2D plane |
+| `CnonCn` | $C_n$ | $C_n$ | Cyclic group acting on itself (discrete cycle) |
+| `DnonDn` | $D_n$ | $D_n$ | Dihedral group acting on itself |
 | `SO3onS2` | $\mathrm{SO}(3)$ | $S^2$ | 3D rotations on the 2-sphere |
-| `OonR3` | $O$ | $\mathbb{R}^3$ | Octahedral symmetries on 3D space *(future)* |
+| `OonR3` | $O$ (octahedral group) | $\mathbb{R}^3$ | Octahedral symmetries on 3D space *(future)* |
 
 This convention is deliberately mathematical rather than verbal (`CyclicBispectrum`, etc.) because the mathematical name carries precise meaning and avoids ambiguity as the library grows.
 
@@ -76,6 +76,13 @@ class {Group}on{Domain}(nn.Module):
             Complex bispectrum tensor. Shape: (batch, output_size).
         """
 
+    def invert(self, beta: torch.Tensor, **kwargs) -> torch.Tensor:
+        """Attempt inversion from bispectrum coefficients.
+
+        Default behavior can raise NotImplementedError for modules
+        where inversion is not yet available.
+        """
+
     @property
     def output_size(self) -> int:
         """Number of bispectral coefficients in the output."""
@@ -97,7 +104,7 @@ class {Group}on{Domain}(nn.Module):
 
 ## Implemented Modules
 
-### `CnonZn(n: int)` — Cyclic group $C_n$ on $\mathbb{Z}/n\mathbb{Z}$
+### `CnonCn(n: int)` — Cyclic group $C_n$ on $\mathbb{Z}/n\mathbb{Z}$
 
 **Mathematical setting:**
 Signal $f: \mathbb{Z}/n\mathbb{Z} \to \mathbb{R}$. Group $C_n$ acts by cyclic shift: $(T_g f)(x) = f(x - g \bmod n)$.
@@ -120,7 +127,7 @@ These suffice for complete inversion (recovering $f$ up to cyclic shift).
 
 **Usage:**
 ```python
-bsp = CnonZn(n=8)
+bsp = CnonCn(n=8)
 f = torch.randn(batch_size, 8)          # signal on Z/8Z, shape (batch, n)
 output = bsp(f)                          # shape (batch, output_size), complex64
 
@@ -130,7 +137,7 @@ print(bsp.index_map)                     # [(0,0), (0,1), (1,1), (1,2), ...]
 
 **Constructor parameters:**
 ```python
-CnonZn(
+CnonCn(
     n: int,                # Group order / signal length
     selective: bool = True # Use selective O(n) or full O(n²) bispectrum
 )
@@ -138,7 +145,7 @@ CnonZn(
 
 ---
 
-### `DnonR2(n: int)` — Dihedral group $D_n$ on $\mathbb{R}^2$
+### `DnonDn(n: int)` — Dihedral group $D_n$ on $D_n$
 
 **Mathematical setting:**
 Signal $f: G \to \mathbb{R}$ where $G = D_n = \langle a, x \mid a^n = x^2 = e,\ xax = a^{-1} \rangle$.
@@ -156,14 +163,14 @@ Only $\lfloor(n-1)/2\rfloor + 2$ matrix-valued bispectral coefficients needed, c
 
 **Usage:**
 ```python
-bsp = DnonR2(n=4)
+bsp = DnonDn(n=4)
 f = torch.randn(batch_size, 8)          # signal on D_4 (|D_4| = 2n = 8), shape (batch, 2n)
 output = bsp(f)                          # shape (batch, output_size), complex64
 ```
 
 **Constructor parameters:**
 ```python
-DnonR2(
+DnonDn(
     n: int,                # Polygon order (|D_n| = 2n)
     selective: bool = True
 )
@@ -178,7 +185,7 @@ Signal $f: S^2 \to \mathbb{R}$. Group $\mathrm{SO}(3)$ acts by 3D rotation.
 
 **Bispectrum formula** [Kakarala 1992, Cohen et al.]:
 
-$$\beta(f)_{l_1, l_2}^{(l)} = \bigl(\mathcal{F}_{l_1} \otimes \mathcal{F}_{l_2}\bigr)\, C_{l_1, l_2}^{(l)}\, \mathcal{F}_l^\dagger$$
+$$\beta(f)_{l_1, l_2}^{(l)} = \bigl(\mathcal{F}_{l_1} \otimes \mathcal{F}_{l_2}\bigr) \cdot C_{l_1, l_2}^{(l)} \cdot \mathcal{F}_l^\dagger$$
 
 where $\mathcal{F}_l$ are the degree-$l$ SH coefficient matrices and $C$ denotes the Clebsch-Gordan matrices for $\mathrm{SO}(3)$.
 
@@ -207,12 +214,12 @@ SO3onS2(
 
 The central value proposition of the library is the *selective* G-bispectrum: a minimal subset of bispectral pairs $(\rho, \sigma)$ that suffices for complete signal reconstruction, reducing coefficient count from $O(\lvert G\rvert^2)$ to $O(\lvert G\rvert)$.
 
-This is proven for finite groups only. The table below tracks the current state across all group/domain combinations of interest.
+This is proven for finite groups only. Here, `O` denotes the finite octahedral rotation group (not the full orthogonal group). The table below tracks the current state across all group/domain combinations of interest.
 
 | Class | Group | Domain | Selective? | Inversion? | Status |
 |---|---|---|---|---|---|
-| `CnonZn` | $C_n$ | $\mathbb{Z}/n\mathbb{Z}$ | ✅ $n$ coefficients | ✅ Algorithm 1 | Implementing |
-| `DnonR2` | $D_n$ | $\mathbb{R}^2$ | ✅ $\lfloor(n{-}1)/2\rfloor{+}2$ matrix coefs | ✅ Algorithm 3 | Implementing |
+| `CnonCn` | $C_n$ | $C_n$ | ✅ $n$ coefficients | ✅ Algorithm 1 | Implementing |
+| `DnonDn` | $D_n$ | $D_n$ | ✅ $\lfloor(n{-}1)/2\rfloor{+}2$ matrix coefs | ✅ Algorithm 3 | Implementing |
 | `OonR3` | $O$ | $\mathbb{R}^3$ | ✅ 4 matrix coefs (paper App. B) | ✅ | Planned |
 | — | All commutative $G$ | $G$ | ✅ $\lvert G \rvert$ coefs | ✅ Algorithm 2 | — |
 | `SO3onS2` | $\mathrm{SO}(3)$ | $S^2$ | ❌ Full only | ❌ | **Open problem** |
@@ -263,7 +270,7 @@ The top-level `bispectrum` namespace exposes only what a user needs:
 
 ```python
 # Main modules
-from bispectrum import CnonZn, DnonR2, SO3onS2
+from bispectrum import CnonCn, DnonDn, SO3onS2
 
 # Rotation utilities (useful for testing/data augmentation)
 from bispectrum import random_rotation_matrix, rotate_spherical_function
@@ -289,16 +296,16 @@ This keeps the dependency footprint minimal and makes the math transparent — C
 ```
 src/bispectrum/
 ├── __init__.py          # Public exports only
-├── cyclic.py            # CnonZn
-├── dihedral.py          # DnonR2
-├── so3.py               # SO3onS2 (refactored)
+├── cn_on_cn.py          # CnonCn
+├── dn_on_dn.py          # DnonDn
+├── so3_on_s2.py         # SO3onS2 (refactored)
 ├── rotation.py          # random_rotation_matrix, rotate_spherical_function
 └── _cg.py               # Internal CG utilities (not exported)
 ```
 
 Old files to remove/consolidate:
 - `clebsch_gordan.py` → merge into `_cg.py` (internal)
-- `spherical.py` → fold into `so3.py`
+- `spherical.py` → fold into `so3_on_s2.py`
 
 ---
 
@@ -314,13 +321,16 @@ Every bispectrum module must have tests for:
 5. **No trainable parameters** — `sum(p.numel() for p in bsp.parameters()) == 0`
 6. **Numerical precision** — invariance holds to `atol=1e-4` in float32
 
-For `CnonZn` additionally:
-7. **Inversion test** — run Algorithm 1 inversion, check reconstruction error
+For every module where inversion is mathematically available:
+7. **Inversion test** — call `bsp.invert(beta)` and check reconstruction error up to the known group-action indeterminacy.
+
+For modules where inversion is not yet available (e.g., current SO(3) selective roadmap):
+8. **Explicit NotImplemented test** — ensure `bsp.invert(...)` raises a clear, documented `NotImplementedError`.
 
 ```python
 # Example: canonical invariance test pattern
 def test_invariance(self):
-    bsp = CnonZn(n=8)
+    bsp = CnonCn(n=8)
     f = torch.randn(4, 8)
     shift = 3  # arbitrary cyclic shift
     f_shifted = torch.roll(f, shift, dims=-1)
@@ -350,13 +360,12 @@ The bispectrum is complex-valued. But for use as neural network features, users 
 Should `nlat` and `nlon` be constructor params (pre-initialize SHT) or inferred from input at forward time?
 *Lean toward*: constructor params for efficiency (SHT is precomputed at init).
 
-**Q4: Inversion as a separate method or separate class?**
-The inversion algorithms (recovering $f$ from $\beta$) are mathematically significant. Options:
-- `bsp.invert(beta)` method on the module
-- Separate `CnonZnInverter` class
-- Standalone function `cyclic_inversion(beta, n)`
+**Q4: Inversion API shape**
+Decision: expose inversion on-module as `bsp.invert(beta, **kwargs)` for consistency and testability.
 
-*No strong preference — open for discussion.*
+- For implemented inversion cases, return reconstructed signal (up to known group-action indeterminacy).
+- For not-yet-implemented cases, raise a precise `NotImplementedError` with guidance.
+- Optional low-level standalone inversion functions can remain internal/private.
 
 ---
 
