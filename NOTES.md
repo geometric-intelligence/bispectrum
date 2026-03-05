@@ -10,7 +10,7 @@ coefficients — no CG matrices, no matrix algebra. The only subtlety is in
 inversion:
 
 - **SO(2) vs C_n indeterminacy**: The phase of F(rho_1) is fixed to 0 during
-  inversion (Algorithm 1, step 2). This absorbs not just discrete C_n shifts
+  inversion (Algorithm 2, step 2). This absorbs not just discrete C_n shifts
   but a *continuous* SO(2) rotation. The recovered signal is related to the
   original by a continuous cyclic shift, not necessarily an integer one. This
   means `ifft(fhat_recovered)` is complex, not real. Tests compare DFT
@@ -53,7 +53,7 @@ standard form and the bispectrum formula gives wrong results.
 
 ### Bispectrum formula (forward pass)
 
-The non-commutative bispectrum (Theorem 3.1) is:
+The non-commutative bispectrum (Theorem 2.3) is:
 
 ```
 beta_{rho1,rho2} = [F(rho1) x F(rho2)] C [oplus F(rho)^T] C^T
@@ -84,7 +84,7 @@ does an einsum. This can be replaced with two calls to `torch.fft.fft` (O(n log 
 by observing that each entry of the 2x2 Fourier coefficient matrix is a linear
 combination of Re/Im parts of the standard FFT. See the FFT plan for details.
 
-### Inversion (Algorithm 3)
+### Inversion (Algorithm 4)
 
 **Step 1 — F(rho_0)**: Same as cyclic case. F(rho_0) = sign(b00) * |b00|^{1/3}.
 
@@ -167,6 +167,7 @@ are genuinely in different orbits, e.g. [1,1,0,...,0].
 - Use float64 for inversion tests. The eigendecomposition and matrix inversions
   accumulate error quickly in float32.
 - Understand the group orbits before writing "different signals differ" tests.
-- The paper has a typo in Eq. 14 / Algorithm 3: `beta_{rho1,rho2}` in the loop
-  body should be `beta_{rho1,rho_{k-1}}`. The code in g-invariance handles this
-  correctly despite the paper typo.
+- The paper (NeurIPS 2024 version) has a typo in Eq. (eq:new_coeff_dihedral)
+  and Algorithm 4: `beta_{rho1,rho2}` in the loop body should be
+  `beta_{rho1,rho_{k-1}}`. The code in g-invariance handles this correctly
+  despite the paper typo.

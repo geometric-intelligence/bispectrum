@@ -7,7 +7,7 @@ For signal f: Z/nZ -> R:
 
 where f_hat is the DFT of f.
 
-Reference: Kakarala (2009), Mataigne et al. (2024) Algorithms 1-2.
+Reference: Kakarala (2009), Mataigne et al. (2024) Algorithms 2-3.
 """
 
 import torch
@@ -20,9 +20,9 @@ class CnonCn(nn.Module):
     C_n is commutative, so no Clebsch-Gordan matrices are needed — the
     bispectrum reduces to scalar triple products of DFT coefficients.
 
-    Reference: Mataigne et al., "Efficient, Complete G-Invariance for
-    G-Equivariant Networks via Algorithmic Reduction", ICML 2024.
-    Forward uses Theorem 3.2; inversion uses Algorithm 1 (Sec. 4.1.1).
+    Reference: Mataigne et al., "The Selective G-Bispectrum and its Inversion:
+    Applications to G-Invariant Networks", NeurIPS 2024.
+    Forward uses Theorem 4.1; inversion uses Algorithm 2 (Appendix C).
 
     Args:
         n: Group order / signal length.
@@ -91,7 +91,7 @@ class CnonCn(nn.Module):
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
         """Recover the signal from selective bispectrum coefficients.
 
-        Implements Algorithm 1 (Sec. 4.1.1) from Mataigne et al., ICML 2024.
+        Implements Algorithm 2 (Appendix C) from Mataigne et al., NeurIPS 2024.
         The recovered signal is determined up to a continuous SO(2) phase
         indeterminacy (not just discrete C_n shifts).
 
