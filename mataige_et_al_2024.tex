@@ -1,0 +1,816 @@
+%%%%%%%% ICML 2024 EXAMPLE LATEX SUBMISSION FILE %%%%%%%%%%%%%%%%%
+
+\documentclass{article}
+
+% Recommended, but optional, packages for figures and better typesetting:
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{multirow}
+\usepackage{booktabs} % for professional tables
+
+% hyperref makes hyperlinks in the resulting PDF.
+% If your build breaks (sometimes temporarily if a hyperlink spans a page)
+% please comment out the following usepackage line and replace
+% \usepackage{icml2024} with \usepackage[nohyperref]{icml2024} above.
+\usepackage{hyperref}
+
+
+% Attempt to make hyperref and algorithmic work together better:
+\newcommand{\theHalgorithm}{\arabic{algorithm}}
+
+% Use the following line for the initial blind version submitted for review:
+%\usepackage{icml2024}
+
+% If accepted, instead use the following line for the camera-ready submission:
+\usepackage[accepted]{icml2024}
+
+% For theorems and such
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+
+%added packages
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+% if you use cleveref..
+\usepackage[capitalize,noabbrev]{cleveref}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% THEOREMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\simcom}[1]{\textcolor{blue}{[SM: #1]}}
+\newcommand{\kbf}{\mathbf{k}}
+\newcommand{\ebf}{\mathbf{e}}
+
+% Todonotes is useful during development; simply uncomment the next line
+%    and comment out the line below the next line to turn off comments
+%\usepackage[disable,textsize=tiny]{todonotes}
+\usepackage[textsize=tiny]{todonotes}
+
+
+% The \icmltitle you define below is probably too long as a header.
+% Therefore, a short form for the running title is supplied here:
+% \icmltitlerunning{Efficient, Complete G-Invariance for G-Equivariant Networks via Algorithmic Reduction}
+\icmltitlerunning{Fast and Complete G-Invariance via Novel Algorithmic Reduction of the G-Bispectrum on Finite Groups}
+
+\begin{document}
+
+\twocolumn[
+\icmltitle{Efficient, Complete G-Invariance for G-Equivariant Networks \\ via Algorithmic Reduction}
+
+% It is OKAY to include author information, even for blind
+% submissions: the style file will automatically remove it for you
+% unless you've provided the [accepted] option to the icml2024
+% package.
+
+% List of affiliations: The first argument should be a (short)
+% identifier you will use later to specify author affiliations
+% Academic affiliations should list Department, University, City, Region, Country
+% Industry affiliations should list Company, City, Region, Country
+
+% You can specify symbols, otherwise they are numbered in order.
+% Ideally, you should not use this facility. Affiliations will be numbered
+% in order of appearance and this is the preferred way.
+\icmlsetsymbol{equal}{*}
+
+\begin{icmlauthorlist}
+\icmlauthor{Simon Mataigne}{equal,uclouvain}
+\icmlauthor{Johan Mathe}{equal,atmo}
+\icmlauthor{Sophia Sanborn}{science}
+\icmlauthor{Christopher Hillar}{ucb}
+\icmlauthor{Nina Miolane}{ucsb}
+% \icmlauthor{Firstname6 Lastname6}{sch,yyy,comp}
+% \icmlauthor{Firstname7 Lastname7}{comp}
+% %\icmlauthor{}{sch}
+% \icmlauthor{Firstname8 Lastname8}{sch}
+% \icmlauthor{Firstname8 Lastname8}{yyy,comp}
+%\icmlauthor{}{sch}
+%\icmlauthor{}{sch}
+\end{icmlauthorlist}
+
+\icmlaffiliation{uclouvain}{ICTEAM, UCLouvain, Louvain-la-Neuve, Belgium. Simon Mataigne is a Research Fellow of the Fonds de la Recherche Scientifique - FNRS. }
+\icmlaffiliation{ucsb}{UC Santa Barbarbara, CA}
+\icmlaffiliation{science}{Science, San Francisco, CA.}
+\icmlaffiliation{ucb}{Redwood Center for Theoretical Neuroscience, UC Berkeley, CA.}
+\icmlaffiliation{atmo}{Atmo, San Francisco, CA.}
+
+\icmlcorrespondingauthor{Simon Mataigne}{simon.mataigne@uclouvain.be}
+%\icmlcorrespondingauthor{Firstname2 Lastname2}{first2.last2@www.uk}
+
+% You may provide any keywords that you
+% find helpful for describing your paper; these are used to populate
+% the "keywords" metadata in the PDF but will not be shown in the document
+\icmlkeywords{Machine Learning, ICML}
+
+\vskip 0.3in
+]
+
+% this must go after the closing bracket ] following \twocolumn[ ...
+
+% This command actually creates the footnote in the first column
+% listing the affiliations and the copyright notice.
+% The command takes one argument, which is text to display at the start of the footnote.
+% The \icmlEqualContribution command is standard text for equal contribution.
+% Remove it (just {}) if you do not need this facility.
+
+%\printAffiliationsAndNotice{}  % leave blank if no need to mention equal contribution
+\printAffiliationsAndNotice{\icmlEqualContribution} % otherwise use the standard text.
+
+\begin{abstract}
+% The development of Convolutional Neural Networks (CNNs) that are insensitive to a group action of the input, e.g., a rotation of the input image, is a critical task in machine learning.
+% In Geometric Deep Learning \cite{bronstein2021geometric}, geometric priors derived from the structure of data are built into deep learning models to increase model efficiency and generalization. The layers of a Group-Equivariant Convolutional Neural Network (G-CNNs) \cite{cohenc16} are designed to have the property of \textit{equivariance} to a group of transformations, such as rotation -- that is, to
+
+    %Group-Equivariant Convolutional Neural Networks (G-CNNs) \cite{cohenc16} exploit the symmetries in data to reduce the translation-equivariance of convolutional neural networks can be generalized to other transformation groups
+
+Group-Equivariant Convolutional Neural Networks (G-CNNs) \cite{cohenc16} generalize the translation-equivariance of traditional CNNs to group-equivariance,
+% \textit{group}-equivariance,
+using more general symmetry transformations such as rotation.
+% for weight tying.
+For tasks such as classification, these transformations are removed at the end of the network to achieve group-invariance, typically by taking an average or maximum over the group. While this is indeed invariant, it is \textit{excessively} so; two inputs that are non-identical up to group action can yield the same output, resulting in a general lack of robustness to adversarial attacks \cite{sanborn2023bispectral, sanborn2023general}. The latter paper proposed an alternative method for achieving invariance without loss of signal structure, called the $G$-triple correlation ($G$-TC). While this method yields demonstrable gains in accuracy and robustness, it comes with a significant increase in computational cost. In this paper, we introduce a new invariant layer based on the Fourier transform of the $G$-TC: the $G$-\textit{bispectrum}. Operating in Fourier space allows us to significantly reduce the computational cost. Our main theoretical result provides a reduction of the $G$-bispectrum that conserves the selective invariance of the $G$-TC, while only requiring $\mathcal{O}(|G|)$ coefficients. Moreover, we validate this finding in a suite of experiments.
+%% seems repetitive:
+% In a suite of experiments, we demonstrate that this approach retains the invariance of the $G$-TC and significantly reduces computational cost.
+\end{abstract}
+
+\section{Introduction}\label{sec:introduction}
+The visual world is rich with symmetries.
+% \textit{symmetries}.
+For example, the identity of an object is invariant to its position in the visual field; vision has \textit{translational symmetry}. Since its emergence in the 1990s, the Convolutional Neural Network (CNN) has become a fundamental tool for image processing \cite{lecun95convolutional,LeNet5}. One of the key strengths of this architecture is that it reflects and exploits this translational symmetry. A significant challenge faced by vision models is to ensure invariance to other natural image transformations, such as rotation and scaling. A common approach to this challenge is to train the model on a dataset augmented with these transformations \cite{shorten2019survey}. However, this approach is resource-intensive in terms of memory, model size, and training time, making it difficult to scale. Alternatively, one can analytically incorporate these additional symmetries into the model architecture, to generalize the insights of CNNs to other symmetry groups relevant for vision. Group-Equivariant CNNs ($G$-CNNs) \cite{cohenc16} do just this, with more general group-equivariant convolutions.
+
+In image processing, one typically wants to preserve transformations throughout the layers of a network (i.e. to be group-\textit{equivariant}), and remove them only at the end when canonicalizing an image for classification (i.e. to be group-\textit{invariant}). While the theory of equivariant layers has been thoroughly developed \cite{cohen2021equivariant, weiler2023EquivariantAndCoordinateIndependentCNNs}, less attention has been paid to the theory of invariance
+% \textit{invariance}
+in neural network architectures. Commonly, invariance in $G$-CNNs is achieved by simply taking an average or maximum over the transformation group (Average or Max $G$-Pooling, respectively). However, as noted by \citet{sanborn2023general}, this is a highly lossy operation that removes information about the structure of the signal. While the \texttt{max} operation is indeed invariant (the \texttt{max} of an image is the same as the \texttt{max} of an image rotated by $90$ degrees), it is \textit{excessively} invariant: one could permute all of the pixels in the image and it would still have the same maximum, but with none of the same structure.
+
+To address this, \citet{sanborn2023general} developed a theory for constructing general invariant $G$-CNN layers that are \textit{complete}\textemdash that is, they collapse group transformations with no loss of signal structure. Their approach achieves demonstrable gains in accuracy and robustness, but at a significant computational cost. In this paper, we provide new mathematical results that allow us to build general invariant pooling layers for $G$-CNNs that preserve the analytical robustness of \citet{sanborn2023general} while significantly improving computational efficiency.
+
+Like \citet{sanborn2023general}, our approach is built on the mathematics of the triple correlation (TC)
+% \emph{triple correlation} (TC)
+and its Fourier transform, the \emph{bispectrum}. Historically, these mathematical objects found initial applications in the context of classical signal processing as generalizations of the two-point autocorrelation \cite{tukey1953spectral, brillinger1991some, nikias1993signal}. The work of \citet{kakarala_thesis} illuminated the relevance of this mathematics for invariant theory, as the general triple correlation on groups
+% \textit{groups}
+is the lowest-degree invariant polynomial that is complete
+% \textit{complete}
+\cite{sturmfels2008algorithms}. The downside of the $G$-TC is that its number of coefficients scales as $\mathcal{O}(|G|^2)$, where $|G|$ is the size of the group. Since each coefficient demands for $\mathcal{O}(|G|)$ operations, the computational cost of the $G$-TC layer is $\mathcal{O}(|G|^3)$. In comparison, the Max $G$-pooling layer features a $\mathcal{O}(|G|)$ computational cost and returns a scalar output.
+
+% : the number of coefficients in the $G$-TC scales as $\mathcal{O}(|G|^2)$,
+% $\mathcal{O}(|G|^3)$
+% with $|G|$ the size of the group.
+
+% This \textit{completeness} can be leveraged in neural network architectures to ensure that invariance is achieved in a selective manner.
+
+% In $G$-CNNs, the group transformations (e.g. translation or rotation) that are preserved throughout the layers of the network are typically removed at the end for the purposes of classification, where it is important to be invariant to such nuisance factors. This is achieved by taking a maximum over the group per filter -- Max $G$-Pooling. While the \texttt{max} operation is indeed invariant (the \texttt{max} of an image is the same as the \texttt{max} of an image rotated by $90$ degrees), it is \textit{excessively} invariant: one could permute all of the pixels in the image and it would still have the same maximum, but with none of the same structure. To tackle this problem, \citet{sanborn2023general} proposed to replace the Max $G$-pooling by a ``$G$-triple correlation layer'' ($G$-TC), achieving demonstrable gains in accuracy and robustness.
+
+% Recent work has revealed the promise of the triple correlation as a computational primitive in machine learning tasks -- for symmetry discovery \cite{sanborn2023bispectral}, and to achieve robust group-invariant pooling within $G$-CNNs \cite{sanborn2023general}. The power of the TC lies in its \textit{invariance} and \textit{completeness}. The triple correlation defined on a given group $G$ is invariant to the actions of that group on the domain of the signal. More importantly, it is \textit{only} invariant to the actions of the group. Any other changes in the signal will result in a different TC.
+
+%In consequence, two signals sampled from different orbits produce different outputs
+
+
+
+% The $G$-TC is complete \cite{Yellott:92, Kakarala2009CompletenessOB, kakarala1993_group_theo}, i.e., it conserves all the information of the input signal up to the group action.
+
+% The $G$-CNN architecture relies on a ``$G$-convolutional layer'', followed by a pooling operation, Max $G$-pooling. However, the pooling loses information from the convolution so that it suffers from excessive $G$-invariance: two input signals that are not similar by the group action -- they are in different \emph{orbits} -- can output the same information after pooling.
+
+% \cite{sanborn2023bispectral, sanborn2023general}.
+% The TC is a third order polynomial of the input signal. Its early applications include ocean wave analysis \cite{Hasselman, Houmb_1974, mccomas_briscoe_1980}, and signal processing \cite{Lohmann84, Bendory_2018}. Recently, the TC has been used to learn the group invariance of a dataset \cite{sanborn2023bispectral} and,
+% chiefly for our purpose, incorporated into Group-Equivariant Convolutional Neural Networks (G-CNNs) as a group-invariant pooling layer.
+
+
+
+\textbf{Contributions.} In this work, we demonstrate that the $G$-triple correlation can be analytically reduced in the Fourier domain (i.e. the $G$-\textit{bispectrum}), by exploiting symmetries within its calculation. Concretely, only a subset of the coefficients are needed to invert the bispectrum and reconstruct an input signal (up to the group action). \cite{giannakis1989signal, kakarala_thesis, sadler1992shift} first showed this for some finite, commutative groups, where it was demonstrated that only $|G|$ bispectral coefficients are needed for completeness. In this paper, we provide the first algorithmic reduction of the bispectrum on general commutative groups and an infinite family of non-commutative ones: we show that only $\mathcal{O}(|G|)$ bispectral coefficients are needed to fully characterize a signal up to group action. We use this reduction to propose a new \textit{bispectral} pooling layer that strikes a balance between robustness and efficiency. In a suite of experiments on the MNIST \cite{deng2012mnist}, EMNIST \cite{cohen2017emnist} and CIFAR-10 \cite{CIFAR10} datasets, we demonstrate how the choice of invariant layer (Max $G$-pooling, $G$-TC, selective $G$-bispectrum) impacts accuracy and speed on classification tasks. We show that our bispectral layer achieves the expected results: it is both more accurate than the Max $G$-pooling and cheaper than the $G$-TC. Interestingly, this accuracy and speed advantage holds in $G$-CNNs with low number of convolutional filters. However, increasing the number of filters in the $G$-Convolutions allows the Max $G$-Pooling to catch up on the accuracy of the $G$-bispectral pooling. This demonstrates that the $G$-bispectral pooling will be particularly interesting for neural networks operating under a smaller parameter budget.
+
+%show that the bispectral layer achieves the expected results: it is both more accurate than the Max $G$-pooling and cheaper than the $G$-TC.
+
+%Our work thus brings the precise and mathematically-motivated findings of \cite{sanborn2023general} into the sphere of practicality through cost-efficiency.
+
+% Finally, we  the choice of a reduced bispectrum layer against a full bispectrum layer.
+
+% This allows us to introduce a novel layer for $G$-invariant pooling that strikes a balance between robustness and efficiency.
+
+% The cost to compute a bispectral coefficient is usually independent of $|G|$ if one knows the Fourier transform of the input signal (of size $|G|$). For all finite groups $G$, the Fourier transform can be obtained in $\mathcal{O}(|G|^2)$ operations at most, even $\mathcal{O}(|G|\log(|G|))$ when a Fast Fourier Transform (FFT) algorithm is known on $G$. In particular, the Cooley-Tukey FFT algorithm can be extended to many finite groups, including the dihedral group \cite{Diaconis1990EfficientCO, michael89fft}. Therefore, we can reduce the cost of the bispectrum calculation on many classes of groups to $\mathcal{O}(|G|\log|G|)$ in computation and $\mathcal{O}(|G|)$ in space.
+
+% This motivates the introduction of a $\mathcal{O}(|G|^2)$ layer in both space and computations (or less). This layer should provide more accurate results than the Max $G$-pooling as well as being less expensive than the $G$-TC.
+% The improvement comes from the following observation: there are many redundancies in the $G$-TC that can be neatly exploited in the Fourier domain (i.e. with the \textit{bispectrum} \cite{kakarala_finite_groups}), permitting a substantial reduction in size and cost to compute.
+
+
+
+% This is most readily seen in the Fourier domain -- i.e. with the \textit{bispectrum} \cite{kakarala_finite_groups}.
+
+
+
+% Moreover, we can design a layer returning the full bispectrum, in which case, the complexity is $\mathcal{O}(|G|^2)$ in both computations and space. To determine which coefficients induce completeness, it is enough to determine which allow to reconstruct the initial signal entirely. Retrieving the signal from bispectral coefficients is called the \emph{bispectrum inversion problem} \cite{kakarala_thesis,Bendory_2018}.
+
+% In this paper, we propose an implementation of the $G$-CNN where the pooling layer is a bispectrum layer, as suggested in \cite{sanborn2023general}. This corresponds to switching the neural network in the Fourier domain. We will perform experiments on both the selective bispectrum layer (only a few coefficients) and the full bispectrum layer (all coefficients). To ensure completeness of the selective bispectrum, we show that the bispectrum can be inverted using $|G|$ bispectral coefficients for all finite commutative groups and $\frac{|G|}{4}$ coefficients for the dihedral group, i.e., the symmetries of the $n$-gon. The dihedral group is the main non-commutative group of interest for 2D-image processing.\simcom{Nina, a reference from clinical application or so?}.
+
+% Extending the implementation og \citet{sanborn2023bispectral} to assess the performance of the reduced bispectra layers on the MNIST \cite{deng2012mnist} and EMNIST \cite{cohen2017emnist} datasets.
+% We show that the bispectral layer achieves the expected results: it is both more accurate than the Max $G$-pooling and cheaper than the $G$-TC. Finally, we discuss the choice of a reduced bispectrum layer against a full bispectrum layer.
+
+\section{Background on group theory}
+From this point, we assume known the notions of group $(G,\ \cdot)$, representation $(\rho,\ V)$ of a group, irreducible representation---irreps for short--- and generating set of a group. For the reader uncomfortable with these notions, we invite to read Appendix \ref{app:background}. We incorporate the ideas from signal processing and machine learning, and define how a group of transformations can indeed transform signals or datasets.
+%Now that a group $G$ and its irreps are properly defined, it is important to define how $G$ acts on a given vector space~$X$.
+Take for instance a black-and-white picture modeled by some function $f:\mathbb{R}^2\mapsto [0,1]$. The \emph{group action} may define how the image is flipped or rotated. We define the notion of group action more formally below.
+\begin{definition}\label{def:groupaction}
+    Given a group $(G,\ \cdot)$, a \emph{group action} $\alpha:G\times X\mapsto X$ is a function satisfying i) Identity: $\alpha(e, x)=x$, ii) Compatibility: $\alpha(h,\alpha(g,x))=\alpha(h\cdot g, x)$.
+\end{definition}
+
+An important problem in machine learning is to achieve \textit{invariance} to nuisance factors not relevant for the task. Many of these factors are describable as group actions (e.g. rotations, translations, scaling). Thus, we want our models to be $G$-invariant:
+\begin{definition}
+    A function $\psi:X\mapsto Y$ is $G$-\emph{invariant} if $\psi(\alpha(g,x)) = \psi(x)$ for all $x\in X$ and all $g\in G$.
+\end{definition}
+A $G$-CNN is a neural network that consists of $G$-convolutional layers and a pooling operation \cite{cohenc16}. The $G$-convolution layer is not $G$-invariant: it is $G$-\emph{equivariant}. This means that a group action on the input yields a group action on the output.
+\begin{definition}
+    A function $\psi:X\mapsto Y$ is $G$-\emph{equivariant} if $\psi(\alpha_1(g,x)) = \alpha_2(g,\psi(x))$ for all $x\in X$ and all $g\in G$, where $\alpha_1$ and $\alpha_2$ are group actions on $X$ and $Y$, respectively.
+\end{definition}
+Max $G$-pooling can follow a $G$-convolutional layer to remove the equivariance of the convolution and achieve $G$-invariance. We mentioned in the introduction the caveats of Max $G$-pooling. In order to understand the properties of the new bispectrum layer that we propose, we need first to present the solution formerly introduced by \cite{sanborn2023general} -- the $G$-triple correlation ($G$-TC) layer. Next, we will introduce our $G$-bispectrum layer and provide mathematical results that prove its computational efficiency compared to the $G$-TC.
+\section{$G$-Triple correlation and bispectrum}\label{sec:triple_corr_and_bsp}
+\subsection{Foundational results}
+The $G$-triple correlation ($G$-TC) \cite{kakarala_thesis} has had many uses but our focus stems from its utilization in $G$-CNNs. Given a real signal defined on a group $\Theta:G\mapsto\mathbb{R}$, the $G$-TC is the lowest order polynomial that is complete, i.e., that conserves all of the information of the signal $\Theta$, up to group action by $G$. In our setting, the signal $\Theta:G\mapsto\mathbb{R}$ is obtained in a $G$-CNN after the $G$-convolution of a function $f:X\mapsto\mathbb{R}^c$ (e.g., a continuous RGB picture is a function $f:\mathbb{R}^2\mapsto\mathbb{R}^3$ function) with a filter $\phi:X\mapsto\mathbb{R}^c$. For all $g \in G$, we have:
+\begin{equation}
+    \Theta(g):=(\phi*f)(g) = \sum_{x\in X}\phi(\alpha(g^{-1},x))^{\top}f(x).
+\end{equation}
+ If $X =\mathbb{Z}$ and $(G,\ \cdot) = (\mathbb{Z},+)$, we obtain the classical discrete convolution. The triple-correlation was introduced for this classical framework. The $G$-triple correlation \cite{kakarala_thesis} extends its definition to any finite group $(G,\ \cdot)$.
+\begin{definition}
+    The \emph{$G$-Triple Correlation} ($G$-TC for short) of a real signal $\Theta:G\mapsto\mathbb{R}$ is given by:
+    \begin{equation}
+        T(\Theta)_{g_1,g_2}:=\sum_{g\in G} \Theta(g)\Theta(g\cdot g_1)\Theta(g\cdot g_2),
+    \end{equation}
+    for all $g_1, g_2\in G$.
+\end{definition}
+
+As previously mentioned, the $G$-TC layer has computational complexity $\mathcal{O}(|G|^3)$ and outputs $\mathcal{O}(|G|^2)$ coefficients. To avoid this burden, we wish to replace the $G$-TC layer by a more efficient layer. We achieve this by going in the Fourier domain, which decreases the computational cost of the layer while keeping the complete $G$-invariance of the architecture.
+The definition of Discrete Fourier Transform (DFT) can be extended to any finite group; see, e.g., \cite{Diaconis1990EfficientCO}.
+\begin{definition}
+    Given a set of unitary representatives (Def.~\ref{def:representation}) of the equivalence classes of irreps $\rho_i:G\mapsto\mathrm{GL}(V_i)$ (Def.~\ref{def:equivalence}),
+    the \emph{Fourier Transform} on a finite group $G$ of a signal $\Theta:G\mapsto\mathbb{R}$  is defined as:
+    \begin{equation}
+        \mathcal{F}(\Theta)_{\rho_i} :=\sum_{g\in G}\Theta(g)\rho_i(g)^\dagger,
+    \end{equation}
+     where $\rho_i(g)^\dagger$ refers to the conjugate transpose of the matrix $\rho_i(g)$  (or simply transpose if $\rho_i$ is real-valued).
+\end{definition}
+The bispectrum $\beta(\Theta)$ is defined as $\mathcal{F}(T(\Theta))$, with $\mathcal{F}$ evaluated over the group $G\times G$.
+\citet{kakarala_thesis} proposed a closed-form expression for the $G$-bispectrum $\beta(\Theta)$ directly in terms of $\mathcal{F}(\Theta)$. We recall it in Theorem~\ref{def:bispectrum}.
+\begin{theorem}{\cite{kakarala_finite_groups}}\label{def:bispectrum}
+    Given a signal $\Theta:G\mapsto\mathbb{R}$, its bispectrum $\beta(\Theta)$ can be computed as:
+    \begin{align*}
+        &\beta(\Theta)_{\rho_1,\rho_2} =\\
+        &\left[\mathcal{F}(\Theta)_{\rho_1}\otimes\mathcal{F}(\Theta)_{\rho_2}\right]C_{\rho_1,\rho_2}\left[\bigoplus_{\rho\in\rho_1\otimes\rho_2}\mathcal{F}(\Theta)_\rho^\dagger\right]C_{\rho_1,\rho_2}^{\dagger},
+    \end{align*}
+    where $C_{\rho_1,\rho_2}$ is a unitary matrix called the Clebsch-Gordan matrix. It is analytically defined for each pair of representations $\rho_1, \rho_2$ as:
+    \begin{equation*}
+        (\rho_1 \otimes \rho_2)(g) = C_{\rho_1,\rho_2} \Big[ \bigoplus_{\rho \in \rho_1 \otimes \rho_2} \rho(g) \Big] C_{\rho_1,\rho_2}^\dagger.
+        \label{eqn:non-commutative-bs}
+    \end{equation*}
+    For each pair $\rho_1, \rho_2$, the matrix $\beta(\Theta)_{\rho_1, \rho_2}$ is called a $G$-bispectral coefficient.
+\end{theorem}
+To the authors' best knowledge, there is no generic formula for $C_{\rho_1,\rho_2}$ given a group $G$. In this paper, we will address the case of the dihedral group $D_n$, the symmetries of the $n$-gon. For this group, we show in Appendix~\ref{app:clebsch_gordan} how to obtain the Clebsch-Gordan matrices.
+In the case of a commutative group $G$, Theorem~\ref{def:bispectrum} simplifies in a more compact expression, recalled in Theorem~\ref{thm:commutative_bispectrum}.
+\begin{theorem}{\cite{kakarala_finite_groups}}\label{thm:commutative_bispectrum}
+    If $(G,\ \cdot)$ is a commutative group, the bispectrum can be computed as:
+    \begin{equation}\label{eq:com_bsp}
+        \beta(\Theta)_{\rho_1,\rho_2} = \mathcal{F}(\Theta)_{\rho_1}\mathcal{F}(\Theta)_{\rho_2}\mathcal{F}(\Theta)_{\rho_1\otimes\rho_2}^\dagger.
+    \end{equation}
+\end{theorem}
+For commutative groups, the $G$-bispectral coefficients are complex scalars \cite{steinberg2011representation}. Finally, we state formally what it means for the $G$-TC and the $G$-bispectrum to be complete $G$-invariant functions (for generic data $\Theta, \widetilde{\Theta}$).
+\begin{theorem}{\cite{Kakarala2009CompletenessOB}}
+    \label{thm:bsp_invariance}
+    The $G$-TC and the $G$-bispectrum are complete $G$-invariant functions, i.e., for $\Theta, \widetilde{\Theta}:G\mapsto\mathbb{R}$, $T(\Theta)=T(\widetilde{\Theta})$, respectively  $\beta(\Theta) = \beta(\widetilde{\Theta})$, if and only if there exists $h\in G$ such that $\Theta(g) = \alpha(h, \widetilde{\Theta}(g))$ for all $g\in G$.
+\end{theorem}
+
+\subsection{Bispectrum layer for the $G$-CNN architecture}\label{sec:bispectralgcnn}
+\begin{figure*}
+    \centering
+    \includegraphics[width = 17cm]{Images/figures_ICML.pdf}
+    \caption{Illustration of the different proposed $G$-CNN architectures \cite{cohenc16, sanborn2023general}. The input $f$ is first processed through the $G$-convolutional layer composed of $K$ filters $\{\phi_k\}_{k=1}^K$. Then a pooling layer is chosen between the Max $G$-pooling, the $G$-TC, and the selective/full $G$-bispectrum layer. Finally, the output after pooling is fed to a Neural Network designed for the machine learning task at hand. \vspace{-0.5cm}}
+    \label{fig:GCNN}
+\end{figure*}
+The $G$-CNN architecture, first proposed in \cite{cohenc16}, is illustrated on Figure ~\ref{fig:GCNN}. We specify how to implement our $G$-bispectral layer within this framework. Given the input $f:X\mapsto\mathbb{R}$, a set of $G$-convolutions is performed using filters $\{\phi_k\}_{k=1}^K$, yielding features maps $\{\Theta_k\}_{k=1}^K$ that form a set of $K$ real signals defined on the group $G$. The Fourier transforms of the feature maps are preferably computed using a FFT algorithm on $G$ \cite{Diaconis1990EfficientCO}. Afterwards, either the full $G$-bispectrum, or only the $G$-bispectral coefficients necessary for completeness are computed. We term the latter a \emph{selective} $G$-bispectrum layer. The coefficients to select depend on the group $G$. We investigate this selection in Section~\ref{sec:bspinversion} for the cyclic groups $C_n$, all commutative groups, and the (non-commutative) dihedral group $D_n$.
+Finally, the $G$-bispectral coefficients are fed to a Secondary Neural Network (NN) to perform the desired task, e.g., image classification. In our experiments, the Secondary NN takes the form of a Multi-Layer Perceptron (MLP). % The different costs associated to the various pooling layers are summarized in Table \ref{tab:complexities}.
+The choice of which layer to prefer will depend on the context, as investigated in Section~\ref{sec:experiments}.
+\section{Bispectrum Inversion for Complete $G$-Invariant Neural Networks}\label{sec:bspinversion}
+The guiding question for this section is: What is the minimum number of $G$-bispectral coefficients that we need to compute in order to achieve completeness? In practice, this question is answered by finding the coefficients $\beta(\Theta)_{\rho_i,\rho_j}$ which allows to reconstruct the Fourier transform $\mathcal{F}(\Theta)$ completely. This is the \emph{$G$-bispectrum inversion problem} mentioned in the Section \ref{sec:introduction}. It is well known that $|G|=n$ coefficients are enough for the cyclic group $C_n$ \cite{kakarala_thesis, sadler1992shift} and similarly for a product of two such groups \cite{giannakis1989signal}. Our main theoretical contribution is to show that $|G|$ coefficients are enough for any commutative group $G$, and that $\left \lfloor{ \frac{n-1}{2}}\right \rfloor + 2$
+% NOTE: before was:  $\frac{|G|}{4}+1=\frac{n}{2}+1$
+matrix coefficients are enough for any dihedral group $D_n$, the group of symmetries of the $n$-gon. We note that, for the non-commutative dihedral groups, among the $G$-bispectral coefficients required, one is a scalar, one is a $2\times2$ matrix, and the rest are $4\times 4$ matrices.
+
+Our solution to bispectral inversion for the non-commutative family $D_n$ is, as far as we are aware, the first of its kind.  It also forms a foundation for studying the problem for arbitrary non-commutative groups.  In particular, the authors have verified similar results for examples in other non-commutative families such as the octahedral groups.
+
+\subsection{The algorithm to invert the bispectrum}\label{sec:commutative_alg}
+%We present the algorithm from \cite{kakarala_thesis} to invert the bispectrum the cyclic group $C_n=$($\mathbb{Z}/n\mathbb{Z}$, $+$ mod $n$). The method requires only $|G|=n$ bispectral coefficients, therefore allowing the reduction in complexity expected with a bispectral layer compared to the TC layer. We prove mathematically that the method can be extended to all commutative groups, still requiring only $|G|$ bispectral coefficients. Moreover, we show that it can be extended to the dihedral group $D_n$, i.e., the symmetries of the $n$-gon. In this case, the method only requires $\frac{|G|}{4}$ bispectral coefficients.
+From now on, we assume that the Fourier transform $\mathcal{F}(\Theta)$ only features \textbf{non-zero elements}, or \textbf{invertible matrices} in the case of non-scalar Fourier transform. This assumption is supported by the measure zero probability of encountering this corner case.
+\subsubsection{Cyclic groups $C_n$}
+We start with $(G,\ \cdot)=(\mathbb{Z}/n\mathbb{Z},\ +\ \mathrm{mod}\ n)=:C_n$. Recall that the irreps are given by $\rho_k(g)=\exp\left(\omega_k g\right)$ where $\omega_k:=\frac{2\pi i k }{n}$ for $k\in\mathbb{Z}/n\mathbb{Z}$ (see, e.g., \cite{steinberg2011representation}).
+The Fourier coefficient associated to the trivial representation $\mathcal{F}(\Theta)_{\rho_0}$, is uniquely determined and can be recovered from Theorem~\ref{thm:commutative_bispectrum} by identifying phase and modulus:
+\begin{equation}\label{eq:trivial_coef}
+    \beta(\Theta)_{\rho_0,\rho_0} =|\mathcal{F}(\Theta)_{\rho_0}|^3\exp\left(i\ \mathrm{arg}(\mathcal{F}(\Theta)_{\rho_0})\right).
+\end{equation}
+We proceed using Pontryagin duality: the irreps $\{\rho_k\}_{k=1}^n$, form a group $\widehat{G}$ themselves, with $\widehat{G} = G$. In the case of the cyclic group $C_n$, notice that for all $j,k\in\mathbb{Z}/n\mathbb{Z}$, $\rho_j\otimes \rho_k = \rho_{j+k}$. Leveraging \eqref{eq:com_bsp}, we can use $\beta(\Theta)_{\rho_0,\rho_1}$ to recover $\mathcal{F}(\Theta)_{\rho_1}$:
+\begin{equation}\label{eq:trivial_coeff_cyclic}
+    |\mathcal{F}(\Theta)_{\rho_1}|^2 =\frac{\beta(\Theta)_{\rho_0,\rho_1}}{\mathcal{F}(\Theta)_{\rho_0}}.
+\end{equation}
+Equation~\eqref{eq:trivial_coeff_cyclic} leaves an indeterminacy on the phase of $\mathcal{F}(\Theta)_{\rho_1}$. This corresponds to the indeterminacy factor $\exp(i \phi)$, $\phi\in[0,2\pi)$ of Appendix~\ref{sec:indeterminacy}. It is inherited from the $G$-invariance  of $\beta(\Theta)$: it is not injective, hence you cannot distinguish inputs that have the same $G$-bispectrum. The key to recover all the other Fourier coefficients is to notice that $S = \{1\}$ is a generating set of $\widehat{G} =\mathbb{Z}/n\mathbb{Z}$. Therefore, computing sequentially:
+\begin{equation}
+    \mathcal{F}(\Theta)_{\rho_{k+1}} = \left(\frac{\beta(\Theta)_{\rho_1,\rho_k}}{\mathcal{F}(\Theta)_{\rho_1}\mathcal{F}(\Theta)_{\rho_k}}\right)^\dagger,
+\end{equation}
+for $k=1,2,...,n-2$ recovers $\mathcal{F}(\Theta)$ completely. The method is summarized in Algorithm~\ref{alg:cyclic_alg} and illustrated on Figure \ref{fig:alg1}. Consequently, only the following bispectral coefficients are needed for completeness: $\beta(\Theta)_{\rho_0,\rho_0}, \beta(\Theta)_{\rho_0,\rho_1}$ and $ \beta(\Theta)_{\rho_1,\rho_k}$ for $k=1,2,...,n-2$. This makes a total of $n=|G|$ coefficients. We summarize this result in Theorem~\ref{thm:cyclic_inversion}.
+\begin{theorem}{\cite{kakarala_thesis}}\label{thm:cyclic_inversion}
+For cyclic groups $C_n$, the $C_n$-bispectrum can be inverted using $|G|=n$ coefficients if $\mathcal{F}(\Theta)_\rho\neq 0$ for all $\rho \in C_n$.
+\end{theorem}
+\begin{algorithm}[tb]
+    \caption{Bispectrum inversion on $\mathbb{Z}/n\mathbb{Z}$
+ \cite{kakarala_thesis}}
+    \label{alg:cyclic_alg}
+    \begin{algorithmic}[1]
+        \STATE \textbf{Input}: $\beta(\Theta)_{\rho_0,\rho_0}, \beta(\Theta)_{\rho_0,\rho_1}$ and $ \beta(\Theta)_{\rho_1,\rho_k}$ for $k=1,2,...,n-2$.
+        \STATE Compute $|\mathcal{F}(\Theta)_{\rho_0}|=\left(\beta(\Theta)_{\rho_0,\rho_0}\right)^{\frac{1}{3}}$ and $\mathrm{arg}(\mathcal{F}(\Theta)_{\rho_0})=\mathrm{arg}(\beta(\Theta)_{\rho_0,\rho_0})$.
+        \STATE Compute $|\mathcal{F}(\Theta)_{\rho_1}| =\left(\frac{\beta(\Theta)_{\rho_0,\rho_1}}{\mathcal{F}(\Theta)_{\rho_0}}\right)^{\frac{1}{2}}$ and set $\mathrm{arg}(\mathcal{F}(\Theta)_{\rho_1})=0$.
+        \FOR{$k=1,2,...,n-2$}
+            \STATE Compute $\mathcal{F}(\Theta)_{\rho_{k+1}} = \left(\frac{\beta(\Theta)_{\rho_1,\rho_k}}{\mathcal{F}(\Theta)_{\rho_1}\mathcal{F}(\Theta)_{\rho_k}}\right)^\dagger$.
+        \ENDFOR
+        \STATE \textbf{Return} $\mathcal{F}(\Theta)$ (up to group action).
+    \end{algorithmic}
+\end{algorithm}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width = 8cm]{Images/alg1_icml.pdf}
+    \caption{Illustration of Algorithm \ref{alg:cyclic_alg}. The bispectrum coefficients allow us to recover the Fourier transform sequentially, up to group action. First, $\beta_{\rho_0,\rho_0}$ gives $\mathcal{F}_{\rho_{0}}$, which, combined with $\beta_{\rho_0,\rho_1}$ gives $\mathcal{F}_{\rho_{1}}$ etc. }
+    \label{fig:alg1}
+\end{figure}
+\subsubsection{Commutative groups}
+Now, we extend Algorithm~\ref{alg:cyclic_alg} to all commutative groups. In view of Theorem~\ref{thm:fundamentalthm}, we propose a method tailored for the direct sum of finitely many cyclic groups.
+\begin{theorem}{(see, e.g., \cite{Norman_2012})}\label{thm:fundamentalthm}
+    Every finite commutative group $G$ is isomorphic to a finite direct sum of cyclic groups: $G\cong \bigoplus_{l=1}^L \mathbb{Z}/n_l\mathbb{Z}$ where $L\in\mathbb{N}$ and $n_l\in\mathbb{N}$ for $l=1,2,...,L$.
+\end{theorem}
+For all $\kbf\in G$, the irreps $\rho_\kbf:G\mapsto \mathbb{C}$ are given by:
+\begin{equation}\label{eq:commutative_irreps}
+    \rho_\kbf(g) = \prod_{l=1}^L\exp(\omega_{\kbf_l} g_l).
+\end{equation}
+The number of irreps is $|G| = \prod_{l=1}^L n_l$.
+Notice that for the commutative groups, we keep the property $\rho_{\kbf}\otimes\rho_{\kbf'}=\rho_{\kbf+\kbf'}$ where $(\kbf+\kbf')_l := \kbf_l+\kbf_l'\ \mathrm{mod} \ n_l$ for $l=1,2,...,L$.
+
+%In this section, we assume that none of the $n_l$'s are relatively prime, such that $G$ is not isomorphic to another commutative group $\widetilde{G}$ with $\widetilde{L}<L$. Indeed, the \emph{Chinese remainder theorem} (see e.g. \cite{Norman_2012}) ensures that there is $\widetilde{G}\cong G$ with $\widetilde{L}<L$ if and only if there is $(n_{l_1}, n_{l_2})$ that are coprimes.
+
+The first step is to notice that a generating set $S$ of the irreps is of size $L$. Indeed, it is given by the usual basis vectors $S=\{\ebf^l\in \mathbb{Z}^L$ for $l=1,...,L\}$ where:
+\begin{equation*}
+    \ebf^l_k=\begin{cases}
+        1 \text{ if } k=l,\\
+        0 \text{ otherwise.}
+    \end{cases}
+\end{equation*}
+To recover all the Fourier coefficients, a consequence of Theorem~\ref{thm:commutative_bispectrum} is that it is sufficient to have the Fourier coefficients associated to each generating element in $S$. Indeed, knowing $\mathcal{F}(\Theta)_{\rho_{\kbf_1}}$ and $\mathcal{F}(\Theta)_{\rho_{\kbf_2}}$ allows us to compute $\mathcal{F}(\Theta)_{\rho_{\kbf_1+\kbf_2}}$. By definition of the generating set $S$, we can thus recover $\mathcal{F}(\Theta)_{\rho_{\kbf}}$ for all $\kbf \in G$. The moduli of the coefficients $\mathcal{F}(\Theta)_{\rho_{\ebf^l}}$ for $l=1,2,...,L$ can be computed as follows:
+\begin{equation}\label{eq:compute_generating}
+    |\mathcal{F}(\Theta)_{\rho_{\ebf^l}}| =\left(\frac{\beta(\Theta)_{\rho_\mathbf{0},\rho_{\ebf^l}}}{\mathcal{F}(\Theta)_{\rho_\mathbf{0}}}\right)^\frac{1}{2},
+\end{equation}
+where $\mathcal{F}(\Theta)_{\rho_\mathbf{0}}$ is the Fourier coefficient of the trivial representation (computed as in~\eqref{eq:trivial_coef}). We claim that the phase can be fixed arbitrarily for each label $l$, thus $L$ times. This is because:
+\begin{align*}
+    \mathcal{F}(\alpha(\mathbf{h},\Theta))_{\rho_{\ebf^l}} &= \rho_{\ebf^l}(\mathbf{h})\mathcal{F}(\Theta)_{\rho_{\ebf^l}}\\
+    &=\exp\left(\frac{2\pi i h_l}{n_l}\right)\mathcal{F}(\Theta)_{\rho_{\ebf^l}},
+\end{align*}
+for all $l=1,2,.,L$. Only one factor $h_l$ among the $L$ independent factors in $\mathbf{h}$ remains. Therefore, fixing an arbitrary phase in~\eqref{eq:compute_generating} only fixes $h_l$. Exactly as for the cyclic group, the indeterminacy factor $h_l$ is not restricted to $\mathbb{Z}/n_l\mathbb{Z}$ but can belong to $[0,n_l]$. Once the Fourier coefficients are known for all the generators of the group of the irreps $\{\rho_{\ebf^l}\}_{l=1}^L$, it remains to combine them to obtain all the elements in the groups and, consequently, all the associated Fourier coefficients.
+
+At this point, it helps to consider the problem geometrically. Each irreps $\rho_\kbf$ can be associated to its integer coordinate $\kbf$ inside a hyper-rectangle in $\mathbb{R}^L$, whose length of edges is $n_l$ for $l=1,2,...,L$. We combine the coordinates $\ebf^l$ to obtain all the possible integer coordinates inside the hyper-rectangle. First, we can obtain the $L$ orthogonal edges of the hyper-rectangle. For $l=1,2,...,L$, $\rho_{\ebf^l}\otimes \rho_{\ebf^l}$ gives $\rho_{2\ebf^l}$, $\rho_{\ebf^l}\otimes \rho_{2\ebf^l}$ gives $\rho_{3\ebf^l}$, etc. This is in fact the procedure of Algorithm 1. Now, we combine the edges to generate the inside of the hyper-rectangle. We proceed iteratively. For $l=1,2,...,L$, we define $K^l:=\{t\ebf^l + \kbf \ | \ t=1,2,..,n_l-1\text{ and } \kbf\in K^{l-1}\}$ and $K^0:=\{\mathbf{0}\}$. This construction is such that $K^l\cong\bigoplus_{j=1}^l \mathbb{Z}/n_j\mathbb{Z}$ and $K^L=G$. We generate the missing Fourier coefficients by combining the ones associated to the generating set of $G$.
+For $l=2,...,L$, compute:
+\begin{equation}
+    \mathcal{F}(\Theta)_{\rho_{t\ebf^l+\kbf}}=\left(\frac{\beta(\Theta)_{\rho_{t\ebf^l},\rho_{\kbf}}}{\mathcal{F}(\Theta)_{\rho_{t\ebf}}\mathcal{F}(\Theta)_{\rho_{\kbf}}}\right)^\dagger,
+\end{equation}
+for $t=1,2,...,n_l-1$, for all $\kbf\in K^{l-1}$. Intuitively for $L=3$, we obtain first an edge, then a face and finally the full parallelepiped. The procedure is summarized in Algorithm~\ref{alg:commutative_alg} and illustrated on Figure \ref{fig:alg2}. It shows that the bispectral coefficients needed for completeness are: $\beta(\Theta)_{\rho_0,\rho_0}$, $\beta(\Theta)_{\rho_0,t\rho_{\ebf}^l},\ \beta(\Theta)_{t\rho_{\ebf}^l, \rho_\kbf} $ for $l=1,2,...,L$, $t=1,2,...,n_l-2$ and all $\kbf\in K^{l-1}$. We recover exactly one Fourier coefficient by bispectral coefficient. This makes thus a total of $|G|$ bispectral coefficients precisely and proves the following theorem.
+
+\begin{theorem}
+For finite commutative groups $G$, the bispectrum can be inverted using $|G|$ coefficients if $\mathcal{F}(\Theta)_\rho \neq 0$ for all $\rho \in G$.
+\end{theorem}
+
+We note that this approach to inversion is symbolic, in that a solution can be expressed explicitly as a formula in terms of the input.  Other approaches are also possible to determine an inverse, such as using least squares \cite{haniff1991least} or more recent spectral methods \cite{chen2018spectral}.
+
+\begin{algorithm}[tb]
+    \caption{Bispectrum inversion for finite commutative groups ($G=\bigoplus_{l=1}^L \mathbb{Z}/n_l\mathbb{Z}$).}
+    \label{alg:commutative_alg}
+    \begin{algorithmic}[1]
+        \STATE \textbf{Input}: $|G|$ bispectral coeffs.
+        \STATE Compute $|\mathcal{F}(\Theta)_{\rho_\mathbf{0}}|=\left(\beta(\Theta)_{\rho_\mathbf{0},\rho_\mathbf{0}}\right)^{\frac{1}{3}}$ and $\mathrm{arg}(\mathcal{F}(\Theta)_{\rho_\mathbf{0}})=\mathrm{arg}(\beta(\Theta)_{\rho_\mathbf{0},\rho_\mathbf{0}})$.
+        \FOR{$l=1,...,L$}
+            \STATE Compute $|\mathcal{F}(\Theta)_{\rho_{\ebf^l}}| =\left(\frac{\beta(\Theta)_{\rho_\mathbf{0},\rho_{\ebf^l}}}{\mathcal{F}(\Theta)_{\rho_\mathbf{0}}}\right)^\frac{1}{2}$ and set $\mathrm{arg}\left(\mathcal{F}(\Theta)_{\rho_{\ebf^l}}\right)=0$.
+            \FOR{$t=1,...,n_l-1$}
+                \IF{$t>1$}
+                \STATE  $F(\Theta)_{\rho_{t\ebf^l}}=\left(\frac{\beta(\Theta)_{\rho_{\ebf^l},\rho_{(t-1)\ebf^l}}}{\mathcal{F}(\Theta)_{\rho_{\ebf^l}}\mathcal{F}(\Theta)_{\rho_{(t-1)\ebf^l}}}\right)^\dagger$.
+                \ENDIF
+                \FOR{$\kbf\in K^{l-1}\setminus\{\mathbf{0}\}$}
+                    \STATE Compute $\mathcal{F}(\Theta)_{\rho_{t\ebf^l+\kbf}}=\left(\frac{\beta(\Theta)_{\rho_{t\ebf^l},\rho_{\kbf}}}{\mathcal{F}(\Theta)_{\rho_{t\ebf^l}}\mathcal{F}(\Theta)_{\rho_{\kbf}}}\right)^\dagger$.
+                \ENDFOR
+            \ENDFOR
+        \ENDFOR
+        \STATE \textbf{Return} $\mathcal{F}(\Theta)$ (up to group action).
+    \end{algorithmic}
+\end{algorithm}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width = 8.5cm]{Images/alg2_icml.pdf}
+    \caption{Illustration of Algorithm \ref{alg:commutative_alg}. The bispectrum coefficients allow to recover the Fourier transform sequentially, up to group action. First}
+    \label{fig:alg2}
+\end{figure}
+
+\subsubsection{Dihedral group $D_n$}\label{sec:inversion_dihedral}
+The dihedral group $D_n$ is the group of all symmetries of the $n$-gon. Mathematically, it is defined as:
+\begin{equation}\label{def:dihedral}
+    D_n:=\langle x,\ a\ |\ a^n=x^2=e,\ xax = a^{-1}\rangle,
+\end{equation}
+where $a$ is the \emph{rotation} and $x$ is the \emph{reflection}, and they form a generating set of $D_n$. We will only consider the case $n>2$ since the cases $n=1$ and $n=2$ are commutative groups covered by the previous subsection, while $n>2$ gives non-commutative groups. The 2D irreps of $D_n$ are given by:
+\begin{equation}\label{eq:2d_irreps_dn}
+    \rho_k(a^lx^m)=\begin{bmatrix}
+        \cos(\omega_l k)&-\sin(\omega_l k)\\
+        \sin(\omega_l k)&\cos(\omega_l k)
+    \end{bmatrix}
+    \begin{bmatrix}
+        1 & 0\\
+        0 & -1\\
+    \end{bmatrix}^m,
+\end{equation}
+where $\omega_l = \frac{2\pi l}{n}$ for $k=1,2,...,\lfloor \frac{n-1}{2}\rfloor$. There are also $2$ or $4$ 1D irreps if $n$ is odd or even, respectively. We denote these 1D irreps by $\rho_{0},\ \rho_{01},\ \rho_{02}$, and $\rho_{03}$ (see Appendix \ref{app:1dirreps}). The two last ones are only for $n$ even.
+In view of section~\ref{sec:commutative_alg}, we wish to show that there is an irrep $\rho_1$ that generates all the irreps of $D_n$. As in the cyclic and commutative cases, we can first deduce $\mathcal{F}(\Theta)_{\rho_0}$ from $\beta(\Theta)_{\rho_0,\rho_0}$. Now, we have:
+\begin{equation}\label{eq:first_coeff_dihedral}
+    \mathcal{F}(\Theta)_{\rho_1}\mathcal{F}(\Theta)_{\rho_1}^\dagger=\frac{\beta(\Theta)_{\rho_0,\rho_1}}{\mathcal{F}(\Theta)_{\rho_0}}.
+\end{equation}
+The novelty for this non-commutative group is that $\mathcal{F}(\Theta)_{\rho_1}$ is a $2\times 2$ matrix. After computing the eigenvalue decomposition $\frac{\beta(\Theta)_{\rho_0,\rho_1}}{\mathcal{F}(\Theta)_{\rho_0}} = V\Lambda V^\dagger$, we can choose:
+\begin{equation}
+    \mathcal{F}(\Theta)_{\rho_1} = V\Lambda^{\frac{1}{2}}V^\dagger.
+\end{equation}
+Notice that any $\mathcal{F}(\Theta)_{\rho_1}' = \mathcal{F}(\Theta)_{\rho_1} U$ where $U$ is unitary (i.e., $UU^\dagger=U^\dagger U=I$) also solves~\eqref{eq:first_coeff_dihedral}. For $\mathbb{Z}/n\mathbb{Z}$ the indeterminacy belonged to $\mathrm{SO}(2)$, the continuous set of 2d rotations. For $D_n$, it belongs to $\mathrm{O}(2)$, the continuous set of 2d rotations and reflections.
+
+For $k=2,...,\lfloor \frac{n-1}{2}\rfloor$, we can then obtain:
+\begin{align}
+    \label{eq:new_coeff_dihedral}
+    &\bigoplus_{\rho\in\rho_1\otimes\rho_{k-1}}\mathcal{F}(\Theta)_\rho =\\
+    \nonumber
+    &\left(C_{\rho_1,\rho_{k-1}}^{\dagger}\left[\mathcal{F}(\Theta)_{\rho_1}\otimes\mathcal{F}(\Theta)_{\rho_{k-1}}\right]^{-1}\beta(\Theta)_{\rho_1,\rho_2}C_{\rho_1,\rho_{k-1}}\right)^\dagger.
+\end{align}
+It is shown in Appendix~\ref{app:generating_dihedral} that $\rho_k\in\rho_1\otimes\rho_{k-1}$ so that the for-loop can be applied. Moreover, we know from Appendix~\ref{app:generating_dihedral} that $\rho_{01}\in\rho_1\otimes\rho_{1}$ and, for $n$ even, $\rho_{02}, \rho_{03}\in \rho_1\otimes\rho_{\frac{n}{2}-1}$. Thus the iteration recovers the complete DFT $\mathcal{F}(\Theta)$ and proves the following theorem.
+
+\begin{theorem}
+    For the family of dihedral groups $D_n$, we need at most $\left \lfloor{ \frac{n-1}{2}}\right \rfloor + 2$ bispectral matrix coefficients for inversion if $\det(\mathcal{F}(\Theta)_\rho) \neq 0$ for all irreps $\rho$ of $D_n$. This corresponds to $1+4+16\cdot\left\lfloor{ \frac{n-1}{2}}\right \rfloor\approx 4 |D_n|$ scalar values.
+\end{theorem}
+
+The procedure is summarized in Algorithm \ref{alg:dihedral_alg}.
+\begin{algorithm}[tb]
+    \caption{Bispectrum inversion on the dihedral group $D_n$.}\label{alg:dihedral_alg}
+    \begin{algorithmic}[1]
+        \STATE \textbf{Input}: $\beta(\Theta)_{\rho_0,\rho_0}, \beta(\Theta)_{\rho_0,\rho_1}$ and $ \beta(\Theta)_{\rho_1,\rho_k}$ for $k=1,2,...,\lfloor\frac{n-1}{2}\rfloor$.
+        \STATE Compute $|\mathcal{F}(\Theta)_{\rho_0}|=\left(\beta(\Theta)_{\rho_0,\rho_0}\right)^{\frac{1}{3}}$ and $\mathrm{arg}(\mathcal{F}(\Theta)_{\rho_0})=\mathrm{arg}(\beta(\Theta)_{\rho_0,\rho_0})$.
+        \STATE Compute $V\Lambda V^\dagger = \frac{\beta(\Theta)_{\rho_0,\rho_1}} {\mathcal{F}(\Theta)_{\rho_0}}$.\\
+        \STATE Set $\mathcal{F}(\Theta)_{\rho_1} = V\Lambda^\frac{1}{2} V^\dagger$.\\
+        \FOR{$k=2,...,\lfloor\frac{n-1}{2}\rfloor$}
+           % \STATE (If $n$ odd, stop at $k =\lfloor\frac{n-1}{2}\rfloor-1 )$
+            \STATE Compute \begin{align*}
+                &\bigoplus_{\rho\in\rho_1\otimes\rho_{k-1}}\mathcal{F}(\Theta)_\rho =\\
+                \nonumber
+                &\left(C_{\rho_1,\rho_{k-1}}^{\dagger}\left[\mathcal{F}_{\rho_1}\otimes\mathcal{F}_{\rho_{k-1}}\right]^{-1}\beta_{\rho_1,\rho_2}C_{\rho_1,\rho_{k-1}}\right)^\dagger.
+            \end{align*}
+        \ENDFOR
+        \STATE \textbf{Return} $\mathcal{F}(\Theta)$ (up to group action).
+    \end{algorithmic}
+\end{algorithm}
+%\subsubsection{General algorithm for finite non-commutative groups}
+%The three cases that we have just studied suggest a heuristic procedure to invert the bispectrum. Given a group $G$ and a complete family of irreps $\{\rho_k\}_k$ where $\rho_0$ is the trivial representation. $\mathcal{F}(\Theta)_{\rho_0}$ can always be recovered from $\beta(\Theta)_{\rho_0,\rho_0}$. Then one can compute $\mathcal{F}(\Theta)_{\rho_0}$
+\section{Experimental results}\label{sec:experiments}
+\subsection{Implementation and architecture}
+Our implementation of the $G$-bispectral layer is based on the \href{https://github.com/gtc-invariance/gtc-invariance}{\texttt{gtc-invariance}} repository, implementing the $G$-CNN with $G$-convolution and $G$-TC layer \cite{sanborn2023general}. This implementation is itself based on the \href{https://github.com/QUVA-Lab/escnn}{ESCNN library} \cite{cesa2022a, weiler2021general}.
+%We propose a performance analysis of our method. To do so, we have implemented the bispectrum layer for the cyclic group $C_n$ and the dihedral group $D_n$. These groups can be considered as discrete cases of the groups $\mathrm{SO}(2)$ (2D rotations) and $\mathrm{O}(2)$ (2D rotations and reflections) respectively.
+
+To corroborate our theoretical results, we propose an experimental assessment of the newly proposed $G$-bispectral layer. We compare the Avg $G$-pooling, the Max $G$-pooling, the $G$-TC, and the $G$-bispectrum layers as pooling operations after the $G$-convolution of a $G$-CNN on the classification problems of the MNIST dataset of handwritten digits \cite{deng2012mnist}, the EMNIST dataset of handwritten letters \cite{cohen2017emnist} and the CIFAR-10 dataset of natural images \cite{CIFAR10}. These datasets count 10, 26 an 10 classes respectively. We obtain transformed versions of the datasets -- $G$-MNIST/EMNIST/CIFAR-10 -- through the action of the groups $\mathrm{SO}(2)$ and $\mathrm{O}(2)$. For each image in the original dataset, we apply a random action $g\in G$ on the image.
+
+The objective of our experiments is to isolate the impact of the choice of invariant layer. Hence, we consider architectures that only differ by the invariant layer in the classification task, following the experimental set up provided by \cite{sanborn2023general}.  The neural network architecture is composed of a $G$-convolution, an invariant layer, and finally a Multi-Layer-Perceptron (MLP), itself composed of three fully connected layers with batch normalization and ReLU nonlinearity. Finally, a fully connected linear layer is added to perform final classification. The MLP's widths are tuned to match the number of parameters across each neural network model. The details are given in Appendix \ref{app:training}. We highlight here that the pursued objective is to compare the differences in performances of the invariance layers, not to provide the state-of-the-art accuracy on the datasets involved. Henceforth, we do not optimize the architectures to reach the highest possible accuracy. We set simple architectures providing interpretable results for analysis.
+\begin{figure}
+    \centering
+    \includegraphics[width = 7cm]{Images/training_times_cyclic.pdf}
+    \includegraphics[width = 7cm]{Images/training_times_dihedral.pdf}
+    \caption{Evolution of the average training times for the different invariance layers as the size $n$ of $C_n$ and $D_n$ rise. The average and standard deviations are obtained over $10$ runs.  For all runs, the number of parameters of the complete neural network (filters and MLP) is set to $50000$ and $150000$ for $\mathrm{SO}(2)$ and $\mathrm{O}(2)$ respectively. Standard deviations are reported by vertical intervals.}
+    \label{fig:trainings}
+\end{figure}
+\subsection{Training speed performance}
+We provide in Table~\ref{tab:complexities} the theoretical complexities of the different layers. The computational cost of computing the selective G-bispectrum is $\mathcal{O}(|G|\log |G|)$ if an FFT algorithm is available on $G$~\cite{Diaconis1990EfficientCO}, and $\mathcal{O}(|G|^2)$ otherwise. On Figure~\ref{fig:trainings}, we report the average training times on $\mathrm{SO}(2)/\mathrm{O}(2)$-MNIST for 10 runs as the discretization $C_n/D_n$ of $\mathrm{SO}(2)/\mathrm{O}(2)$ varies. In the first case, we use the FFT and observe that the Max $G$-pooling and $G$-bispectrum training time scale linearly whereas it scales quadratically for the $G$-TC. For $\mathrm{O}(2)$, we perform a classic DFT on $D_n$ so that the $G$-bispectrum scales worth. However, an FFT could be implemented to speed-up the process.
+\begin{table}[h]
+    \centering
+    \begin{tabular}{||c||c|c||}
+        \hline
+         Pooling layer&  Comput. Complex.& Output size\\
+         \hline
+         $G$-TC& $K\mathcal{O}(|G|^3)$&$K\mathcal{O}(|G|^2)$\\
+         \hline
+         Full bsp.& $K\mathcal{O}(|G|^2)$&$K\mathcal{O}(|G|^2)$\\
+         \hline
+         Select. bsp.& $K\mathcal{O}(|G|\log|G|\text{ or }|G|^2)$&$K\mathcal{O}(|G|)$\\
+         \hline
+         Max $G$-pool.&$K\mathcal{O}(|G|)$&$K$\\
+         \hline
+    \end{tabular}
+    \caption{$G$-CNN invariant layers and their computational cost and output size. \vspace{-0.5cm}}
+    \label{tab:complexities}
+\end{table}
+\subsection{Classification Performance}
+We compare the performances of the $G$-bispectral layer with respect to the $G$-TC, the Max $G$-pooling and the Avg $G$-pooling models, trained on the $\mathrm{SO}(2)$/$\mathrm{O}(2)$-MNIST/EMNIST/CIFAR-10 datasets and we assess the accuracy by averaging the validation accuracy over 10 runs. The classification accuracy is provided in Table~\ref{tab:classification}. For the experiments in Table \ref{tab:classification}, the following pattern holds: at equivalent number of parameters, the more computationally expensive the pooling layer, the better the accuracy. However, the use of the $G$-TC becomes prohibitive when $|G|$ raises. In the next section, we discuss the settings where each pooling layer should be preferred, and highlight each pooling layer's strengths and weaknesses.
+\begin{table*}[ht]
+\centering
+\begin{tabular}{||c|c|c|c|c|c|c||}
+	\hline
+	Dataset&Group&Pooling&$K$ filters&Avg acc.&Std. dev.&Param. count\\
+ \hline
+	\hline
+	\multirow{8}{*}{MNIST}&\multirow{4}{*}{$\mathrm{SO}(2)$}&Avg $G$-pooling&24&0.74 &$<0.01$ &50247\\
+	     &              &Max $G$-pooling&24& 0.96& $<0.01$ &50247\\
+	     &              &Select. $G$-Bsp&24&0.95 &$<0.01$  &49116\\
+	     &              &$G$-TC&24&0.96 &  $<0.01$&48385\\
+        \cline{2-7}
+	     &\multirow{4}{*}{$\mathrm{O}(2)$}&Avg $G$-pooling&4& 0.60&$<0.01$ &147675\\
+	     &              &Max $G$-pooling&4&0.78 &  $<0.01$&147675\\
+	     &              &Select. $G$-Bsp&4&0.93 & $<0.01$ &143029\\
+	     &              &$G$-TC&4&0.96 &  $<0.01$&142220\\
+	\hline
+	\multirow{8}{*}{EMNIST}&\multirow{4}{*}{$\mathrm{SO}(2)$}&Avg $G$-pooling&24&0.40 &$<0.01$ &50195\\
+	     &              &Max $G$-pooling&24& 0.76& $<0.01$ &50195\\
+	     &              &Select. $G$-Bsp&24&0.77 & $<0.01$ &49254\\
+	     &              &$G$-TC&24&0.80 &  $<0.01$&48494\\
+	\cline{2-7}
+	     &\multirow{4}{*}{$\mathrm{O}(2)$}&Avg $G$-pooling&20&0.38 &$<0.01$ &48832\\
+	     &              &Max $G$-pooling&20&0.71 & $<0.01$ &48832\\
+	     &              &Select. $G$-Bsp&20&0.74 & $<0.01$ &47320\\
+	     &              &$G$-TC&20&0.79 & $<0.01$ &46954\\
+	\hline
+	\multirow{8}{*}{CIFAR-10}&\multirow{4}{*}{$\mathrm{SO}(2)$}&Avg $G$-pooling&20&0.43 &$<0.01$ &10494140\\
+	     &              &Max $G$-pooling&20&0.48 & $<0.01$ &10494140\\
+	     &              &Select. $G$-Bsp&20& 0.50& $<0.01$ &10359300\\
+	     &              &$G$-TC&20&0.53 & $<0.01$ &10322860\\
+	\cline{2-7}
+	     &\multirow{4}{*}{$\mathrm{O}(2)$}&Avg $G$-pooling&20& 0.37&$<0.01$ &10494140\\
+	     &              &Max $G$-pooling&20& 0.43& $<0.01$ &10494140\\
+	     &              &Select. $G$-Bsp&20&0.38 &$<0.01$  &10316120\\
+	     &              &$G$-TC&20&0.48 & $<0.01$ &10276150\\
+	     \hline
+\end{tabular}
+\caption{Results of numerical experiments averaged over 10 runs with Avg $G$-pooling, Max $G$-pooling, selective $G$-bispectrum and $G$-TC. The experiments are performed on $\mathrm{SO}(2)/\mathrm{O}(2)$-MNIST, -EMNIST and -CIFAR-10. The table shows the number of filters, the average classification accuracy, standard deviation and parameter count.}
+\label{tab:classification}
+\end{table*}
+\subsection{Discussion on the choice of pooling layer}
+
+We discuss the advantages and weaknesses of each pooling layer. To this end, it is important to have the complexities of Table \ref{tab:complexities} in mind, to which we add the conclusions of Table \ref{tab:classification}. The first observation from Table \ref{tab:classification} is though the \emph{selective} $G$-bispectrum (see Section \ref{sec:bispectralgcnn}) is complete, the model does not exactly reach the accuracy level of the $G$-TC (see Section \ref{sec:bispectralgcnn}). This observation might be surprising at first, since we prove mathematically in Section~\ref{sec:bspinversion} that the selective $G$-bispectrum contains all the information about the signal, up to group action. In other words, the selective $G$-bispectrum contains exactly the same information as the $G$-TC, only in a reduced form. Why, then, does the $G$-TC perform better, even for matching close number of trainable parameters? An explanation to this lies in the paradoxes of the Universal Approximation Theorem \cite{HORNIK1989359}. Just because an arbitrarily large MLP could theoretically fit any function, this does not imply that it will happen for a practical, limited MLP. In practice, we hypothesize that the $G$-TC provides many coefficients and each of them offers to the MLP a way of distinguishing inputs. Thus, we provide our first insight regarding the choice of invariance layer: If the size of the model allows it, the $G$-TC or the full $G$-bispectrum should be preferred for accuracy. However, as the size of the group gets larger, their uses quickly become out of reach. In comparison, the selective $G$-bispectrum scales linearly with $|G|$ so that it can be implemented on large groups.
+In Table \ref{tab:classification}, we can also notice that the Max $G$-pooling performs well compared to the others though it is not complete. This is because we have many filters, which allows refined classification nonetheless. Indeed, assume $f,\phi_k$ are black-and-white images with $N$ pixels. In consequence, $\max_g\Theta_k(g)\in\{0,1,...,N\}$ for $k=1,2,...,K$. This allows a maximum separation of $(N+1)^K$ classes. In practice, this value is not reached, but it explains why despite the Max $G$-pooling not being complete, it performs well with many filters. Figure \ref{fig:Kfilters} highlights this dependency of the Max $G$-pooling to the number of filters since the accuracy drops to less than $60\%$ with 2 filters. In comparison, the $G$-TC and the selective bispectrum, which are \emph{complete}, keep an accuracy above $85\%$ with 2 filters. If the parameter budget restricts the number of filters that can be implemented within the $G$-Conv, then we recommend using a complete invariance layer.
+
+\begin{figure}
+    \centering
+    \includegraphics[width = 7cm]{Images/filters_MNIST_cyclic.pdf}
+    \includegraphics[width = 7cm]{Images/filters_MNIST_dihedral.pdf}
+    \caption{Evolution of the average classification accuracy with $\mathrm{SO}(2)/\mathrm{O}(2)$-MNIST over $10$ runs when the number of filters varies from $2$ to $20$ for the Avg $G$-pooling, the Max $G$-pooling, the $G$-bispectrum and the $G$-TC. The standard deviations are represented using vertical intervals. In this experiment, the standard deviation can barely be distinguished from the average data.}
+    \label{fig:Kfilters}
+\end{figure}
+
+\section{Conclusion and Future work}
+In this paper, we introduced a new type of complete invariant layer for $G$-invariant CNNs -- called \emph{$G$-bispectrum layer} -- with the objective of increasing the accuracy and robustness of $G$-CNNs compared to those implemented with the initially proposed Max $G$-pooling. The $G$-TC layer also achieves this goal, but at an output cost of $\mathcal{O}(|G|^2)$ coefficients that prevents its application to large groups, while the selective $G$-bispectrum layer only outputs $\mathcal{O}(|G|)$ coefficients. We have given a global picture of the strength and weaknesses of each pooling layer. Based on the result of \citet{kakarala_thesis} for cyclic groups, we have shown that the completeness of the \textit{selective} $G$-bispectrum layer using only $\mathcal{O}(|G|)$ coefficients holds for all commutative groups and the dihedral group.
+%For other groups of interest, such as the chiral octahedral and full octahedral groups in the context of 3D image processing \cite{Lenz2009OctahedralTF}, we provide a good heuristic providing a sequence of coefficients that allow the sequential inversion of the bispectrum up to a degree of freedom. It remains to show that the degree of freedom corresponds to the inherent indeterminacy. The method suggests that the $G$-bispectrum is complete with $\mathcal{O}(|G|)$ coefficients on many other groups, including the two previously cited.
+%Given the wide variety of non-commutative groups, a general analysis would be an important breakthrough.
+\paragraph{Reproducibility} The code is  available on the github repository \url{https://github.com/geometric-intelligence/g-invariance}.
+\paragraph{Impact statement} This research contributes to advancements in the field of Convolutional Neural Networks. In image processing, this tool may be used for purposes such as facial recognition and automated security.
+% \section{Acknowledgments}
+% This work was supported by the Fonds National de la Recherche Scientifique -- FNRS.
+\newpage
+\bibliographystyle{icml2024}
+\bibliography{bispectrumbib.bib}
+\newpage
+\appendix
+\section{Background on groups}\label{app:background}
+We introduce the fundamentals of group theory, which provide the foundation for the theory of $G$-CNNs. These notions can be found in \cite{steinberg2011representation}.
+% A natural starting point is to define a group.
+\begin{definition}\label{def:group}
+    A \emph{group} is a pair $(G,\ \cdot)$ where $G$ is a set and $\cdot:G\times G\mapsto G$ is an associative multiplication such that there is an identity element $e\in G$ (i.e., for all $g\in G$, $e\cdot g=g\cdot e=e$) and, for all $g\in G$, there is an inverse $g^{-1}\in G$ such that $g^{-1}\cdot g = g\cdot g^{-1}=e$.
+\end{definition}
+A group is thus a set $G$ combined with a product $\cdot$ preserving the characteristics of $G$. Here, the established term ``product'' can be misleading. It denotes any operation which makes Definition~\ref{def:group} true given the set $G$. For instance, $(\mathbb{R},+)$ is a group. Another example is $\mathrm{GL}(\mathbb{R}^n)$, the invertible matrices in $\mathbb{R}^n$, associated to the usual matrix product. This group is said to be \emph{non-commutative} since $A\cdot B\neq B\cdot A$ in general for $A,B\in\mathrm{GL}(\mathbb{R}^n)$. An important group for us is the set $\{0,1,...,n-1\}$ associated with addition modulo~$n$. It is often written $\mathbb{Z}/n\mathbb{Z}$ and called the \emph{cyclic group} $C_n$. A single group can arise in different contexts under seemingly distinct forms. For instance, $\mathbb{Z}/4\mathbb{Z}$ and the rotations leaving the square unchanged in $\mathbb{R}^2$ are fundamentally the same object. This observation gives rise to \emph{representation theory}, a branch of group theory studying how the same abstract idea of a group can emerge under different forms.
+\begin{definition}\label{def:representation}
+    A \emph{representation} of a group $(G,\ \cdot)$ is a pair $(\rho, V)$ where $V$ is a vector space and $\rho:G\mapsto \mathrm{GL}(V)$ is a group homomorphism, i.e., for all $g,h\in G$, $\rho(g\cdot h) = \rho(g)\rho(h)$. If $V$ is equipped with an inner product and if for all $g\in G$ and all $u,v\in V$,  $\langle\rho(g)v,\rho(g)w\rangle =\langle u, v\rangle$, $\rho$ is\emph{unitary}.
+\end{definition}
+\begin{remark}
+    Throughout this paper, we use the shorthand $G$ to refer to the group $(G,\cdot )$ and $\rho$ to refer to a representation $(\rho,\ V)$.
+\end{remark}
+To illustrate Definition~\ref{def:representation}, a representation of $C_n$ is given by the complex roots of unity, $\rho(k) = \exp\left(\frac{2\pi i }{n}k\right)$, on the complex one-dimensional vector space $V= \mathbb{C}$. Every group also admit the \emph{trivial} representation: $\rho_0(g)=1$ for all $g \in G$. There is a specific subset of these representations called the irreducible representations, \emph{irreps} for short, being those that can not be expressed in a more compact form. The irreps are fundamental objects of group theory since they allow us to define an invertible Fourier transform on finite groups. The irreps are therefore needed to define the bispectrum -- i.e., the Fourier transform of the $G$-TC. The notion of irreps is derived from that of a $G$-invariant subspace, which we recall in Definition~\ref{def:invariantspace}.
+\begin{definition}\label{def:invariantspace}
+    Given a representation $(\rho, V)$, a subspace $W\subseteq V$ is $G$-invariant if $\rho(g)w\in W$ for all $g\in G,\ w\in W$.
+\end{definition}
+The formal definition of the irreps is then stated as the representations with no non-trivial invariant subspace.
+\begin{definition}
+    A non-zero representation $(\rho,V)$ of a group $G$ is irreducible if the only $G$-invariant subspaces of $V$ are $\{0\}$ and $V$ itself.
+\end{definition}
+A single group acting on different spaces will have different representations. However, one can reveal the similarity between these representations by the mean of an equivalence relation.
+\begin{definition}\label{def:equivalence}
+    Two representations $(\rho,V)$ and $(\varphi, W)$ are \emph{equivalent} if there exists an isomorphism $T:V\mapsto W$ such that for all $g\in G$, $\rho(g) T = T \varphi(g)$.
+\end{definition}
+For the interested reader, the invertibility property of the Fourier transform is a consequence of the concepts of Pontryagin duality (commutative groups) and Tannaka-Krein duality (non-commutative groups); see, e.g., \cite{joyal_ross_tannaka}.
+Our proofs will also rely on the notion of generating set of $G$, which we introduce here.
+\begin{definition}
+    A \emph{generating set} $S$ of a group $(G, \cdot)$ is a subset $S\subset G$ such that every $g\in G$ can be expressed as a finite combination of the elements in $S$ and their inverses under the group action $\cdot$.
+\end{definition}
+\begin{remark}
+    It can be shown that every group $G$ of size $|G|$ has a generating set of size at most $\log_2 |G|$.
+\end{remark}
+\section{Indeterminacy of bispectrum inversion}\label{sec:indeterminacy}
+It is important to state precisely which information we can possibly retrieve from the $G$-bispectrum.
+A consequence of the $G$-invariance of $\beta(\Theta)$ is that the $G$-bispectrum inversion problem is ill-posed. Recall that $G$-invariance means that for all $h\in G$, we have $\beta(\alpha(h,\Theta))_{\rho_1,\rho_2} =\beta(\Theta)_{\rho_1,\rho_2}$. Given a function $\Theta:G\mapsto\mathbb{R}$, a possible definition for the group action on $\Theta$ is given by $\alpha(h, \Theta(g)) =\Theta(h^{-1}\cdot g)$ for all $h\in G$ (see, e.g., \cite{cohenc16}). Therefore, for all $h\in G$, we have:
+\begin{align*}
+        \mathcal{F}(\alpha(h,\Theta))_\rho &= \sum_{g\in G} \alpha(h, \Theta(g)) \rho(g)^\dagger\\
+        &=\rho(hh^{-1})\sum_{g\in G} \Theta(h^{-1}g) \rho(g)^\dagger\\
+        &= \rho(h) \mathcal{F}(\Theta)_\rho,
+    \end{align*}
+which shows that the $G$-Fourier transform $\mathcal{F}(\Theta)$ is $G$-equivariant. In consequence, recovering $\mathcal{F}(\Theta)$ from $\beta(\Theta)$ can at best be done up to an unknown factor $\rho(h)$. Moreover, as explained in \cite{kakarala_thesis, kondor08}, the indeterminacy is not limited to $\rho(h)$. Take for instance $C_n$. An indeterminacy factor $\rho_k(h) = \exp\left(\frac{2\pi i h k}{n}\right)$ corresponds to a translation of $h\in C_n$ of the signal, $\widetilde{\Theta}(g)=\Theta(g+h)$. \cite{kakarala_thesis} showed that $h$ is not restricted to $C_n=\mathbb{Z}/n\mathbb{Z}$: it may take any value in $[0,n]$. The bispectrum is not only invariant to a discrete set of rotations, but to the continuous group of rotations $\mathrm{SO}(2)$. The factor can thus be written $\exp(i \phi k)$ where $\phi\in[0, 2\pi)$.
+\section{The dihedral group $D_n$}
+\subsection{The 1D irreps of $D_n$}\label{app:1dirreps}
+We recall the definition of the dihedral group $D_n$ given in~\eqref{def:dihedral}. The 1D irreps of $D_n$ can be found, e.g., in \cite{steinberg2011representation}. They are given by:
+\begin{itemize}
+    \item $\rho_{0}(g)=1$ for all $g\in D_n$.
+    \item $\rho_{01}(g)=\begin{cases}
+        1 \text{ if } g\in \langle a\rangle,\\
+        -1 \text{ otherwise.}
+    \end{cases}$
+    \item If $n$ even, $\rho_{02}(g)=\begin{cases}
+        1 \text{ if } g\in \langle a^2,\ x\rangle,\\
+        -1 \text{ otherwise.}
+    \end{cases}$
+    \item If $n$ even, $\rho_{03}(g)=\begin{cases}
+        1 \text{ if } g\in \langle a^2,\ ax\rangle,\\
+        -1 \text{ otherwise.}
+    \end{cases}$
+\end{itemize}
+To exemplify the 1D irreps, we give their values for $D_4$ in Table~\ref{tab:1dirreps}.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c||c|c|c|c|c|c|c|c|}
+        \hline
+         $g$&$e$&$a$&$a^2$&$a^3$&$x$&$ax$&$a^2x$&$a^3x$ \\
+         \hline
+         \hline
+         $\rho_{0}(g)$&1&1&1&1&1&1&1&1 \\
+         \hline
+         $\rho_{01}(g)$&1&1&1&1&-1&-1&-1&-1 \\
+         \hline
+         $\rho_{02}(g)$&1&-1&1&-1&1&-1&1&-1 \\
+         \hline
+         $\rho_{03}(g)$&1&-1&1&-1&-1&1&-1&1 \\
+         \hline
+    \end{tabular}
+    \caption{1D irreps of $D_4$.}
+    \label{tab:1dirreps}
+\end{table}
+\subsection{Generation of the coefficients of $D_n$}\label{app:generating_dihedral}
+Section~\ref{sec:inversion_dihedral} makes two assertions that we verify explicitly in this appendix. First, it is said that $\rho_{k}\in\rho_1\otimes\rho_{k-1}$ for $k = 2,...,\lfloor\frac{n-1}{2}\rfloor$ so that the iteration of Algorithm~\ref{alg:dihedral_alg} recovers all the Fourier coefficients associated to the 2D irreps. The second assertion to verify is that $\rho_{01}\in \rho_1\otimes\rho_1$ and, for $n$ even,  $\rho_{02},\rho_{03}\in\rho_1\otimes\rho_{\frac{n}{2}-1}$ so that the Fourier coefficients associated to the 1D irreps are also recovered, asserting the validity of the inversion procedure. We provide an analytical proof of these two assertions. The proof is based on the theory of \emph{character functions}.
+
+\begin{definition}{\cite{steinberg2011representation}}
+    Given a group $G$ and a representation $\rho$, the \emph{character} of $\rho$ is the function $\chi_\rho:G\mapsto\mathbb{R}$ given by $\chi_\rho(g) = \mathrm{Tr}(\rho(g)$. $\chi_\rho$ is said to be an \emph{irreducible} character if $\rho$ is an irreducible representation.
+\end{definition}
+The character function $\chi_\rho$ is a \emph{class function} on $G$, i.e., $\chi_\rho$ is constant on a conjugacy class of $G$. The space of class functions on a finite group $G$, written $\mathcal{S}_G$, can be equipped with an inner product $\langle\cdot,\cdot\rangle_G:\mathcal{S}_G\times \mathcal{S}_G\mapsto \mathbb{C}$ such that for $u,v\in \mathcal{S}_G$, we have
+\begin{equation}
+    \langle u, v\rangle_G:=\frac{1}{|G|}\sum_{g\in|G|}u(g)\overline{v(g)}.
+\end{equation}
+The irreducible characters form an orthonormal basis with respect to $\langle\cdot,\cdot\rangle_G$ for $\mathcal{S}_G$ \cite{steinberg2011representation}, i.e.:
+\begin{equation}
+    \langle \chi_{\rho_a},\chi_{\rho_b}\rangle_G=\begin{cases}
+        1\text{ if } \rho_a\sim \rho_b,\\
+        0 \text{ otherwise.}
+    \end{cases}
+\end{equation}
+Therefore, for $\rho_a, \rho_b$ two irreps of $G$, $\rho_c\in\rho_a\otimes\rho_b$ if and only if $ \langle \chi_{\rho_a\otimes \rho_b},\chi_{\rho_c}\rangle_G\neq 0$. Let us apply this to the 2D irreps of $D_n$ ($n>2$). Let $\rho_i,\rho_j,\rho_k$ be three irreps defined as in~\eqref{eq:2d_irreps_dn}.
+Notice that we have $\mathcal{X}_{\rho}(a^lx)=0$. This yields:
+\begin{align*}
+    \langle \mathcal{X}_{\rho_i\otimes\rho_j},\mathcal{X}_{\rho_k}\rangle &=\frac{1}{2n}\sum_{l=1}^n \mathcal{X}_{\rho_i\otimes\rho_j}(a^l)\mathcal{X}_{\rho_k}(a^l)\\
+    &=\frac{1}{2n}\sum_{l=1}^n \mathcal{X}_{\rho_i}(a^l)\mathcal{X}_{\rho_j}(a^l)\mathcal{X}_{\rho_k}(a^l)\\
+    &=\frac{1}{2n}\sum_{l=1}^n 8\cos(\omega_l i)\cos(\omega_l j)\cos(\omega_l k)\\
+    %&=\frac{1}{2n}\sum_{l=1}^n 4\left(\cos(\omega_l (i+j))+\cos(\omega_l (j-i))\right)\cos(\omega_l k)\\
+    &=\frac{1}{n}\sum_{l=1}^n \cos(\omega_l (i+j+k))+\cos(\omega_l (i+j-k))\\ &\ +\cos(\omega_l (j-i+k))+\cos(\omega_l (j-i-k)).
+\end{align*}
+Recall that $\sum_{l=1}^n\cos(\omega_l m)=\begin{cases}
+        0 \text{ if } m\neq 0\\
+        n \text{ if } m = 0
+    \end{cases}$. Therefore, if we assume $0\leq i\leq j$ without loss of generality, $ \langle \mathcal{X}_{\rho_i\otimes\rho_j},\mathcal{X}_{\rho_k}\rangle\neq 0$ if and only if:
+\begin{equation*}
+    \begin{cases}
+        k = i+j \text{ or}\\
+        k = j-i.
+    \end{cases}.
+\end{equation*}
+Therefore, based on Definition~\ref{def:bispectrum}, by utilizing $\beta_{\rho_i,\rho_j}$, $\mathcal{F}(\Theta)_{\rho_i}$, $\mathcal{F}(\Theta)_{\rho_j}$, we can compute  $\mathcal{F}(\Theta)_{\rho_k}$ for $k\in\{i+j,\ j-i\}$. By iterating, if $\mathcal{F}(\Theta)_{\rho_1}$ is known,  $\beta_{\rho_1,\rho_1}$ gives $\mathcal{F}(\Theta)_{\rho_2}$. Then, $\beta_{\rho_1,\rho_2}$ can be leveraged to obtain  $\mathcal{F}(\Theta)_{\rho_3}$. Continuing the procedure provides $\mathcal{F}(\Theta)_{\rho_k}$ for $k=2,...,\lfloor \frac{n-1}{2}\rfloor$ by using $\beta_{\rho_1,\rho_{k-1}}$. We have thus obtained the Fourier coefficients associated to all the 2D irreps.
+
+It remains to show that the iteration also recovered the Fourier coefficients associated to the 1D irreps. This follows from $\rho_{01}\in\rho_1\otimes\rho_1$ and, for $n$ even, $\{\rho_{02}, \rho_{03}\}\subset\rho_1\otimes\rho_{\frac{n}{2}-1}$. Indeed, we have:
+\begin{align*}
+    \langle \mathcal{X}_{\rho_1\otimes\rho_1},\mathcal{X}_{\rho_{01}}\rangle &=\frac{1}{2n}\sum_{l=1}^n \mathcal{X}_{\rho_1\otimes\rho_1}(a^l)\mathcal{X}_{\rho_{01}}(a^l)\\
+    &=\frac{1}{2n}\sum_{l=1}^n 4\cos(\omega_l)^2\\
+    &=\frac{1}{n}\sum_{l=1}^n 1+\cos(2\omega_l)=1.
+\end{align*}
+Moreover, for $n$ even and $\rho\in\{\rho_{02}, \rho_{03}\}$, we have:
+\begin{align*}
+    \langle \mathcal{X}_{\rho_1\otimes\rho_{\frac{n}{2}-1}},\mathcal{X}_\rho\rangle &=\frac{1}{2n}\sum_{l=1}^n \mathcal{X}_{\rho_1\otimes\rho_{\frac{n}{2}-1}}(a^l)\mathcal{X}_\rho(a^l)\\
+    &=\frac{1}{n}\sum_{l=1}^n 1+\cos\left(\omega_l\left(\frac{n}{2}-2\right)\right)(-1)^l\\
+    &=1.
+\end{align*}
+In conclusion, the procedure of Algorithm \ref{alg:dihedral_alg} recovers all the Fourier coefficients and the bispectrum can be inverted with $\frac{n}{2}+1$ coefficients.
+\subsection{The Clebsch-Gordan matrices on $D_n$}\label{app:clebsch_gordan}
+The matrix algebra properties that we use in this subsection can be found, e.g., in \cite{bhatia97}. Recall from Theorem~\ref{thm:commutative_bispectrum} the (implicit) definition of the Clebsch-Gordan matrices:
+\begin{equation}\label{eq:cleb_gordan}
+    (\rho_1\otimes\rho_2)(g) = C_{\rho_1,\rho_2}\left[ \bigoplus_{\rho\in\rho_1\otimes\rho_2} \rho(g) \right]C_{\rho_1,\rho_2}^\dagger,
+\end{equation}
+where $C_{\rho_1,\rho_2}^\dagger C_{\rho_1,\rho_2}=I$.
+We only consider the case of $\rho_1,\rho_2$ both 2d irreps of $D_n$ since otherwise, the Clebsch-Gordan matrix is the scalar $1$.
+First notice that $(\rho_1\otimes\rho_2)(g)$, is an orthonormal matrix. Indeed, using the properties of the Kronecker product, we obtain (``$(g)$'' omitted for clarity):
+\begin{align*}
+    (\rho_1\otimes\rho_2)(\rho_1\otimes\rho_2)^\dagger &= (\rho_1\otimes\rho_2)(\rho_1^\dagger\otimes\rho_2^\dagger)\\
+    &=(\rho_1\rho_1^\dagger)\otimes (\rho_2\rho_2^\dagger)\\
+    &=I \otimes I = I
+\end{align*}
+For $Q$ a real orthogonal matrix ($Q^\dagger Q = I$), and $VSV^T$ with $V^\dagger V = I$, a real Schur decomposition of $Q$, it is known that $S$ is block diagonal with blocks of size $1\times 1$ or $2\times 2$. These blocks are themselves orthogonal matrices. Therefore, the real Schur decomposition is the decomposition in~\eqref{eq:cleb_gordan}. In order for $S$ to represent exactly the irreps from~\eqref{eq:2d_irreps_dn}, the non-zero sub-diagonal elements should all be positive. If not, the symmetric upper-diagonal element is positive and a permutation $P$ must be added to exchange there positions: $Q = (VP)(P^TSP)(VP)^T$. $P$ permutes the two columns of $V$ associated with the permuted $2\times 2$ block of $S$.
+\begin{algorithm}
+    \caption{Compute Clebsch-Gordan matrices on $D_n$}
+    \begin{algorithmic}[1]
+        \STATE \textbf{Input:} $\rho_1, \rho_2$, two 2d irreps of $D_n$.
+        \STATE Pick any $g\in D_n$, e.g., $g = a$.
+        \STATE Compute  $(\rho_1\otimes\rho_2)(g) = (VP)(P^TSP)(VP)^T$, a valid real Schur form.
+        \STATE Set $C_{\rho_1,\rho_2} = VP$.
+        \STATE Set $\bigoplus_{\rho\in\rho_1\otimes\rho_2} \rho(g) = P^TSP$
+        \STATE \textbf{Return:} $C_{\rho_1,\rho_2}, \bigoplus_{\rho\in\rho_1\otimes\rho_2}\rho(g)$.
+    \end{algorithmic}
+\end{algorithm}
+%\section{Heuristic inversion of the $G$-bispectrum on finite non-commutative groups}
+%We describe a greedy method which, when it terminates, provides a set of bispectral elements that can be inverted to
+\section{Training of the $G$-CNN architecture}\label{app:training}
+The $\mathrm{SO}(2)$-MNIST/EMNIST/CIFAR-10 datasets are obtained after applying random planar rotations on each image of the datasets MNIST \cite{deng2012mnist}, EMNIST \cite{cohen2017emnist} and CIFAR-10 \cite{CIFAR10} respectively. In the case of $\mathrm{O}(2)$-MNIST/EMNIST/CIFAR-10, in addition to a planar rotation, a reflection is applied with probability $\frac{1}{2}$.  The original size of each image is conserved. The size of the training sets are $60\ 000$,$88\ 800$ and $50\ 000$ for MNIST, EMNIST and CIFAR-10 respectively. %The size of the test sets are $10\ 000$ and $14\ 800$. For our experiments, $20\%$ of the training datasets are used for validation.
+%\subsection{$C_8$-CNNs on $\mathrm{SO}(2)$-MNIST/EMNIST/CIFAR-10}
+
+We conserve the architecture of \cite{sanborn2023general}. For all invariance layers, being the $G$-TC, the selective $G$-bispectrum and the Avg/Max $G$-pooling, the architecture is composed of a $C_8/D_8$-convolutional block with $K$ filters (see Table~\ref{tab:classification}). Then, the invariance layer is applied before feeding the output to a MLP. The MLP is composed of $3$ fully-connected layers with ReLU non-linearity. A final fully-connected linear layer is applied for classification. The vector of the output sizes of these layers is given by $[o1,o2,o3,ol]$ respectively. $o2=o3 = 64$ and $ol$ is equal to the number of classes of the dataset. $o1$ is tuned to reach the parameter count from Table~\ref{tab:classification}.
+\section{Bispectrum inversion for octahedral and full octahedral groups}
+We provide a sketch of the procedure to retrieve $\mathcal{F}(\Theta)$ given $\beta(\Theta)$ for the \href{https://en.wikipedia.org/wiki/Octahedral_symmetry}{octahedral group} and the \href{https://en.wikiversity.org/wiki/Full_octahedral_group}{full octahedral group}. These two groups are available in the \href{https://quva-lab.github.io/escnn/api/escnn.group.html}{\texttt{escnn} library}. These groups are easier to deal with than the cyclic and dihedral groups presented in the paper, given that they do not come from a \textit{family} of groups. Indeed, our proofs for the cyclic (resp. dihedral) groups needed to work for \textit{all} cyclic groups $C_N$, and for all dihedral groups $D_N$, for all $N$. The octahedral and full octahedral groups are only two groups.
+\begin{table*}[h]
+    \centering
+    \scriptsize{
+    \begin{tabular}{|c||c|c|c|c|c|c|c|c|c|c|c|}
+    \hline
+            $\otimes$ &$\rho_0$&$\rho_1$&$\rho_2$&$\rho_3$&$\rho_4$&$\rho_5$&$\rho_6$&$\rho_7$&$\rho_8$&$\rho_9$\\
+    \hline
+    $\rho_0$&1000000000 & 0100000000 & 0010000000 & 0001000000 & 0000100000 & 0000010000 & 0000001000 & 0000000100 & 0000000010 & 0000000001 \\
+    \hline
+    $\rho_1$&0100000000 & 1111000000 & 0111100000 & 0110000000 & 0010000000 & 0000001000 & 0000011110 & 0000001111 & 0000001100 & 0000000100 \\
+    \hline
+    $\rho_2$&0010000000 & 0111100000 & 1111000000 & 0110000000 & 0100000000 & 0000000100 & 0000001111 & 0000011110 & 0000001100 & 0000001000 \\
+    \hline
+    $\rho_3$&0001000000 & 0110000000 & 0110000000 & 1001100000 & 0001000000 & 0000000010 & 0000001100 & 0000001100 & 0000010011 & 0000000010 \\
+    \hline
+    $\rho_4$&0000100000 & 0010000000 & 0100000000 & 0001000000 & 1000000000 & 0000000001 & 0000000100 & 0000001000 & 0000000010 & 0000010000 \\
+    \hline
+    $\rho_5$&0000010000 & 0000001000 & 0000000100 & 0000000010 & 0000000001 & 1000000000 & 0100000000 & 0010000000 & 0001000000 & 0000100000 \\
+    \hline
+    $\rho_6$&0000001000 & 0000011110 & 0000001111 & 0000001100 & 0000000100 & 0100000000 & 1111000000 & 0111100000 & 0110000000 & 0010000000 \\
+    \hline
+    $\rho_7$&0000000100 & 0000001111 & 0000011110 & 0000001100 & 0000001000 & 0010000000 & 0111100000 & 1111000000 & 0110000000 & 0100000000 \\
+    \hline
+    $\rho_8$&0000000010 & 0000001100 & 0000001100 & 0000010011 & 0000000010 & 0001000000 & 0110000000 & 0110000000 & 1001100000 & 0001000000 \\
+    \hline
+    $\rho_9$&0000000001 & 0000000100 & 0000001000 & 0000000010 & 0000010000 & 0000100000 & 0010000000 & 0100000000 & 0001000000 & 1000000000\\
+    \hline
+    \end{tabular}
+    }
+    \caption{Kronecker table of  full octahedral group using \texttt{escnn}. For the binary word at position $i,j$ in the table, the $k$th `letter' is $1$ if $\rho_k\in\rho_i\otimes \rho_j$, $0$ otherwise.}
+    \label{tab:full_octa}
+\end{table*}
+\subsection{Octahedral group}
+\begin{table}
+        \centering
+        \begin{tabular}{|c||c|c|c|c|c|}
+            \hline
+            $\otimes$ &$\rho_0$&$\rho_1$&$\rho_2$&$\rho_3$&$\rho_4$\\
+            \hline
+            \hline
+            $\rho_0$&10000 & 01000 & 00100 & 00010 & 00001 \\
+            \hline
+            $\rho_1$&01000 & 11110 & 01111 & 01100 & 00100 \\
+            \hline
+            $\rho_2$&00100 & 01111 & 11110 & 01100 & 01000 \\
+            \hline
+            $\rho_3$&00010 & 01100 & 01100 & 10011 & 00010 \\
+            \hline
+            $\rho_4$ &00001 & 00100 & 01000 & 00010 & 10000 \\
+            \hline
+        \end{tabular}
+        \caption{Kronecker table of the octahedral group using \texttt{escnn}. For the binary word at position $i,j$ in the table, the $k$th `letter' is $1$ if $\rho_k\in\rho_i\otimes \rho_j$, $0$ otherwise.}
+        \label{tab:octa}
+    \end{table}
+
+The octahedral group has 24 elements and 5 irreps. We can compute its Kronecker table, either manually using characters $\chi$ or using a Python package such as \texttt{escnn}. We give its Kronecker table below (Table~\ref{tab:octa}), where each column/row represents one irrep, labelled $\rho_0, \rho_1, ..., \rho_4$.
+
+We apply the procedure from Algorithms~\ref{alg:cyclic_alg}, \ref{alg:commutative_alg} and \ref{alg:dihedral_alg} to Table~\ref{tab:octa}. This procedure relies on the use of Theorem~\ref{def:bispectrum}. We first select the bispectral coefficient $\beta_{\rho_0, \rho_0}$ (we omit ``$(\Theta)$'' for clarity) to get the component $\mathcal{F}_{\rho_0 }$ where $\rho_0$ is the trivial representation. Next, we choose $\beta_{\rho_0,\rho_1}$ and use $\mathcal{F}_{\rho_0}$  to obtain $\mathcal{F}_{\rho_1}$ (we know from Table~\ref{tab:octa} that $\rho_1\in\rho_0\otimes\rho_1$) up to an indeterminacy which is a transformation in $\mathrm{O}(3)$ and corresponds to the indeterminacy factor from Appendix~\ref{sec:indeterminacy}. Then, we select  $\beta_{\rho_1, \rho_1}$ to get the Fourier components $\mathcal{F}_{\rho_2}, \mathcal{F}_{\rho_3}$. Lastly, we select $\beta_{\rho_1, \rho_2}$ to get the missing Fourier component $\mathcal{F}_{\rho_4}$.
+
+In summary, we only need $4$ bispectral coefficients ($\beta_{\rho_0, \rho_0}, \beta_{\rho_1, \rho_0}, \beta_{\rho_1, \rho_1}, \beta_{\rho_1, \rho_2}$) instead of $5^2 = 25$ in order to get the five Fourier components, i.e., the full Fourier transform of the signal.
+\subsection{Full octahedral group}
+The full octahedral group has $48$ elements and $10$ irreps. Again, we can compute its Kronecker table using a Python package such as \texttt{escnn}. We give its Kronecker table below (Table~\ref{tab:full_octa}), where each column/row represents one irrep, labelled $\rho_0, \rho_1, ..., \rho_{9}$.
+
+We apply the procedure from Algorithms~\ref{alg:cyclic_alg}, \ref{alg:commutative_alg} and \ref{alg:dihedral_alg} to Table~\ref{tab:full_octa}. Again, this procedure relies on the use of Theorem~\ref{def:bispectrum}. $\beta_{\rho_0,\rho_0}$ (we omit ``$(\Theta)$'' for clarity) allows to compute $\mathcal{F}_{\rho_0}$ directly, such as in Algorithm~\ref{alg:dihedral_alg}. Then, from $\beta_{\rho_0,\rho_6}$, we obtain $\mathcal{F}_{\rho_6}$ up to an unknown group action in $\mathrm{O}(3)$. Then, using $\beta_{\rho_6,\rho_6}$ and $\mathcal{F}_{\rho_6}$, we obtain $\mathcal{F}_{\rho_1}$,$\mathcal{F}_{\rho_2}$ and $\mathcal{F}_{\rho_ 3}$. Next, leveraging $\beta_{\rho_1,\rho_2}$, $\mathcal{F}_{\rho_1}$ and $\mathcal{F}_{\rho_2}$, we obtain  $\mathcal{F}_{\rho_4}$. Using $\beta_{\rho_1,\rho_6}$, $\mathcal{F}_{\rho_1}$ and $\mathcal{F}_{\rho_6}$, we obtain  $\mathcal{F}_{\rho_5}$, $\mathcal{F}_{\rho_7}$, $\mathcal{F}_{\rho_8}$. Finally, with $\beta_{\rho_1,\rho_7}$, $\mathcal{F}_{\rho_1}$ and $\mathcal{F}_{\rho_7}$, we obtain the last coefficient $\mathcal{F}_{\rho_9}$. Hence we have recovered all the Fourier coefficients using only $\beta_{\rho_0,\rho_0}$, $\beta_{\rho_0,\rho_6}$, $\beta_{\rho_6,\rho_6}$, $\beta_{\rho_1,\rho_2}$,$\beta_{\rho_1,\rho_6}$, $\beta_{\rho_1,\rho_7}$, thus a total of $6$ bispectral coefficients instead of $100$.
+
+
+\end{document}
