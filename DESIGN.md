@@ -45,6 +45,7 @@ Groups act on domains. Both matter. The class name encodes both, in mathematical
 | `CnonCn`  | $C_n$                  | $C_n$           | Cyclic group acting on itself (discrete cycle) |
 | `DnonDn`  | $D_n$                  | $D_n$           | Dihedral group acting on itself                |
 | `SO3onS2` | $\\mathrm{SO}(3)$      | $S^2$           | 3D rotations on the 2-sphere                   |
+| `SO2onD2` | $\\mathrm{SO}(2)$      | $D^2$           | 2D rotations on the unit disk                  |
 | `OonR3`   | $O$ (octahedral group) | $\\mathbb{R}^3$ | Octahedral symmetries on 3D space *(future)*   |
 
 This convention is deliberately mathematical rather than verbal (`CyclicBispectrum`, etc.) because the mathematical name carries precise meaning and avoids ambiguity as the library grows.
@@ -219,6 +220,47 @@ SO3onS2(
 
 ______________________________________________________________________
 
+### `SO2onD2(L: int)` — $\\mathrm{SO}(2)$ on the unit disk $D^2$
+
+**Mathematical setting:**
+Signal $f: D^2 \\to \\mathbb{R}$ on the unit disk. Group $\\mathrm{SO}(2)$ acts by rotation: $(T\_\\phi f)(r, \\theta) = f(r, \\theta - \\phi)$.
+
+**Disk Harmonic Transform** (Fourier-Bessel basis):
+
+$$a\_{n,k} = \\int_0^1 \\int_0^{2\\pi} f(r,\\theta) \\cdot c\_{nk} \\cdot J_n(\\lambda\_{nk} r) \\cdot e^{-in\\theta} \\, r \\, dr \\, d\\theta$$
+
+where $\\lambda\_{nk}$ is the $k$-th positive root of $J_n$ and $c\_{nk}$ is a normalisation constant.
+
+**Selective bispectrum** (Definition 4.2, [Lantow & Miolane 2026]):
+
+$$b\_{0,0,k} = a\_{0,1}^2 \\cdot \\overline{a\_{0,k}}, \\qquad b\_{2,n,k} = a\_{1,1} \\cdot a\_{n,1} \\cdot \\overline{a\_{n+1,k}}$$
+
+This reduces the bispectrum from $O(N^3)$ to $O(N)$ coefficients while preserving injectivity up to rotation.
+
+**Usage:**
+
+```python
+bsp = SO2onD2(L=16)
+f = torch.randn(batch_size, 16, 16)    # signal on D², shape (batch, L, L)
+output = bsp(f)                         # shape (batch, output_size), complex128
+f_rec = bsp.invert(output)              # shape (batch, L, L), float64
+```
+
+**Constructor parameters:**
+
+```python
+SO2onD2(
+    L: int,                     # Grid resolution (L x L image)
+    selective: bool = True,     # Selective O(N) or full O(N³) bispectrum
+    bandlimit: float | None = None  # Explicit Bessel root cutoff (default: auto from L)
+)
+```
+
+**Bessel root computation:**
+All Bessel roots are computed internally via `_bessel.py` — a pure-torch implementation using the interlacing property $j\_{n-1,k} < j\_{n,k} < j\_{n-1,k+1}$ with Newton-bisection polishing. No scipy dependency.
+
+______________________________________________________________________
+
 ## Selectivity Roadmap
 
 The central value proposition of the library is the *selective* G-bispectrum: a minimal subset of bispectral pairs $(\\rho, \\sigma)$ that suffices for complete signal reconstruction, reducing coefficient count from $O(\\lvert G\\rvert^2)$ to $O(\\lvert G\\rvert)$.
@@ -232,7 +274,7 @@ This is proven for finite groups only. Here, `O` denotes the finite octahedral r
 | `OonR3`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅             | Planned          |
 | —         | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2 | —                |
 | `SO3onS2` | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌             | **Open problem** |
-| —         | $\\mathrm{SO}(2)$    | $S^1 \\times \\mathbb{R}^+$ (disk) | ❌ Full only                                    | ❌             | Open problem     |
+| `SO2onD2` | $\\mathrm{SO}(2)$    | $D^2$ (disk)                       | ✅ $N$ coefficients (Lantow & Miolane 2026)     | ✅             | ✅ Done          |
 | —         | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌             | Open problem     |
 | —         | Compact $G$          | $G$                                | ❌ Full only                                    | ❌             | Open problem     |
 | —         | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌             | Open problem     |
@@ -251,17 +293,9 @@ $$\\rho\_{l_1} \\otimes \\rho\_{l_2} = \\bigoplus\_{l=|l_1-l_2|}^{l_1+l_2} \\rho
 
 A selective version would identify the minimal set of index pairs needed for inversion. The challenge: $\\mathrm{SO}(3)$ has infinitely many irreps $\\rho_l$ (one per $l \\geq 0$), and the BFS on the Kronecker table (used for finite groups) does not terminate. A truncated selective version with guaranteed reconstruction error bounds would be a meaningful contribution.
 
-**TODO-M2: Selective bispectrum for $\\mathrm{SO}(2)$ on the disk $S^1 \\times \\mathbb{R}^+$**
+**~~TODO-M2~~ DONE: Selective bispectrum for $\\mathrm{SO}(2)$ on the disk $D^2$**
 
-Fourier coefficients are indexed by $(m, n)$ (angular frequency $m$, radial zero $n$) via the Fourier-Bessel transform:
-
-$$F(f)_{nm} = \\int f(r,\\theta), J_m(2\\pi l_{nm} r), e^{-im\\theta}, r, dr, d\\theta$$
-
-The bispectrum is:
-
-$$\\beta(f)_{(m_1, n_1),(m_2, n_2)} = F(f)_{m_1 n_1} \\cdot F(f)_{m_2 n_2} \\cdot F(f)^\*_{(m_1+m_2), n\_{12}}$$
-
-($\\mathrm{SO}(2)$ is commutative, so no CG needed.) A selective version analogous to $C_n$ — exploiting the same cyclic structure in the angular index $m$ — likely exists.
+Solved by Lantow & Miolane (2026). The selective disk bispectrum (Definition 4.2) reduces from $O(N^3)$ to $O(N)$ coefficients while preserving injectivity (up to rotation). Inversion is available via a bootstrap from the $(0,1)$ coefficient. Implemented in `SO2onD2`.
 
 **TODO-M3: Selective bispectrum for $\\mathrm{SO}(3)$ on the ball $S^2 \\times \\mathbb{R}^+$**
 
@@ -279,7 +313,7 @@ The top-level `bispectrum` namespace exposes only what a user needs:
 
 ```python
 # Main modules
-from bispectrum import CnonCn, DnonDn, SO3onS2
+from bispectrum import CnonCn, DnonDn, SO2onD2, SO3onS2
 
 # Rotation utilities (useful for testing/data augmentation)
 from bispectrum import random_rotation_matrix, rotate_spherical_function
@@ -309,7 +343,9 @@ src/bispectrum/
 ├── cn_on_cn.py          # CnonCn
 ├── dn_on_dn.py          # DnonDn
 ├── so3_on_s2.py         # SO3onS2 (refactored)
+├── so2_on_d2.py         # SO2onD2
 ├── rotation.py          # random_rotation_matrix, rotate_spherical_function
+├── _bessel.py           # Internal Bessel function utilities (not exported)
 └── _cg.py               # Internal CG utilities (not exported)
 ```
 
@@ -367,6 +403,7 @@ ______________________________________________________________________
 
 ## References
 
+- Lantow & Miolane (2026). *The Selective Disk Bispectrum and Its Inversion, with Application to Multi-Reference Alignment*. arXiv preprint. [arXiv:2503.XXXXX](https://arxiv.org/abs/2503.XXXXX)
 - Mataigne et al. (2024). *The Selective G-Bispectrum and its Inversion: Applications to G-Invariant Networks*. NeurIPS 2024. [arXiv:2407.07655](https://arxiv.org/abs/2407.07655)
 - Kakarala (1992). *Triple Correlation on Groups*. PhD thesis, UC Irvine.
 - Kakarala (2009). *Bispectrum on Finite Groups*. ICASSP 2009.

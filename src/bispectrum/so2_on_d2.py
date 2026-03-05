@@ -2,7 +2,7 @@
 
 Implements the selective disk bispectrum for SO(2) acting on the unit disk D^2,
 following Lantow & Miolane, "The Selective Disk Bispectrum and Its Inversion,
-with Application to Multi-Reference Alignment", CVPR 2026.
+with Application to Multi-Reference Alignment", arXiv preprint, 2026.
 
 The disk harmonic transform (DHT) decomposes a function f: D -> R into
 disk harmonic coefficients a_{n,k} using the basis:
@@ -99,7 +99,7 @@ class SO2onD2(nn.Module):
     disk bispectrum coefficients.
 
     Reference: Lantow & Miolane, "The Selective Disk Bispectrum and Its
-    Inversion, with Application to Multi-Reference Alignment", CVPR 2026.
+    Inversion, with Application to Multi-Reference Alignment", arXiv preprint, 2026.
     Forward uses Definition 4.2; inversion uses Theorem 4.4.
 
     Args:
