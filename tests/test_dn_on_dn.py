@@ -10,7 +10,15 @@ RTOL = 1e-4
 
 
 def _rotate(f: torch.Tensor, n: int, shift: int = 1) -> torch.Tensor:
-    """Apply rotation by a^shift: cyclic-shift each half independently."""
+    """Left regular action of a^shift: (L_{a^s} f)(h) = f(a^{-s} h).
+
+    This is the convention used in the paper (Appendix B, Mataigne et al. NeurIPS 2024): α(h, Θ(g))
+    = Θ(h⁻¹ · g).
+
+    Both halves shift in the same direction because f(a^{-s} · a^l) = f(a^{l-s}) and f(a^{-s} · a^l
+    x) = f(a^{l-s} x). (The right regular action would shift them in opposite directions since xa =
+    a^{-1}x.)
+    """
     f_rot = torch.roll(f[:, :n], shift, dims=-1)
     f_ref = torch.roll(f[:, n:], shift, dims=-1)
     return torch.cat([f_rot, f_ref], dim=-1)
@@ -171,13 +179,33 @@ class TestDnonDnInvert:
         beta = bsp(f)
         f_rec = bsp.invert(beta)
         beta_rec = bsp(f_rec)
-        # β_{ρ0,ρ0} and β_{ρ0,ρ1} are determined by F_0 and F_1^T F_1
-        # which are recovered exactly (the O(2) ambiguity cancels).
+        # Only the first 5 scalars are O(2)-invariant and roundtrip exactly:
+        #   [:1]  = β_{ρ0,ρ0} = F(ρ0)³  (1 scalar)
+        #   [1:5] = β_{ρ0,ρ1} = F(ρ0)·F(ρ1)ᵀF(ρ1)  (2×2 = 4 scalars)
+        # Both depend on F(ρ1) only through F(ρ1)ᵀF(ρ1), so the O(2)
+        # ambiguity in the recovered F(ρ1) cancels out.  All subsequent
+        # β_{ρ1,ρk} involve F(ρ1) directly and change under Q ∈ O(2).
         torch.testing.assert_close(beta[:, :5], beta_rec[:, :5], atol=ATOL, rtol=RTOL)
 
     @pytest.mark.parametrize('n', [3, 4, 5, 7, 8])
     def test_roundtrip_fourier_frobenius(self, n: int):
-        """Frobenius norms of Fourier coefs must match (O(2) indeterminacy)."""
+        """Verify that inversion preserves all Fourier coefficient magnitudes.
+
+        Complementary to test_roundtrip_bispectrum, which checks the 1D irreps
+        (β_{ρ0,ρ0} and β_{ρ0,ρ1}) exactly.  This test checks the 2D irreps
+        ρ_1, ..., ρ_{n2d} at the Fourier level.
+
+        Because inversion recovers F(ρ_1) only up to Q ∈ O(2), we cannot
+        compare Fourier matrices element-wise.  However ||Q·M||_F = ||M||_F,
+        so the Frobenius norm is the strongest O(2)-invariant scalar we can
+        check per irrep.
+
+        The loop iterates k_idx = 1..n2d, one per 2D irrep.  Together with
+        the exact 1D-irrep check in test_roundtrip_bispectrum, this covers
+        every irrep of D_n: if all Frobenius norms match, the reconstructed
+        signal lives in the same D_n orbit as the original (by completeness,
+        Theorem 4.4).
+        """
         torch.manual_seed(n + 99)
         bsp = DnonDn(n=n)
         f = torch.randn(4, 2 * n, dtype=torch.float64)
@@ -210,3 +238,45 @@ class TestDnonDnInvert:
         bsp = DnonDn(n=8, selective=False)
         with pytest.raises(NotImplementedError):
             bsp.invert(torch.randn(2, 4))
+
+
+class TestDnonDnPerformance:
+    """Benchmark tests for DFT performance.
+
+    Run with ``pytest -s`` to see timings.
+    """
+
+    @pytest.mark.parametrize('n', [64, 256, 1024])
+    def test_group_dft_timing(self, n: int) -> None:
+        import time
+
+        bsp = DnonDn(n=n)
+        f = torch.randn(16, 2 * n, dtype=torch.float64)
+        # warm-up
+        for _ in range(3):
+            bsp._group_dft(f)
+
+        iters = 20
+        t0 = time.perf_counter()
+        for _ in range(iters):
+            bsp._group_dft(f)
+        elapsed = (time.perf_counter() - t0) / iters
+        print(f'\n  _group_dft  n={n:>5d}  {elapsed * 1e3:.3f} ms')
+
+    @pytest.mark.parametrize('n', [64, 256, 1024])
+    def test_inverse_dft_timing(self, n: int) -> None:
+        import time
+
+        bsp = DnonDn(n=n)
+        f = torch.randn(16, 2 * n, dtype=torch.float64)
+        fhat = bsp._group_dft(f)
+        # warm-up
+        for _ in range(3):
+            bsp._inverse_dft(fhat)
+
+        iters = 20
+        t0 = time.perf_counter()
+        for _ in range(iters):
+            bsp._inverse_dft(fhat)
+        elapsed = (time.perf_counter() - t0) / iters
+        print(f'\n  _inverse_dft  n={n:>5d}  {elapsed * 1e3:.3f} ms')

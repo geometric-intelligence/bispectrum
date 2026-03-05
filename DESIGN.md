@@ -118,7 +118,7 @@ $$ \\hat{f}_k = \\sum_{x=0}^{n-1} f(x), e^{-i \\frac{2\\pi k x}{n}} $$
 
 is the DFT.
 
-**Selective coefficients** (Algorithm 1, [Mataigne et al. 2024]):
+**Selective coefficients** (Algorithm 2, [Mataigne et al. 2024]):
 Full bispectrum has $n^2$ coefficients. Selective version needs only $n$:
 
 $${ \\beta\_{0,0},\\ \\beta\_{0,1},\\ \\beta\_{1,1},\\ \\beta\_{1,2},\\ \\ldots,\\ \\beta\_{1,n-2} }$$
@@ -161,7 +161,7 @@ $$\\rho_k(a^l x^m) = \\begin{pmatrix} \\cos(\\tfrac{2\\pi lk}{n}) & -\\sin(\\tfr
 
 - 1D irreps: $\\rho_0$ (trivial), $\\rho\_{01}$, and (for $n$ even) $\\rho\_{02}$, $\\rho\_{03}$
 
-**Selective coefficients** (Algorithm 3, [Mataigne et al. 2024]):
+**Selective coefficients** (Algorithm 4, [Mataigne et al. 2024]):
 Only $\\lfloor(n-1)/2\\rfloor + 2$ matrix-valued bispectral coefficients needed, corresponding to approximately $4\\lvert D_n \\rvert$ scalar values.
 
 **Usage:**
@@ -227,10 +227,10 @@ This is proven for finite groups only. Here, `O` denotes the finite octahedral r
 
 | Class     | Group                | Domain                             | Selective?                                      | Inversion?     | Status           |
 | --------- | -------------------- | ---------------------------------- | ----------------------------------------------- | -------------- | ---------------- |
-| `CnonCn`  | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1 | ✅ Done          |
-| `DnonDn`  | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3 | ✅ Done          |
-| `OonR3`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅             | Planned          |
-| —         | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2 | —                |
+| `CnonCn`  | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 2 | ✅ Done          |
+| `DnonDn`  | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 4 | ✅ Done          |
+| `OonR3`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. F)                | ✅             | Planned          |
+| —         | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 3 | —                |
 | `SO3onS2` | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌             | **Open problem** |
 | —         | $\\mathrm{SO}(2)$    | $S^1 \\times \\mathbb{R}^+$ (disk) | ❌ Full only                                    | ❌             | Open problem     |
 | —         | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌             | Open problem     |
