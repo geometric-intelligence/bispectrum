@@ -169,8 +169,10 @@ Only $\\lfloor(n-1)/2\\rfloor + 2$ matrix-valued bispectral coefficients needed,
 ```python
 bsp = DnonDn(n=4)
 f = torch.randn(batch_size, 8)          # signal on D_4 (|D_4| = 2n = 8), shape (batch, 2n)
-output = bsp(f)                          # shape (batch, output_size), complex64
+output = bsp(f)                          # shape (batch, output_size), float32
 ```
+
+Note: unlike `CnonCn`, `DnonDn.forward()` returns `float32` (not `complex64`) because all $D_n$ irreps are real-valued, so bispectral coefficients are real.
 
 **Constructor parameters:**
 
@@ -225,8 +227,8 @@ This is proven for finite groups only. Here, `O` denotes the finite octahedral r
 
 | Class     | Group                | Domain                             | Selective?                                      | Inversion?     | Status           |
 | --------- | -------------------- | ---------------------------------- | ----------------------------------------------- | -------------- | ---------------- |
-| `CnonCn`  | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1 | Implementing     |
-| `DnonDn`  | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3 | Implementing     |
+| `CnonCn`  | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1 | ✅ Done          |
+| `DnonDn`  | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3 | ✅ Done          |
 | `OonR3`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅             | Planned          |
 | —         | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2 | —                |
 | `SO3onS2` | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌             | **Open problem** |

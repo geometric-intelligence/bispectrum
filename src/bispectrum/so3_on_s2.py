@@ -114,11 +114,6 @@ class SO3onS2(nn.Module):
         )
 
 
-# ---------------------------------------------------------------------------
-# Private helpers (folded from the old spherical.py)
-# ---------------------------------------------------------------------------
-
-
 def _get_full_sh_coefficients(
     coeffs_positive_m: torch.Tensor,
 ) -> dict[int, torch.Tensor]:
