@@ -254,27 +254,6 @@ class DnonDn(nn.Module):
 
         self.register_buffer('_cg_matrices', cg_buf)
 
-        # --- DFT rotation tensors ------------------------------------------
-        if n2d > 0:
-            i_range = torch.arange(1, n2d + 1, dtype=torch.float64)
-            j_range = torch.arange(n, dtype=torch.float64)
-            omega = 2 * math.pi * i_range[:, None] * j_range[None, :] / n
-
-            rho_rot = torch.zeros(n2d, 2, 2, n, dtype=torch.float64)
-            rho_rot[:, 0, 0] = torch.cos(omega)
-            rho_rot[:, 0, 1] = -torch.sin(omega)
-            rho_rot[:, 1, 0] = torch.sin(omega)
-            rho_rot[:, 1, 1] = torch.cos(omega)
-
-            rho_ref = rho_rot.clone()
-            rho_ref[:, :, 1, :] *= -1
-        else:
-            rho_rot = torch.zeros(0, 2, 2, n, dtype=torch.float64)
-            rho_ref = rho_rot.clone()
-
-        self.register_buffer('_rho_rot', rho_rot)
-        self.register_buffer('_rho_ref', rho_ref)
-
         # --- index map ------------------------------------------------------
         idx_map: list[tuple[int, ...]] = [(0, 0)]
         for r in range(2):
@@ -287,9 +266,16 @@ class DnonDn(nn.Module):
         self._index_map: list[tuple[int, ...]] = idx_map
 
     def _group_dft(self, f: torch.Tensor) -> torch.Tensor:
-        """Forward DFT on D_n.
+        """Forward DFT on D_n via two O(n log n) FFTs.
 
         (batch, 2n) -> (batch, 2, 2, n2d+1).
+
+        The relation between torch.fft.fft coefficients F = fft(f) and the
+        group Fourier coefficients fhat(rho_k) is:
+            fhat[0,0,k] = Re(F_rot[k]) + Re(F_ref[k])
+            fhat[0,1,k] = Im(F_rot[k]) - Im(F_ref[k])
+            fhat[1,0,k] = -Im(F_rot[k]) - Im(F_ref[k])
+            fhat[1,1,k] = Re(F_rot[k]) - Re(F_ref[k])
         """
         n = self.n
         n2d = self._n2d
@@ -300,70 +286,80 @@ class DnonDn(nn.Module):
         f_rot = f[:, :n]
         f_ref = f[:, n:]
 
+        Fr = torch.fft.fft(f_rot, dim=-1)
+        Fx = torch.fft.fft(f_ref, dim=-1)
+
         fhat = torch.zeros(batch, 2, 2, n2d + 1, device=device, dtype=dtype)
 
-        # 1D irreps
-        fhat[:, 0, 0, 0] = f.sum(dim=-1)
-        fhat[:, 1, 0, 0] = f_rot.sum(dim=-1) - f_ref.sum(dim=-1)
-        if n % 2 == 0:
-            signs = torch.pow(-1.0, torch.arange(n, device=device, dtype=dtype))
-            f_rot_s = (f_rot * signs).sum(dim=-1)
-            f_ref_s = (f_ref * signs).sum(dim=-1)
-            fhat[:, 0, 1, 0] = f_rot_s + f_ref_s
-            fhat[:, 1, 1, 0] = f_rot_s - f_ref_s
+        # 1D irreps from DC (k=0)
+        fhat[:, 0, 0, 0] = Fr[:, 0].real + Fx[:, 0].real
+        fhat[:, 1, 0, 0] = Fr[:, 0].real - Fx[:, 0].real
 
-        # 2D irreps
+        # 1D irreps from Nyquist (k=n/2, even n only)
+        if n % 2 == 0:
+            half = n // 2
+            fhat[:, 0, 1, 0] = Fr[:, half].real + Fx[:, half].real
+            fhat[:, 1, 1, 0] = Fr[:, half].real - Fx[:, half].real
+
+        # 2D irreps from k=1..n2d
         if n2d > 0:
-            rho_r = self._rho_rot.to(dtype)  # (n2d, 2, 2, n)
-            rho_x = self._rho_ref.to(dtype)
-            fhat_2d = torch.einsum('bl,krcl->brck', f_rot, rho_r) + torch.einsum(
-                'bl,krcl->brck', f_ref, rho_x
-            )
-            fhat[:, :, :, 1:] = fhat_2d
+            Fr_k = Fr[:, 1 : n2d + 1]
+            Fx_k = Fx[:, 1 : n2d + 1]
+            fhat[:, 0, 0, 1:] = Fr_k.real + Fx_k.real
+            fhat[:, 0, 1, 1:] = Fr_k.imag - Fx_k.imag
+            fhat[:, 1, 0, 1:] = -Fr_k.imag - Fx_k.imag
+            fhat[:, 1, 1, 1:] = Fr_k.real - Fx_k.real
 
         return fhat
 
     def _inverse_dft(self, fhat: torch.Tensor) -> torch.Tensor:
-        """Inverse DFT on D_n.
+        """Inverse DFT on D_n via two O(n log n) IFFTs.
 
         (batch, 2, 2, n2d+1) -> (batch, 2n).
+
+        Assembles complex spectra G_rot, G_ref of length n from the 2x2 Fourier coefficients,
+        enforcing Hermitian symmetry so that ifft produces real output.
         """
         n = self.n
         n2d = self._n2d
         batch = fhat.shape[0]
         device = fhat.device
         dtype = fhat.dtype
-        inv_2n = 1.0 / (2.0 * n)
+        cdtype = torch.complex128 if dtype == torch.float64 else torch.complex64
 
-        f_rot = torch.zeros(batch, n, device=device, dtype=dtype)
-        f_ref = torch.zeros(batch, n, device=device, dtype=dtype)
+        G_rot = torch.zeros(batch, n, device=device, dtype=cdtype)
+        G_ref = torch.zeros(batch, n, device=device, dtype=cdtype)
 
+        # k=0 (DC): 1D irreps rho0, rho01
         F0 = fhat[:, 0, 0, 0]
-        F01 = fhat[:, 1, 0, 0]
-        f_rot += (F0 + F01)[:, None] * inv_2n
-        f_ref += (F0 - F01)[:, None] * inv_2n
+        F01_ = fhat[:, 1, 0, 0]
+        G_rot[:, 0] = (F0 + F01_) / 2
+        G_ref[:, 0] = (F0 - F01_) / 2
 
+        # k=n/2 (Nyquist): 1D irreps rho02, rho03 (even n only)
         if n % 2 == 0:
+            half = n // 2
             F02 = fhat[:, 0, 1, 0]
             F03 = fhat[:, 1, 1, 0]
-            signs = torch.pow(-1.0, torch.arange(n, device=device, dtype=dtype))
-            f_rot += ((F02 + F03)[:, None] * signs) * inv_2n
-            f_ref += ((F02 - F03)[:, None] * signs) * inv_2n
+            G_rot[:, half] = (F02 + F03) / 2
+            G_ref[:, half] = (F02 - F03) / 2
 
+        # k=1..n2d: 2D irreps
         if n2d > 0:
-            l_range = torch.arange(n, device=device, dtype=dtype)
-            inv_n = 1.0 / n
-            for k_idx in range(n2d):
-                theta = 2 * math.pi * (k_idx + 1) * l_range / n
-                cos_t = torch.cos(theta)
-                sin_t = torch.sin(theta)
-                Fk = fhat[:, :, :, k_idx + 1]
-                F00 = Fk[:, 0, 0]
-                F01_ = Fk[:, 0, 1]
-                F10 = Fk[:, 1, 0]
-                F11 = Fk[:, 1, 1]
-                f_rot += (cos_t * (F00 + F11)[:, None] + sin_t * (F10 - F01_)[:, None]) * inv_n
-                f_ref += (cos_t * (F00 - F11)[:, None] + sin_t * (F01_ + F10)[:, None]) * inv_n
+            A = fhat[:, 0, 0, 1:]  # (batch, n2d)
+            B = fhat[:, 0, 1, 1:]
+            C = fhat[:, 1, 0, 1:]
+            D = fhat[:, 1, 1, 1:]
+
+            G_rot[:, 1 : n2d + 1] = torch.complex((A + D) / 2, (B - C) / 2)
+            G_ref[:, 1 : n2d + 1] = torch.complex((A - D) / 2, -(B + C) / 2)
+
+            # Hermitian symmetry: G[n-k] = conj(G[k])
+            G_rot[:, n - n2d : n] = G_rot[:, 1 : n2d + 1].flip(-1).conj()
+            G_ref[:, n - n2d : n] = G_ref[:, 1 : n2d + 1].flip(-1).conj()
+
+        f_rot = torch.fft.ifft(G_rot, dim=-1).real.to(dtype)
+        f_ref = torch.fft.ifft(G_ref, dim=-1).real.to(dtype)
 
         return torch.cat([f_rot, f_ref], dim=-1)
 

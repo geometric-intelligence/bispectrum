@@ -210,3 +210,45 @@ class TestDnonDnInvert:
         bsp = DnonDn(n=8, selective=False)
         with pytest.raises(NotImplementedError):
             bsp.invert(torch.randn(2, 4))
+
+
+class TestDnonDnPerformance:
+    """Benchmark tests for DFT performance.
+
+    Run with ``pytest -s`` to see timings.
+    """
+
+    @pytest.mark.parametrize('n', [64, 256, 1024])
+    def test_group_dft_timing(self, n: int) -> None:
+        import time
+
+        bsp = DnonDn(n=n)
+        f = torch.randn(16, 2 * n, dtype=torch.float64)
+        # warm-up
+        for _ in range(3):
+            bsp._group_dft(f)
+
+        iters = 20
+        t0 = time.perf_counter()
+        for _ in range(iters):
+            bsp._group_dft(f)
+        elapsed = (time.perf_counter() - t0) / iters
+        print(f'\n  _group_dft  n={n:>5d}  {elapsed * 1e3:.3f} ms')
+
+    @pytest.mark.parametrize('n', [64, 256, 1024])
+    def test_inverse_dft_timing(self, n: int) -> None:
+        import time
+
+        bsp = DnonDn(n=n)
+        f = torch.randn(16, 2 * n, dtype=torch.float64)
+        fhat = bsp._group_dft(f)
+        # warm-up
+        for _ in range(3):
+            bsp._inverse_dft(fhat)
+
+        iters = 20
+        t0 = time.perf_counter()
+        for _ in range(iters):
+            bsp._inverse_dft(fhat)
+        elapsed = (time.perf_counter() - t0) / iters
+        print(f'\n  _inverse_dft  n={n:>5d}  {elapsed * 1e3:.3f} ms')
