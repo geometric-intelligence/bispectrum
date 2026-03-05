@@ -20,9 +20,13 @@ class CnonCn(nn.Module):
     C_n is commutative, so no Clebsch-Gordan matrices are needed — the
     bispectrum reduces to scalar triple products of DFT coefficients.
 
+    Reference: Mataigne et al., "Efficient, Complete G-Invariance for
+    G-Equivariant Networks via Algorithmic Reduction", ICML 2024.
+    Forward uses Theorem 3.2; inversion uses Algorithm 1 (Sec. 4.1.1).
+
     Args:
         n: Group order / signal length.
-        selective: If True, use selective O(n) bispectrum (Algorithm 1).
+        selective: If True, use selective O(n) bispectrum.
             If False, use full O(n^2) bispectrum.
     """
 
@@ -32,7 +36,7 @@ class CnonCn(nn.Module):
         self.selective = selective
 
         if selective:
-            # Algorithm 1 (Mataigne 2024): {(0,0), (0,1), (1,1), (1,2), ..., (1,n-2)}
+            # Selective indices: {(0,0), (0,1), (1,1), (1,2), ..., (1,n-2)}
             self._index_map: list[tuple[int, int]] = [(0, 0), (0, 1)] + [
                 (1, k) for k in range(1, n - 1)
             ]
@@ -59,7 +63,6 @@ class CnonCn(nn.Module):
         """Selective bispectrum: n coefficients sufficient for inversion.
 
         Indices: {(0,0), (0,1), (1,1), (1,2), ..., (1,n-2)}.
-        Ref: Mataigne et al. (2024) Algorithm 1; g-invariance pooling.py L523-543.
         """
         batch = fhat.shape[0]
         beta = torch.zeros(batch, n, dtype=fhat.dtype, device=fhat.device)
@@ -69,10 +72,7 @@ class CnonCn(nn.Module):
         return beta
 
     def _forward_full(self, fhat: torch.Tensor, n: int) -> torch.Tensor:
-        """Full bispectrum: upper-triangular n*(n+1)/2 coefficients.
-
-        Ref: g-invariance pooling.py L545-570.
-        """
+        """Full bispectrum: upper-triangular n*(n+1)/2 coefficients."""
         batch = fhat.shape[0]
         out_size = n * (n + 1) // 2
         beta = torch.zeros(batch, out_size, dtype=fhat.dtype, device=fhat.device)
@@ -89,14 +89,11 @@ class CnonCn(nn.Module):
         return beta
 
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
-        """Recover the DFT magnitudes from selective bispectrum coefficients.
+        """Recover the signal from selective bispectrum coefficients.
 
-        Implements Algorithm 1 from Mataigne et al. (2024), Sec 4.1.1.
-        The selective bispectrum has a continuous SO(2) phase indeterminacy
-        (not just discrete C_n shifts), so the recovered Fourier coefficients
-        are determined up to an overall phase progression exp(i*k*phi).
-        This method returns the complex spatial-domain signal; to verify
-        correctness, check that DFT magnitudes match the original signal.
+        Implements Algorithm 1 (Sec. 4.1.1) from Mataigne et al., ICML 2024.
+        The recovered signal is determined up to a continuous SO(2) phase
+        indeterminacy (not just discrete C_n shifts).
 
         Args:
             beta: Selective bispectrum. Shape: (batch, n), complex.
@@ -106,8 +103,7 @@ class CnonCn(nn.Module):
             Related to the original by a continuous cyclic shift.
 
         Raises:
-            NotImplementedError: If selective=False (full bispectrum inversion
-                is not specified by Algorithm 1).
+            NotImplementedError: If selective=False.
         """
         if not self.selective:
             raise NotImplementedError(

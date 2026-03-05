@@ -1,11 +1,13 @@
 """Dihedral group bispectrum on D_n.
 
-Implements the G-Bispectrum for the dihedral group D_n acting on itself.
+Implements the G-Bispectrum for the dihedral group D_n acting on itself,
+following Mataigne et al., "Efficient, Complete G-Invariance for
+G-Equivariant Networks via Algorithmic Reduction", ICML 2024.
 
 D_n = <a, x | a^n = x^2 = e, xax = a^{-1}> has |D_n| = 2n elements.
 Signal encoding: f = [f(e), f(a), ..., f(a^{n-1}), f(x), f(ax), ..., f(a^{n-1}x)]
 
-Irreps (Eq. 5 and Appendix A of Mataigne et al. 2024):
+Irreps (Eq. 5 and Appendix A):
   2D: rho_k(a^l x^m) = R(2*pi*k*l/n) @ diag(1,-1)^m,  k = 1..floor((n-1)/2)
   1D: rho_0 (trivial), rho_01, and for even n: rho_02, rho_03
 
@@ -13,8 +15,6 @@ CG matrices computed analytically via eigendecomposition of the Kronecker
 product representation evaluated at the generators (Appendix C).
 
 All D_n irreps are real-valued, so the bispectral coefficients are real.
-
-Reference: Mataigne et al. (2024) Algorithm 3, Theorem 3.1.
 """
 
 import math
@@ -56,7 +56,8 @@ def _compute_cg(i: int, j: int, n: int) -> tuple[torch.Tensor, list[_CGBlock]]:
     """CG matrix for rho_i x rho_j on D_n via eigendecomposition.
 
     Pure PyTorch — no scipy.  Uses kron(rho_i(a), rho_j(a)) for the primary decomposition and
-    kron(rho_i(x), rho_j(x)) to resolve degenerate 1D eigenspaces (Appendix C of the paper).
+    kron(rho_i(x), rho_j(x)) to resolve degenerate 1D eigenspaces.  See Appendix C of Mataigne et
+    al., ICML 2024.
 
     Returns (C, blocks) where C is 4x4 orthogonal (float64) and blocks describes which irrep lives
     at which row/col indices of the block-diagonal form.
@@ -217,10 +218,14 @@ class DnonDn(nn.Module):
 
     The bispectrum is real-valued (all D_n irreps are real).
 
+    Reference: Mataigne et al., "Efficient, Complete G-Invariance for
+    G-Equivariant Networks via Algorithmic Reduction", ICML 2024.
+    Forward uses Theorem 3.1; inversion uses Algorithm 3 (Sec. 4.1.3).
+
     Args:
         n: Polygon order (|D_n| = 2n).  Must be > 2.
-        selective: If True (default), compute the selective bispectrum
-            (Algorithm 3).  Full bispectrum raises NotImplementedError.
+        selective: If True (default), compute the selective bispectrum.
+            Full bispectrum raises NotImplementedError.
     """
 
     def __init__(self, n: int, selective: bool = True) -> None:
@@ -436,8 +441,9 @@ class DnonDn(nn.Module):
         return torch.cat(parts, dim=-1)
 
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
-        """Recover a signal from its selective bispectrum (Algorithm 3).
+        """Recover a signal from its selective bispectrum.
 
+        Implements Algorithm 3 (Sec. 4.1.3) from Mataigne et al., ICML 2024.
         Reconstruction has O(2) indeterminacy (continuous rotations and
         reflections), so the recovered signal matches the original up to
         a D_n group action.
