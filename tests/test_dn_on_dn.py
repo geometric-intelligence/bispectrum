@@ -9,11 +9,6 @@ ATOL = 1e-4
 RTOL = 1e-4
 
 
-# ---------------------------------------------------------------------------
-# Helpers for D_n group actions
-# ---------------------------------------------------------------------------
-
-
 def _rotate(f: torch.Tensor, n: int, shift: int = 1) -> torch.Tensor:
     """Apply rotation by a^shift: cyclic-shift each half independently."""
     f_rot = torch.roll(f[:, :n], shift, dims=-1)
@@ -31,11 +26,6 @@ def _reflect(f: torch.Tensor, n: int) -> torch.Tensor:
     new_ref = torch.cat([f_rot[:, :1], f_rot[:, 1:].flip(dims=(-1,))], dim=-1)
     new_rot = torch.cat([f_ref[:, :1], f_ref[:, 1:].flip(dims=(-1,))], dim=-1)
     return torch.cat([new_rot, new_ref], dim=-1)
-
-
-# ---------------------------------------------------------------------------
-# Construction tests
-# ---------------------------------------------------------------------------
 
 
 class TestDnonDnConstruction:
@@ -83,11 +73,6 @@ class TestDnonDnConstruction:
         for n in (3, 4, 5, 7, 8):
             bsp = DnonDn(n=n)
             assert len(bsp.index_map) == bsp.output_size
-
-
-# ---------------------------------------------------------------------------
-# Forward tests
-# ---------------------------------------------------------------------------
 
 
 class TestDnonDnForward:
@@ -174,11 +159,6 @@ class TestDnonDnForward:
         fhat = bsp._group_dft(f)
         f_rec = bsp._inverse_dft(fhat)
         torch.testing.assert_close(f_rec, f, atol=1e-10, rtol=1e-10)
-
-
-# ---------------------------------------------------------------------------
-# Inversion tests
-# ---------------------------------------------------------------------------
 
 
 class TestDnonDnInvert:

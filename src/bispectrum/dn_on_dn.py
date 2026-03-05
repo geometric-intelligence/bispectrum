@@ -23,10 +23,6 @@ from typing import NamedTuple
 import torch
 import torch.nn as nn
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
 
 class _CGBlock(NamedTuple):
     """One irreducible block in a CG decomposition of rho_i x rho_j."""
@@ -213,11 +209,6 @@ def _batched_kron_2x2(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
     return torch.einsum('bij,bkl->bikjl', A, B).reshape(A.shape[0], 4, 4)
 
 
-# ---------------------------------------------------------------------------
-# Main module
-# ---------------------------------------------------------------------------
-
-
 class DnonDn(nn.Module):
     """Bispectrum of D_n acting on D_n.
 
@@ -289,10 +280,6 @@ class DnonDn(nn.Module):
                 for c in range(4):
                     idx_map.append((1, k, r, c))
         self._index_map: list[tuple[int, ...]] = idx_map
-
-    # -----------------------------------------------------------------------
-    # Group DFT / inverse DFT
-    # -----------------------------------------------------------------------
 
     def _group_dft(self, f: torch.Tensor) -> torch.Tensor:
         """Forward DFT on D_n.
@@ -375,10 +362,6 @@ class DnonDn(nn.Module):
 
         return torch.cat([f_rot, f_ref], dim=-1)
 
-    # -----------------------------------------------------------------------
-    # Fplus construction
-    # -----------------------------------------------------------------------
-
     def _build_fplus(self, fhat: torch.Tensor, cg_idx: int) -> torch.Tensor:
         """Block-diagonal Fplus = oplus F(rho) (untransposed).
 
@@ -407,10 +390,6 @@ class DnonDn(nn.Module):
                 elif lbl == 'rho03':
                     Fplus[:, r, r] = fhat[:, 1, 1, 0]
         return Fplus
-
-    # -----------------------------------------------------------------------
-    # forward / invert
-    # -----------------------------------------------------------------------
 
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the D_n selective bispectrum.
@@ -540,10 +519,6 @@ class DnonDn(nn.Module):
                         fhat[:, 1, 1, 0] = val
 
         return self._inverse_dft(fhat)
-
-    # -----------------------------------------------------------------------
-    # properties
-    # -----------------------------------------------------------------------
 
     @property
     def output_size(self) -> int:
