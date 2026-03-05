@@ -1,8 +1,8 @@
 """SO(2) bispectrum on the unit disk.
 
 Implements the selective disk bispectrum for SO(2) acting on the unit disk D^2,
-following Lantow & Miolane, "The Selective Disk Bispectrum and Its Inversion,
-with Application to Multi-Reference Alignment", arXiv preprint, 2026.
+following Myers & Miolane, "The Selective Disk Bispectrum and Its Inversion,
+with Application to Multi-Reference Alignment", arXiv:2511.19706, 2025.
 
 The disk harmonic transform (DHT) decomposes a function f: D -> R into
 disk harmonic coefficients a_{n,k} using the basis:
@@ -98,8 +98,8 @@ class SO2onD2(nn.Module):
     disk harmonic transform (DHT) internally, and returns the selective
     disk bispectrum coefficients.
 
-    Reference: Lantow & Miolane, "The Selective Disk Bispectrum and Its
-    Inversion, with Application to Multi-Reference Alignment", arXiv preprint, 2026.
+    Reference: Myers & Miolane, "The Selective Disk Bispectrum and Its
+    Inversion, with Application to Multi-Reference Alignment", arXiv:2511.19706, 2025.
     Forward uses Definition 4.2; inversion uses Theorem 4.4.
 
     Args:
@@ -367,8 +367,8 @@ class SO2onD2(nn.Module):
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
         """Recover an image from selective disk bispectrum coefficients.
 
-        Implements the bootstrap recovery from Theorem 4.4 of Lantow &
-        Miolane 2025. The recovered image is determined up to a global
+        Implements the bootstrap recovery from Theorem 4.4 of Myers &
+        Miolane (arXiv:2511.19706). The recovered image is determined up to a global
         SO(2) rotation.
 
         Args:

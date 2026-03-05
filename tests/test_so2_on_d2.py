@@ -95,7 +95,7 @@ class TestSO2onD2Construction:
         [(8, 27), (16, 105), (28, 315)],
     )
     def test_coefficient_count_matches_paper(self, L: int, expected: int):
-        """Coefficient counts match Table 1 of Lantow & Miolane 2025."""
+        """Coefficient counts match Table 1 of Myers & Miolane 2025."""
         bsp = SO2onD2(L=L)
         assert bsp.output_size == expected
 

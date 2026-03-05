@@ -231,7 +231,7 @@ $$a\_{n,k} = \\int_0^1 \\int_0^{2\\pi} f(r,\\theta) \\cdot c\_{nk} \\cdot J_n(\\
 
 where $\\lambda\_{nk}$ is the $k$-th positive root of $J_n$ and $c\_{nk}$ is a normalisation constant.
 
-**Selective bispectrum** (Definition 4.2, [Lantow & Miolane 2026]):
+**Selective bispectrum** (Definition 4.2, [Myers & Miolane 2025]):
 
 $$b\_{0,0,k} = a\_{0,1}^2 \\cdot \\overline{a\_{0,k}}, \\qquad b\_{2,n,k} = a\_{1,1} \\cdot a\_{n,1} \\cdot \\overline{a\_{n+1,k}}$$
 
@@ -274,7 +274,7 @@ This is proven for finite groups only. Here, `O` denotes the finite octahedral r
 | `OonR3`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅             | Planned          |
 | —         | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2 | —                |
 | `SO3onS2` | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌             | **Open problem** |
-| `SO2onD2` | $\\mathrm{SO}(2)$    | $D^2$ (disk)                       | ✅ $N$ coefficients (Lantow & Miolane 2026)     | ✅             | ✅ Done          |
+| `SO2onD2` | $\\mathrm{SO}(2)$    | $D^2$ (disk)                       | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅             | ✅ Done          |
 | —         | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌             | Open problem     |
 | —         | Compact $G$          | $G$                                | ❌ Full only                                    | ❌             | Open problem     |
 | —         | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌             | Open problem     |
@@ -295,7 +295,7 @@ A selective version would identify the minimal set of index pairs needed for inv
 
 **~~TODO-M2~~ DONE: Selective bispectrum for $\\mathrm{SO}(2)$ on the disk $D^2$**
 
-Solved by Lantow & Miolane (2026). The selective disk bispectrum (Definition 4.2) reduces from $O(N^3)$ to $O(N)$ coefficients while preserving injectivity (up to rotation). Inversion is available via a bootstrap from the $(0,1)$ coefficient. Implemented in `SO2onD2`.
+Solved by Myers & Miolane (2025). The selective disk bispectrum (Definition 4.2) reduces from $O(N^3)$ to $O(N)$ coefficients while preserving injectivity (up to rotation). Inversion is available via a bootstrap from the $(0,1)$ coefficient. Implemented in `SO2onD2`.
 
 **TODO-M3: Selective bispectrum for $\\mathrm{SO}(3)$ on the ball $S^2 \\times \\mathbb{R}^+$**
 
