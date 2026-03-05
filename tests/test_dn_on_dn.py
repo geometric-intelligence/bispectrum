@@ -10,7 +10,15 @@ RTOL = 1e-4
 
 
 def _rotate(f: torch.Tensor, n: int, shift: int = 1) -> torch.Tensor:
-    """Apply rotation by a^shift: cyclic-shift each half independently."""
+    """Left regular action of a^shift: (L_{a^s} f)(h) = f(a^{-s} h).
+
+    This is the convention used in the paper (Appendix B, Mataigne et al. NeurIPS 2024): α(h, Θ(g))
+    = Θ(h⁻¹ · g).
+
+    Both halves shift in the same direction because f(a^{-s} · a^l) = f(a^{l-s}) and f(a^{-s} · a^l
+    x) = f(a^{l-s} x). (The right regular action would shift them in opposite directions since xa =
+    a^{-1}x.)
+    """
     f_rot = torch.roll(f[:, :n], shift, dims=-1)
     f_ref = torch.roll(f[:, n:], shift, dims=-1)
     return torch.cat([f_rot, f_ref], dim=-1)
