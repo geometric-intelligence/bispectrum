@@ -403,7 +403,7 @@ ______________________________________________________________________
 
 ## References
 
-- Lantow & Miolane (2026). *The Selective Disk Bispectrum and Its Inversion, with Application to Multi-Reference Alignment*. arXiv preprint. [arXiv:2503.XXXXX](https://arxiv.org/abs/2503.XXXXX)
+- Myers & Miolane (2025). *The Selective Disk Bispectrum and Its Inversion, with Application to Multi-Reference Alignment*. arXiv preprint. [arXiv:2511.19706](https://arxiv.org/abs/2511.19706)
 - Mataigne et al. (2024). *The Selective G-Bispectrum and its Inversion: Applications to G-Invariant Networks*. NeurIPS 2024. [arXiv:2407.07655](https://arxiv.org/abs/2407.07655)
 - Kakarala (1992). *Triple Correlation on Groups*. PhD thesis, UC Irvine.
 - Kakarala (2009). *Bispectrum on Finite Groups*. ICASSP 2009.
