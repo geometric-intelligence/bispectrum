@@ -1,6 +1,6 @@
 # Bispectrum Module — API Design Document
 
-**Status**: Draft for discussion
+**Status**: Accepted
 **Author**: Johan Mathe
 **Date**: 2026-02-23
 
@@ -14,32 +14,25 @@ ______________________________________________________________________
 
 ## Core Design Principles
 
-1. **Simple is better than clever.** If there are two ways to do something, pick the one that needs less explanation.
+01. **Simple is better than clever.** If there are two ways to do something, pick the one that needs less explanation.
 
-2. **`nn.Module` only.** No parallel functional APIs. One way to compute a bispectrum.
+02. **`nn.Module` only.** No parallel functional APIs. One way to compute a bispectrum.
 
-3. **Naming encodes the math.** Class names follow `{Group}on{Domain}` — a reader unfamiliar with the codebase can immediately identify the group and the domain it acts on.
+03. **Naming encodes the math.** Class names follow `{Group}on{Domain}` — a reader unfamiliar with the codebase can immediately identify the group and the domain it acts on.
 
-4. **Raw signals in.** Modules take real-valued signals in the natural domain (spatial, discrete cycle, etc.) and handle the Fourier transform internally. This keeps the interface clean and the math self-contained.
+04. **Raw signals in.** Modules take real-valued signals in the natural domain (spatial, discrete cycle, etc.) and handle the Fourier transform internally. This keeps the interface clean and the math self-contained. `SO3onS2` accepts a raw spatial signal `f` of shape `(batch, nlat, nlon)` and handles the SHT internally; `nlat` and `nlon` are constructor arguments so the `RealSHT` transform is pre-initialized at construction time for efficiency.
 
-   *This is a breaking change for `SO3onS2`.* The current v0.1.0 implementation accepts pre-computed spherical harmonic coefficients (output of `RealSHT`) rather than raw spatial signals. We are proposing to change this so that `SO3onS2` — like all other modules — accepts a raw spatial signal `f` of shape `(batch, nlat, nlon)` and handles the SHT internally.
+05. **Selective by default.** All modules default to `selective=True`, computing the minimal subset of bispectral coefficients sufficient for complete signal reconstruction. `selective=False` is available for debugging and comparison.
 
-   **Why this breaks things:** Any existing code that pre-computes SH coefficients and passes them directly to `SO3onS2.forward()` will break. The module will also need `nlat` and `nlon` as constructor arguments so it can pre-initialize the `RealSHT` transform.
+06. **Complex output.** `forward()` returns `torch.complex64`. Users who need real features can call `.abs()`, `.real`, or `torch.view_as_real()` — this is one line of code and avoids losing phase information.
 
-   **Why it's better this way:**
+07. **Inversion on-module.** Every module exposes `invert(beta, **kwargs)`. For modules where inversion is mathematically available, it returns the reconstructed signal (up to group-action indeterminacy). For modules where inversion is not yet available, it raises a precise `NotImplementedError` with guidance.
 
-   - *Consistency*: all modules in the library share the same contract. A user switching from `CnonCn` to `SO3onS2` doesn't need to learn a different calling convention.
-   - *Encapsulation*: the Fourier transform is an implementation detail of the bispectrum computation, not something the user should have to manage. Exposing it forces the user to know which transform corresponds to which group — exactly the knowledge the library should abstract away.
-   - *Correctness by default*: the current interface accepts any complex tensor of the right shape, with no guarantee it came from `RealSHT`. With raw signals in, the module owns the full pipeline and can guarantee its own preconditions.
-   - *Easier testing*: invariance tests become simpler — generate a random spatial signal, rotate it spatially, check bispectrum matches. No need to manage SHT objects in test code.
+08. **float32 throughout.** For compatibility with GPU training pipelines.
 
-   The trade-off is a small loss of flexibility for advanced users who may want to supply pre-computed coefficients (e.g., from a different SHT library). This can be addressed if needed by exposing an internal `_forward_from_coeffs()` method, clearly marked as non-public API.
+09. **Minimal dependencies.** Don't add a dependency if standard PyTorch/numpy can do the job.
 
-5. **float32 throughout.** For compatibility with GPU training pipelines.
-
-6. **Minimal dependencies.** Don't add a dependency if standard PyTorch/numpy can do the job.
-
-7. **Code is the math documentation.** Every module docstring references the exact paper theorem it implements. Every non-obvious operation cites an equation number.
+10. **Code is the math documentation.** Every module docstring references the exact paper theorem it implements. Every non-obvious operation cites an equation number.
 
 ______________________________________________________________________
 
@@ -220,7 +213,7 @@ SO3onS2(
 )
 ```
 
-> **Note**: This is a breaking change from v0.1.0, which accepted pre-computed SH coefficients. The new interface accepts raw spatial signals and handles SHT internally.
+> **Breaking change from v0.1.0**: v0.1.0 accepted pre-computed SH coefficients. v0.2.0 accepts raw spatial signals and handles SHT internally.
 
 ______________________________________________________________________
 
@@ -318,10 +311,11 @@ src/bispectrum/
 └── _cg.py               # Internal CG utilities (not exported)
 ```
 
-Old files to remove/consolidate:
+Files removed in v0.2.0:
 
-- `clebsch_gordan.py` → merge into `_cg.py` (internal)
-- `spherical.py` → fold into `so3_on_s2.py`
+- `clebsch_gordan.py` → merged into `_cg.py` (internal)
+- `spherical.py` → folded into `so3_on_s2.py`
+- `so3.py` → replaced by `so3_on_s2.py`
 
 ______________________________________________________________________
 
@@ -353,36 +347,6 @@ def test_invariance(self):
 
     torch.testing.assert_close(bsp(f), bsp(f_shifted), atol=1e-4, rtol=1e-4)
 ```
-
-______________________________________________________________________
-
-## Open Questions for Discussion
-
-These are design decisions not yet settled:
-
-**Q1: Selective by default?**
-Should `selective=True` be the default, with `selective=False` available for debugging/comparison? Or always selective with no option?
-*Lean toward*: `selective=True` default, `selective=False` available.
-
-**Q2: Output dtype — complex or real?**
-The bispectrum is complex-valued. But for use as neural network features, users typically want real features. Options:
-
-- Return complex, let user take `.abs()` or `.real`
-- Return `torch.view_as_real(output)` — shape `(batch, output_size, 2)`
-- Return `output.abs()` — loses phase information (reduces completeness)
-
-*Lean toward*: return complex, document clearly. Real conversion is one line.
-
-**Q3: $\\mathrm{SO}(3)\\text{ on }S^2$ grid parameters**
-Should `nlat` and `nlon` be constructor params (pre-initialize SHT) or inferred from input at forward time?
-*Lean toward*: constructor params for efficiency (SHT is precomputed at init).
-
-**Q4: Inversion API shape**
-Decision: expose inversion on-module as `bsp.invert(beta, **kwargs)` for consistency and testability.
-
-- For implemented inversion cases, return reconstructed signal (up to known group-action indeterminacy).
-- For not-yet-implemented cases, raise a precise `NotImplementedError` with guidance.
-- Optional low-level standalone inversion functions can remain internal/private.
 
 ______________________________________________________________________
 
