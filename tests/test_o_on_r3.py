@@ -403,3 +403,100 @@ class TestOonR3Invert:
                 atol=1e-4,
                 rtol=1e-4,
             )
+
+    def test_bootstrap_init_near_isotropic_signal(self):
+        """Bootstrap should not crash on a near-zero-mean signal where S_kron is singular."""
+        bsp = OonR3()
+        f = torch.zeros(1, 24, dtype=torch.float64)
+        f[0, 0] = 1e-14
+        beta = bsp(f)
+        f_init = bsp._bootstrap_init(beta)
+        assert f_init.shape == (1, 24)
+        assert torch.isfinite(f_init).all(), (
+            'Bootstrap produced non-finite values for near-isotropic signal'
+        )
+
+
+class TestOonR3JacfwdCompatibility:
+    def test_jacfwd_produces_valid_jacobian(self):
+        """Jacfwd should trace through forward() and produce a (172, 24) Jacobian."""
+        bsp = OonR3()
+        f = torch.randn(24)
+
+        def fwd(x: torch.Tensor) -> torch.Tensor:
+            return bsp.forward(x.unsqueeze(0)).squeeze(0).real
+
+        J = torch.func.jacfwd(fwd)(f)
+        assert J.shape == (172, 24)
+        assert torch.isfinite(J).all(), 'Jacobian contains non-finite values'
+
+    def test_jacfwd_jacobian_nonzero(self):
+        """Jacobian should be non-trivial for a generic signal."""
+        torch.manual_seed(99)
+        bsp = OonR3()
+        f = torch.randn(24)
+
+        def fwd(x: torch.Tensor) -> torch.Tensor:
+            return bsp.forward(x.unsqueeze(0)).squeeze(0).real
+
+        J = torch.func.jacfwd(fwd)(f)
+        assert J.abs().max() > 1e-6, 'Jacobian is unexpectedly all-zero'
+
+    def test_jacfwd_matches_finite_differences(self):
+        """Forward-mode AD Jacobian should match numerical finite differences."""
+        torch.manual_seed(7)
+        bsp = OonR3()
+        f = torch.randn(24, dtype=torch.float64)
+
+        def fwd(x: torch.Tensor) -> torch.Tensor:
+            return bsp.forward(x.unsqueeze(0)).squeeze(0).real
+
+        J_ad = torch.func.jacfwd(fwd)(f)
+
+        eps = 1e-6
+        J_fd = torch.zeros_like(J_ad)
+        f0 = fwd(f)
+        for i in range(24):
+            f_pert = f.clone()
+            f_pert[i] += eps
+            J_fd[:, i] = (fwd(f_pert) - f0) / eps
+
+        torch.testing.assert_close(J_ad, J_fd, atol=1e-4, rtol=1e-4)
+
+
+class TestOonR3LmStepRobustness:
+    def test_lm_step_constant_signal(self):
+        """LM step should not crash on a constant signal (rank-deficient Jacobian)."""
+        bsp = OonR3()
+        f = torch.ones(1, 24)
+        beta = bsp(f)
+        f_out = bsp._lm_step(f, beta)
+        assert f_out.shape == (1, 24)
+        assert torch.isfinite(f_out).all(), (
+            'LM step produced non-finite values for constant signal'
+        )
+
+    def test_lm_step_zero_signal(self):
+        """LM step should handle zero signal gracefully."""
+        bsp = OonR3()
+        f = torch.zeros(1, 24)
+        beta = bsp(f)
+        f_out = bsp._lm_step(f, beta)
+        assert f_out.shape == (1, 24)
+        assert torch.isfinite(f_out).all(), 'LM step produced non-finite values for zero signal'
+
+    def test_lm_step_reduces_or_preserves_loss(self):
+        """LM step should not increase the bispectral residual."""
+        torch.manual_seed(42)
+        bsp = OonR3()
+        f = torch.randn(2, 24)
+        f_target = torch.randn(2, 24)
+        beta_target = bsp(f_target)
+
+        loss_before = (bsp(f).real - beta_target.real).norm(dim=-1)
+        f_after = bsp._lm_step(f, beta_target)
+        loss_after = (bsp(f_after).real - beta_target.real).norm(dim=-1)
+
+        assert (loss_after <= loss_before + 1e-6).all(), (
+            f'LM step increased loss: {loss_before} -> {loss_after}'
+        )

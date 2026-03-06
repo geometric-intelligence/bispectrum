@@ -180,12 +180,15 @@ def _compute_cg_octa(
 ) -> tuple[torch.Tensor, list[tuple[int, int, int]]]:
     """Compute CG matrix for rho_i x rho_j on the octahedral group.
 
-    Uses simultaneous diagonalization: find unitary C such that for all g:
+    Finds an orthogonal C such that for all g in O:
         C^T (rho_i(g) kron rho_j(g)) C = oplus rho_k(g)
 
-    The approach: pick two generators whose Kronecker representations have
-    non-degenerate joint eigenspaces, then find the simultaneous block-
-    diagonalization via Schur decomposition.
+    Uses group algebra projection operators (Serre, Ch. 2). For each target
+    irrep rho_k of dimension d_k, the matrix-element operators
+        E_k^{ab} = (d_k / |G|) sum_g rho_k(g^{-1})_{ba} kron(rho_i(g), rho_j(g))
+    project onto individual basis vectors within each isotypic component.
+    The first basis vector is obtained from a non-zero column of E_k^{00},
+    and subsequent vectors via E_k^{a0}.
 
     Args:
         rho_i_mats: (24, di, di) irrep matrices for rho_i
