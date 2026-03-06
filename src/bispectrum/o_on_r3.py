@@ -21,8 +21,9 @@ Selective bispectrum (Appendix E, Table 6 of Mataigne et al. 2024):
   beta_{rho1,rho1}, beta_{rho1,rho2}
   Total: 1 + 9 + 81 + 81 = 172 scalar values.
 
-The bispectrum output is complex-valued because rho3 involves irrational
-entries (sqrt(3)/2).
+The bispectrum is real-valued for real inputs (all irreps are real).
+The output dtype is complex (complex64/complex128) for API consistency
+with CnonCn and DnonDn modules.
 """
 
 import math
@@ -291,8 +292,8 @@ def _compute_cg_octa(
     if not torch.allclose(CtC, torch.eye(d, dtype=torch.float64), atol=1e-8):
         C, _ = torch.linalg.qr(C)
 
-    # Verify block-diagonalization for a few elements
-    for g in [0, 4, 7]:
+    # Verify block-diagonalization for all group elements
+    for g in range(n_g):
         block_diag = C.T @ kron_mats[g] @ C
         # Check it's block-diagonal according to block_info
         for irrep_k, r0, r1 in block_info:
@@ -497,12 +498,16 @@ class OonR3(nn.Module):
 
         Returns:
             Bispectrum tensor. Shape (batch, output_size).
-            Complex-valued (complex64 for float32 input, complex128 for float64).
+            Real-valued but returned as complex dtype for API consistency.
+            Imaginary parts are zero to machine precision for real inputs.
         """
         if not self.selective:
             raise NotImplementedError(
                 'Full bispectrum not yet implemented for OonR3. Use selective=True (default).'
             )
+
+        if f.ndim != 2 or f.shape[-1] != self.GROUP_ORDER:
+            raise ValueError(f'Expected input shape (batch, {self.GROUP_ORDER}), got {f.shape}')
 
         batch = f.shape[0]
         dtype = f.dtype
@@ -726,8 +731,9 @@ class OonR3(nn.Module):
 
             JTJ = J.T @ J
             JTr = J.T @ residual
-            mu = 1e-3 * JTJ.diag().max()
+            mu = max(1e-3 * JTJ.diag().max().item(), 1e-8)
 
+            f_best = f[b_idx]
             for _ in range(10):
                 delta_f = torch.linalg.solve(
                     JTJ + mu * torch.eye(self.GROUP_ORDER, dtype=J.dtype, device=J.device),
@@ -736,11 +742,12 @@ class OonR3(nn.Module):
                 f_new = f[b_idx] + delta_f
                 new_loss = (target_real[b_idx] - fwd(f_new)).norm()
                 if new_loss < current_loss:
+                    f_best = f_new
                     mu = max(mu * 0.5, 1e-10)
                     break
                 mu *= 5.0
 
-            results.append(f_new)
+            results.append(f_best)
 
         return torch.stack(results, dim=0)
 
