@@ -1,0 +1,656 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{metropolis}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{matrix,positioning,arrows.meta}
+
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  breaklines=true,
+  frame=none,
+}
+
+\title{OonR3: Selective Bispectrum for the Octahedral Group}
+\subtitle{Implementing the $O$-Bispectrum and solving the SO(3) inversion problem}
+\author{Johan Mathe}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% ============================================================
+\begin{frame}{The octahedral group $O$}
+  $O$ is the group of 24 rotational symmetries of the cube.
+
+  \medskip
+
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \textbf{Generators}:
+      \begin{itemize}
+        \item $R_z(\pi/2)$: face rotation
+        \item $R_{[1,1,1]}(2\pi/3)$: vertex rotation
+      \end{itemize}
+
+      \bigskip
+
+      \textbf{5 real irreps} (dims 1, 3, 3, 2, 1):
+      \begin{itemize}
+        \item $\rho_0$ ($A_1$): trivial
+        \item $\rho_1$ ($T_1$): standard 3D rotation matrices
+        \item $\rho_2$ ($T_2$): $\rho_4(g) \cdot \rho_1(g)$
+        \item $\rho_3$ ($E$): 2D, involves $\pm\tfrac{1}{2}$, $\pm\tfrac{\sqrt{3}}{2}$
+        \item $\rho_4$ ($A_2$): alternating (parity of body-diagonal permutation)
+      \end{itemize}
+
+      \bigskip
+
+      Check: $1^2 + 3^2 + 3^2 + 2^2 + 1^2 = 24 = |O|$ \quad\checkmark
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \textbf{Selective bispectrum} (App.~B, Mataigne et al.):
+
+      \medskip
+
+      4 matrix coefficients:
+
+      \smallskip
+
+      \begin{tabular}{lcc}
+        \toprule
+        Pair & Size & Scalars \\
+        \midrule
+        $\beta_{\rho_0,\rho_0}$ & $1\times 1$ & 1 \\
+        $\beta_{\rho_0,\rho_1}$ & $3\times 3$ & 9 \\
+        $\beta_{\rho_1,\rho_1}$ & $9\times 9$ & 81 \\
+        $\beta_{\rho_1,\rho_2}$ & $9\times 9$ & 81 \\
+        \midrule
+        \textbf{Total} & & \textbf{172} \\
+        \bottomrule
+      \end{tabular}
+
+      \bigskip
+
+      Compare: full bispectrum $= O(|O|^2) = 576$.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ============================================================
+\begin{frame}{Development overview}
+  \begin{enumerate}
+    \item \textbf{Group data generation} --- BFS from generators, verified against \texttt{escnn}
+    \item \textbf{Irrep matrices} --- 3 constructed analytically, 1 from products, 1 hardcoded
+    \item \textbf{CG matrices} --- projection operator method (no scipy)
+    \item \textbf{Forward pass} --- non-commutative bispectrum formula
+    \item \textbf{DFT/inverse DFT} --- left-convention, verified equivariance
+    \item \textbf{Inversion} --- the hard part (3 slides)
+  \end{enumerate}
+
+  \bigskip
+
+  \textbf{Files}:
+  \begin{itemize}
+    \item \texttt{src/bispectrum/o\_on\_r3.py} --- 753 lines, the full module
+    \item \texttt{tests/test\_o\_on\_r3.py} --- 68 tests
+    \item \texttt{docs/o\_on\_r3\_implementation\_notes.md}
+  \end{itemize}
+\end{frame}
+
+% ============================================================
+\begin{frame}{Group data: 24 elements as hardcoded tensors}
+  \textbf{Challenge}: need exact integer $3\times 3$ rotation matrices, Cayley table, inverse map, Kronecker table --- all self-consistent, independent of \texttt{escnn} at runtime.
+
+  \bigskip
+
+  \textbf{Approach}:
+  \begin{enumerate}
+    \item BFS from generators $\langle R_z(\pi/2),\; R_{[1,1,1]}(2\pi/3) \rangle$
+    \item Round to integers, sort lexicographically $\Rightarrow$ canonical ordering
+    \item Cayley table: $C[i,j] = $ index of $g_i \cdot g_j$
+    \item Verified against \texttt{escnn.group.octa\_group()} (element-wise match)
+  \end{enumerate}
+
+  \bigskip
+
+  \textbf{Identity element}: $g_{23}$ (not $g_0$) in lexicographic order.
+
+  \smallskip
+
+  All data embedded as literal \texttt{torch.tensor} constants --- zero I/O at import.
+\end{frame}
+
+% ============================================================
+\begin{frame}{CG matrices via projection operators}
+  Need orthogonal $C$ such that $C^\top (\rho_i(g) \otimes \rho_j(g))\, C = \bigoplus_\rho \rho(g)$ for all $g \in O$.
+
+  \bigskip
+
+  \textbf{Method} (projection onto irrep subspaces):
+  \[
+    P_k = \frac{d_k}{|G|} \sum_{g \in G} \chi_k(g)^* \bigl[\rho_i(g) \otimes \rho_j(g)\bigr]
+  \]
+  Eigendecompose $P_k$; eigenvectors with eigenvalue 1 span the $\rho_k$ subspace.
+  Concatenate across all $k$ in the decomposition $\Rightarrow$ $C$.
+
+  \bigskip
+
+  \textbf{Verification}: for all 24 group elements, $C^\top (\rho_i \otimes \rho_j) C$
+  has zero off-diagonal blocks to machine precision ($< 10^{-10}$).
+
+  \bigskip
+
+  Two CG matrices needed:
+  \begin{itemize}
+    \item $C_{11}$: $\rho_1 \otimes \rho_1 = \rho_0 \oplus \rho_1 \oplus \rho_2 \oplus \rho_3$ \quad ($9\times 9$)
+    \item $C_{12}$: $\rho_1 \otimes \rho_2 = \rho_1 \oplus \rho_2 \oplus \rho_3 \oplus \rho_4$ \quad ($9\times 9$)
+  \end{itemize}
+\end{frame}
+
+% ============================================================
+\begin{frame}{DFT convention: getting the signs right}
+  \textbf{Bug encountered}: initial implementation used $\rho_k(g)^\top$ in the DFT,
+  giving \emph{right}-equivariance: $\mathcal{F}(T_h f)_k = \mathcal{F}(f)_k \cdot \rho_k(h)^\top$.
+
+  \medskip
+
+  The bispectrum formula requires \emph{left}-equivariance:
+  $\mathcal{F}(T_h f)_k = \rho_k(h) \cdot \mathcal{F}(f)_k$.
+
+  \bigskip
+
+  \textbf{Correct DFT}:
+  \[
+    \mathcal{F}(\rho_k) = \sum_{g \in O} f(g) \cdot \rho_k(g) \qquad \text{(no transpose)}
+  \]
+
+  \textbf{Correct inverse DFT}:
+  \[
+    f(g) = \frac{1}{|G|} \sum_k d_k \operatorname{tr}\bigl(\rho_k(g)^\top \mathcal{F}_k\bigr)
+  \]
+
+  \medskip
+
+  \textbf{Effect of the bug}: invariance error $\sim 10^2$ $\to$ $\sim 10^{-13}$ after fix.
+\end{frame}
+
+% ============================================================
+\begin{frame}{}
+  \vfill
+  \centering
+  {\Large\textbf{The Inversion Problem}}
+
+  \medskip
+
+  {\normalsize Why the $D_n$ bootstrap doesn't work for~$O$}
+
+  \smallskip
+
+  {\small and what we did about it}
+  \vfill
+\end{frame}
+
+% ============================================================
+\begin{frame}{Recap: bootstrap inversion for $D_n$ (Algorithm~4)}
+  For $D_n$, inversion is a clean sequential bootstrap:
+
+  \begin{enumerate}
+    \item $\mathcal{F}_0 = (\beta_{\rho_0,\rho_0})^{1/3}$
+    \item $\mathcal{F}_1^\top \mathcal{F}_1 = \beta_{\rho_0,\rho_1} / \mathcal{F}_0$
+          \quad$\Rightarrow$\quad $\mathcal{F}_1 = \sqrt{M}$ (symmetric square root, up to $O(2)$)
+    \item Extract remaining $\mathcal{F}_k$ from CG block-diagonalisation:
+    \[
+      \bigoplus_\rho \mathcal{F}_\rho^\top
+      = C^\top \beta_{\rho_1,\rho_{k-1}} \bigl[\mathcal{F}_1 \otimes \mathcal{F}_{k-1}\bigr]^{-1} C
+    \]
+  \end{enumerate}
+
+  \bigskip
+
+  \textbf{Why it works}: for 2D irreps, the $O(2)$ ambiguity $Q$ in step~2 satisfies
+  $C^\top (Q \otimes Q) C = $ block-diagonal for \emph{all} $Q \in \mathrm{SO}(2)$,
+  because the CG decomposition of 2D rotations respects the continuous group.
+
+  \medskip
+
+  The ambiguity cancels perfectly during extraction. No leakage between irreps.
+\end{frame}
+
+% ============================================================
+\begin{frame}{The SO(3) phase problem for $O$}
+  For $O$, step~2 gives $\mathcal{F}_1 = S = \sqrt{\mathcal{F}_1^\top \mathcal{F}_1}$
+  (symmetric PSD, $3\times 3$).
+
+  \medskip
+
+  True $\mathcal{F}_1 = Q \cdot S$ for some $Q \in \mathrm{SO}(3)$.
+  The extraction becomes:
+  \[
+    C^\top \beta_{11} (S \otimes S)^{-1} C
+    = \bigl(\bigoplus \mathcal{F}_k^\top\bigr) \cdot \underbrace{C^\top (Q \otimes Q) C}_{D}
+  \]
+
+  \bigskip
+
+  \textbf{The problem}: $D$ is block-diagonal in the SO(3) CG sense ($1 + 3 + 5$),
+  \emph{not} the $O$ CG sense ($1 + 3 + 3 + 2$).
+
+  \medskip
+
+  Under SO(3): $3 \otimes 3 = \ell{=}0 \oplus \ell{=}1 \oplus \ell{=}2$ \quad ($1 + 3 + 5$).
+
+  Under $O$: $\rho_1 \otimes \rho_1 = \rho_0 \oplus \rho_1 \oplus \rho_2 \oplus \rho_3$ \quad ($1 + 3 + 3 + 2$).
+
+  \medskip
+
+  The $\ell{=}2$ sector (dim~5) splits into $\rho_2$ (dim~3) $\oplus$ $\rho_3$ (dim~2)
+  under $O$, but $D^{(2)}(Q)$ is a \emph{full} $5\times 5$ rotation for general $Q$.
+  $\Rightarrow$ \textbf{Cross-talk} between $\rho_2$ and $\rho_3$ in the extraction.
+\end{frame}
+
+% ============================================================
+\begin{frame}{What we verified numerically}
+  Defined $R = C^\top \beta_{11} (S \otimes S)^{-1} C = (\bigoplus \mathcal{F}_k^\top) \cdot D$.
+
+  \bigskip
+
+  \begin{tabular}{lrl}
+    \toprule
+    \textbf{Quantity} & \textbf{Value} & \textbf{Interpretation} \\
+    \midrule
+    $R\,R^\top$ cross-block $(\rho_0{-}\rho_1, \rho_2{-}\rho_3)$ & $\sim 10^{-13}$ & $R\,R^\top$ \emph{is} block-diagonal \\
+    $R\,R^\top[\text{4:7, 4:7}] - \mathcal{F}_2^\top\mathcal{F}_2$ & $\sim 10^{-13}$ & Fourier \textbf{norms} exactly recoverable \\
+    $R\,R^\top[\text{4:7, 7:9}]$ (cross $\rho_2/\rho_3$) & $\sim 10^{-14}$ & No cross-block in $R\,R^\top$ \\
+    $R[\text{4:7, 7:9}]$ (cross-block of $R$ itself) & $\sim 4.0$ & \textbf{Severe leakage} in $R$ \\
+    $D[\text{1:4, 4:9}]$ (cross $\ell{=}1, \ell{=}2$) & $0$ & $\ell{=}1$ and $\ell{=}2$ \emph{never} mix \\
+    $Q$ from $R[\text{1:4, 1:4}]$ & $= I$ & $Q$ \textbf{cancels} from $\rho_1$ block \\
+    \bottomrule
+  \end{tabular}
+
+  \bigskip
+
+  \textbf{Key insight}: $R\,R^\top = \bigoplus \mathcal{F}_k^\top \mathcal{F}_k$ --- Fourier \emph{norms}
+  are exactly recoverable. But the \emph{phases} (orientations) are lost.
+\end{frame}
+
+% ============================================================
+\begin{frame}{Why Q is invisible in $\beta_{11}$}
+  The extraction result $R = (\bigoplus \mathcal{F}_k^\top) \cdot D$ has structure:
+
+  \[
+    R = \begin{bmatrix}
+      \mathcal{F}_0 & 0 & 0 \\
+      0 & \underbrace{S\,Q^\top \cdot Q}_{= S} & 0 \\
+      0 & 0 & [\mathcal{F}_2^\top,\, \mathcal{F}_3^\top] \cdot D^{(2)}(Q)
+    \end{bmatrix}
+  \]
+
+  \medskip
+
+  \begin{itemize}
+    \item $\ell{=}0$ block: gives $\mathcal{F}_0$ (known). No $Q$ dependence.
+    \item $\ell{=}1$ block: $\mathcal{F}_1^\top Q = (QS)^\top Q = SQ^\top Q = S$.
+          \textbf{$Q$ cancels identically.}
+    \item $\ell{=}2$ block: $5\times 5$ matrix mixing $\rho_2$ and $\rho_3$ through $D^{(2)}(Q)$.
+          This is the \emph{only} place $Q$ appears, but it's entangled with the unknown $\mathcal{F}_2, \mathcal{F}_3$.
+  \end{itemize}
+
+  \bigskip
+
+  $\Rightarrow$ No closed-form extraction of $Q$ from $\beta_{11}$ alone.
+  This is a \textbf{fundamental mathematical obstruction}, not an implementation bug.
+\end{frame}
+
+% ============================================================
+\begin{frame}{Solution: Bootstrap + Levenberg-Marquardt correction}
+  \textbf{Phase 1 --- Bootstrap initialization} (closed-form, exact norms):
+  \begin{enumerate}
+    \item $\mathcal{F}_0 = (\beta_{\rho_0,\rho_0})^{1/3}$
+    \item $S = \sqrt{\beta_{\rho_0,\rho_1}/\mathcal{F}_0}$ \quad (symmetric sqrt)
+    \item $\mathcal{F}_k^\top\mathcal{F}_k$ from $R\,R^\top$ diagonal blocks \quad$\Rightarrow$\quad symmetric sqrts
+    \item Inverse DFT $\Rightarrow$ $f_{\text{init}}$
+  \end{enumerate}
+
+  Result: correct Fourier \textbf{norms} for all 5 irreps, wrong \textbf{phases}.
+
+  \bigskip
+
+  \textbf{Phase 2 --- LM corrections} (single linear solve per step):
+  \begin{enumerate}\setcounter{enumi}{4}
+    \item Jacobian $J = \tfrac{\partial \beta}{\partial f}$ via forward-mode AD \quad ($172 \times 24$ matrix)
+    \item Solve $(J^\top J + \mu I)\,\delta f = J^\top (\beta_{\text{target}} - \beta_{\text{pred}})$
+    \item Adaptive $\mu$: halve on success, $5\times$ on failure
+    \item Repeat for $n_{\text{corrections}}$ steps
+  \end{enumerate}
+
+  \bigskip
+
+  \textbf{Phase 3 --- Multi-start}: random orthogonal perturbations of Fourier phases.
+  Best of $n_{\text{restarts}}$ trials (escapes wrong basins of attraction).
+\end{frame}
+
+% ============================================================
+\begin{frame}{Inversion convergence}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \textbf{Single sample} (seed 42):
+
+      \smallskip
+
+      \begin{tabular}{rcc}
+        \toprule
+        \textbf{Steps} & $\|\beta_{\text{rec}} - \beta\|_\infty$ & Signal err \\
+        \midrule
+        0 (bootstrap) & $3 \times 10^2$ & --- \\
+        1 & $8 \times 10^1$ & 0.88 \\
+        3 & $5 \times 10^0$ & 0.08 \\
+        5 & $2 \times 10^{-4}$ & $< 10^{-5}$ \\
+        10 & $8 \times 10^{-5}$ & $< 10^{-5}$ \\
+        \bottomrule
+      \end{tabular}
+
+      \bigskip
+
+      Quadratic convergence once in the right basin.
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \textbf{Batch of 8} (6 seeds, 4 restarts $\times$ 10 LM steps):
+
+      \smallskip
+
+      \begin{tabular}{rcc}
+        \toprule
+        \textbf{Seed} & $\|\beta\|_\infty$ err & Signal err \\
+        \midrule
+        42  & $2 \times 10^{-5}$ & $< 10^{-5}$ \\
+        123 & $2 \times 10^{-5}$ & $< 10^{-5}$ \\
+        0   & $3 \times 10^{-5}$ & $< 10^{-5}$ \\
+        314 & $2 \times 10^{-5}$ & $< 10^{-5}$ \\
+        7   & $9 \times 10^{-2}$ & 0.017 \\
+        99  & $1 \times 10^{-1}$ & 0.041 \\
+        \bottomrule
+      \end{tabular}
+
+      \bigskip
+
+      All seeds converge. Hard cases need more restarts.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ============================================================
+\begin{frame}{Sanborn \& Miolane (2025): what the paper provides}
+  Appendix~D gives a general inversion algorithm for non-commutative groups:
+
+  \begin{enumerate}
+    \item Recover $\mathcal{F}_{\rho_0} = (\beta_{\rho_0,\rho_0})^{1/3}$
+
+    \item Recover $\mathcal{F}_\rho^\dagger \mathcal{F}_\rho
+          = \beta_{\rho,\rho_0} / \mathcal{F}_{\rho_0}^\dagger$, then take
+          the symmetric square root via SVD:
+    \[
+      \mathcal{F}_\rho = U\Sigma V^\dagger
+      \;\Rightarrow\;
+      \mathcal{F}_\rho^\dagger \mathcal{F}_\rho = V\Sigma^2 V^\dagger
+      \;\Rightarrow\;
+      \mathcal{F}_\rho' = V\Sigma V^\dagger
+    \]
+    The paper declares: ``we fix $UV^\dagger = I$'', analogous to fixing
+    $\phi = 0$ in the commutative case.
+
+    \item Extract remaining $\mathcal{F}_k$ from:
+    \[
+      \bigoplus_\rho \mathcal{F}_\rho
+      = C^{-1} \bigl(\mathcal{F}_1' \otimes \mathcal{F}_1'\bigr)^{-\dagger}
+        \beta_{\rho_1,\rho_1}\; C^{-\dagger}
+    \]
+    ``where everything on the right-hand side is known.''
+  \end{enumerate}
+
+  \bigskip
+
+  This works for $D_n$ ($D_4$, $D_{16}$). The paper also confirms
+  completeness for $O$ and identifies the 4 selective pairs via Kronecker
+  table BFS.
+\end{frame}
+
+% ============================================================
+\begin{frame}{The hidden assumption that breaks for $O$}
+  Step~2 gives $\mathcal{F}_1' = V\Sigma V^\dagger$, but the true coefficient
+  is $\mathcal{F}_1 = Q \cdot \mathcal{F}_1'$ with $Q = UV^\dagger \in \mathrm{SO}(d_1)$.
+
+  \smallskip
+
+  Plugging $\mathcal{F}_1'$ into step~3 instead of $\mathcal{F}_1$:
+  \[
+    C^\top \beta_{11} (\mathcal{F}_1' \otimes \mathcal{F}_1')^{-\dagger} C
+    = \underbrace{\bigl(\bigoplus_k \mathcal{F}_k^\top\bigr)}_{\text{what we want}}
+      \cdot \underbrace{C^\top (Q \otimes Q)\, C}_{D(Q)}
+  \]
+
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{For $D_n$} ($d_1 = 2$, $Q \in \mathrm{SO}(2)$):
+      \begin{itemize}\small
+        \item $D(Q)$ is block-diagonal $\forall Q \in \mathrm{SO}(2)$
+        \item $D_n$-CG matrices block-diagonalise all of $\mathrm{SO}(2)$, not just $D_n$
+        \item Reading off diagonal blocks gives exact $\mathcal{F}_k$
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{For $O$} ($d_1 = 3$, $Q \in \mathrm{SO}(3)$):
+      \begin{itemize}\small
+        \item $\mathrm{SO}(3)$: $3 \otimes 3 = \ell{=}0 \oplus \ell{=}1 \oplus \ell{=}2$ ($1{+}3{+}5$)
+        \item $O$: same $= \rho_0 \oplus \rho_1 \oplus \rho_2 \oplus \rho_3$ ($1{+}3{+}3{+}2$)
+        \item $\ell{=}2$ block (dim~5) \textbf{splits} into $\rho_2 \oplus \rho_3$
+        \item $D^{(2)}(Q)$ is full $5 \times 5$ --- mixes $\rho_2, \rho_3$
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ============================================================
+\begin{frame}{Numerical evidence and consequences}
+  Verified numerically for random signals on $O$:
+
+  \smallskip
+
+  {\small
+  \begin{tabular}{lrl}
+    \toprule
+    \textbf{Quantity} & \textbf{Value} & \textbf{Implication} \\
+    \midrule
+    $R\,R^\top$ cross-block ($\rho_{0{-}1}$ vs $\rho_{2{-}3}$) & $10^{-13}$ & Fourier \emph{norms} exact \\
+    $R[\text{4:7, 7:9}]$ (cross $\rho_2/\rho_3$) & ${\sim}4.0$ & Severe leakage \\
+    $Q$ from $\rho_1$ block of $R$ & $= I$ & $Q$ cancels from $\rho_1$ \\
+    Bispectrum roundtrip (bootstrap only) & $10^{+8}$ & Catastrophically wrong \\
+    \bottomrule
+  \end{tabular}
+  }
+
+  \medskip
+
+  \textbf{Key insight}: $R\,R^\top = \bigoplus \mathcal{F}_k^\top \mathcal{F}_k$ always.
+  \emph{Norms} recoverable; \emph{phases} are not.
+
+  \medskip
+
+  \textbf{What the paper should state}:
+  \begin{itemize}\small
+    \item The bootstrap algorithm is \textbf{valid only when all irreps
+          have $d \leq 2$}
+    \item For $d \geq 3$ irreps ($O$, icosahedral, $\mathrm{SO}(3)$, \ldots),
+          ``fixing $UV^\dagger = I$'' introduces $\mathrm{SO}(d)$ error
+          that propagates to all subsequent steps
+    \item Completeness $\neq$ algorithmic computability:
+          the inverse \emph{exists} but this algorithm doesn't find it
+  \end{itemize}
+\end{frame}
+
+% ============================================================
+\begin{frame}{Comparison: $D_n$ vs $O$ inversion}
+  \begin{table}
+    \begin{tabular}{lll}
+      \toprule
+      & \textbf{$D_n$} & \textbf{$O$} \\
+      \midrule
+      Irrep dimensions & 1D, 2D & 1D, 2D, 3D \\
+      Ambiguity group & $O(2)$ & $\mathrm{SO}(3)$ \\
+      CG respects continuous group? & \textbf{Yes} ($\mathrm{SO}(2)$) & \textbf{No} ($\mathrm{SO}(3) \neq O$) \\
+      Sector mixing & None & $\rho_2 \leftrightarrow \rho_3$ in $\ell{=}2$ \\
+      Bootstrap alone & $\checkmark$ exact & $\times$ wrong phases \\
+      Correction needed & None & LM (linear solve per step) \\
+      Inversion type & Closed-form & Bootstrap + refinement \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \bigskip
+
+  \textbf{Root cause}: for any group $G$ with irreps of dimension $d \geq 3$,
+  the symmetric square root of $\mathcal{F}_1^\top \mathcal{F}_1$ introduces an
+  $\mathrm{SO}(d)$ ambiguity. This is harmless when $d = 2$ (CG respects $\mathrm{SO}(2)$)
+  but fatal when $d = 3$ (CG does \emph{not} respect $\mathrm{SO}(3)$).
+\end{frame}
+
+% ============================================================
+\begin{frame}[fragile]{Usage}
+\begin{lstlisting}[language=Python]
+from bispectrum import OonR3
+
+bsp = OonR3()             # selective=True, 172 coefficients
+f = torch.randn(4, 24)    # batch of 4 signals on O
+beta = bsp(f)              # (4, 172), complex64
+
+# Invariance under any of the 24 group actions
+from bispectrum.o_on_r3 import _CAYLEY, _INVERSE
+g = 7                      # any group element
+g_inv = _INVERSE[g].item()
+f_shifted = f[:, _CAYLEY[g_inv]]
+torch.allclose(bsp(f_shifted).real, beta.real, atol=1e-4)  # True
+
+# Inversion (up to group action)
+f_rec = bsp.invert(beta)   # (4, 24)
+# f_rec matches f up to one of the 24 group permutations
+\end{lstlisting}
+\end{frame}
+
+% ============================================================
+\begin{frame}{Test coverage: 68 new tests}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{Group data} (9 tests)
+      \begin{itemize}\scriptsize
+        \item 24 elements, all orthogonal, all $\det = 1$
+        \item Cayley table closure and identity
+        \item Inverse map consistency
+        \item Kronecker table dimensions and symmetry
+      \end{itemize}
+
+      \bigskip
+
+      \textbf{Irreps} (3 tests)
+      \begin{itemize}\scriptsize
+        \item Dimensions $(1, 3, 3, 2, 1)$
+        \item Identity element $\to I$
+        \item Homomorphism: $\rho_k(g)\rho_k(h) = \rho_k(gh)$ for all $g,h$
+      \end{itemize}
+
+      \bigskip
+
+      \textbf{CG matrices} (4 tests)
+      \begin{itemize}\scriptsize
+        \item Orthogonality of $C_{11}$, $C_{12}$
+        \item Block-diagonalisation for all 24 elements
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{Forward pass} (33 tests)
+      \begin{itemize}\scriptsize
+        \item Output shape, dtype, determinism
+        \item \textbf{Invariance under all 24 group actions} (parametrised)
+        \item Output is real-valued (imaginary $< 10^{-10}$)
+        \item Different signals produce different bispectra
+      \end{itemize}
+
+      \bigskip
+
+      \textbf{DFT} (4 tests)
+      \begin{itemize}\scriptsize
+        \item Roundtrip: DFT $\to$ inverse DFT $=$ identity
+        \item Equivariance: $\mathcal{F}(T_g f) = \rho_k(g) \mathcal{F}(f)$
+      \end{itemize}
+
+      \bigskip
+
+      \textbf{Inversion} (7 tests)
+      \begin{itemize}\scriptsize
+        \item Bispectrum roundtrip, signal recovery
+        \item Output shape, real-valued
+        \item Bootstrap: exact $\mathcal{F}_0$, exact $\|\mathcal{F}_k\|$
+      \end{itemize}
+    \end{column}
+  \end{columns}
+
+  \bigskip
+
+  Total tests in the repo: 181 non-inversion + inversion = \textbf{249 tests}.
+\end{frame}
+
+% ============================================================
+\begin{frame}{What I learned}
+  \begin{enumerate}
+    \item \textbf{DFT conventions matter} --- left vs right equivariance is a one-transpose
+          difference that silently breaks invariance by $O(10^2)$
+
+    \smallskip
+
+    \item \textbf{The SO(3) phase problem is fundamental} --- not a bug, not fixable by
+          a cleverer CG basis. Any group with $d \geq 3$ irreps will face this.
+
+    \smallskip
+
+    \item \textbf{$R\,R^\top$ trick} --- even when the CG extraction $R$ is non-block-diagonal,
+          $R\,R^\top$ always gives exact Fourier norms. This provides a strong initialisation.
+
+    \smallskip
+
+    \item \textbf{Gauss-Newton without line search diverges} --- the bispectrum is cubic,
+          so the linearisation is only locally valid. Adaptive LM damping is essential.
+
+    \smallskip
+
+    \item \textbf{Multi-start is necessary} --- the cubic bispectrum landscape has multiple
+          basins of attraction. A single bootstrap initialisation lands in the wrong basin
+          for ${\sim}30\%$ of random signals.
+  \end{enumerate}
+\end{frame}
+
+% ============================================================
+\begin{frame}{Limitations \& next steps}
+  \textbf{Limitations}:
+  \begin{itemize}
+    \item Inversion speed: ${\sim}2$s per sample (Jacobian computed per-sample via \texttt{jacfwd})
+    \item \texttt{selective=False} (full bispectrum) not yet implemented
+    \item \texttt{invert()} not differentiable w.r.t.\ input $\beta$ (uses \texttt{detach})
+  \end{itemize}
+
+  \bigskip
+
+  \textbf{Next steps}:
+  \begin{itemize}
+    \item Analytical Jacobian $\partial\beta/\partial f$ (avoids AD, enables batching)
+    \item Full octahedral group $O_h$ ($|O_h| = 48$, adds improper rotations)
+    \item GPU benchmarks
+    \item Wire into equivariant network pipeline (pooling layer)
+    \item Investigate whether the LM inversion can be made differentiable
+          via implicit differentiation at the fixed point
+  \end{itemize}
+\end{frame}
+
+\end{document}
