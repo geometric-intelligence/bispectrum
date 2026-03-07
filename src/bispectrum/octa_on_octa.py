@@ -311,7 +311,7 @@ def _compute_cg_octa(
     return C, block_info
 
 
-class OonR3(nn.Module):
+class OctaonOcta(nn.Module):
     """Bispectrum of the octahedral group O acting on R^3.
 
     Signal f: O -> R has length 24 (one value per group element).
@@ -506,7 +506,7 @@ class OonR3(nn.Module):
         """
         if not self.selective:
             raise NotImplementedError(
-                'Full bispectrum not yet implemented for OonR3. Use selective=True (default).'
+                'Full bispectrum not yet implemented for OctaonOcta. Use selective=True (default).'
             )
 
         if f.ndim != 2 or f.shape[-1] != self.GROUP_ORDER:

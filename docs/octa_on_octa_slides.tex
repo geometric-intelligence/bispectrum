@@ -14,7 +14,7 @@
   frame=none,
 }
 
-\title{OonR3: Selective Bispectrum for the Octahedral Group}
+\title{OctaonOcta: Selective Bispectrum for the Octahedral Group}
 \subtitle{Implementing the $O$-Bispectrum and solving the SO(3) inversion problem}
 \author{Johan Mathe}
 \date{\today}
@@ -96,9 +96,9 @@
 
   \textbf{Files}:
   \begin{itemize}
-    \item \texttt{src/bispectrum/o\_on\_r3.py} --- 753 lines, the full module
-    \item \texttt{tests/test\_o\_on\_r3.py} --- 68 tests
-    \item \texttt{docs/o\_on\_r3\_implementation\_notes.md}
+    \item \texttt{src/bispectrum/octa\_on\_octa.py} --- 753 lines, the full module
+    \item \texttt{tests/test\_octa\_on\_octa.py} --- 68 tests
+    \item \texttt{docs/octa\_on\_octa\_implementation\_notes.md}
   \end{itemize}
 \end{frame}
 
@@ -521,14 +521,14 @@
 % ============================================================
 \begin{frame}[fragile]{Usage}
 \begin{lstlisting}[language=Python]
-from bispectrum import OonR3
+from bispectrum import OctaonOcta
 
-bsp = OonR3()             # selective=True, 172 coefficients
+bsp = OctaonOcta()        # selective=True, 172 coefficients
 f = torch.randn(4, 24)    # batch of 4 signals on O
 beta = bsp(f)              # (4, 172), complex64
 
 # Invariance under any of the 24 group actions
-from bispectrum.o_on_r3 import _CAYLEY, _INVERSE
+from bispectrum.octa_on_octa import _CAYLEY, _INVERSE
 g = 7                      # any group element
 g_inv = _INVERSE[g].item()
 f_shifted = f[:, _CAYLEY[g_inv]]

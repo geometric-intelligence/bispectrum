@@ -1,8 +1,8 @@
-# OonR3 Implementation Notes
+# OctaonOcta Implementation Notes
 
 ## Overview
 
-`OonR3` implements the selective G-bispectrum for the octahedral group O (the rotation symmetry group of the cube, |O| = 24), following Algorithm 3 of Mataigne et al. (2024).
+`OctaonOcta` implements the selective G-bispectrum for the octahedral group O (the rotation symmetry group of the cube, |O| = 24), following Algorithm 3 of Mataigne et al. (2024).
 
 ## Group Data
 

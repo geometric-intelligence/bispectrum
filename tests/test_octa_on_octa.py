@@ -1,9 +1,9 @@
-"""Tests for OonR3 (octahedral group) bispectrum module."""
+"""Tests for OctaonOcta (octahedral group) bispectrum module."""
 
 import pytest
 import torch
 
-from bispectrum.o_on_r3 import _CAYLEY, _INVERSE, _KRON_TABLE, OonR3, _ELEMENTS_3x3
+from bispectrum.octa_on_octa import _CAYLEY, _INVERSE, _KRON_TABLE, OctaonOcta, _ELEMENTS_3x3
 
 ATOL = 1e-4
 RTOL = 1e-4
@@ -86,14 +86,14 @@ class TestGroupData:
 
 class TestIrrepMatrices:
     def test_irrep_dims(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         for k in range(5):
             mats = bsp._get_irrep_mats(k)
             expected_d = [1, 3, 3, 2, 1][k]
             assert mats.shape == (24, expected_d, expected_d)
 
     def test_irrep_identity(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         e = None
         for i in range(24):
             if (_ELEMENTS_3x3[i] - torch.eye(3, dtype=torch.float64)).abs().max() < 1e-10:
@@ -111,7 +111,7 @@ class TestIrrepMatrices:
 
     def test_irrep_homomorphism(self):
         """rho_k(g) rho_k(h) = rho_k(gh) for all g, h."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         for k in range(5):
             mats = bsp._get_irrep_mats(k).to(torch.float64)
             for i in range(24):
@@ -123,7 +123,7 @@ class TestIrrepMatrices:
 
     def test_irrep_orthogonality(self):
         """Rows/columns of irrep matrices are orthogonal."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         for k in range(5):
             mats = bsp._get_irrep_mats(k).to(torch.float64)
             for i in range(24):
@@ -135,71 +135,71 @@ class TestIrrepMatrices:
                 assert err < 1e-10, f'rho{k}({i}) not orthogonal: {err}'
 
 
-class TestOonR3Construction:
+class TestOctaonOctaConstruction:
     def test_instantiation(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         assert bsp.selective is True
 
     def test_instantiation_full(self):
-        bsp = OonR3(selective=False)
+        bsp = OctaonOcta(selective=False)
         assert bsp.selective is False
 
     def test_no_trainable_parameters(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         assert isinstance(bsp, torch.nn.Module)
         assert sum(p.numel() for p in bsp.parameters()) == 0
 
     def test_selective_output_size(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         assert bsp.output_size == 172
 
     def test_extra_repr(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         assert 'selective=True' in repr(bsp)
         assert 'output_size=172' in repr(bsp)
 
     def test_index_map_length(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         assert len(bsp.index_map) == bsp.output_size
 
     def test_group_order(self):
-        assert OonR3.GROUP_ORDER == 24
+        assert OctaonOcta.GROUP_ORDER == 24
 
     def test_n_irreps(self):
-        assert OonR3.N_IRREPS == 5
+        assert OctaonOcta.N_IRREPS == 5
 
 
-class TestOonR3Forward:
+class TestOctaonOctaForward:
     def test_output_shape(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(3, 24)
         out = bsp(f)
         assert out.shape == (3, 172)
 
     def test_output_dtype_complex64(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         out = bsp(torch.randn(2, 24))
         assert out.dtype == torch.complex64
 
     def test_output_is_real_valued(self):
         """O has only real irreps, so bispectrum values should be real."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(4, 24, dtype=torch.float64)
         out = bsp(f)
         assert out.imag.abs().max() < 1e-10
 
     def test_output_dtype_from_float64(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         out = bsp(torch.randn(2, 24, dtype=torch.float64))
         assert out.dtype == torch.complex128
 
     def test_deterministic(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(4, 24)
         torch.testing.assert_close(bsp(f), bsp(f))
 
     def test_batch_size_one(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(1, 24)
         out = bsp(f)
         assert out.shape == (1, 172)
@@ -207,7 +207,7 @@ class TestOonR3Forward:
     @pytest.mark.parametrize('g', range(24))
     def test_invariance_under_group_action(self, g: int):
         torch.manual_seed(g + 42)
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(4, 24, dtype=torch.float64)
         beta = bsp(f)
         f_shifted = _permute_signal(f, g)
@@ -220,7 +220,7 @@ class TestOonR3Forward:
         )
 
     def test_different_signals_differ(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f1 = torch.zeros(1, 24)
         f1[0, 0] = 1.0
         f2 = torch.zeros(1, 24)
@@ -229,21 +229,21 @@ class TestOonR3Forward:
         assert not torch.allclose(bsp(f1), bsp(f2))
 
     def test_forward_not_implemented_full(self):
-        bsp = OonR3(selective=False)
+        bsp = OctaonOcta(selective=False)
         with pytest.raises(NotImplementedError):
             bsp(torch.randn(2, 24))
 
 
-class TestOonR3DFT:
+class TestOctaonOctaDFT:
     def test_dft_roundtrip(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(4, 24, dtype=torch.float64)
         fhat = bsp._group_dft(f)
         f_rec = bsp._inverse_dft(fhat)
         torch.testing.assert_close(f_rec, f, atol=1e-10, rtol=1e-10)
 
     def test_dft_shapes(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(3, 24)
         fhat = bsp._group_dft(f)
         assert len(fhat) == 5
@@ -253,7 +253,7 @@ class TestOonR3DFT:
 
     def test_dft_equivariance(self):
         """DFT of T_g f = rho_k(g) @ DFT(f)."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(2, 24, dtype=torch.float64)
         fhat = bsp._group_dft(f)
         for g in range(24):
@@ -270,28 +270,28 @@ class TestOonR3DFT:
                 )
 
     def test_inverse_dft_of_zero(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         fhat = [torch.zeros(1, d, d) for d in [1, 3, 3, 2, 1]]
         f = bsp._inverse_dft(fhat)
         torch.testing.assert_close(f, torch.zeros(1, 24))
 
 
-class TestOonR3CG:
+class TestOctaonOctaCG:
     def test_cg_11_orthogonal(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         C = bsp._cg_11.to(torch.float64)
         err = (C @ C.T - torch.eye(9, dtype=torch.float64)).abs().max()
         assert err < 1e-10, f'CG_11 not orthogonal: {err}'
 
     def test_cg_12_orthogonal(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         C = bsp._cg_12.to(torch.float64)
         err = (C @ C.T - torch.eye(9, dtype=torch.float64)).abs().max()
         assert err < 1e-10, f'CG_12 not orthogonal: {err}'
 
     def test_cg_11_block_diagonalizes(self):
         """C^T (rho1(g) ⊗ rho1(g)) C is block-diagonal for all g."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         C = bsp._cg_11.to(torch.float64)
         rho1 = bsp._get_irrep_mats(1).to(torch.float64)
         for g in range(24):
@@ -307,7 +307,7 @@ class TestOonR3CG:
 
     def test_cg_12_block_diagonalizes(self):
         """C^T (rho1(g) ⊗ rho2(g)) C is block-diagonal for all g."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         C = bsp._cg_12.to(torch.float64)
         rho1 = bsp._get_irrep_mats(1).to(torch.float64)
         rho2 = bsp._get_irrep_mats(2).to(torch.float64)
@@ -323,10 +323,10 @@ class TestOonR3CG:
                         )
 
 
-class TestOonR3Invert:
+class TestOctaonOctaInvert:
     def test_roundtrip_bispectrum(self):
         torch.manual_seed(42)
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(2, 24)
         beta = bsp(f)
         f_rec = bsp.invert(beta, n_corrections=10, n_restarts=6)
@@ -340,7 +340,7 @@ class TestOonR3Invert:
 
     def test_roundtrip_signal_up_to_group_action(self):
         torch.manual_seed(42)
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(1, 24)
         beta = bsp(f)
         f_rec = bsp.invert(beta, n_corrections=10, n_restarts=6)
@@ -353,26 +353,26 @@ class TestOonR3Invert:
         assert min_err < 0.05, f'Signal not recovered up to group action: {min_err}'
 
     def test_invert_output_shape(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         beta = bsp(torch.randn(3, 24))
         f_rec = bsp.invert(beta, n_corrections=3, n_restarts=1)
         assert f_rec.shape == (3, 24)
 
     def test_invert_output_is_real(self):
-        bsp = OonR3()
+        bsp = OctaonOcta()
         beta = bsp(torch.randn(2, 24))
         f_rec = bsp.invert(beta, n_corrections=3, n_restarts=1)
         assert not f_rec.is_complex()
 
     def test_invert_not_implemented_full(self):
-        bsp = OonR3(selective=False)
+        bsp = OctaonOcta(selective=False)
         with pytest.raises(NotImplementedError):
             bsp.invert(torch.randn(2, 172))
 
     def test_bootstrap_init_f0_recovery(self):
         """Bootstrap should exactly recover F0."""
         torch.manual_seed(42)
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(1, 24, dtype=torch.float64)
         beta = bsp(f)
         f_init = bsp._bootstrap_init(beta)
@@ -388,7 +388,7 @@ class TestOonR3Invert:
     def test_bootstrap_init_fourier_norms(self):
         """Bootstrap should recover ||F_k|| correctly for all k."""
         torch.manual_seed(42)
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(2, 24, dtype=torch.float64)
         beta = bsp(f)
         f_init = bsp._bootstrap_init(beta)
@@ -406,7 +406,7 @@ class TestOonR3Invert:
 
     def test_bootstrap_init_near_isotropic_signal(self):
         """Bootstrap should not crash on a near-zero-mean signal where S_kron is singular."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.zeros(1, 24, dtype=torch.float64)
         f[0, 0] = 1e-14
         beta = bsp(f)
@@ -417,10 +417,10 @@ class TestOonR3Invert:
         )
 
 
-class TestOonR3JacfwdCompatibility:
+class TestOctaonOctaJacfwdCompatibility:
     def test_jacfwd_produces_valid_jacobian(self):
         """Jacfwd should trace through forward() and produce a (172, 24) Jacobian."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(24)
 
         def fwd(x: torch.Tensor) -> torch.Tensor:
@@ -433,7 +433,7 @@ class TestOonR3JacfwdCompatibility:
     def test_jacfwd_jacobian_nonzero(self):
         """Jacobian should be non-trivial for a generic signal."""
         torch.manual_seed(99)
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(24)
 
         def fwd(x: torch.Tensor) -> torch.Tensor:
@@ -445,7 +445,7 @@ class TestOonR3JacfwdCompatibility:
     def test_jacfwd_matches_finite_differences(self):
         """Forward-mode AD Jacobian should match numerical finite differences."""
         torch.manual_seed(7)
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(24, dtype=torch.float64)
 
         def fwd(x: torch.Tensor) -> torch.Tensor:
@@ -464,10 +464,10 @@ class TestOonR3JacfwdCompatibility:
         torch.testing.assert_close(J_ad, J_fd, atol=1e-4, rtol=1e-4)
 
 
-class TestOonR3LmStepRobustness:
+class TestOctaonOctaLmStepRobustness:
     def test_lm_step_constant_signal(self):
         """LM step should not crash on a constant signal (rank-deficient Jacobian)."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.ones(1, 24)
         beta = bsp(f)
         f_out = bsp._lm_step(f, beta)
@@ -478,7 +478,7 @@ class TestOonR3LmStepRobustness:
 
     def test_lm_step_zero_signal(self):
         """LM step should handle zero signal gracefully."""
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.zeros(1, 24)
         beta = bsp(f)
         f_out = bsp._lm_step(f, beta)
@@ -488,7 +488,7 @@ class TestOonR3LmStepRobustness:
     def test_lm_step_reduces_or_preserves_loss(self):
         """LM step should not increase the bispectral residual."""
         torch.manual_seed(42)
-        bsp = OonR3()
+        bsp = OctaonOcta()
         f = torch.randn(2, 24)
         f_target = torch.randn(2, 24)
         beta_target = bsp(f_target)
