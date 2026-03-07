@@ -27,11 +27,15 @@ class CnonCn(nn.Module):
     Args:
         n: Group order / signal length.
         selective: If True, use selective O(n) bispectrum.
-            If False, use full O(n^2) bispectrum.
+            If False, use full bispectrum (n(n+1)/2 upper-triangular coefficients).
     """
 
     def __init__(self, n: int, selective: bool = True) -> None:
         super().__init__()
+        if n <= 0:
+            raise ValueError('n must be positive.')
+        if selective and n < 2:
+            raise ValueError('selective=True requires n >= 2.')
         self.n = n
         self.selective = selective
 
@@ -52,6 +56,8 @@ class CnonCn(nn.Module):
         Returns:
             Complex bispectrum tensor. Shape: (batch, output_size).
         """
+        if f.ndim != 2 or f.shape[-1] != self.n:
+            raise ValueError(f'Expected shape (batch, {self.n}), got {tuple(f.shape)}')
         n = self.n
         fhat = torch.fft.fft(f, dim=-1)  # (batch, n), complex
 
@@ -68,6 +74,7 @@ class CnonCn(nn.Module):
         beta = torch.zeros(batch, n, dtype=fhat.dtype, device=fhat.device)
         beta[:, 0] = fhat[:, 0] * fhat[:, 0] * torch.conj(fhat[:, 0])
         beta[:, 1] = fhat[:, 0] * fhat[:, 1] * torch.conj(fhat[:, 1])
+        # k = 1,...,n-2: beta_{1,k} = fhat[1] * fhat[k] * conj(fhat[k+1])
         beta[:, 2:] = fhat[:, 1:2] * fhat[:, 1 : n - 1] * torch.conj(fhat[:, 2:n])
         return beta
 
@@ -92,34 +99,47 @@ class CnonCn(nn.Module):
         """Recover the signal from selective bispectrum coefficients.
 
         Implements Algorithm 1 (Sec. 4.1.1) from Mataigne et al., ICML 2024.
-        The recovered signal is determined up to a continuous SO(2) phase
-        indeterminacy (not just discrete C_n shifts).
+        The recovered signal is determined up to a global character action
+        fhat[k] -> e^{ikθ} fhat[k]. When θ = 2πm/n this corresponds to a
+        discrete cyclic shift. The reconstruction lives in the complex signal
+        model even if the original signal was real-valued.
+
+        Requires fhat[0] != 0 and fhat[1] != 0 for the recursive recovery
+        to be well-defined.
 
         Args:
             beta: Selective bispectrum. Shape: (batch, n), complex.
 
         Returns:
             Reconstructed signal (complex). Shape: (batch, n).
-            Related to the original by a continuous cyclic shift.
 
         Raises:
             NotImplementedError: If selective=False.
+            ValueError: If pivot Fourier coefficients are zero or near-zero.
         """
         if not self.selective:
             raise NotImplementedError(
                 'Inversion is only implemented for the selective bispectrum. Use selective=True.'
             )
+        if beta.ndim != 2 or beta.shape[-1] != self.n:
+            raise ValueError(f'Expected shape (batch, {self.n}), got {tuple(beta.shape)}')
 
         n = self.n
         batch = beta.shape[0]
         fhat = torch.zeros(batch, n, dtype=beta.dtype, device=beta.device)
 
-        # Step 1: recover fhat[0] from beta_{0,0} = |fhat[0]|^3 * exp(i*arg(fhat[0]))
+        eps = 1e-10
+
+        # Step 1: recover fhat[0] from beta_{0,0} = |fhat[0]|^2 * fhat[0] = |fhat[0]|^3 * exp(i arg(fhat[0]))
         fhat[:, 0] = torch.abs(beta[:, 0]) ** (1.0 / 3.0) * torch.exp(1j * torch.angle(beta[:, 0]))
+        if torch.any(torch.abs(fhat[:, 0]) < eps):
+            raise ValueError('Cannot invert: fhat[0] is zero or near-zero.')
 
         # Step 2: recover |fhat[1]| from beta_{0,1} = fhat[0]*|fhat[1]|^2
-        # Phase of fhat[1] fixed to 0 (absorbed by the SO(2) indeterminacy)
+        # Phase of fhat[1] fixed to 0 (absorbed by the character action indeterminacy)
         fhat[:, 1] = torch.sqrt(torch.abs(beta[:, 1] / fhat[:, 0]))
+        if torch.any(torch.abs(fhat[:, 1]) < eps):
+            raise ValueError('Cannot invert: fhat[1] is zero or near-zero.')
 
         # Step 3: sequential recovery for k = 1..n-2
         # beta[k+1] corresponds to beta_{1,k}, and

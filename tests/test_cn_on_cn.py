@@ -10,6 +10,28 @@ RTOL = 1e-4
 
 
 class TestCnonCnConstruction:
+    def test_n_must_be_positive(self):
+        with pytest.raises(ValueError):
+            CnonCn(n=0)
+        with pytest.raises(ValueError):
+            CnonCn(n=-1)
+        with pytest.raises(ValueError):
+            CnonCn(n=0, selective=False)
+
+    def test_selective_requires_n_ge_2(self):
+        with pytest.raises(ValueError):
+            CnonCn(n=1, selective=True)
+
+    def test_n1_full_works(self):
+        bsp = CnonCn(n=1, selective=False)
+        assert bsp.output_size == 1
+
+    def test_n2_selective_works(self):
+        bsp = CnonCn(n=2, selective=True)
+        f = torch.randn(2, 2)
+        beta = bsp(f)
+        assert beta.shape == (2, 2)
+
     def test_instantiation(self):
         bsp = CnonCn(n=8)
         assert bsp.n == 8
@@ -65,14 +87,14 @@ class TestCnonCnConstruction:
 
 
 class TestCnonCnForward:
-    @pytest.mark.parametrize('n', [4, 5, 7, 8, 16, 32])
+    @pytest.mark.parametrize('n', [2, 3, 4, 5, 7, 8, 16, 32])
     def test_output_shape_selective(self, n: int):
         bsp = CnonCn(n=n, selective=True)
         f = torch.randn(3, n)
         out = bsp(f)
         assert out.shape == (3, n)
 
-    @pytest.mark.parametrize('n', [4, 5, 7, 8, 16, 32])
+    @pytest.mark.parametrize('n', [2, 3, 4, 5, 7, 8, 16, 32])
     def test_output_shape_full(self, n: int):
         bsp = CnonCn(n=n, selective=False)
         f = torch.randn(3, n)
@@ -96,7 +118,7 @@ class TestCnonCnForward:
         f = torch.randn(4, 8)
         torch.testing.assert_close(bsp(f), bsp(f))
 
-    @pytest.mark.parametrize('n', [4, 5, 7, 8, 16, 32])
+    @pytest.mark.parametrize('n', [2, 3, 4, 5, 7, 8, 16, 32])
     def test_cyclic_shift_invariance_selective(self, n: int):
         torch.manual_seed(n)
         bsp = CnonCn(n=n, selective=True)
@@ -106,7 +128,7 @@ class TestCnonCnForward:
             f_shifted = torch.roll(f, shift, dims=-1)
             torch.testing.assert_close(bsp(f_shifted), beta, atol=ATOL, rtol=RTOL)
 
-    @pytest.mark.parametrize('n', [4, 5, 7, 8, 16, 32])
+    @pytest.mark.parametrize('n', [2, 3, 4, 5, 7, 8, 16, 32])
     def test_cyclic_shift_invariance_full(self, n: int):
         torch.manual_seed(n)
         bsp = CnonCn(n=n, selective=False)
@@ -151,9 +173,19 @@ class TestCnonCnForward:
         out = bsp(f)
         assert out.shape == (1, 8)
 
+    def test_forward_rejects_1d_input(self):
+        bsp = CnonCn(n=8)
+        with pytest.raises(ValueError):
+            bsp(torch.randn(8))
+
+    def test_forward_rejects_wrong_n(self):
+        bsp = CnonCn(n=8)
+        with pytest.raises(ValueError):
+            bsp(torch.randn(2, 7))
+
 
 class TestCnonCnInvert:
-    @pytest.mark.parametrize('n', [4, 5, 7, 8, 16, 32])
+    @pytest.mark.parametrize('n', [2, 3, 4, 5, 7, 8, 16, 32])
     def test_invert_roundtrip_dft_magnitudes(self, n: int):
         """DFT magnitudes of the reconstructed signal must match the original."""
         torch.manual_seed(n)
@@ -166,7 +198,7 @@ class TestCnonCnInvert:
         fhat_rec = torch.fft.fft(f_rec, dim=-1)
         torch.testing.assert_close(fhat_orig.abs(), fhat_rec.abs(), atol=ATOL, rtol=RTOL)
 
-    @pytest.mark.parametrize('n', [4, 5, 7, 8, 16, 32])
+    @pytest.mark.parametrize('n', [2, 3, 4, 5, 7, 8, 16, 32])
     def test_invert_roundtrip_bispectrum(self, n: int):
         """Bispectrum of the reconstructed signal must match the original."""
         torch.manual_seed(n)
@@ -188,8 +220,32 @@ class TestCnonCnInvert:
         f_rec = bsp.invert(beta)
         assert f_rec.shape == (3, 8)
 
+    def test_invert_rejects_wrong_shape(self):
+        bsp = CnonCn(n=8, selective=True)
+        with pytest.raises(ValueError):
+            bsp.invert(torch.randn(2, 7) + 0j)
+
+    def test_invert_rejects_1d_input(self):
+        bsp = CnonCn(n=8, selective=True)
+        with pytest.raises(ValueError):
+            bsp.invert(torch.randn(8) + 0j)
+
+    def test_invert_raises_on_zero_dc(self):
+        bsp = CnonCn(n=8, selective=True)
+        f = torch.tensor([[1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0]])
+        beta = bsp(f)
+        with pytest.raises(ValueError, match=r'fhat\[0\]'):
+            bsp.invert(beta)
+
+    def test_invert_raises_on_zero_fhat1(self):
+        bsp = CnonCn(n=4, selective=True)
+        f = torch.tensor([[2.0, 1.0, 2.0, 1.0]])  # fhat[0]=6, fhat[1]=0
+        beta = bsp(f)
+        with pytest.raises(ValueError, match=r'fhat\[1\]'):
+            bsp.invert(beta)
+
     def test_invert_output_is_complex(self):
-        """Result is complex due to continuous SO(2) phase indeterminacy."""
+        """Result is complex: reconstruction lives in the complex signal model."""
         bsp = CnonCn(n=8, selective=True)
         beta = bsp(torch.randn(2, 8))
         f_rec = bsp.invert(beta)

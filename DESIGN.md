@@ -40,12 +40,12 @@ ______________________________________________________________________
 
 Groups act on domains. Both matter. The class name encodes both, in mathematical notation:
 
-| Class     | Group                  | Domain          | Description                                    |
-| --------- | ---------------------- | --------------- | ---------------------------------------------- |
-| `CnonCn`  | $C_n$                  | $C_n$           | Cyclic group acting on itself (discrete cycle) |
-| `DnonDn`  | $D_n$                  | $D_n$           | Dihedral group acting on itself                |
-| `SO3onS2` | $\\mathrm{SO}(3)$      | $S^2$           | 3D rotations on the 2-sphere                   |
-| `OonR3`   | $O$ (octahedral group) | $\\mathbb{R}^3$ | Octahedral symmetries on 3D space *(future)*   |
+| Class        | Group                  | Domain          | Description                                    |
+| ------------ | ---------------------- | --------------- | ---------------------------------------------- |
+| `CnonCn`     | $C_n$                  | $C_n$           | Cyclic group acting on itself (discrete cycle) |
+| `DnonDn`     | $D_n$                  | $D_n$           | Dihedral group acting on itself                |
+| `SO3onS2`    | $\\mathrm{SO}(3)$      | $S^2$           | 3D rotations on the 2-sphere                   |
+| `OctaonOcta` | $O$ (octahedral group) | $\\mathbb{R}^3$ | Octahedral symmetries on 3D space              |
 
 This convention is deliberately mathematical rather than verbal (`CyclicBispectrum`, etc.) because the mathematical name carries precise meaning and avoids ambiguity as the library grows.
 
@@ -219,23 +219,63 @@ SO3onS2(
 
 ______________________________________________________________________
 
+### `OctaonOcta()` — Octahedral group $O$ on $\\mathbb{R}^3$
+
+**Mathematical setting:**
+Signal $f: O \\to \\mathbb{R}$ where $O$ is the rotation symmetry group of the cube ($|O| = 24$). $O$ acts on itself by left-translation: $(T_g f)(h) = f(g^{-1}h)$.
+
+**Irreducible representations:**
+$O$ has 5 real irreps with dimensions $(1, 3, 3, 2, 1)$:
+
+- $\\rho_0$ (trivial, $A_1$): 1D
+- $\\rho_1$ (standard 3D, $T_1$): 3D — the natural action on $\\mathbb{R}^3$
+- $\\rho_2$ (product $T_2 = A_2 \\otimes T_1$): 3D
+- $\\rho_3$ (2D, $E$): 2D
+- $\\rho_4$ (alternating, $A_2$): 1D
+
+**Selective bispectrum** (Appendix B, [Mataigne et al. 2024]):
+4 matrix-valued coefficients: $\\beta\_{\\rho_0,\\rho_0}$, $\\beta\_{\\rho_0,\\rho_1}$, $\\beta\_{\\rho_1,\\rho_1}$, $\\beta\_{\\rho_1,\\rho_2}$, totalling 172 real scalars.
+
+**Inversion:**
+Unlike $D_n$, the bootstrap method does not extend directly to $O$: the symmetric square root of $F_1^T F_1$ introduces a continuous $\\mathrm{SO}(3)$ phase ambiguity that the discrete CG structure cannot resolve. The `invert` method uses bootstrap initialization (exact Fourier norms, approximate phases) followed by Levenberg-Marquardt correction steps with multi-start phase perturbations.
+
+**Usage:**
+
+```python
+bsp = OctaonOcta()
+f = torch.randn(batch_size, 24)   # signal on O (|O| = 24), shape (batch, 24)
+output = bsp(f)                    # shape (batch, 172), complex64
+
+f_rec = bsp.invert(output)         # shape (batch, 24), up to group action
+```
+
+**Constructor parameters:**
+
+```python
+OctaonOcta(
+    selective: bool = True  # Selective (172 coefs) or full bispectrum
+)
+```
+
+______________________________________________________________________
+
 ## Selectivity Roadmap
 
 The central value proposition of the library is the *selective* G-bispectrum: a minimal subset of bispectral pairs $(\\rho, \\sigma)$ that suffices for complete signal reconstruction, reducing coefficient count from $O(\\lvert G\\rvert^2)$ to $O(\\lvert G\\rvert)$.
 
 This is proven for finite groups only. Here, `O` denotes the finite octahedral rotation group (not the full orthogonal group). The table below tracks the current state across all group/domain combinations of interest.
 
-| Class     | Group                | Domain                             | Selective?                                      | Inversion?     | Status           |
-| --------- | -------------------- | ---------------------------------- | ----------------------------------------------- | -------------- | ---------------- |
-| `CnonCn`  | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1 | ✅ Done          |
-| `DnonDn`  | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3 | ✅ Done          |
-| `OonR3`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅             | Planned          |
-| —         | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2 | —                |
-| `SO3onS2` | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌             | **Open problem** |
-| —         | $\\mathrm{SO}(2)$    | $S^1 \\times \\mathbb{R}^+$ (disk) | ❌ Full only                                    | ❌             | Open problem     |
-| —         | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌             | Open problem     |
-| —         | Compact $G$          | $G$                                | ❌ Full only                                    | ❌             | Open problem     |
-| —         | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌             | Open problem     |
+| Class        | Group                | Domain                             | Selective?                                      | Inversion?      | Status           |
+| ------------ | -------------------- | ---------------------------------- | ----------------------------------------------- | --------------- | ---------------- |
+| `CnonCn`     | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1  | ✅ Done          |
+| `DnonDn`     | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done          |
+| `OctaonOcta` | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done          |
+| —            | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2  | —                |
+| `SO3onS2`    | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌              | **Open problem** |
+| —            | $\\mathrm{SO}(2)$    | $S^1 \\times \\mathbb{R}^+$ (disk) | ❌ Full only                                    | ❌              | Open problem     |
+| —            | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌              | Open problem     |
+| —            | Compact $G$          | $G$                                | ❌ Full only                                    | ❌              | Open problem     |
+| —            | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌              | Open problem     |
 
 Sources: Mataigne et al. 2024 for all ✅ entries; "Bispectral Signatures of Data" (internal draft) for the full-bispectrum formulas of the remaining cases.
 
@@ -279,7 +319,7 @@ The top-level `bispectrum` namespace exposes only what a user needs:
 
 ```python
 # Main modules
-from bispectrum import CnonCn, DnonDn, SO3onS2
+from bispectrum import CnonCn, DnonDn, OctaonOcta, SO3onS2
 
 # Rotation utilities (useful for testing/data augmentation)
 from bispectrum import random_rotation_matrix, rotate_spherical_function
@@ -308,6 +348,7 @@ src/bispectrum/
 ├── __init__.py          # Public exports only
 ├── cn_on_cn.py          # CnonCn
 ├── dn_on_dn.py          # DnonDn
+├── octa_on_octa.py      # OctaonOcta
 ├── so3_on_s2.py         # SO3onS2 (refactored)
 ├── rotation.py          # random_rotation_matrix, rotate_spherical_function
 └── _cg.py               # Internal CG utilities (not exported)
