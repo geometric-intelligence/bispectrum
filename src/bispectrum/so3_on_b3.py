@@ -118,9 +118,12 @@ class SO3onB3(nn.Module):
         nlon: Number of longitude points for the spherical grid.
             Defaults to 2*nlat.
         nr: Number of radial quadrature points. Defaults to L//2.
-        selective: Reserved for future use. Selective bispectrum for SO(3)
-            on the ball is an open problem.
+        selective: If True, raises NotImplementedError. Selective bispectrum
+            for SO(3) on the ball is an open mathematical problem
+            (DESIGN.md TODO-M3).
     """
+
+    _SHT_GRID = 'equiangular'
 
     def __init__(
         self,
@@ -129,9 +132,14 @@ class SO3onB3(nn.Module):
         nlat: int | None = None,
         nlon: int | None = None,
         nr: int | None = None,
-        selective: bool = True,
+        selective: bool = False,
     ) -> None:
         super().__init__()
+        if selective:
+            raise NotImplementedError(
+                'Selective bispectrum for SO(3) on B^3 is an open mathematical '
+                'problem. Use selective=False for the full bispectrum.'
+            )
         self.lmax = lmax
         self.L = L
         self.selective = selective
@@ -148,8 +156,17 @@ class SO3onB3(nn.Module):
         self.nr = nr
 
         sht_lmax = lmax + 1
+        # The sampling grid in _build_spherical_sample_grid uses
+        # linspace(0, pi, nlat), which matches the Clenshaw-Curtis
+        # (equiangular) quadrature nodes. Changing _SHT_GRID requires
+        # updating the sampling grid to match the new quadrature.
         self._sht = RealSHT(
-            nlat, nlon, lmax=sht_lmax, mmax=sht_lmax, grid='equiangular', norm='ortho'
+            nlat,
+            nlon,
+            lmax=sht_lmax,
+            mmax=sht_lmax,
+            grid=self._SHT_GRID,
+            norm='ortho',
         )
 
         radii, quad_weights = _gauss_legendre_on_unit(nr)

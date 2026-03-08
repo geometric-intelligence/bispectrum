@@ -126,6 +126,18 @@ class TestSO3onB3Invariance:
         )
 
 
+class TestSO3onB3Selective:
+    """Test that selective=True raises NotImplementedError."""
+
+    def test_selective_raises(self):
+        with pytest.raises(NotImplementedError, match='open mathematical problem'):
+            SO3onB3(lmax=2, L=16, selective=True)
+
+    def test_selective_false_works(self):
+        bsp = SO3onB3(lmax=2, L=16, selective=False)
+        assert bsp.selective is False
+
+
 class TestSO3onB3Invert:
     """Test that invert raises NotImplementedError."""
 

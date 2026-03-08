@@ -257,7 +257,7 @@ SO3onB3(
     nlat: int | None = None,  # Angular latitude resolution (default: 2*(lmax+1))
     nlon: int | None = None,  # Angular longitude resolution (default: 2*nlat)
     nr: int | None = None,    # Radial quadrature points (default: L//2)
-    selective: bool = True  # Reserved — selective bispectrum is an open problem
+    selective: bool = False  # Raises NotImplementedError if True (open problem)
 )
 ```
 
