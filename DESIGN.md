@@ -46,6 +46,7 @@ Groups act on domains. Both matter. The class name encodes both, in mathematical
 | `DnonDn`     | $D_n$                  | $D_n$           | Dihedral group acting on itself                |
 | `SO3onS2`    | $\\mathrm{SO}(3)$      | $S^2$           | 3D rotations on the 2-sphere                   |
 | `SO2onD2`    | $\\mathrm{SO}(2)$      | $D^2$           | 2D rotations on the unit disk                  |
+| `SO3onB3`    | $\\mathrm{SO}(3)$      | $B^3$           | 3D rotations on the unit ball                  |
 | `OctaonOcta` | $O$ (octahedral group) | $\\mathbb{R}^3$ | Octahedral symmetries on 3D space              |
 
 This convention is deliberately mathematical rather than verbal (`CyclicBispectrum`, etc.) because the mathematical name carries precise meaning and avoids ambiguity as the library grows.
@@ -220,6 +221,50 @@ SO3onS2(
 
 ______________________________________________________________________
 
+### `SO3onB3(lmax: int, L: int)` — $\\mathrm{SO}(3)$ on the unit ball $B^3$
+
+**Mathematical setting:**
+Signal $f: B^3 \\to \\mathbb{R}$ on the unit ball in spherical coordinates $(r, \\theta, \\phi)$ with $r \\in [0,1]$. Group $\\mathrm{SO}(3)$ acts by rotation: $(T_R f)(r, \\theta, \\phi) = f(r, R^{-1}(\\theta, \\phi))$. The radial coordinate is invariant under rotation.
+
+**Solid spherical harmonic basis:**
+
+$$\\Phi\_{l,m}(r, \\theta, \\phi) = r^l \\cdot Y_l^m(\\theta, \\phi)$$
+
+**Fourier transform** (radially-integrated SH coefficients):
+
+$$A\_{l,m} = \\int_0^1 a\_{l,m}(r) \\cdot r^{l+2} , dr$$
+
+where $a\_{l,m}(r)$ are the SH coefficients of $f$ restricted to the shell at radius $r$, and the $r^{l+2}$ factor combines the solid harmonic radial weight $r^l$ with the spherical Jacobian $r^2$.
+
+**Bispectrum formula:** Identical to `SO3onS2` — same CG-based formula applied to the $A\_{l,m}$ coefficients:
+
+$$\\beta(f)_{l_1, l_2}^{(l)} = \\bigl(\\mathcal{A}_{l_1} \\otimes \\mathcal{A}_{l_2}\\bigr) \\cdot C_{l_1, l_2}^{(l)} \\cdot \\mathcal{A}\_l^\\dagger$$
+
+**Usage:**
+
+```python
+bsp = SO3onB3(lmax=5, L=32)
+f = torch.randn(batch_size, 32, 32, 32)  # signal on B³, shape (batch, L, L, L)
+output = bsp(f)                           # shape (batch, output_size), complex64
+```
+
+**Constructor parameters:**
+
+```python
+SO3onB3(
+    lmax: int = 5,          # Maximum spherical harmonic degree
+    L: int = 32,            # Voxel grid resolution (input is L x L x L)
+    nlat: int | None = None,  # Angular latitude resolution (default: 2*(lmax+1))
+    nlon: int | None = None,  # Angular longitude resolution (default: 2*nlat)
+    nr: int | None = None,    # Radial quadrature points (default: L//2)
+    selective: bool = True  # Reserved — selective bispectrum is an open problem
+)
+```
+
+> **Note:** Selective bispectrum and inversion for SO(3) on the ball are open mathematical problems (TODO-M3, TODO-M4). The `selective` parameter is reserved for future use.
+
+______________________________________________________________________
+
 ### `OctaonOcta()` — Octahedral group $O$ on $\\mathbb{R}^3$
 
 **Mathematical setting:**
@@ -307,17 +352,17 @@ The central value proposition of the library is the *selective* G-bispectrum: a 
 
 This is proven for finite groups only. Here, `O` denotes the finite octahedral rotation group (not the full orthogonal group). The table below tracks the current state across all group/domain combinations of interest.
 
-| Class        | Group                | Domain                             | Selective?                                      | Inversion?      | Status           |
-| ------------ | -------------------- | ---------------------------------- | ----------------------------------------------- | --------------- | ---------------- |
-| `CnonCn`     | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1  | ✅ Done          |
-| `DnonDn`     | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done          |
-| `OctaonOcta` | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done          |
-| —            | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2  | —                |
-| `SO3onS2`    | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌              | **Open problem** |
-| `SO2onD2`    | $\\mathrm{SO}(2)$    | $D^2$ (disk)                       | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅              | ✅ Done          |
-| —            | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌              | Open problem     |
-| —            | Compact $G$          | $G$                                | ❌ Full only                                    | ❌              | Open problem     |
-| —            | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌              | Open problem     |
+| Class        | Group                | Domain          | Selective?                                      | Inversion?      | Status           |
+| ------------ | -------------------- | --------------- | ----------------------------------------------- | --------------- | ---------------- |
+| `CnonCn`     | $C_n$                | $C_n$           | ✅ $n$ coefficients                             | ✅ Algorithm 1  | ✅ Done          |
+| `DnonDn`     | $D_n$                | $D_n$           | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done          |
+| `OctaonOcta` | $O$                  | $\\mathbb{R}^3$ | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done          |
+| —            | All commutative $G$  | $G$             | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2  | —                |
+| `SO3onS2`    | $\\mathrm{SO}(3)$    | $S^2$           | ❌ Full only                                    | ❌              | **Open problem** |
+| `SO2onD2`    | $\\mathrm{SO}(2)$    | $D^2$ (disk)    | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅              | ✅ Done          |
+| `SO3onB3`    | $\\mathrm{SO}(3)$    | $B^3$ (ball)    | ❌ Full only                                    | ❌              | ✅ Impl (full)   |
+| —            | Compact $G$          | $G$             | ❌ Full only                                    | ❌              | Open problem     |
+| —            | Homogeneous $(H, G)$ | $H = G/G_0$     | ❌ Full only                                    | ❌              | Open problem     |
 
 Sources: Mataigne et al. 2024 for all ✅ entries; "Bispectral Signatures of Data" (internal draft) for the full-bispectrum formulas of the remaining cases.
 
@@ -353,10 +398,10 @@ The top-level `bispectrum` namespace exposes only what a user needs:
 
 ```python
 # Main modules
-from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onD2, SO3onS2
+from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onD2, SO3onB3, SO3onS2
 
 # Rotation utilities (useful for testing/data augmentation)
-from bispectrum import random_rotation_matrix, rotate_spherical_function
+from bispectrum import random_rotation_matrix, rotate_spherical_function, rotate_voxel_function
 ```
 
 **Explicitly not exported:**
@@ -384,8 +429,9 @@ src/bispectrum/
 ├── dn_on_dn.py          # DnonDn
 ├── octa_on_octa.py      # OctaonOcta
 ├── so3_on_s2.py         # SO3onS2 (refactored)
+├── so3_on_b3.py         # SO3onB3
 ├── so2_on_d2.py         # SO2onD2
-├── rotation.py          # random_rotation_matrix, rotate_spherical_function
+├── rotation.py          # random_rotation_matrix, rotate_spherical_function, rotate_voxel_function
 ├── _bessel.py           # Internal Bessel function utilities (not exported)
 └── _cg.py               # Internal CG utilities (not exported)
 ```

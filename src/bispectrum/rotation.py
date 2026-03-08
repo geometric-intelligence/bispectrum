@@ -201,3 +201,51 @@ def rotate_spherical_function(
     f_rotated = f_rotated.squeeze(1).to(dtype)
 
     return f_rotated
+
+
+def rotate_voxel_function(
+    f: torch.Tensor,
+    rotation_matrix: torch.Tensor,
+) -> torch.Tensor:
+    """Rotate a volumetric function on the unit ball by an SO(3) rotation.
+
+    Applies an SO(3) rotation R to a function f on the ball by computing:
+        (R * f)(x) = f(R^{-1} x)
+
+    The voxel grid is interpreted as occupying [-1, 1]^3. Points outside
+    the grid are set to zero (padding_mode='zeros').
+
+    Args:
+        f: Volumetric data of shape (batch, L, L, L).
+        rotation_matrix: 3x3 SO(3) rotation matrix.
+
+    Returns:
+        Rotated volume on the same grid, shape (batch, L, L, L).
+    """
+    batch, L = f.shape[0], f.shape[1]
+    device = f.device
+    dtype = f.dtype
+
+    # Build a regular grid in [-1, 1]^3
+    coords = torch.linspace(-1, 1, L, device=device, dtype=torch.float64)
+    gz, gy, gx = torch.meshgrid(coords, coords, coords, indexing='ij')
+    # (L, L, L, 3)
+    grid_pts = torch.stack([gx, gy, gz], dim=-1)
+
+    # Apply R^{-1} = R^T to each grid point
+    r_inv = rotation_matrix.to(device=device, dtype=torch.float64).T
+    # (L*L*L, 3) @ (3, 3) -> (L*L*L, 3), then reshape
+    flat = grid_pts.reshape(-1, 3)
+    rotated_flat = flat @ r_inv.T
+    sample_grid = rotated_flat.reshape(1, L, L, L, 3)  # (1, D, H, W, 3)
+    sample_grid = sample_grid.expand(batch, -1, -1, -1, -1)
+
+    f_5d = f.unsqueeze(1).float()  # (batch, 1, L, L, L)
+    f_rotated = F.grid_sample(
+        f_5d,
+        sample_grid.float(),
+        mode='bilinear',
+        padding_mode='zeros',
+        align_corners=True,
+    )
+    return f_rotated.squeeze(1).to(dtype)
