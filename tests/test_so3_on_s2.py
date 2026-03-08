@@ -89,6 +89,11 @@ class TestSO3onS2:
         assert 'nlat=32' in repr_str
         assert 'output_size=' in repr_str
 
+    def test_forward_rejects_complex_input(self):
+        bsp = SO3onS2(lmax=3, nlat=32, nlon=64)
+        with pytest.raises(TypeError):
+            bsp(torch.randn(2, 32, 64, dtype=torch.complex64))
+
 
 class TestSO3onS2RotationInvariance:
     """Test that SO3onS2 bispectrum is invariant under rotations."""

@@ -160,6 +160,11 @@ class TestDnonDnForward:
         f_rec = bsp._inverse_dft(fhat)
         torch.testing.assert_close(f_rec, f, atol=1e-10, rtol=1e-10)
 
+    def test_forward_rejects_complex_input(self):
+        bsp = DnonDn(n=4)
+        with pytest.raises(TypeError):
+            bsp(torch.randn(2, 8, dtype=torch.complex64))
+
 
 class TestDnonDnInvert:
     @pytest.mark.parametrize('n', [3, 4, 5, 7, 8])
@@ -205,6 +210,14 @@ class TestDnonDnInvert:
         beta = bsp(torch.randn(2, 16))
         f_rec = bsp.invert(beta)
         assert not f_rec.is_complex()
+
+    def test_invert_raises_on_zero_F0(self):
+        """Zero-sum signal has F(rho_0)=0, causing division by zero."""
+        bsp = DnonDn(n=3)
+        f = torch.tensor([[1.0, -1.0, 1.0, -1.0, 1.0, -1.0]], dtype=torch.float64)
+        beta = bsp(f)
+        with pytest.raises(ValueError, match=r'rho.*0|pivot|zero'):
+            bsp.invert(beta)
 
     def test_invert_not_implemented_full(self):
         bsp = DnonDn(n=8, selective=False)

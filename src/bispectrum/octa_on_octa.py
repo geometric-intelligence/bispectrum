@@ -504,6 +504,8 @@ class OctaonOcta(nn.Module):
             Real-valued but returned as complex dtype for API consistency.
             Imaginary parts are zero to machine precision for real inputs.
         """
+        if f.is_complex():
+            raise TypeError('f must be a real-valued tensor, got complex dtype.')
         if not self.selective:
             raise NotImplementedError(
                 'Full bispectrum not yet implemented for OctaonOcta. Use selective=True (default).'
@@ -603,6 +605,9 @@ class OctaonOcta(nn.Module):
         C11 = self._cg_11.to(dtype)
         for b_idx in range(batch):
             S_kron = torch.kron(S[b_idx], S[b_idx])
+            det_S = torch.linalg.det(S_kron)
+            if det_S.abs() < 1e-10:
+                continue
             R = C11.T @ b11[b_idx] @ torch.linalg.inv(S_kron) @ C11
             RRT = R @ R.T
 
@@ -654,8 +659,12 @@ class OctaonOcta(nn.Module):
         Multiple restarts with randomised Fourier phases ensure convergence
         from any starting point.
 
-        The reconstruction has O-indeterminacy: the recovered signal matches
-        the original up to an octahedral group action.
+        The output is a canonical representative of the O-orbit, not the
+        original signal. The recovered signal matches the original up to
+        an octahedral group action.
+
+        Bootstrap initialization requires F(rho_1) to be non-singular
+        (via S ⊗ S invertibility). Singular cases are skipped gracefully.
 
         Args:
             beta: Selective bispectrum, shape (batch, output_size).

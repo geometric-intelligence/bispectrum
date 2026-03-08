@@ -213,6 +213,11 @@ class TestSO2onD2Forward:
         rel_err = (beta - beta_rot).abs().max().item() / beta.abs().max().item()
         assert rel_err < 1.5, f'Rotation invariance error too large: {rel_err:.4f}'
 
+    def test_forward_rejects_complex_input(self):
+        bsp = SO2onD2(L=8)
+        with pytest.raises(TypeError):
+            bsp(torch.randn(2, 8, 8, dtype=torch.complex128))
+
 
 class TestSO2onD2DHTRoundtrip:
     @pytest.mark.parametrize('L', [8, 16])
@@ -375,6 +380,18 @@ class TestSO2onD2Invert:
         bsp = SO2onD2(L=8, selective=False)
         with pytest.raises(NotImplementedError):
             bsp.invert(torch.randn(2, 27, dtype=torch.complex128))
+
+    def test_invert_raises_on_zero_pivot(self):
+        """All-zero beta has a_{0,1}=0, causing division by zero."""
+        bsp = SO2onD2(L=8)
+        beta = torch.zeros(1, bsp.output_size, dtype=torch.complex128)
+        with pytest.raises(ValueError, match='pivot'):
+            bsp.invert(beta)
+
+    def test_invert_rejects_real_beta(self):
+        bsp = SO2onD2(L=8)
+        with pytest.raises(TypeError):
+            bsp.invert(torch.randn(1, bsp.output_size, dtype=torch.float64))
 
     @pytest.mark.parametrize('L', [8, 16])
     def test_invert_bispectrum_roundtrip(self, L: int):
