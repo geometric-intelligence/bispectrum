@@ -191,6 +191,11 @@ class TestTorusOnTorusForward:
         with pytest.raises(ValueError):
             bsp(torch.randn(2, 3, 4))
 
+    def test_forward_rejects_complex_input(self):
+        bsp = TorusOnTorus(ns=(4, 4))
+        with pytest.raises(TypeError):
+            bsp(torch.randn(2, 4, 4, dtype=torch.complex64))
+
 
 class TestTorusOnTorusInvert:
     @pytest.mark.parametrize('ns', NS_ALL)
@@ -215,7 +220,14 @@ class TestTorusOnTorusInvert:
         f = torch.randn(4, *ns)
         beta = bsp(f)
         f_rec = bsp.invert(beta)
-        beta_rec = bsp(f_rec)
+        spatial_dims = tuple(range(1, 1 + bsp._d))
+        fhat_rec = torch.fft.fftn(f_rec, dim=spatial_dims)
+        fhat_flat = fhat_rec.reshape(f_rec.shape[0], -1)
+        beta_rec = (
+            fhat_flat[:, bsp._idx_k1]
+            * fhat_flat[:, bsp._idx_k2]
+            * fhat_flat[:, bsp._idx_k1pk2].conj()
+        )
         torch.testing.assert_close(beta, beta_rec, atol=ATOL, rtol=RTOL)
 
     def test_invert_not_implemented_full(self):
@@ -245,19 +257,37 @@ class TestTorusOnTorusInvert:
         with pytest.raises(ValueError):
             bsp.invert(torch.randn(12) + 0j)
 
-    def test_invert_raises_on_zero_dc(self):
+    def test_invert_survives_zero_dc(self):
+        """Near-zero DC is clamped, not raised."""
         bsp = TorusOnTorus(ns=(2, 2), selective=True)
         f = torch.tensor([[[1.0, -1.0], [-1.0, 1.0]]])
         beta = bsp(f)
-        with pytest.raises(ValueError, match=r'fhat\[0\]'):
-            bsp.invert(beta)
+        result = bsp.invert(beta)
+        assert result.shape == (1, 2, 2)
+        assert result.isfinite().all()
 
-    def test_invert_raises_on_zero_generator(self):
+    def test_invert_survives_zero_generator(self):
+        """Near-zero generator pivot is clamped, not raised."""
         bsp = TorusOnTorus(ns=(2, 2), selective=True)
         f = torch.tensor([[[1.0, 2.0], [1.0, 2.0]]])
         beta = bsp(f)
-        with pytest.raises(ValueError, match=r'fhat\[e_'):
-            bsp.invert(beta)
+        result = bsp.invert(beta)
+        assert result.shape == (1, 2, 2)
+        assert result.isfinite().all()
+
+    def test_invert_survives_zero_intermediate(self):
+        """Near-zero intermediate pivot is clamped, not raised."""
+        bsp = TorusOnTorus(ns=(3, 2), selective=True)
+        f = torch.tensor([[[1.0, 0.0], [1.0, 0.0], [2.0, 1.0]]])
+        beta = bsp(f)
+        result = bsp.invert(beta)
+        assert result.shape == (1, 3, 2)
+        assert result.isfinite().all()
+
+    def test_invert_rejects_real_beta(self):
+        bsp = TorusOnTorus(ns=(3, 4), selective=True)
+        with pytest.raises(TypeError):
+            bsp.invert(torch.randn(2, 12))
 
     def test_invert_output_is_complex(self):
         bsp = TorusOnTorus(ns=(3, 4), selective=True)

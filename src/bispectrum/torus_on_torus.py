@@ -97,7 +97,7 @@ class TorusOnTorus(nn.Module):
     def _build_selective_indices(
         self,
     ) -> tuple[list[int], list[int], list[int], list[tuple[tuple[int, ...], tuple[int, ...]]]]:
-        """Build selective bispectrum indices via Algorithm 2 BFS.
+        """Build selective bispectrum indices via row-major predecessor traversal (Algorithm 2).
 
         Iterates through all |G| elements in row-major order. For each element k:
         - k = 0: pair is (0, 0)
@@ -169,6 +169,8 @@ class TorusOnTorus(nn.Module):
         Returns:
             Complex bispectrum tensor. Shape: (batch, output_size).
         """
+        if f.is_complex():
+            raise TypeError('f must be a real-valued tensor, got complex dtype.')
         if f.ndim != 1 + self._d or tuple(f.shape[1:]) != self.ns:
             raise ValueError(
                 f'Expected shape (batch, {", ".join(str(n) for n in self.ns)}), '
@@ -184,15 +186,28 @@ class TorusOnTorus(nn.Module):
         c = fhat_flat[:, self._idx_k1pk2]
         return a * b * c.conj()
 
+    @staticmethod
+    def _safe_denom(z: torch.Tensor, eps: float) -> torch.Tensor:
+        """Clamp magnitude away from zero, preserving exact values when safe."""
+        return torch.where(
+            torch.abs(z) < eps,
+            torch.full_like(z, eps),
+            z,
+        )
+
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
         """Recover the signal from selective bispectrum coefficients.
 
         Implements Algorithm 2 from Mataigne et al. (2024).
-        The recovered signal is determined up to d independent translations
-        (one per cyclic factor), corresponding to free phases
-        exp(i φ_l k_l) on each generator e_l.
+        The output is a canonical representative of the translation-equivalence
+        class, not the original signal. It is determined up to d independent
+        translations (one per cyclic factor); generator phases are fixed to
+        zero.
 
-        Requires f_hat[0] != 0 and f_hat[e_l] != 0 for all generators.
+        Near-zero pivots are clamped rather than raising, so a single
+        degenerate sample in a batch won't crash the whole computation;
+        the affected sample will get a noisy reconstruction for those
+        frequencies.
 
         Args:
             beta: Selective bispectrum. Shape: (batch, |G|), complex.
@@ -202,12 +217,14 @@ class TorusOnTorus(nn.Module):
 
         Raises:
             NotImplementedError: If selective=False.
-            ValueError: If pivot Fourier coefficients are zero or near-zero.
+            TypeError: If beta is not complex.
         """
         if not self.selective:
             raise NotImplementedError(
                 'Inversion is only implemented for the selective bispectrum. Use selective=True.'
             )
+        if not beta.is_complex():
+            raise TypeError('beta must be a complex tensor.')
 
         G = self._group_order_val
         if beta.ndim != 2 or beta.shape[-1] != G:
@@ -220,26 +237,26 @@ class TorusOnTorus(nn.Module):
 
         # Phase 0: recover fhat[0] from β_{0,0} = |fhat[0]|^2 · fhat[0]
         fhat[:, 0] = torch.abs(beta[:, 0]) ** (1.0 / 3.0) * torch.exp(1j * torch.angle(beta[:, 0]))
-        if torch.any(torch.abs(fhat[:, 0]) < eps):
-            raise ValueError('Cannot invert: fhat[0] is zero or near-zero.')
 
         # Phase 1: recover |fhat[e_l]| for each generator, fix phase to 0
         gen_set = set(self._generator_flat)
-        for l, g_flat in enumerate(self._generator_flat):
-            fhat[:, g_flat] = torch.sqrt(torch.abs(beta[:, g_flat] / fhat[:, 0]))
-            if torch.any(torch.abs(fhat[:, g_flat]) < eps):
-                raise ValueError(f'Cannot invert: fhat[e_{l}] is zero or near-zero.')
+        for _l, g_flat in enumerate(self._generator_flat):
+            fhat[:, g_flat] = torch.sqrt(
+                torch.abs(beta[:, g_flat] / self._safe_denom(fhat[:, 0], eps))
+            )
 
         # Phases 2+3: sequential bootstrap
         # fhat[k] = conj(β_k / (fhat[e_l] · fhat[k - e_l]))
+        idx_k1_cpu = self._idx_k1.tolist()
+        idx_k2_cpu = self._idx_k2.tolist()
         for flat_k in range(1, G):
             if flat_k in gen_set:
                 continue
-            e_l_flat = self._idx_k1[flat_k].item()
-            k_prev_flat = self._idx_k2[flat_k].item()
-            fhat[:, flat_k] = torch.conj(
-                beta[:, flat_k] / (fhat[:, e_l_flat] * fhat[:, k_prev_flat])
-            )
+            e_l_flat = idx_k1_cpu[flat_k]
+            k_prev_flat = idx_k2_cpu[flat_k]
+            denom = fhat[:, e_l_flat] * fhat[:, k_prev_flat]
+            denom = self._safe_denom(denom, eps)
+            fhat[:, flat_k] = torch.conj(beta[:, flat_k] / denom)
 
         fhat_nd = fhat.reshape(batch, *self.ns)
         spatial_dims = tuple(range(1, 1 + self._d))
