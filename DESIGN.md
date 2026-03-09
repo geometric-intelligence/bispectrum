@@ -40,13 +40,14 @@ ______________________________________________________________________
 
 Groups act on domains. Both matter. The class name encodes both, in mathematical notation:
 
-| Class        | Group                  | Domain          | Description                                    |
-| ------------ | ---------------------- | --------------- | ---------------------------------------------- |
-| `CnonCn`     | $C_n$                  | $C_n$           | Cyclic group acting on itself (discrete cycle) |
-| `DnonDn`     | $D_n$                  | $D_n$           | Dihedral group acting on itself                |
-| `SO3onS2`    | $\\mathrm{SO}(3)$      | $S^2$           | 3D rotations on the 2-sphere                   |
-| `SO2onD2`    | $\\mathrm{SO}(2)$      | $D^2$           | 2D rotations on the unit disk                  |
-| `OctaonOcta` | $O$ (octahedral group) | $\\mathbb{R}^3$ | Octahedral symmetries on 3D space              |
+| Class          | Group                                       | Domain                                      | Description                                    |
+| -------------- | ------------------------------------------- | ------------------------------------------- | ---------------------------------------------- |
+| `CnonCn`       | $C_n$                                       | $C_n$                                       | Cyclic group acting on itself (discrete cycle) |
+| `TorusOnTorus` | $C\_{n_1} \\times \\cdots \\times C\_{n_d}$ | $C\_{n_1} \\times \\cdots \\times C\_{n_d}$ | Discrete d-torus acting on itself              |
+| `DnonDn`       | $D_n$                                       | $D_n$                                       | Dihedral group acting on itself                |
+| `SO3onS2`      | $\\mathrm{SO}(3)$                           | $S^2$                                       | 3D rotations on the 2-sphere                   |
+| `SO2onD2`      | $\\mathrm{SO}(2)$                           | $D^2$                                       | 2D rotations on the unit disk                  |
+| `OctaonOcta`   | $O$ (octahedral group)                      | $\\mathbb{R}^3$                             | Octahedral symmetries on 3D space              |
 
 This convention is deliberately mathematical rather than verbal (`CyclicBispectrum`, etc.) because the mathematical name carries precise meaning and avoids ambiguity as the library grows.
 
@@ -143,6 +144,55 @@ print(bsp.index_map)                     # [(0,0), (0,1), (1,1), (1,2), ...]
 CnonCn(
     n: int,                # Group order / signal length
     selective: bool = True # Use selective O(n) or full O(n²) bispectrum
+)
+```
+
+______________________________________________________________________
+
+### `TorusOnTorus(ns: tuple[int, ...])` — Discrete d-torus $C\_{n_1} \\times \\cdots \\times C\_{n_d}$
+
+**Mathematical setting:**
+Signal $f: C\_{n_1} \\times \\cdots \\times C\_{n_d} \\to \\mathbb{R}$. The discrete d-torus $\\mathbb{T}^d = C\_{n_1} \\times \\cdots \\times C\_{n_d}$ is a finite abelian group acting on itself by componentwise translation: $(T_g f)(x) = f(x - g \\bmod \\mathbf{n})$.
+
+**Bispectrum formula** (commutative case, [Kakarala 2009]):
+
+$$\\beta(f)\_{\\mathbf{k}\_1, \\mathbf{k}\_2} = \\hat{f}\_{\\mathbf{k}\_1} \\cdot \\hat{f}\_{\\mathbf{k}\_2} \\cdot \\hat{f}^\\\*\_{(\\mathbf{k}\_1 + \\mathbf{k}\_2) \\bmod \\mathbf{n}}$$
+
+where $\\hat{f}$ is the $d$-dimensional DFT (`torch.fft.fftn`) and $\\mathbf{k}\_1, \\mathbf{k}\_2$ are multi-indices with componentwise modular addition. All irreps are 1D characters, so no Clebsch-Gordan matrices are needed.
+
+**Selective coefficients** (Theorem 4.3, Algorithm 2, [Mataigne et al. 2024]):
+Full bispectrum has $|G|^2$ coefficients. Selective version needs only $|G| = \\prod_l n_l$:
+
+The algorithm performs a BFS on the dual group $\\hat{G} \\cong G$ using generators $\\mathbf{e}\_l$ (standard basis vectors). For each element $\\mathbf{k}$ in row-major order, the selective pair is $(\\mathbf{e}\_l, \\mathbf{k} - \\mathbf{e}\_l)$ where $l$ is the first axis with $k_l > 0$.
+
+**Inversion** (Algorithm 2, Appendix D):
+Bootstrap from the trivial representation along each axis independently, then fill remaining entries column-by-column. The recovered signal has $d$ free phase ambiguities (one translation per axis).
+
+**Usage:**
+
+```python
+# 2D periodic image (28×28 torus)
+bsp = TorusOnTorus(ns=(28, 28))
+f = torch.randn(batch_size, 28, 28)    # signal on torus, shape (batch, n1, n2)
+output = bsp(f)                         # shape (batch, 784), complex64
+f_rec = bsp.invert(output)              # shape (batch, 28, 28), complex
+
+# 3D periodic volume
+bsp3d = TorusOnTorus(ns=(32, 32, 32))
+vol = torch.randn(batch_size, 32, 32, 32)
+output3d = bsp3d(vol)                   # shape (batch, 32768), complex64
+
+print(bsp.output_size)                  # 784 (selective)
+print(bsp.group_order)                  # 784
+print(bsp.ndim)                         # 2
+```
+
+**Constructor parameters:**
+
+```python
+TorusOnTorus(
+    ns: tuple[int, ...],       # Shape of the torus (e.g. (8, 8) for C_8 × C_8)
+    selective: bool = True     # Use selective O(|G|) or full O(|G|²) bispectrum
 )
 ```
 
@@ -307,17 +357,17 @@ The central value proposition of the library is the *selective* G-bispectrum: a 
 
 This is proven for finite groups only. Here, `O` denotes the finite octahedral rotation group (not the full orthogonal group). The table below tracks the current state across all group/domain combinations of interest.
 
-| Class        | Group                | Domain                             | Selective?                                      | Inversion?      | Status           |
-| ------------ | -------------------- | ---------------------------------- | ----------------------------------------------- | --------------- | ---------------- |
-| `CnonCn`     | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1  | ✅ Done          |
-| `DnonDn`     | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done          |
-| `OctaonOcta` | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done          |
-| —            | All commutative $G$  | $G$                                | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2  | —                |
-| `SO3onS2`    | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌              | **Open problem** |
-| `SO2onD2`    | $\\mathrm{SO}(2)$    | $D^2$ (disk)                       | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅              | ✅ Done          |
-| —            | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌              | Open problem     |
-| —            | Compact $G$          | $G$                                | ❌ Full only                                    | ❌              | Open problem     |
-| —            | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌              | Open problem     |
+| Class          | Group                | Domain                             | Selective?                                      | Inversion?      | Status           |
+| -------------- | -------------------- | ---------------------------------- | ----------------------------------------------- | --------------- | ---------------- |
+| `CnonCn`       | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1  | ✅ Done          |
+| `TorusOnTorus` | $\\prod C\_{n_l}$    | $\\prod C\_{n_l}$                  | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2  | ✅ Done          |
+| `DnonDn`       | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done          |
+| `OctaonOcta`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done          |
+| `SO3onS2`      | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌              | **Open problem** |
+| `SO2onD2`      | $\\mathrm{SO}(2)$    | $D^2$ (disk)                       | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅              | ✅ Done          |
+| —              | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌              | Open problem     |
+| —              | Compact $G$          | $G$                                | ❌ Full only                                    | ❌              | Open problem     |
+| —              | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌              | Open problem     |
 
 Sources: Mataigne et al. 2024 for all ✅ entries; "Bispectral Signatures of Data" (internal draft) for the full-bispectrum formulas of the remaining cases.
 
@@ -353,7 +403,7 @@ The top-level `bispectrum` namespace exposes only what a user needs:
 
 ```python
 # Main modules
-from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onD2, SO3onS2
+from bispectrum import CnonCn, TorusOnTorus, DnonDn, OctaonOcta, SO2onD2, SO3onS2
 
 # Rotation utilities (useful for testing/data augmentation)
 from bispectrum import random_rotation_matrix, rotate_spherical_function
@@ -381,6 +431,7 @@ ______________________________________________________________________
 src/bispectrum/
 ├── __init__.py          # Public exports only
 ├── cn_on_cn.py          # CnonCn
+├── torus_on_torus.py    # TorusOnTorus
 ├── dn_on_dn.py          # DnonDn
 ├── octa_on_octa.py      # OctaonOcta
 ├── so3_on_s2.py         # SO3onS2 (refactored)

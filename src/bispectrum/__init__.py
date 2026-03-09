@@ -8,6 +8,7 @@ from bispectrum.octa_on_octa import OctaonOcta
 from bispectrum.rotation import random_rotation_matrix, rotate_spherical_function
 from bispectrum.so2_on_d2 import SO2onD2
 from bispectrum.so3_on_s2 import SO3onS2
+from bispectrum.torus_on_torus import TorusOnTorus
 
 __all__ = [
     'CnonCn',
@@ -15,6 +16,7 @@ __all__ = [
     'OctaonOcta',
     'SO2onD2',
     'SO3onS2',
+    'TorusOnTorus',
     'random_rotation_matrix',
     'rotate_spherical_function',
 ]
