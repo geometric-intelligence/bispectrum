@@ -341,6 +341,8 @@ class SO2onD2(nn.Module):
         Returns:
             Complex bispectrum tensor. Shape: (batch, output_size).
         """
+        if f.is_complex():
+            raise TypeError('f must be a real-valued tensor, got complex dtype.')
         if not self.selective:
             raise NotImplementedError(
                 'Full disk bispectrum not yet implemented. Use selective=True.'
@@ -368,8 +370,15 @@ class SO2onD2(nn.Module):
         """Recover an image from selective disk bispectrum coefficients.
 
         Implements the bootstrap recovery from Theorem 4.4 of Myers &
-        Miolane (arXiv:2511.19706). The recovered image is determined up to a global
-        SO(2) rotation.
+        Miolane (arXiv:2511.19706). The output is a canonical representative
+        of the SO(2) orbit, not the original image. It is determined up to
+        a global rotation.
+
+        Requires a_{0,1} != 0 and a_{1,1} != 0 for the initial recovery
+        steps. More generally, every intermediate Fourier coefficient used
+        as a division pivot (a_{n,1} for each angular order n) must be
+        nonzero; pathological spectra with exact zeros will raise
+        ValueError.
 
         Args:
             beta: Selective bispectrum. Shape: (batch, output_size), complex.
@@ -379,11 +388,15 @@ class SO2onD2(nn.Module):
 
         Raises:
             NotImplementedError: If selective=False.
+            TypeError: If beta is not complex.
+            ValueError: If pivot coefficients are zero or near-zero.
         """
         if not self.selective:
             raise NotImplementedError(
                 'Inversion only implemented for selective bispectrum. Use selective=True.'
             )
+        if not beta.is_complex():
+            raise TypeError('beta must be a complex tensor.')
 
         K = self._K
         N_m = self._N_m
@@ -399,6 +412,8 @@ class SO2onD2(nn.Module):
         # Step 1: a_{0,1} from b_{0,0,1} = |a_{0,1}|^2 * a_{0,1}
         b_001 = beta[:, 0]
         a_01 = torch.abs(b_001) ** (1.0 / 3.0) * torch.exp(1j * torch.angle(b_001))
+        if torch.any(torch.abs(a_01) < 1e-10):
+            raise ValueError('Cannot invert: zero or near-zero pivot a_{0,1}.')
         a[:, nonneg_to_idx[(0, 1)]] = a_01
 
         # Step 2: a_{0,k} for k=2..K_0
@@ -411,6 +426,8 @@ class SO2onD2(nn.Module):
         # Step 3: |a_{1,1}| from b_{2,0,1} = a_{0,1} * |a_{1,1}|^2
         b_201 = beta[:, offset]
         a_11 = torch.sqrt(torch.abs(b_201 / a_01))
+        if torch.any(torch.abs(a_11) < 1e-10):
+            raise ValueError('Cannot invert: zero or near-zero pivot a_{1,1}.')
         a[:, nonneg_to_idx[(1, 1)]] = a_11
 
         # Step 4: a_{1,k} for k=2..K_1

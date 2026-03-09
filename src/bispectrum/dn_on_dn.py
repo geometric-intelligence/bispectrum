@@ -405,6 +405,8 @@ class DnonDn(nn.Module):
         Returns:
             Real bispectrum.  Shape ``(batch, output_size)``, dtype same as *f*.
         """
+        if f.is_complex():
+            raise TypeError('f must be a real-valued tensor, got complex dtype.')
         if not self.selective:
             raise NotImplementedError('Full bispectrum not yet implemented for DnonDn.')
 
@@ -444,15 +446,22 @@ class DnonDn(nn.Module):
         """Recover a signal from its selective bispectrum.
 
         Implements Algorithm 3 (Sec. 4.1.3) from Mataigne et al., ICML 2024.
+        The output is a canonical representative, not the original signal.
         Reconstruction has O(2) indeterminacy (continuous rotations and
         reflections), so the recovered signal matches the original up to
         a D_n group action.
+
+        Requires F(rho_0) != 0 and non-singular Kronecker products
+        F(rho_1) ⊗ F(rho_k) at each sequential recovery step.
 
         Args:
             beta: Selective bispectrum, shape ``(batch, output_size)``.
 
         Returns:
             Reconstructed real signal, shape ``(batch, 2n)``.
+
+        Raises:
+            ValueError: If pivot Fourier coefficients are zero or singular.
         """
         if not self.selective:
             raise NotImplementedError('Inversion only implemented for selective bispectrum.')
@@ -472,6 +481,8 @@ class DnonDn(nn.Module):
         # Step 2 — F(rho_1) via eigendecomposition of beta_{rho0,rho1}/F(rho0)
         b01 = beta[:, 1:5].reshape(batch, 2, 2)
         F0 = fhat[:, 0, 0, 0]
+        if torch.any(torch.abs(F0) < 1e-10):
+            raise ValueError('Cannot invert: F(rho_0) is zero or near-zero.')
         M = b01 / F0[:, None, None]  # = F1^T @ F1,  positive semi-definite
         eigvals_M, eigvecs_M = torch.linalg.eigh(M)
         eigvals_M = torch.clamp(eigvals_M, min=0.0)
@@ -495,6 +506,11 @@ class DnonDn(nn.Module):
             Fkp = fhat[:, :, :, k_prev]
 
             A = _batched_kron_2x2(F1, Fkp)
+            det_A = torch.linalg.det(A)
+            if torch.any(det_A.abs() < 1e-10):
+                raise ValueError(
+                    'Cannot invert: singular Kronecker product at sequential recovery step.'
+                )
             A_inv = torch.linalg.inv(A)
 
             # beta = C (oplus F^T) C^T A  =>  oplus F = [C^T beta A^{-1} C]^T

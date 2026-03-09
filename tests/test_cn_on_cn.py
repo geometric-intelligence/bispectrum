@@ -183,6 +183,11 @@ class TestCnonCnForward:
         with pytest.raises(ValueError):
             bsp(torch.randn(2, 7))
 
+    def test_forward_rejects_complex_input(self):
+        bsp = CnonCn(n=8)
+        with pytest.raises(TypeError):
+            bsp(torch.randn(2, 8, dtype=torch.complex64))
+
 
 class TestCnonCnInvert:
     @pytest.mark.parametrize('n', [2, 3, 4, 5, 7, 8, 16, 32])
@@ -206,7 +211,8 @@ class TestCnonCnInvert:
         f = torch.randn(4, n)
         beta = bsp(f)
         f_rec = bsp.invert(beta)
-        beta_rec = bsp(f_rec)
+        fhat_rec = torch.fft.fft(f_rec, dim=-1)
+        beta_rec = bsp._forward_selective(fhat_rec, n)
         torch.testing.assert_close(beta, beta_rec, atol=ATOL, rtol=RTOL)
 
     def test_invert_not_implemented_full(self):
@@ -230,19 +236,37 @@ class TestCnonCnInvert:
         with pytest.raises(ValueError):
             bsp.invert(torch.randn(8) + 0j)
 
-    def test_invert_raises_on_zero_dc(self):
+    def test_invert_survives_zero_dc(self):
+        """Near-zero DC is clamped, not raised."""
         bsp = CnonCn(n=8, selective=True)
         f = torch.tensor([[1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0]])
         beta = bsp(f)
-        with pytest.raises(ValueError, match=r'fhat\[0\]'):
-            bsp.invert(beta)
+        result = bsp.invert(beta)
+        assert result.shape == (1, 8)
+        assert result.isfinite().all()
 
-    def test_invert_raises_on_zero_fhat1(self):
+    def test_invert_survives_zero_fhat1(self):
+        """Near-zero fhat[1] pivot is clamped, not raised."""
         bsp = CnonCn(n=4, selective=True)
         f = torch.tensor([[2.0, 1.0, 2.0, 1.0]])  # fhat[0]=6, fhat[1]=0
         beta = bsp(f)
-        with pytest.raises(ValueError, match=r'fhat\[1\]'):
-            bsp.invert(beta)
+        result = bsp.invert(beta)
+        assert result.shape == (1, 4)
+        assert result.isfinite().all()
+
+    def test_invert_survives_zero_intermediate(self):
+        """Near-zero intermediate pivot is clamped, not raised."""
+        bsp = CnonCn(n=4, selective=True)
+        f = torch.tensor([[3.0, 1.0, 1.0, 3.0]])
+        beta = bsp(f)
+        result = bsp.invert(beta)
+        assert result.shape == (1, 4)
+        assert result.isfinite().all()
+
+    def test_invert_rejects_real_beta(self):
+        bsp = CnonCn(n=4, selective=True)
+        with pytest.raises(TypeError):
+            bsp.invert(torch.randn(2, 4))
 
     def test_invert_output_is_complex(self):
         """Result is complex: reconstruction lives in the complex signal model."""

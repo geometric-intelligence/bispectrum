@@ -74,6 +74,8 @@ class SO3onS2(nn.Module):
         Returns:
             Complex bispectrum tensor. Shape: (batch, output_size).
         """
+        if f.is_complex():
+            raise TypeError('f must be a real-valued tensor, got complex dtype.')
         coeffs = self._sht(f)
         f_coeffs = _get_full_sh_coefficients(coeffs)
 

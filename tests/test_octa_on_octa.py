@@ -233,6 +233,11 @@ class TestOctaonOctaForward:
         with pytest.raises(NotImplementedError):
             bsp(torch.randn(2, 24))
 
+    def test_forward_rejects_complex_input(self):
+        bsp = OctaonOcta()
+        with pytest.raises(TypeError):
+            bsp(torch.randn(2, 24, dtype=torch.complex64))
+
 
 class TestOctaonOctaDFT:
     def test_dft_roundtrip(self):

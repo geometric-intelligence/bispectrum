@@ -56,6 +56,8 @@ class CnonCn(nn.Module):
         Returns:
             Complex bispectrum tensor. Shape: (batch, output_size).
         """
+        if f.is_complex():
+            raise TypeError('f must be a real-valued tensor, got complex dtype.')
         if f.ndim != 2 or f.shape[-1] != self.n:
             raise ValueError(f'Expected shape (batch, {self.n}), got {tuple(f.shape)}')
         n = self.n
@@ -95,17 +97,29 @@ class CnonCn(nn.Module):
 
         return beta
 
+    @staticmethod
+    def _safe_denom(z: torch.Tensor, eps: float) -> torch.Tensor:
+        """Clamp magnitude away from zero, preserving exact values when safe."""
+        return torch.where(
+            torch.abs(z) < eps,
+            torch.full_like(z, eps),
+            z,
+        )
+
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
         """Recover the signal from selective bispectrum coefficients.
 
         Implements Algorithm 1 (Sec. 4.1.1) from Mataigne et al., ICML 2024.
-        The recovered signal is determined up to a global character action
-        fhat[k] -> e^{ikθ} fhat[k]. When θ = 2πm/n this corresponds to a
-        discrete cyclic shift. The reconstruction lives in the complex signal
-        model even if the original signal was real-valued.
+        The output is a canonical representative of the translation-equivalence
+        class, not the original signal. It is determined up to a global
+        character action fhat[k] -> e^{ikθ} fhat[k]; the generator phase is
+        fixed to zero. The reconstruction lives in the complex signal model
+        even if the original signal was real-valued.
 
-        Requires fhat[0] != 0 and fhat[1] != 0 for the recursive recovery
-        to be well-defined.
+        Near-zero pivots are clamped rather than raising, so a single
+        degenerate sample in a batch won't crash the whole computation;
+        the affected sample will get a noisy reconstruction for those
+        frequencies.
 
         Args:
             beta: Selective bispectrum. Shape: (batch, n), complex.
@@ -115,12 +129,14 @@ class CnonCn(nn.Module):
 
         Raises:
             NotImplementedError: If selective=False.
-            ValueError: If pivot Fourier coefficients are zero or near-zero.
+            TypeError: If beta is not complex.
         """
         if not self.selective:
             raise NotImplementedError(
                 'Inversion is only implemented for the selective bispectrum. Use selective=True.'
             )
+        if not beta.is_complex():
+            raise TypeError('beta must be a complex tensor.')
         if beta.ndim != 2 or beta.shape[-1] != self.n:
             raise ValueError(f'Expected shape (batch, {self.n}), got {tuple(beta.shape)}')
 
@@ -132,20 +148,18 @@ class CnonCn(nn.Module):
 
         # Step 1: recover fhat[0] from beta_{0,0} = |fhat[0]|^2 * fhat[0] = |fhat[0]|^3 * exp(i arg(fhat[0]))
         fhat[:, 0] = torch.abs(beta[:, 0]) ** (1.0 / 3.0) * torch.exp(1j * torch.angle(beta[:, 0]))
-        if torch.any(torch.abs(fhat[:, 0]) < eps):
-            raise ValueError('Cannot invert: fhat[0] is zero or near-zero.')
 
         # Step 2: recover |fhat[1]| from beta_{0,1} = fhat[0]*|fhat[1]|^2
         # Phase of fhat[1] fixed to 0 (absorbed by the character action indeterminacy)
-        fhat[:, 1] = torch.sqrt(torch.abs(beta[:, 1] / fhat[:, 0]))
-        if torch.any(torch.abs(fhat[:, 1]) < eps):
-            raise ValueError('Cannot invert: fhat[1] is zero or near-zero.')
+        fhat[:, 1] = torch.sqrt(torch.abs(beta[:, 1] / self._safe_denom(fhat[:, 0], eps)))
 
         # Step 3: sequential recovery for k = 1..n-2
         # beta[k+1] corresponds to beta_{1,k}, and
         # fhat[k+1] = conj(beta_{1,k} / (fhat[1] * fhat[k]))
         for k in range(1, n - 1):
-            fhat[:, k + 1] = torch.conj(beta[:, k + 1] / (fhat[:, 1] * fhat[:, k]))
+            denom = fhat[:, 1] * fhat[:, k]
+            denom = self._safe_denom(denom, eps)
+            fhat[:, k + 1] = torch.conj(beta[:, k + 1] / denom)
 
         return torch.fft.ifft(fhat, dim=-1)
 
