@@ -43,6 +43,7 @@ Groups act on domains. Both matter. The class name encodes both, in mathematical
 | Class          | Group                                       | Domain                                      | Description                                    |
 | -------------- | ------------------------------------------- | ------------------------------------------- | ---------------------------------------------- |
 | `CnonCn`       | $C_n$                                       | $C_n$                                       | Cyclic group acting on itself (discrete cycle) |
+| `SO2onS1`      | $\\mathrm{SO}(2)$                           | $S^1$                                       | 2D rotations on the circle (wraps `CnonCn`)    |
 | `TorusOnTorus` | $C\_{n_1} \\times \\cdots \\times C\_{n_d}$ | $C\_{n_1} \\times \\cdots \\times C\_{n_d}$ | Discrete d-torus acting on itself              |
 | `DnonDn`       | $D_n$                                       | $D_n$                                       | Dihedral group acting on itself                |
 | `SO3onS2`      | $\\mathrm{SO}(3)$                           | $S^2$                                       | 3D rotations on the 2-sphere                   |
@@ -360,6 +361,7 @@ This is proven for finite groups only. Here, `O` denotes the finite octahedral r
 | Class          | Group                | Domain                             | Selective?                                      | Inversion?      | Status           |
 | -------------- | -------------------- | ---------------------------------- | ----------------------------------------------- | --------------- | ---------------- |
 | `CnonCn`       | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1  | ✅ Done          |
+| `SO2onS1`      | $\\mathrm{SO}(2)$    | $S^1$                              | ✅ $n$ coefficients (via `CnonCn`)              | ✅ Algorithm 1  | ✅ Done          |
 | `TorusOnTorus` | $\\prod C\_{n_l}$    | $\\prod C\_{n_l}$                  | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2  | ✅ Done          |
 | `DnonDn`       | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done          |
 | `OctaonOcta`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done          |
@@ -403,7 +405,7 @@ The top-level `bispectrum` namespace exposes only what a user needs:
 
 ```python
 # Main modules
-from bispectrum import CnonCn, TorusOnTorus, DnonDn, OctaonOcta, SO2onD2, SO3onS2
+from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onD2, SO2onS1, SO3onS2, TorusOnTorus
 
 # Rotation utilities (useful for testing/data augmentation)
 from bispectrum import random_rotation_matrix, rotate_spherical_function
@@ -431,6 +433,7 @@ ______________________________________________________________________
 src/bispectrum/
 ├── __init__.py          # Public exports only
 ├── cn_on_cn.py          # CnonCn
+├── so2_on_s1.py         # SO2onS1 (subclass of CnonCn)
 ├── torus_on_torus.py    # TorusOnTorus
 ├── dn_on_dn.py          # DnonDn
 ├── octa_on_octa.py      # OctaonOcta
