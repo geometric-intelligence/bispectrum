@@ -1,0 +1,32 @@
+\section{Introduction}
+The translation-invariant bispectrum is a higher-order spectral representation that originated in the mid-20th century for signal processing \citep{tukey1953spectral, brillinger1991some, nikias1993signal}. Unlike the power spectrum, which captures second-order (pairwise) correlations between Fourier coefficients, the bispectrum encodes third-order relationships, making it sensitive to asymmetries and nonlinear interactions in the signal. More importantly, unlike the power spectrum which drops the phase of the signal, the translation-invariant bispectrum conserves everything about the signal except for its global phase, making it a \textit{complete} translational invariant.
+
+As a result, the translation-invariant bispectrum has found widespread applications across disciplines: oceanographers use it to analyze wave interactions~\citep{elgar1985observations}, seismologists to identify complex waveforms~\citep{geophysics_2004}, and biomedical engineers to study electroencephalograms~\citep{zhang2000bispectrum} as well as heart rate variability~\citep{martin2021bispectral}. It is similarly used in optical interferometry~\citep{Gordon_2012}, radar communications~\citep{liu2023modulation} and other applications as a way to identify patterns in 1D signals (see \cite{koukiou2024identifying} for a recent review). Such applications are only interested in translation invariance in 1D or 2D signals (images).
+
+In contrast, other applications are interested in rotation invariance, and despite the widespread applicability and utilization of the 1D/2D translation-invariant bispectrum, the 2D rotation-invariant bispectrum has been under-developed. In many applications, key information lies in the \textit{shape} of a 2D image, and its orientation is a nuisance variable. Without an easily computable rotation invariant representation, practitioners must register each image before analysis.
+
+To this end, \cite{zhao2014rotationally} proposed the disk bispectrum, which is invariant to 2D planar (disk) rotations. However, because they did not derive a bispectrum inversion, their analysis was restricted to classification problems in bispectrum space. For example, tasks like multi reference alignment (MRA) would be impossible. MRA estimates a ground truth signal by mapping shifted noisy versions of that signal into bispectrum space, averaging the signals in bispectrum space, and then inverting the average back to image space, which would be impossible without a bispectrum inversion. Additionally \cite{zhao2014rotationally}'s disk bispectrum was computationally expensive. Authors reported a cubic complexity of $\mathcal{O}(m^3 / N_{m})$ , where $m$ is the number of ``disk harmonic frequencies'', and $N_m$ the maximum frequency. Lastly, they resorted to principal component analysis (PCA) in bispectrum space to reduce its dimensionality. Authors do not prove completeness of the disk bispectrum or their PCA reduction, meaning it was unclear whether the bispectrum actually described all information about the original image up to a rotation.
+
+In this work, we propose the first computationally tractable disk bispectrum, the \textit{selective disk bispectrum}, and its inversion, for use in image processing and shape analysis. We also provide a method for approximating the disk bispectrum, building on \cite{fast_dhcs_2023}.  Then, following \cite{bendory2018bispectrum}, we derive an MRA-specific disk bispectrum inversion, which corrects for noise propagation during disk bispectrum averaging, and demonstrate its efficacy on rotated noisy MNIST images.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figs/overview_figure.pdf}
+  \caption{We propose the selective disk bispectrum, which reduces the time complexity of the disk bispectrum from $\mathcal{O}(m^3/N_m)$ to $\mathcal{O}(m)$, where $m$ is the number of disk harmonic frequencies, and $N_m$ the maximum frequency. We provide the first inversion of the disk bispectrum from its coefficients back to image space.}
+  \label{fig:overview}
+\end{figure*}
+
+
+\textbf{Contributions}
+\begin{enumerate}[leftmargin=*]
+\item We introduce the \textit{selective disk bispectrum}, an efficient formulation that proves and exploits the redundancy of disk bispectral coefficients. This reduces the space complexity from $\mathcal{O}(m^3/N_m)$ to $\mathcal{O}(m)$ and the time complexity from $\mathcal{O}(L^3+m^3/N_m)$ to  $\mathcal{O}(L^3 + m)$, where $L \times L$ is the image size, $L^2$ is the number of total pixels, $m$ is the number of disk harmonic frequencies, and $N_m$ the maximum frequency. The selective disk bispectrum offers an \textit{efficient} rotation-invariant representation, making it scalable for large amounts of data.
+
+\item We derive the first disk bispectrum inversion, mapping (selective) disk bispectrum coefficients back to image space. The value of this inversion is twofold. First, it enables practitioners to reconstruct an image from statistical results (such as computation of the mean) in disk bispectrum space, which is essential for interpretability. Second, the inversion proves that the selective disk bispectrum is a \textit{complete rotational invariant} for images on the disk, i.e., it preserves all information about an image up to a disk rotation. By association, it also provides the first completeness proof for the full disk bispectrum.
+
+\item We provide a numerical approximation of the selective disk bispectrum, that further reduces its time complexity from $\mathcal{O}(L^3 + m)$ to $O(L^2\log L + m)$. We prove precise accuracy guarantees on this approximation.
+
+\item We provide an open-source, unit-tested implementation of the selective disk bispectrum and its inversion in Python, along with its application to multi-reference alignment. We use this implementation to illustrate the forward and inverse selective disk bispectrum map (between images and coefficients), and compare against the full disk bispectrum map. We empirically demonstrate that the selective disk bispectrum can be used for multi-reference alignment on rotated images.
+
+\end{enumerate}
+
+In summary, the selective disk bispectrum offers a fast (scalable) and invertible (interpretable) tool for imaging applications involving rotation-invariant 2D shape analysis.

@@ -1,0 +1,8 @@
+\section{Application: Multi-Reference Alignment with the Selective Disk Bispectrum}
+
+We demonstrate the utility of our S. D.B. and its inversion for rotation-invariant multi-reference alignment (MRA), leveraging our new MRA correction term. We test rotation-invariant MRA on all MNIST digits, with results for the digit \textit{6} shown in Fig.~\ref{fig:mra-results} and other digits in the Appendix. For each experiment, we begin with a noiseless MNIST image and generate
+\( n_X \in \{10, 20, 30, 40, 50, 60, 100, 200, 300, 400, 500\} \) copies. Each copy is corrupted with i.i.d.\ Gaussian noise
+\( n \sim \mathcal{N}(0, \sigma^2) \) for
+\( \sigma^2 \in \{0, 0.01, 0.05, 0.1\} \), randomly rotated by
+\( R \in [0, 2\pi] \), and masked outside the disk, yielding
+\( n_X \) images \( \{\tilde{f}_i\}_{i=1}^{n_X} \). We map each image to bispectrum space to obtain \( \{b_i\}_{i=1}^{n_X} \), average the bispectra, apply our correction term from Eq.~\ref{eq:mra-correction}, and map the corrected average back to image space using our disk bispectrum inversion method from Sec.~\ref{sec:theory}. Each experiment is repeated ten times with different random seeds, and computes relative error between MRA estimate $\bar{f}$ and true signal $f$ as $\varepsilon_{\text{rel}} = \frac{\left\lVert \bar{f} - f \right\rVert^2}{\left\lVert f \right\rVert^2}$. As shown in Fig.~\ref{fig:mra-results}, reconstruction error decreases and stabilizes around 0.23 as \( n_X \) increases—consistent with the empirical baseline reconstruction and invariance errors reported for $28\times28$ images in Sec.~\ref{sec:tractability}. These results are the first demonstration of MRA using a rotation-invariant bispectrum.

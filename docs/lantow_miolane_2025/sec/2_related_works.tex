@@ -1,0 +1,50 @@
+\section{Related Works}
+
+\paragraph{Equivariant and Invariant Representations.} As geometric learning has gained popularity \cite{bronstein2021geometricdeeplearninggrids}, there has been increased interest in rotation-equivariant and rotation-invariant image representations. Put simply (and described later in more detail), if a representation is \textit{equivariant} to rotation, the representation changes in a specific way when the original image is rotated. If a representation is rotation \textit{invariant}, the representation does not change if the original image is rotated.
+
+Table \ref{tab:rotation-summary} summarizes rotation equivariant and rotation invariant representations, showing that only our selective disk bispectrum is rotation invariant and invertible, making it the only method capable of multi-reference alignment on rotated images. As an aside, we note that every rotation-equivariant neural network (and every rotation-equivariant layer) can be made rotation-invariant by adding an invariant aggregation function, like the sum or the max, after it. However, because the sum or max cannot be inverted to reconstruct the input, this invariant shape descriptor is not invertible.
+
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Method} &
+\textbf{Equiv.} &
+\shortstack{\textbf{Local}\\\textbf{Inv.}} &
+\shortstack{\textbf{Global}\\\textbf{Inv.}} &
+\shortstack{\textbf{Mag.}\\\textbf{Inv.}} &
+\shortstack{\textbf{Invertible}\\\textbf{Inv. Rep.}} \\
+\midrule
+\textbf{SDB(ours)} & \xmark & \cmark & \cmark & \cmark & \cmark \\
+DH Tr. \cite{marshall2022fast} & \cmark & \xmark & \xmark & \xmark & \xmark \\
+Log-Polar Tr. \cite{reddy1996fft} & \cmark & \xmark & \xmark & \cmark & \xmark \\
+Fourier Mellin Tr. \cite{reddy1996fft} & \cmark & \xmark & \xmark & \cmark & \xmark \\
+\shortstack{SIFT / SURF/ \\ORB / AKAZE\\ \cite{lowe2004sift,bay2006surf,rublee2011orb,alcantarilla2012kaze}}  & \xmark & \cmark & \xmark & \xmark & \xmark \\
+Hu Moments \cite{hu1962visual} & \xmark & \cmark & \cmark & \xmark & \xmark \\
+Zernike Moments \cite{teague1980zernike} & \xmark & \xmark & \xmark & \cmark & \xmark \\
+TFNs \cite{thomas2018tfns} & \cmark & \xmark & \xmark & \cmark & \xmark \\
+Spherical convs. \cite{cohen2018spherical,esteves2018spherical}& \cmark & \xmark & \xmark & \xmark & \xmark \\
+Capsule Networks \cite{sabour2017dynamic} & \cmark & \xmark & \xmark & \xmark & \xmark \\
+\bottomrule
+\end{tabular}
+
+\caption{Comparison of equivariance, invariance, and invertibility properties across image descriptors. Abbreviations: TFN Tensor Field Networks, Tr. Transform, Inv. Invariant, Equiv. Equivariant, SIFT Scale–Invariant Feature Transform, SURF Speeded–Up Robust Features, ORB Oriented FAST and Rotated BRIEF, AKAZE Accelerated KAZE.}
+\label{tab:rotation-summary}
+\end{table}
+
+
+\paragraph{$G$-bispectra and their inversions.} \citet{kakarala_thesis} proposed the $G$-Bispectrum, defined for a signal whose domain is a group. The $G$-Bispectrum gained interest as it is the lowest-degree spectral invariant that is complete. The translation-invariant bispectrum, invariant to the cyclic group $G=C_n$, is a classic and widely used signal processing tool, and is an example of a $G$-bispectrum. \cite{giannakis1989} proposed the first inversion scheme of the translation-invariant bispectrum, reconstructing a 1D signal analytically from translation bispectrum coefficients. \cite{sundaramoorthy1990} developed another analytical inversion algorithm that is more robust to noise, and \cite{pinilla2023} revisited this inversion problem, providing a gradient-based inversion procedure. \cite{giannakis1989} also extended his 1D inversion scheme to invert the 2D translation-invariant bispectrum, invariant to the product of cyclic groups $C_n \times C_n$. The 2D translation-invariant bispectrum is another example of a $G$-Bispectrum.  \cite{ mataigne2024selective} generalized that proof for the product of any number of cyclic groups, \textit{i.e.}, to any $G$-bispectrum, for signals defined over a finite and commutative group $G$. A reflection-invariant bispectrum was also proposed by Edidin and Katz \cite{edidin2025}, who formulated a gradient descent optimization for its inversion. Methods to invert the $G$-bispectrum of signals defined on a (continuous) Lie group $G$ have been proposed in \cite{kakarala2012,kakarala1993}. Note, the disk bispectrum is not covered under any of the aforementioned proofs, as the signal is defined over a planar disk, which is not a group.
+
+The $G$-bispectrum on homogeneous spaces, defined for a signal whose domain is homogeneous for a group $G$, was proposed by \cite{kakarala2012bispectrumsourcephasesensitiveinvariants}. A space that is homogeneous for a group is one where for any $x, y$ there is a group element $g \in G$ s.t. $g \circ x = y$. \cite{kakarala2012bispectrumsourcephasesensitiveinvariants} also proposed a method to invert the $G$-bispectrum of signals defined on spaces homogeneous for a group $G$, specifically for the sphere $S^2$, which is homogeneous for $SO(3)$. Existing rotation-invariant $G$-bispectra are defined for signals on the circle ($SO(2)$) or the sphere ($SO(3)$). Note, the disk bispectrum is not covered under any of these proofs, as the signal is defined over a planar disk, which is not homogeneous for the rotation group $SO(2)$.
+
+\paragraph{Selective $G$-Bispectra.} Across existing $G$-bispectra, several authors have shown that bispectrum coefficients are generally redundant. It is usually possible to recover the signal with significantly fewer bispectrum coefficients than those provided in the full bispectrum, thus enabling a \textit{selective} version of that bispectrum. The work of \citep{giannakis1989signal, kakarala_thesis, sadler1992shift} showed that for \textit{some} finite, commutative groups, the $G$-Bispectrum can be computed with only $|G|$ space complexity, where $|G|$ is the number of elements in the group $G$. \citet{  mataigne2024selective} extended these results by showing this result for a wider range of finite groups, \textit{i.e.}, all discrete commutative groups, and some non-commutative ones such as the dihedral groups of any order, the octahedral and full octahedral group. \cite{ mataigne2024selective} further proposed inversion of selective bispectra for the following non-commutative groups: any dihedral group, the octahedral group, and the full octahedral group. \cite{  mataigne2024selective} estimates bispectra (for signals defined on a group) via a group convolution, and offers an algorithm that can be used to identify selective coefficients. In contrast, the disk bispectrum provides an analytic map from the image to the bispectrum coefficients and is defined for signals defined over the full disk, so that it can be applied to images. Additionally, our disk bispectrum inversion identifies the exact selective coefficients required for complete bispectrum inversion. In fact, this work is the first to introduce a selective bispectrum and inversion proof for a non-homogeneous bispectrum.
+
+\paragraph{A Disk Bispectrum.} Most relevant to our work is the work by \citet{zhao2014rotationally}, who proposed the first disk bispectrum. As described in introduction, this full disk bispectrum is impracticable due to its cubic complexity and lack of inversion, which is why we propose the selective disk bispectrum and its inversion.
+
+Related to our work, Kakarala \cite{kakarala2012} proposes inverting a non-complete bispectrum-like function on the disk by introducing an auxiliary function that supplies the missing information needed for reconstruction and using the inversion method of the cyclic group. In contrast, our disk bispectrum inversion is complete and requires no external information to reconstruct the original image from bispectral coefficients.
+
+\paragraph{Multi-reference alignment} We will show the utility of our bispectrum and its inversion to perform multi-reference alignment (MRA). Traditional \textit{translational} MRA utilizes the translation bispectrum, but special methods are required to adjust for a bias induced by noise in bispectrum space. Various techniques have been proposed for this task, such as noise bias estimation and correction \cite{bendory2018bispectrum}, spectral initialization approaches to MRA optimization \cite{chen2018spectral}, and Gauss–Newton optimization schemes \cite{herring2019gauss}. These corrections, however, have been derived only for the \textit{1D translation bispectrum}. No such correction has been established for the \textit{disk bispectrum}. In this work, we not only propose the \textit{selective disk bispectrum}, its inversion, and its approximation, but we also derive the corresponding MRA noise correction term in a similar manner to \cite{bendory2018bispectrum}. Notably, MRA with the disk bispectrum would not be possible without our inversion method, since reconstructing the mean bispectrum back to image space requires a well-defined inverse.

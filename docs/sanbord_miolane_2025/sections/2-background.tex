@@ -1,0 +1,163 @@
+\section{Background}
+
+We first cover the fundamentals of group-equivariant neural networks\textemdash also known as $G$-CNNs, or $G$-Equivariant Networks\textemdash before introducing the framework for $G$-Invariant Pooling.
+
+% \cite{finzi2021practical, weiler2019general, cohen2019general, cesa2021program}
+\subsection{Mathematical Prerequisites}
+
+The construction of $G$-CNNs requires mathematical prerequisites of group theory, which we recall here. The interested reader can find details in~\cite{hall2013lie}.
+
+\textbf{Groups.} A \textit{group} $(G,\cdot)$ is a set $G$ with a binary operation $\cdot$, which we can generically call the \textit{product}. The notation $g_1 \cdot g_2$ denotes the product of two elements in the set; however, it is standard to omit the operator and write simply $g_1g_2$\textemdash a convention we adopt here. Concretely, a group $G$ may define a class of transformations. For example, we can consider the group of two-dimensional rotations in the plane\textemdash the special orthogonal group $SO(2)$\textemdash or the group of two-dimensional rotations and translations in the plane\textemdash the special euclidean group $SE(2)$. Each element of the group $g \in G$ defines a \textit{particular} transformation, such as one \textit{rotation by $30 \degree$} or one \textit{rotation by $90 \degree$}. The binary operation $\cdot$ provides a means for combining two particular transformations\textemdash for example, first rotating by $30\degree$ and then rotating by $90 \degree$. In mathematics, for a set of transformations $G$ to be a group under the operation $\cdot$, the four axioms of closure, associativity, identity and inverse must hold. These axioms are recalled in Appendix~\ref{sec:group_axioms}.
+
+% \begin{enumerate}
+%     \item \textit{Closure}: The product of any two elements of the group is also an element of the group, i.e. for all $g_1, g_2 \in G$, $g_1g_2 \in G$.
+%     \item \textit{Associativity}: The grouping of elements under the operation does not change the outcome, so long as the order of elements is preserved, i.e. $(g_1g_2)g_3 = g_1(g_2g_3)$.
+%     \item \textit{Identity}: There exists a ``do-nothing'' \textit{identity} element $e$ that such that the product of $e$ with any other element $g$ returns $g$, i.e. $ge = eg = g$ for all $g \in G$.
+%     \item \textit{Inverse}: For every element $g$, there exists an \textit{inverse} element $g^{-1}$  such that the product of $g$ and $g^{-1}$ returns the identity, i.e. $gg^{-1} = g^{-1}g = e$.
+% \end{enumerate}
+
+
+% \textbf{Product Groups.} A \textit{product group} as a set is the cartesian product $G \times H$ of two given groups $G$ and $H$.  The new group product is given by $(g_1,h_1) \cdot (g_2,h_2) = (g_1g_2,h_1h_2)$.
+
+
+\textbf{Group Actions on Spaces.} We detail how a transformation $g$ can transform elements of a space, for example how a rotation of $30\degree$ indeed rotates a vector in the plane by $30\degree$. We say that the transformations $g$'s act on (the elements of) a given space. Specifically, consider $X$ a space, such as the plane. A \textit{group action} is a function $\action: G \times X \rightarrow X$ that maps $(g, x)$ pairs to elements of $X$. We say a group $G$ \textit{acts} on a space $X$ if the following properties of the action $\action$ hold:
+\begin{enumerate}
+    \item \textit{Identity}: The identity $e$ of the group $G$ ``does nothing'', i.e., it maps any element $x \in X$ to itself. This can be written as: $\action(e, x) = x$.
+    \item \textit{Compatibility}: Two elements $g_1, g_2 \in G$ can be combined before or after the map $L$ to yield the same result, i.e., $\action(g_1, \action(g_2, x)) = \action(g_1 g_2, x)$. For example, rotating a 2D vector by $30\degree$ and then $40\degree$ yields the same result as rotating that vector by $70\degree$ in one time.
+\end{enumerate}
+For simplicity, we will use the shortened notation $\action_g(x)$ to denote $\action(g, x)$ the action of the transformation $g$ on the element $x$.
+
+Some group actions $L$ have additional properties and turn the spaces $X$ on which they operate into \textit{homogeneous spaces}. Homogeneous spaces play an important role in the definition of the $G$-convolution in $G$-CNNs, so that we recall their definition here. We say that $X$ is a \textit{homogeneous space} for a group $G$ if $G$ acts transitively on $X$\textemdash that is, if for every pair $x_1, x_2 \in X$ there exists an element of $g \in G$ such that $\action_g(x_1) = x_2$. The concept can be clearly illustrated by considering the surface of a sphere, the space $S^2$. The sphere $S^2$ is a homogeneous space for $SO(3)$, the group of orthogonal $3 \times 3$ matrices with determinant one that define 3-dimensional rotations.  Indeed, for every pair of points on the sphere, one can define a 3D rotation matrix that takes one to the other.
+
+% In contrast, the 3D space $\mathbb{R}^3$ is not an homogeneous space for $SO(3)$: one can find two different points in $\mathbb{R}^3$ such that there is no rotation that can map one into the other. For example the origin of the coordinate system $(0, 0, 0)$ and the point $(1, 0, 0)$ in $\mathbb{R}^3$ cannot be linked by a rotation. However, the 3D space $\mathbb{R}^3$ is an homogeneous space for the special euclidean group, the group of rotations and translations $SE(3)$.
+
+\paragraph{Group Actions on Signal Spaces.} We have introduced essential concepts from group theory, where a group $G$ can act on any abstract space $X$. Moving towards building $G$-CNNs, we introduce how groups can act on spaces of signals, such as images. Formally, a \textit{signal} is a map $\signal: \domain \rightarrow \mathbb{R}^c$, where $\domain$ is called the domain of the signal and $c$ denotes the number of channels. The \textit{space of signals }itself is denoted $L_2(\domain, \mathbb{R}^c)$. For example, $\domain=\mathbb{R}^2$ or $\mathbb{R}^3$ for 2D and 3D images. Gray-scale images have one channel ($c=1$) and color images have the 3 red-green-blue channels ($c=3$).
+
+% Nina: put the discretization later so that the reader is not confused
+% In practice, the domain is discretized so that the signal map can be represented as a vector. For example, an image $x \in X$ can be seen as the discretization on a grid of the continuous function $\signal$. Denoting $N$ the number of elements in the domain $\Omega$, this discretization yields $x \in \mathbb{R}^{N \times c}$.
+
+Any action of a group of transformations $G$ on a domain $\domain$ yields an action of that same group on the spaces of signals defined on that domain, i.e., on $L_2(\domain, \mathbb{R}^c)$. For example, knowing that the group of 2D rotations $SO(2)$ acts on the plane $\Omega = \mathbb{R}^2$ allows us to define how $SO(2)$ rotates 2D gray-scale images in $L_2(\mathbb{R}^2, \mathbb{R}^c)$. Concretely, the action $\action$ of a group $G$ on the domain $\domain$ yields the following action of $G$ on $L_2(\domain, \mathbb{R}^c)$:
+
+\begin{equation}
+    \action_g[\signal](u) = \signal(\action_{g^{-1}}(u)), \qquad \text{for all $u \in \domain$ and for all $g \in G$}.
+\end{equation}
+
+We use the same notation $L_g$ to refer to the action of the transformation $g$ on either an element $u$ of the domain or on a signal $f$ defined on that domain, distinguishing them using $[ . ]$ for the signal case. We note that the domain of a signal can be the group itself: $\Omega = G$. In what follows, we will also consider actions on real signals defined on a group, i.e., on signals such as $\Theta: G \rightarrow \mathbb{R}$.
+
+% A group $G$ can act on an image by acting either only on the domain $\domain$ of $\signal$, or directly on the image $x$ flattened into a vector of $X=\mathbb{R}^{cwd}$ with $c$ the channels, $w$ the width and $d$ the height. The transformations we consider, such as rotation and translation, act on the domain $\domain$, while leaving codomain values of the function $\signal$ intact.
+
+
+
+% \textbf{Homomorphisms.} Two groups $(G, \cdot)$ and $(H, *)$ are \textit{homomorphic} if there exists a correspondence between elements of the groups that respect the group operation. Concretely, a \textit{homomorphism} is a map $\rho: G \rightarrow H$ such that $\rho(u   \cdot v) = \rho(u) * \rho(v)$. An \textit{isomorphism} is a bijective homomorphism.
+
+% \textbf{Representations.} A \textit{representation} of a group G is a map $\rho: G \rightarrow GL(V)$ that assigns elements of $G$ to elements of the group of linear transformations over a vector space $V$ such that $\rho(g_1 g_2) = \rho(g_1) \rho(g_2)$. That is, $\rho$ is a group homomorphism.
+% % In many cases, $V$ is $\mathbb{R}^{n}$ or $\mathbb{C}^{n}$.
+
+\textbf{Invariance and Equivariance}. The concepts of group-invariance and equivariance are at the core of what makes the $G$-CNNs desirable for computer vision applications. We recall their definitions here. A function $\psi: X \mapsto Y$ is $G$-\textit{invariant} if $\psi(x) = \psi(L_g(x))$, for all $g \in G$ and $x \in X$. This means that group actions on the input space have no effect on the output. Applied to the group of rotations acting on the space of 2D images $X=L_2(\domain, \mathbb{R}^c)$ with $\domain = \mathbb{R}^2$, this means that a $G$-invariant function $\psi$ produces an input that will stay the same for any rotated version of a given signal. For example, whether the image contains the color red is invariant with respect to any rotation of that image. A function $\psi: X \mapsto Y$ is $G$-\textit{equivariant} if $\psi(L_g(x)) = L'_g(\psi(x))$ for all $g \in G$ and $x \in X$, where $L$ and $L'$ are two different actions of the group $G$, on the spaces $X$ and $Y$ respectively. This means that a group action on the input space results in a corresponding group action of the same group element $g$ on the output space. For example, consider $\psi$ that represents a neural network performing a foreground-background segmentation of an image. It is desirable for $\psi$ to be equivariant to the group of 2D rotations. This equivariance ensures that, if the input image $f$ is rotated by $30\degree$, then the output segmentation $\psi(f)$ rotates by $30\degree$ as well.
+
+% \textbf{Orbits.} Given a point $x \in X$, the \textit{orbit} $Gx$ of $x$ is the set $\{gx : g \in G \}$. In the context of image transformations, the orbit defines the set of all transformed versions of a canonical image\textemdash for example, if $G$ is the group of translations, then the orbit contains all translated versions of that image.
+
+
+\subsection{$G$-Equivariant Networks}
+
+
+$G$-CNNs are built from the following fundamental building blocks: $G$-convolution, spatial pooling, and $G$-pooling. The $G$-convolution is equivariant to the action of the group $G$, while the $G$-pooling achieves $G$-invariance. Spatial pooling achieves coarse-graining. We review the group-specific operations here. The interested reader can find additional details in \cite{cohen2016group,Cohen2019a}, which include the definitions of these operations using the group-theoretic framework of principal bundles and associated vector bundles.
+
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.3\textwidth]{example-image-a}
+%     \caption{[Figure illustrating the background: showing a G-CNN with traditional G-Conv and G-Pools]}
+%     \label{fig:gcnn-illustration}
+% \end{figure}
+
+
+\subsubsection{$G$-Convolution}
+
+In plain language, a standard translation-equivariant convolutional neural network layer sweeps filters across a signal (typically, an image), translating the filter and then taking an inner product with the signal to determine the similarity between a local region and the filter. $G$-CNNs~\cite{cohen2016group} generalize this idea, replacing translation with the action of other groups that define symmetries in a machine learning task\textemdash for example, rotating a filter, to determine the presence of a feature in various orientations.
+
+% \paragraph{$G$-Convolution}
+Consider a signal $\signal$ defined on a domain $\domain$ on which a group $G$ acts. A neural network filter is a map $\filter: \domain \rightarrow \mathbb{R}^c$ defined with the same domain $\domain$ and codomain $\mathbb{R}^c$ as the signal. A $G$-convolutional layer is defined by a set of filters $\{\filter_1, ..., \filter_K\}$. For a given filter $k$, the layer performs a \textit{$G$-convolution }with the input signal $\signal$:
+% A neural network layer is defined by a set of filters $\{k_1, ..., k_m\}$, with $k_i \in \mathbb{R}^{d \times d}$.
+\begin{equation}
+    \Theta_k(g) = (\filter_k * \signal)(g) = \int_{u \in \domain} \filter_k(\action_{g^{-1}}(u)) \signal(u) du,\quad \forall g \in G,
+\end{equation}
+by taking the dot product in $\mathbb{R}^c$ of the signal with a transformed version of the filter. In practice, the domain $\domain$ of the signal is discretized, such that the $G$-convolutional layer becomes:
+\begin{equation}
+    \Theta_k(g) =  \sum_{u \in \domain} \filter_k(\action_{g^{-1}}(u)) \signal(u),\quad \forall g \in G.
+\end{equation}
+
+The output of one filter $k$ is therefore a map $\Theta_k: G \rightarrow \mathbb{R}$, while the output of the whole layer with $K$ filters is $\Theta: G \rightarrow \mathbb{R}^K$ defined as $\Theta(g) = [\Theta_1(g), \dots, \Theta_K(g)]$ for all $g \in G$. The $G$-convolution therefore outputs a signal $\Theta$ whose domain has necessarily become the group $\domain = G$ and whose number of channels is the number of convolutional filters $K$.
+
+% \paragraph{$G$-Convolution (Next Layers)} After the first layer, the signal has become a function $f: G \rightarrow \mathbb{R}^K$, so that the definition of the $G$-convolution slightly changes. For a given filter defined with a domain being a group $\phi_k: G \rightarrow \mathbb{R}^{K}$, we have:
+% \begin{equation}
+%     \Theta_k(g) = (\filter_k * \signal)(g) = \int_{h \in G} \filter_k(g^{-1}h) \signal(h) dh,\quad \forall g \in G,
+% \end{equation}
+% where instead of using the action of the group $G$ on the domain, we use its ``natural'' action on itself: the binary operation $\cdot$ of the group. The discretized version is written:
+% \begin{equation}
+%     \Theta_k(g) =  \sum_{h \in G} \filter_k(g^{-1}h) \signal(h),\quad \forall g \in G.
+% \end{equation}
+
+% \paragraph{$G$-Equivariance}
+The $G$-convolution is \textit{equivariant} to the action of the group on the domain of the signal $\signal$~\cite{cohen2016group}. That is, the action of $g$ on the domain of $\signal$ results in a corresponding action on the output of the layer. Specifically, consider a filter $\phi_k$, we have:
+\begin{equation}
+    \filter_k * \action_{g}[\signal] = \action'_{g}[\filter_k * \signal], \qquad  \forall g \in G,
+\end{equation}
+where $\action_g$ and $\action'_g$ represent the actions of the same group element $g$ on the functions $\signal$ and $\filter_k * \signal$ respectively. This property applies for the $G$-convolutions of the first layer and of the next layers~\cite{cohen2016group}. %The proof is recalled in Appendix~\ref{sec:g-conv}.
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.3\textwidth]{example-image-a}
+%     \caption{[Figure illustrating cylinder of activations for translation and rotation]}
+%     \label{fig:gcnn-cylinder}
+% \end{figure}
+
+
+% \subsubsection{Spatial Pooling}
+% In a standard $G$-Equivariant Network, \textit{coarse-graining} is achieved through spatial pooling. Typically, this is achieved by taking the \texttt{max} value in a local window:
+
+% \begin{equation}
+%     \label{eq:spatial-pooling}
+%     \mu_k = \max_i \Theta{(x_{i, g})}
+% \end{equation}
+
+\subsubsection{$G$-Pooling}
+\label{sec:g-pooling}
+
+\textit{Invariance} to the action of the group is achieved by pooling over the group ($G$-Pooling)~\cite{cohen2016group}.
+%either globally by performing an operation over the whole group $G$, or locally, by restricting that operation to a subset of the group.
+The pooling operation is typically performed after the $G$-convolution, so that we restrict its definition to signals $\Theta$ defined over a group $G$. In $G$-pooling, a \texttt{max} typically is taken over the group elements:
+\begin{equation}
+    \mu_k = \max_{g \in G} \Theta_k(g) . %\quad \text{(global);} \qquad \forall h \in G, ~\mu_{k, i} (h)= \max_{g \in hU}\Theta_k(g)  \quad \text{(local)} .
+\end{equation}
+ $G$-pooling extracts a single real scalar value $\mu_k $ from the full feature vector $\Theta_k$, which has $|G|$ values, with $|G|$ the size of the (discretized) group $G$ as shown in Fig.~\ref{fig:overview-cnn-c4}. When the group $G$ is a grid discretizing $\mathbb{R}^n$, max $G$-Pooling is equivalent to the standard spatial max pooling used in translation-equivariant CNNs, and it can be used to achieve coarse-graining.
+% while in the local case, the pooling returns a signal defined over the whole group $G$ as $h$ varies within the whole $G$.
+% In the local case, the subset over which pooling is performed is typically defined as $g U=\{g u \mid u \in U\}$ that is: the $g$-transformation, using the group product, of some pooling domain $U \subset G$ that is usually a neighborhood of the identity transformation~\cite{cohen2016group}. For example, in the classical convolutional neural networks using the group of 2D translations, $U$ is usually a $2 \times 2$ or $3 \times 3$ square including the origin $(0,0)$, and $g$ is a translation.
+More generally, $G$-Pooling is $G$-invariant,
+%while the local pooling is $G$-equivariant,
+as shown in \cite{cohen2016group}. However, we argue here that it is excessively $G$-invariant. Although it achieves the objective of invariance to the group action, it also loses substantial information. As illustrated in Fig.~\ref{fig:overview-cnn-c4}, many different signals $\Theta$ may yield same result $\mu$ through the $G$-pooling operation, even if these signals do not share semantic information. This excessive invariance creates an opportunity for adversarial susceptibility. Indeed, inputs $f$ can be designed with the explicit purpose of generating a $\mu_k$ that will fool a neural network and yield an unreasonable classification result. For this reason, we introduce our general framework for robust, selective $G$-invariance.
+
+%It is possible to find a middle ground between these two pooling operations, and get a output that is defined on $H$, a subgroup of $G$: a subset of $G$ that is also a group. In that case, the output signal becomes neither $G$-invariant nor $G$-equivariant, but rather $H$-equivariant. This type of pooling generalizes the notion of ``stride'' to $G$-CNNs~\cite{cohen2016group} and is defined as:
+% \begin{equation}
+%     \forall h \in H,~ \mu_{k, i} (h)= \max_{g \in hU}\Theta_k(g)  \quad \text{(local with stride)}.
+% \end{equation}
+
+% \paragraph{Avg pooling} Alternatively, an average pooling can be defined as:
+% \begin{equation}
+%     \mu_k = \frac{1}{|G|}\sum_{g \in G} \Theta_k(g) \quad \text{(global);} \qquad \forall h \in G, ~\mu_{k, i}(h) = \frac{1}{|G_i|}\sum_{g \in hU}\Theta_k(g)  \quad \text{(local)}.
+% \end{equation}
+% and:
+% \begin{equation}
+%     \forall h \in H, ~\mu_{k, i}(h) = \frac{1}{|G_i|}\sum_{g \in hU}\Theta_k(g)  \quad \text{(local with stride)}.
+% \end{equation}
+
+% \paragraph{Excessive $G$-Invariance}
+
+%Many non-equivalent
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.3\textwidth]{example-image-a}
+%     \caption{[Figure illustrating ``adversarial examples'' for max pooling]}
+%     \label{fig:adversarial-examples}
+% \end{figure}
