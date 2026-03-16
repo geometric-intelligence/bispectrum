@@ -1866,7 +1866,7 @@ The definition of the bispectrum is identical to the its definition in the homog
 
 The invariance of the bispectrum follows from the proof of invariance on homogeneous spaces, since the Fourier transforms on $H \times R$ and on $H$ have the same equivariance properties.
 
-\section{\color{deepred}{Domain $\Omega = (\mathbb{Z}^2, G, $ with Steerable CNN}}
+\section{\color{deepred}{Domain $\Omega = (\mathbb{Z}^2, G)$: Gauge Bispectrum for Feature Fields}}
 
 Consider the semi-direct product group $G = \mathbb{Z}^2 \ltimes H$, where $\mathbb{Z}_2$ is the domain. We consider a space of functions $f:\mathbb{Z}^2 \mapsto \mathbb{R}^K$ equipped with the representation $T$ of $G$ induced by a representation $\rho_H$ of $H$ on the fiber $\mathbb{R}^K$, and is denoted $T=\operatorname{Ind}_H^G \rho$. For a function $f$, the action of an element $(t, r) \in \mathbb{Z}^2 \ltimes H$ is:
 \begin{equation}
@@ -1895,7 +1895,7 @@ This is NOT the case where the Fourier transform of a vector-valued signal is de
 \subsection{Fourier Transform: Equivariance}
 
 
-\subsection{Steerable Bispectrum: After G-Convolution on Intertwiners Basis}
+\subsection{Gauge Bispectrum: Via Intertwiner Basis}
 
 We consider a case where the output of the G-convolution has the same domain as the input. Then we can use the same basis functions.
 
@@ -2040,9 +2040,9 @@ To conclude, we would need the harmonics to be steerable by the translations.
 
 
 
-\subsection{Triple Correlation: Definition}
+\subsection{Gauge Triple Correlation: Definition}
 
-We define a new notion of triple correlation that works for vectorial function eqquiped with the action of a semi-direct group $\mathbb{Z}^2 \ltimes H$ . In that context, the G-convolution can be conveniently computed using the steerable group convolution. After the first layer of a steerable G-convolution, the function is not a function over the group (as is the case for the classic G-conv) but it is still a function over the $\mathbb{Z}^2$ albeit equipped with an induced group action, i.e. an action that does not only act on the domain $\mathbb{Z}^2$ of the function, but also transforms its values.
+We define a new notion of triple correlation that works for vectorial functions (feature fields) equipped with the action of a semi-direct group $\mathbb{Z}^2 \ltimes H$ via the induced representation. In this setting, the group action does not only act on the domain $\mathbb{Z}^2$ of the function, but also transforms its values in the fiber $\mathbb{R}^K$ --- i.e., it is a gauge transformation. In practice, such signals arise as outputs of steerable G-convolutions: after the first layer, the function is not a function over the group (as is the case for the classic G-conv) but is still a function over $\mathbb{Z}^2$ equipped with this induced group action.
 
 We wonder whether we can generalize the triple correlation to this case. We show below that we can.
 
@@ -2063,7 +2063,7 @@ We note that the triple correlation is a vector in $\mathbb{R}^K$, i.e. in the s
 
 \subsection{Triple Correlation: Invariance}
 
-We prove invariance of the TC for the steerable case.
+We prove invariance of the gauge TC.
 
 We begin with a Lemma:
 
@@ -2173,14 +2173,14 @@ Thus, we can continue the computation of the TC:
 \end{align*}
 \end{proof}
 
-\subsection{Bispectrum: Definition}
+\subsection{Gauge Bispectrum: Definition}
 
 
 
 \begin{proof}
 We have a group $G = \mathbb{Z}_2 \times H$. We use the convention $g = (t, r) = tr$ for a group element decomposing into a translation component and a rotation (later, of any compact group) one.
 
-By definition, the bispectrum is the Fourier transform of the triple correlation. We have defined the Fourier transform associated with the induced representation's action.
+By definition, the gauge bispectrum is the Fourier transform of the gauge triple correlation. We have defined the Fourier transform associated with the induced representation's action.
 
 We compute this Fourier transform for the product group $G \times G$ and show that we obtain the expression given above. We recall that $T(f)_{g_1, g_2} \in \mathbb{C}^{K}$. The terms $T_{g}[f]^\dagger T_{g_1g}[f]$ define an inner product and need to stick together.
 
@@ -2318,7 +2318,7 @@ TO CHECK
 \section{Physics-Invariance}
 Consider $f$ a solution to a PDE, defined on $\mathbb{R}^2 \times \mathbb{R}$, i.e., on a space-time domain, and with values in some co-domain.
 
-Consider the group $G$ of its symmetries, which are actions on $f$. Most of these actions are: linear actions acting only on the domain of $f$, which is likely homogeneous for the action, thus this fits to one of the cases listed here. Other actions are linear actions, that look like steerable group actions, thus this fits into one of the cases listed here. For the remaining non-linear actions, we can define a Fourier transform, and bispectrum, for this case?
+Consider the group $G$ of its symmetries, which are actions on $f$. Most of these actions are: linear actions acting only on the domain of $f$, which is likely homogeneous for the action, thus this fits to one of the cases listed here. Other actions are linear actions that act on both domain and fiber (gauge transformations), thus this fits into one of the cases listed here. For the remaining non-linear actions, we can define a Fourier transform, and bispectrum, for this case?
 
 For example, we can think of building a transformer whose attention coef are invariant thanks to the bispectrum. If we do this, does this mean that we should work in the fourier domain, for the  whole network? What does it mean to solve a PDE in Fourier domain?
 
@@ -2328,7 +2328,7 @@ For example, we can think of building a transformer whose attention coef are inv
 
 We try to generalize the triple correlation for the case where the subgroup $H$ is continuous, i.e. for when H is a Lie group. We use H = SO(n) as our running example.
 
-The main ingredient for the steerable-TC on is the action of a group. Thus, the trick is to turn this action into the action of the associated Lie algebra, and use the generators of the Lie algebra. The Lie algebra of SO(n) admits three generators that we write $A_1, A_2, A_3$ (in matrix form) or $a_1, a_2, a_3$ (in abstract form).
+The main ingredient for the gauge TC is the action of a group. Thus, the trick is to turn this action into the action of the associated Lie algebra, and use the generators of the Lie algebra. The Lie algebra of SO(n) admits three generators that we write $A_1, A_2, A_3$ (in matrix form) or $a_1, a_2, a_3$ (in abstract form).
 
 We show that it is enough to define the TC only on these three generators, to define the whole TC.
 \begin{equation}
@@ -2477,7 +2477,7 @@ As an operator on $f$, what is the polynomial order of the TC?
     &= ...\text{not equal to $ \mu TC(f) +\lambda TC(g)$, nor with its higher orders, bcs we have crossed terms with $f, g$}
 \end{align*}
 
-Thus, TC is just an invariant function on $f$. Since it is not linear, we cannot represent it as a matrix and write the intertwiner equation of the type $T \pi(g) = \rho(g) T$ that was useful to find a basis for the filters in the G-conv of the steerable case.
+Thus, TC is just an invariant function on $f$. Since it is not linear, we cannot represent it as a matrix and write the intertwiner equation of the type $T \pi(g) = \rho(g) T$ that was useful to find a basis for the filters in the G-conv of the gauge case.
 
 \subsection{Triple Correlation: Definition (Continuous case/Comp. Cost: Try 3)}
 
@@ -2485,11 +2485,11 @@ The last idea would be to think of the triple correlation as an implicit represe
 
 \subsection{More comments}
 
-The computational cost mostly comes from the translation part, i.e. from the size of the grid of the images. We note that, for steerable CNNs, only the abstraction related to the group H in the semi direct product $G = H \times Z^2$ is used in the filter bank coefficients. For the translation part, there is no computational gain: the filter bank is still moved at each position during the convolution. This could be an argument in favor of not trying to use the steerable strategy for complexity gain.
+The computational cost mostly comes from the translation part, i.e. from the size of the grid of the images. We note that, for steerable CNNs, only the abstraction related to the group H in the semi direct product $G = H \times Z^2$ is used in the filter bank coefficients. For the translation part, there is no computational gain: the filter bank is still moved at each position during the convolution. This could be an argument in favor of not trying to use the gauge bispectrum strategy for complexity gain.
 
 \subsection{More comments: continuous case}
 
-Since the obstruction to using the steerable strategy is also the fact that the TC is non linear, we could try to go back to a situation where we have a linear operator. For example, we could consider the bispectrum which in the discrete setting is of the form
+Since the obstruction to using the gauge bispectrum strategy is also the fact that the TC is non linear, we could try to go back to a situation where we have a linear operator. For example, we could consider the bispectrum which in the discrete setting is of the form
 \begin{equation}
     \beta(x) = Ux \otimes Vx \otimes Wx
 \end{equation}
@@ -2501,7 +2501,7 @@ Considering the case of the continuous fourier transform instead, we know that t
 \end{equation}
 when $W$ is the discrete fourier matrix. This equation should hold for the case where the image is discrete (discrete in translation) but H is continuous. The continuous fourier transform in H could be decomposed into a discrete set of coefficients on a equivariant basis of intertwiners. This could make the (fixed, not learnable) bispectrum neural network applicable to continuous groups.
 
-We need the fourier transform for the steerable case, though.
+We need the fourier transform for the gauge case, though.
 
 
 \bibliographystyle{plos2015}
