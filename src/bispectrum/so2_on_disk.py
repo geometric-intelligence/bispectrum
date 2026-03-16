@@ -1,6 +1,6 @@
 """SO(2) bispectrum on the unit disk.
 
-Implements the selective disk bispectrum for SO(2) acting on the unit disk D^2,
+Implements the selective disk bispectrum for SO(2) acting on the unit disk,
 following Myers & Miolane, "The Selective Disk Bispectrum and Its Inversion,
 with Application to Multi-Reference Alignment", arXiv:2511.19706, 2025.
 
@@ -91,8 +91,8 @@ def _build_truncated_indices(
     return indices, K, N_m
 
 
-class SO2onD2(nn.Module):
-    """Bispectrum of SO(2) acting on the unit disk D^2.
+class SO2onDisk(nn.Module):
+    """Bispectrum of SO(2) acting on the unit disk.
 
     Takes a square grayscale image f of shape (batch, L, L), computes the
     disk harmonic transform (DHT) internally, and returns the selective

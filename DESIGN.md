@@ -47,7 +47,7 @@ Groups act on domains. Both matter. The class name encodes both, in mathematical
 | `TorusOnTorus` | $C\_{n_1} \\times \\cdots \\times C\_{n_d}$ | $C\_{n_1} \\times \\cdots \\times C\_{n_d}$ | Discrete d-torus acting on itself              |
 | `DnonDn`       | $D_n$                                       | $D_n$                                       | Dihedral group acting on itself                |
 | `SO3onS2`      | $\\mathrm{SO}(3)$                           | $S^2$                                       | 3D rotations on the 2-sphere                   |
-| `SO2onD2`      | $\\mathrm{SO}(2)$                           | $D^2$                                       | 2D rotations on the unit disk                  |
+| `SO2onDisk`    | $\\mathrm{SO}(2)$                           | Disk                                        | 2D rotations on the unit disk                  |
 | `OctaonOcta`   | $O$ (octahedral group)                      | $\\mathbb{R}^3$                             | Octahedral symmetries on 3D space              |
 
 This convention is deliberately mathematical rather than verbal (`CyclicBispectrum`, etc.) because the mathematical name carries precise meaning and avoids ambiguity as the library grows.
@@ -311,10 +311,10 @@ OctaonOcta(
 
 ______________________________________________________________________
 
-### `SO2onD2(L: int)` — $\\mathrm{SO}(2)$ on the unit disk $D^2$
+### `SO2onDisk(L: int)` — $\\mathrm{SO}(2)$ on the unit disk
 
 **Mathematical setting:**
-Signal $f: D^2 \\to \\mathbb{R}$ on the unit disk. Group $\\mathrm{SO}(2)$ acts by rotation: $(T\_\\phi f)(r, \\theta) = f(r, \\theta - \\phi)$.
+Signal $f: \\mathbb{D} \\to \\mathbb{R}$ on the unit disk. Group $\\mathrm{SO}(2)$ acts by rotation: $(T\_\\phi f)(r, \\theta) = f(r, \\theta - \\phi)$.
 
 **Disk Harmonic Transform** (Fourier-Bessel basis):
 
@@ -331,8 +331,8 @@ This reduces the bispectrum from $O(N^3)$ to $O(N)$ coefficients while preservin
 **Usage:**
 
 ```python
-bsp = SO2onD2(L=16)
-f = torch.randn(batch_size, 16, 16)    # signal on D², shape (batch, L, L)
+bsp = SO2onDisk(L=16)
+f = torch.randn(batch_size, 16, 16)    # signal on disk, shape (batch, L, L)
 output = bsp(f)                         # shape (batch, output_size), complex128
 f_rec = bsp.invert(output)              # shape (batch, L, L), float64
 ```
@@ -340,7 +340,7 @@ f_rec = bsp.invert(output)              # shape (batch, L, L), float64
 **Constructor parameters:**
 
 ```python
-SO2onD2(
+SO2onDisk(
     L: int,                     # Grid resolution (L x L image)
     selective: bool = True,     # Selective O(N) or full O(N³) bispectrum
     bandlimit: float | None = None  # Explicit Bessel root cutoff (default: auto from L)
@@ -366,7 +366,7 @@ This is proven for finite groups only. Here, `O` denotes the finite octahedral r
 | `DnonDn`       | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done          |
 | `OctaonOcta`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done          |
 | `SO3onS2`      | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌              | **Open problem** |
-| `SO2onD2`      | $\\mathrm{SO}(2)$    | $D^2$ (disk)                       | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅              | ✅ Done          |
+| `SO2onDisk`    | $\\mathrm{SO}(2)$    | Disk                               | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅              | ✅ Done          |
 | —              | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌              | Open problem     |
 | —              | Compact $G$          | $G$                                | ❌ Full only                                    | ❌              | Open problem     |
 | —              | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌              | Open problem     |
@@ -385,9 +385,9 @@ $$\\rho\_{l_1} \\otimes \\rho\_{l_2} = \\bigoplus\_{l=|l_1-l_2|}^{l_1+l_2} \\rho
 
 A selective version would identify the minimal set of index pairs needed for inversion. The challenge: $\\mathrm{SO}(3)$ has infinitely many irreps $\\rho_l$ (one per $l \\geq 0$), and the BFS on the Kronecker table (used for finite groups) does not terminate. A truncated selective version with guaranteed reconstruction error bounds would be a meaningful contribution.
 
-**~~TODO-M2~~ DONE: Selective bispectrum for $\\mathrm{SO}(2)$ on the disk $D^2$**
+**~~TODO-M2~~ DONE: Selective bispectrum for $\\mathrm{SO}(2)$ on the disk**
 
-Solved by Myers & Miolane (2025). The selective disk bispectrum (Definition 4.2) reduces from $O(N^3)$ to $O(N)$ coefficients while preserving injectivity (up to rotation). Inversion is available via a bootstrap from the $(0,1)$ coefficient. Implemented in `SO2onD2`.
+Solved by Myers & Miolane (2025). The selective disk bispectrum (Definition 4.2) reduces from $O(N^3)$ to $O(N)$ coefficients while preserving injectivity (up to rotation). Inversion is available via a bootstrap from the $(0,1)$ coefficient. Implemented in `SO2onDisk`.
 
 **TODO-M3: Selective bispectrum for $\\mathrm{SO}(3)$ on the ball $S^2 \\times \\mathbb{R}^+$**
 
@@ -405,7 +405,7 @@ The top-level `bispectrum` namespace exposes only what a user needs:
 
 ```python
 # Main modules
-from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onD2, SO2onS1, SO3onS2, TorusOnTorus
+from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onDisk, SO2onS1, SO3onS2, TorusOnTorus
 
 # Rotation utilities (useful for testing/data augmentation)
 from bispectrum import random_rotation_matrix, rotate_spherical_function
@@ -438,7 +438,7 @@ src/bispectrum/
 ├── dn_on_dn.py          # DnonDn
 ├── octa_on_octa.py      # OctaonOcta
 ├── so3_on_s2.py         # SO3onS2 (refactored)
-├── so2_on_d2.py         # SO2onD2
+├── so2_on_disk.py       # SO2onDisk
 ├── rotation.py          # random_rotation_matrix, rotate_spherical_function
 ├── _bessel.py           # Internal Bessel function utilities (not exported)
 └── _cg.py               # Internal CG utilities (not exported)

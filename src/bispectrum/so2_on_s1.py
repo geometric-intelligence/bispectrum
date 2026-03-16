@@ -20,7 +20,7 @@ class SO2onS1(CnonCn):
     from CnonCn.
 
     This wrapper exists so the API has a `{Group}on{Domain}` entry for the
-    continuous circle case, consistent with SO3onS2, SO2onD2, etc.
+    continuous circle case, consistent with SO3onS2, SO2onDisk, etc.
 
     Args:
         n: Number of sample points on S^1 (discretization resolution).
