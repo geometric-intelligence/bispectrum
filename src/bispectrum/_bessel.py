@@ -1,6 +1,6 @@
 """Internal Bessel function utilities.
 
-Pure torch implementation — no scipy. Used by SO2onD2 for disk harmonic
+Pure torch implementation — no scipy. Used by SO2onDisk for disk harmonic
 computations. Not part of the public API.
 
 Provides:

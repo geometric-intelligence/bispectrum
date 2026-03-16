@@ -1,4 +1,4 @@
-"""Tests for SO2onD2 selective disk bispectrum module."""
+"""Tests for SO2onDisk selective disk bispectrum module."""
 
 import math
 
@@ -6,7 +6,7 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from bispectrum import SO2onD2
+from bispectrum import SO2onDisk
 from bispectrum._bessel import bessel_jn, bessel_jn_zeros, compute_all_bessel_roots
 
 
@@ -62,29 +62,29 @@ class TestBessel:
         assert bessel_jn_zeros(0, 0).shape == (0,)
 
 
-class TestSO2onD2Construction:
+class TestSO2onDiskConstruction:
     def test_instantiation(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         assert bsp.L == 8
         assert bsp.selective is True
 
     def test_no_trainable_parameters(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         assert isinstance(bsp, torch.nn.Module)
         assert sum(p.numel() for p in bsp.parameters()) == 0
 
     def test_extra_repr(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         r = repr(bsp)
         assert 'L=8' in r
         assert 'selective=True' in r
 
     def test_index_map_length(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         assert len(bsp.index_map) == bsp.output_size
 
     def test_index_map_types(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         for t, n, k in bsp.index_map:
             assert t in (0, 2)
             assert n >= 0
@@ -96,41 +96,41 @@ class TestSO2onD2Construction:
     )
     def test_coefficient_count_matches_paper(self, L: int, expected: int):
         """Coefficient counts match Table 1 of Myers & Miolane 2025."""
-        bsp = SO2onD2(L=L)
+        bsp = SO2onDisk(L=L)
         assert bsp.output_size == expected
 
     def test_explicit_bandlimit(self):
-        bsp = SO2onD2(L=8, bandlimit=10.0)
+        bsp = SO2onDisk(L=8, bandlimit=10.0)
         assert bsp.output_size > 0
         assert bsp.output_size < 27
 
     def test_full_not_implemented(self):
-        bsp = SO2onD2(L=8, selective=False)
+        bsp = SO2onDisk(L=8, selective=False)
         with pytest.raises(NotImplementedError):
             bsp(torch.randn(1, 8, 8, dtype=torch.float64))
 
 
-class TestSO2onD2Forward:
+class TestSO2onDiskForward:
     @pytest.mark.parametrize('L', [8, 16])
     def test_output_shape(self, L: int):
-        bsp = SO2onD2(L=L)
+        bsp = SO2onDisk(L=L)
         f = torch.randn(3, L, L, dtype=torch.float64)
         out = bsp(f)
         assert out.shape == (3, bsp.output_size)
 
     def test_output_dtype(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         f = torch.randn(2, 8, 8, dtype=torch.float64)
         out = bsp(f)
         assert out.dtype == torch.complex128
 
     def test_deterministic(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         f = torch.randn(2, 8, 8, dtype=torch.float64)
         torch.testing.assert_close(bsp(f), bsp(f))
 
     def test_different_signals_differ(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         f1 = torch.randn(1, 8, 8, dtype=torch.float64)
         f2 = torch.randn(1, 8, 8, dtype=torch.float64)
         beta1 = bsp(f1)
@@ -138,7 +138,7 @@ class TestSO2onD2Forward:
         assert not torch.allclose(beta1, beta2)
 
     def test_batch_size_one(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         f = torch.randn(1, 8, 8, dtype=torch.float64)
         out = bsp(f)
         assert out.shape == (1, bsp.output_size)
@@ -149,7 +149,7 @@ class TestSO2onD2Forward:
         This tests the mathematical property without grid discretization effects:
         if a'_{n,k} = e^{inφ} a_{n,k}, then b'^f = b^f.
         """
-        bsp = SO2onD2(L=16)
+        bsp = SO2onDisk(L=16)
         torch.manual_seed(42)
         a = torch.randn(2, bsp._m_nonneg, dtype=torch.complex128) * 0.5
         a = a.clone()
@@ -192,7 +192,7 @@ class TestSO2onD2Forward:
 
         The error should be moderate for small L and decrease with L.
         """
-        bsp = SO2onD2(L=L)
+        bsp = SO2onDisk(L=L)
         torch.manual_seed(123)
         f = torch.randn(1, L, L, dtype=torch.float64)
         beta = bsp(f)
@@ -214,14 +214,14 @@ class TestSO2onD2Forward:
         assert rel_err < 1.5, f'Rotation invariance error too large: {rel_err:.4f}'
 
 
-class TestSO2onD2DHTRoundtrip:
+class TestSO2onDiskDHTRoundtrip:
     @pytest.mark.parametrize('L', [8, 16])
     def test_dht_roundtrip_bandlimited(self, L: int):
         """DHT roundtrip for a signal synthesized from DH coefficients.
 
         Error comes from unresolvable basis functions on the discrete grid.
         """
-        bsp = SO2onD2(L=L)
+        bsp = SO2onDisk(L=L)
         torch.manual_seed(L)
         a = torch.randn(1, bsp._m_nonneg, dtype=torch.complex128) * 0.1
         a = a.clone()
@@ -240,7 +240,7 @@ class TestSO2onD2DHTRoundtrip:
     @pytest.mark.parametrize('L', [8, 16])
     def test_single_harmonic_roundtrip(self, L: int):
         """A single disk harmonic should survive the roundtrip exactly."""
-        bsp = SO2onD2(L=L)
+        bsp = SO2onDisk(L=L)
 
         # Build ψ_{0,1} on the grid
         j = bsp._nonneg_to_idx[(0, 1)]
@@ -257,14 +257,14 @@ class TestSO2onD2DHTRoundtrip:
         assert a_rec[0, other_mask].abs().max().item() < 1e-4
 
 
-class TestSO2onD2Invert:
+class TestSO2onDiskInvert:
     def test_invert_exact_coefficients(self):
         """Inversion from exact bispectrum recovers DH magnitude for resolvable coefficients.
 
         Some high-frequency coefficients may be unresolvable on the discrete grid (rank deficient
         in the real basis matrix). We check that the MAJORITY of well-resolved coefficients match.
         """
-        bsp = SO2onD2(L=16)
+        bsp = SO2onDisk(L=16)
         torch.manual_seed(42)
         a = torch.randn(1, bsp._m_nonneg, dtype=torch.complex128) + 0.5
         a = a.clone()
@@ -303,7 +303,7 @@ class TestSO2onD2Invert:
 
     def test_invert_direct_bispectrum_roundtrip(self):
         """Inversion at the coefficient level is exact (no DHT involved)."""
-        bsp = SO2onD2(L=16)
+        bsp = SO2onDisk(L=16)
         torch.manual_seed(42)
         a = torch.randn(2, bsp._m_nonneg, dtype=torch.complex128) + 0.5
         a = a.clone()
@@ -359,27 +359,27 @@ class TestSO2onD2Invert:
         assert mag_err < 1e-12, f'Direct inversion magnitude error: {mag_err}'
 
     def test_invert_output_shape(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         beta = bsp(torch.randn(3, 8, 8, dtype=torch.float64))
         f_rec = bsp.invert(beta)
         assert f_rec.shape == (3, 8, 8)
 
     def test_invert_output_dtype_is_real(self):
-        bsp = SO2onD2(L=8)
+        bsp = SO2onDisk(L=8)
         f = torch.randn(2, 8, 8, dtype=torch.float64)
         beta = bsp(f)
         f_rec = bsp.invert(beta)
         assert f_rec.dtype == torch.float64
 
     def test_invert_not_implemented_full(self):
-        bsp = SO2onD2(L=8, selective=False)
+        bsp = SO2onDisk(L=8, selective=False)
         with pytest.raises(NotImplementedError):
             bsp.invert(torch.randn(2, 27, dtype=torch.complex128))
 
     @pytest.mark.parametrize('L', [8, 16])
     def test_invert_bispectrum_roundtrip(self, L: int):
         """Bsp(invert(bsp(f))) ≈ bsp(f) within discretization tolerance."""
-        bsp = SO2onD2(L=L)
+        bsp = SO2onDisk(L=L)
         torch.manual_seed(L)
         f = torch.randn(2, L, L, dtype=torch.float64)
         beta = bsp(f)
