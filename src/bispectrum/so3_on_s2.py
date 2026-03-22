@@ -52,7 +52,6 @@ class SO3onS2(nn.Module):
             nlat, nlon, lmax=sht_lmax, mmax=sht_lmax, grid='equiangular', norm='ortho'
         )
 
-        # Load CG matrices and register as buffers
         cg_data = load_cg_matrices(lmax)
         self._index_map: list[tuple[int, int, int]] = []
 
@@ -64,6 +63,50 @@ class SO3onS2(nn.Module):
                 self.register_buffer(f'cg_{l1}_{l2}', cg_data[key])
                 for l in range(abs(l1 - l2), min(l1 + l2, lmax) + 1):
                     self._index_map.append((l1, l2, l))
+
+        self._build_batched_bispectrum_tensors(cg_data)
+
+    def _build_batched_bispectrum_tensors(
+        self, cg_data: dict[tuple[int, int], torch.Tensor]
+    ) -> None:
+        """Precompute padded CG matrices and index arrays for vectorized forward."""
+        lmax = self.lmax
+        num_entries = len(self._index_map)
+        if num_entries == 0:
+            return
+
+        D_max = (2 * lmax + 1) ** 2
+        2 * lmax + 1
+
+        l1_arr = torch.zeros(num_entries, dtype=torch.long)
+        l2_arr = torch.zeros(num_entries, dtype=torch.long)
+        l_arr = torch.zeros(num_entries, dtype=torch.long)
+        d_prod_arr = torch.zeros(num_entries, dtype=torch.long)
+        n_p_arr = torch.zeros(num_entries, dtype=torch.long)
+        size_l_arr = torch.zeros(num_entries, dtype=torch.long)
+
+        cg_padded = torch.zeros(num_entries, D_max, D_max, dtype=torch.float64)
+
+        for idx, (l1, l2, l_val) in enumerate(self._index_map):
+            l1_arr[idx] = l1
+            l2_arr[idx] = l2
+            l_arr[idx] = l_val
+            d = (2 * l1 + 1) * (2 * l2 + 1)
+            d_prod_arr[idx] = d
+            size_l_arr[idx] = 2 * l_val + 1
+            n_p, _ = _compute_padding_indices(l1, l2, l_val)
+            n_p_arr[idx] = n_p
+
+            cg = cg_data[(l1, l2)]
+            cg_padded[idx, :d, :d] = cg
+
+        self.register_buffer('_l1_arr', l1_arr)
+        self.register_buffer('_l2_arr', l2_arr)
+        self.register_buffer('_l_arr', l_arr)
+        self.register_buffer('_d_prod_arr', d_prod_arr)
+        self.register_buffer('_n_p_arr', n_p_arr)
+        self.register_buffer('_size_l_arr', size_l_arr)
+        self.register_buffer('_cg_padded', cg_padded)
 
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the SO(3)-bispectrum of a signal on S^2.
@@ -78,12 +121,45 @@ class SO3onS2(nn.Module):
         f_coeffs = _get_full_sh_coefficients(coeffs)
 
         batch_size = f.shape[0]
-        result = torch.zeros(batch_size, self.output_size, dtype=coeffs.dtype, device=f.device)
+        num_entries = self.output_size
+        if num_entries == 0:
+            return torch.zeros(batch_size, 0, dtype=coeffs.dtype, device=f.device)
 
-        for idx, (l1, l2, l) in enumerate(self._index_map):
-            cg = getattr(self, f'cg_{l1}_{l2}')
-            result[:, idx] = _bispectrum_entry(f_coeffs, l1, l2, l, cg)
+        lmax = self.lmax
+        W = 2 * lmax + 1
+        D_max = W * W
 
+        f_padded = torch.zeros(batch_size, lmax + 1, W, dtype=coeffs.dtype, device=f.device)
+        for l_val, fl in f_coeffs.items():
+            sz = fl.shape[1]
+            start = (W - sz) // 2
+            f_padded[:, l_val, start : start + sz] = fl
+
+        f_l1 = f_padded[:, self._l1_arr]
+        f_l2 = f_padded[:, self._l2_arr]
+        outer = torch.einsum('bni,bnj->bnij', f_l1, f_l2)
+        outer_flat = outer.reshape(batch_size, num_entries, D_max)
+
+        cg = self._cg_padded.to(dtype=outer_flat.dtype, device=outer_flat.device)
+        transformed = torch.bmm(
+            outer_flat.reshape(batch_size * num_entries, 1, D_max),
+            cg.unsqueeze(0)
+            .expand(batch_size, -1, -1, -1)
+            .reshape(batch_size * num_entries, D_max, D_max),
+        ).reshape(batch_size, num_entries, D_max)
+
+        f_l_vals = f_padded[:, self._l_arr]
+        f_hat_padded = torch.zeros(
+            batch_size, num_entries, D_max, dtype=coeffs.dtype, device=f.device
+        )
+        for idx in range(num_entries):
+            n_p = self._n_p_arr[idx].item()
+            sz = self._size_l_arr[idx].item()
+            l_val = self._l_arr[idx].item()
+            start = (W - (2 * l_val + 1)) // 2
+            f_hat_padded[:, idx, n_p : n_p + sz] = f_l_vals[:, idx, start : start + sz]
+
+        result = torch.sum(transformed * torch.conj(f_hat_padded), dim=-1)
         return result
 
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
@@ -123,20 +199,18 @@ def _get_full_sh_coefficients(
 
     for l_val in range(lmax):
         m_max_for_l = min(l_val, mmax - 1)
-        full_coeffs = torch.zeros(
-            batch_size,
-            2 * l_val + 1,
-            dtype=coeffs_positive_m.dtype,
-            device=coeffs_positive_m.device,
+        if m_max_for_l == 0:
+            result[l_val] = coeffs_positive_m[:, l_val, 0:1]
+            continue
+
+        m_range = torch.arange(1, m_max_for_l + 1, device=coeffs_positive_m.device)
+        pos_m = coeffs_positive_m[:, l_val, 1 : m_max_for_l + 1]
+        signs = (-1.0) ** m_range.to(coeffs_positive_m.dtype)
+        neg_m = signs.unsqueeze(0) * torch.conj(pos_m)
+
+        result[l_val] = torch.cat(
+            [neg_m.flip(-1), coeffs_positive_m[:, l_val, 0:1], pos_m], dim=-1
         )
-
-        full_coeffs[:, l_val] = coeffs_positive_m[:, l_val, 0]
-
-        for m in range(1, m_max_for_l + 1):
-            full_coeffs[:, l_val + m] = coeffs_positive_m[:, l_val, m]
-            full_coeffs[:, l_val - m] = ((-1) ** m) * torch.conj(coeffs_positive_m[:, l_val, m])
-
-        result[l_val] = full_coeffs
 
     return result
 
