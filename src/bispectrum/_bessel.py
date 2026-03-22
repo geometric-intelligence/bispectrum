@@ -126,22 +126,71 @@ def _bisect_newton(n: int, a: float, b: float) -> float:
 
 def _mcmahon_zeros_j0(num_zeros: int) -> list[float]:
     """McMahon expansion for J_0 roots — highly accurate for all k."""
-    roots: list[float] = []
-    for s in range(1, num_zeros + 1):
-        beta = math.pi * (s - 0.25)
-        z = beta - 1.0 / (8.0 * beta)
-        # Newton polish
-        for _ in range(10):
-            fz = _jn_scalar(0, z)
-            dfz = _djn_scalar(0, z)
-            if abs(dfz) < 1e-30:
-                break
-            dz = fz / dfz
-            z -= dz
-            if abs(dz) < 1e-14 * abs(z):
-                break
-        roots.append(z)
-    return roots
+    if num_zeros <= 0:
+        return []
+    s = torch.arange(1, num_zeros + 1, dtype=torch.float64)
+    beta = math.pi * (s - 0.25)
+    z = beta - 1.0 / (8.0 * beta)
+    for _ in range(10):
+        fz = bessel_jn(0, z)
+        dfz = -bessel_jn(1, z)
+        safe_dfz = torch.where(dfz.abs() < 1e-30, torch.ones_like(dfz), dfz)
+        dz = fz / safe_dfz
+        dz = torch.where(dfz.abs() < 1e-30, torch.zeros_like(dz), dz)
+        z = z - dz
+        if (dz.abs() / z.abs().clamp(min=1.0)).max() < 1e-14:
+            break
+    return z.tolist()
+
+
+def _bisect_newton_batch(n: int, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Vectorized root-finding for J_n in brackets [a, b].
+
+    Args:
+        n: Bessel order.
+        a: Lower bracket endpoints, shape (num_roots,).
+        b: Upper bracket endpoints, shape (num_roots,).
+
+    Returns:
+        Roots tensor, shape (num_roots,).
+    """
+    fa = bessel_jn(n, a)
+    fb = bessel_jn(n, b)
+
+    exact_a = fa.abs() < 1e-15
+    exact_b = fb.abs() < 1e-15
+    no_sign_change = fa * fb > 0
+
+    x = (a + b) / 2.0
+
+    for _ in range(80):
+        fx = bessel_jn(n, x)
+        if n == 0:
+            dfx = -bessel_jn(1, x)
+        else:
+            dfx = (bessel_jn(n - 1, x) - bessel_jn(n + 1, x)) / 2.0
+
+        newton_ok = dfx.abs() > 1e-30
+        x_newton = torch.where(newton_ok, x - fx / dfx.clamp_min(1e-30).copysign(dfx), x)
+        in_bracket = (a < x_newton) & (x_newton < b)
+        x = torch.where(in_bracket & newton_ok, x_newton, (a + b) / 2.0)
+
+        fx = bessel_jn(n, x)
+        go_left = fa * fx < 0
+        b = torch.where(go_left, x, b)
+        fb = torch.where(go_left, fx, fb)
+        a = torch.where(~go_left, x, a)
+        fa = torch.where(~go_left, fx, fa)
+
+        converged = (b - a) < 1e-14 * a.abs().clamp(min=1.0)
+        if converged.all():
+            break
+
+    result = (a + b) / 2.0
+    result = torch.where(exact_a, a, result)
+    result = torch.where(exact_b, b, result)
+    result = torch.where(no_sign_change & ~exact_a & ~exact_b, (a + b) / 2.0, result)
+    return result
 
 
 def compute_all_bessel_roots(n_max: int, k_max: int) -> dict[int, list[float]]:
@@ -161,19 +210,24 @@ def compute_all_bessel_roots(n_max: int, k_max: int) -> dict[int, list[float]]:
         not enough brackets exist).
     """
     total_j0 = k_max + n_max + 5
-    prev_roots = _mcmahon_zeros_j0(total_j0)
+    prev_roots_list = _mcmahon_zeros_j0(total_j0)
 
-    all_roots: dict[int, list[float]] = {0: prev_roots[:k_max]}
+    all_roots: dict[int, list[float]] = {0: prev_roots_list[:k_max]}
+
+    prev_roots = torch.tensor(prev_roots_list, dtype=torch.float64)
 
     for order in range(1, n_max + 1):
-        curr_roots: list[float] = []
         num_needed = k_max + (n_max - order) + 3
-        for k_idx in range(min(num_needed, len(prev_roots) - 1)):
-            a, b = prev_roots[k_idx], prev_roots[k_idx + 1]
-            root = _bisect_newton(order, a, b)
-            curr_roots.append(root)
+        num_brackets = min(num_needed, len(prev_roots) - 1)
+        if num_brackets <= 0:
+            all_roots[order] = []
+            prev_roots = torch.tensor([], dtype=torch.float64)
+            continue
+        a = prev_roots[:num_brackets]
+        b = prev_roots[1 : num_brackets + 1]
+        curr_roots = _bisect_newton_batch(order, a, b)
         prev_roots = curr_roots
-        all_roots[order] = curr_roots[:k_max]
+        all_roots[order] = curr_roots[:k_max].tolist()
 
     return all_roots
 

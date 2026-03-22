@@ -7,7 +7,13 @@ import torch
 import torch.nn.functional as F
 
 from bispectrum import SO2onDisk
-from bispectrum._bessel import bessel_jn, bessel_jn_zeros, compute_all_bessel_roots
+from bispectrum._bessel import (
+    _bisect_newton,
+    _mcmahon_zeros_j0,
+    bessel_jn,
+    bessel_jn_zeros,
+    compute_all_bessel_roots,
+)
 
 
 class TestBessel:
@@ -60,6 +66,67 @@ class TestBessel:
 
     def test_empty_zeros(self):
         assert bessel_jn_zeros(0, 0).shape == (0,)
+
+    def test_mcmahon_first_10_roots(self):
+        """McMahon J_0 roots should be self-consistent: J_0(root) ≈ 0."""
+        roots = _mcmahon_zeros_j0(10)
+        assert len(roots) == 10
+        for i, r in enumerate(roots):
+            val = bessel_jn(0, torch.tensor([r], dtype=torch.float64)).item()
+            assert abs(val) < 1e-12, f'J_0(root[{i}]={r}) = {val}, expected ≈ 0'
+        for i in range(len(roots) - 1):
+            assert roots[i] < roots[i + 1], f'Roots not monotonically increasing at {i}'
+
+    def test_bisect_newton_j0_known_root(self):
+        root = _bisect_newton(0, 2.0, 3.0)
+        val = bessel_jn(0, torch.tensor([root], dtype=torch.float64)).item()
+        assert abs(val) < 1e-14, f'J_0({root}) = {val}'
+        assert 2.404 < root < 2.405
+
+    def test_bisect_newton_j1_known_root(self):
+        root = _bisect_newton(1, 3.5, 4.5)
+        val = bessel_jn(1, torch.tensor([root], dtype=torch.float64)).item()
+        assert abs(val) < 1e-14, f'J_1({root}) = {val}'
+        assert 3.831 < root < 3.832
+
+    def test_bisect_newton_degenerate_bracket(self):
+        """When fa * fb > 0, should return midpoint."""
+        root = _bisect_newton(0, 0.1, 0.5)
+        assert root == pytest.approx(0.3, abs=1e-6)
+
+
+class TestRealComplexConversion:
+    """Direct tests for _real_to_complex / _complex_to_real roundtrip."""
+
+    def test_roundtrip_real_complex_real(self):
+        bsp = SO2onDisk(L=8)
+        torch.manual_seed(42)
+        d_real = bsp._phi.shape[1]
+        x = torch.randn(3, d_real, dtype=torch.float64)
+        a = bsp._real_to_complex(x)
+        x_rec = bsp._complex_to_real(a)
+        torch.testing.assert_close(x_rec, x, atol=1e-14, rtol=0)
+
+    def test_roundtrip_complex_real_complex(self):
+        bsp = SO2onDisk(L=8)
+        torch.manual_seed(43)
+        a = torch.randn(2, bsp._m_nonneg, dtype=torch.complex128)
+        for j, (n, _k) in enumerate(bsp._nonneg_indices):
+            if n == 0:
+                a[:, j] = a[:, j].real + 0j
+        x = bsp._complex_to_real(a)
+        a_rec = bsp._real_to_complex(x)
+        torch.testing.assert_close(a_rec, a, atol=1e-14, rtol=0)
+
+    def test_n0_entries_are_real(self):
+        bsp = SO2onDisk(L=8)
+        torch.manual_seed(44)
+        d_real = bsp._phi.shape[1]
+        x = torch.randn(2, d_real, dtype=torch.float64)
+        a = bsp._real_to_complex(x)
+        for j, (n, _k) in enumerate(bsp._nonneg_indices):
+            if n == 0:
+                assert a[:, j].imag.abs().max().item() == 0.0
 
 
 class TestSO2onDiskConstruction:

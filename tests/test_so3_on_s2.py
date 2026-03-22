@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from bispectrum import SO3onS2, random_rotation_matrix, rotate_spherical_function
+from bispectrum.so3_on_s2 import _bispectrum_entry, _get_full_sh_coefficients
 
 
 class TestSO3onS2:
@@ -88,6 +89,86 @@ class TestSO3onS2:
         assert 'lmax=4' in repr_str
         assert 'nlat=32' in repr_str
         assert 'output_size=' in repr_str
+
+
+class TestGetFullSHCoefficients:
+    """Direct tests for _get_full_sh_coefficients."""
+
+    def test_l0_coefficient(self):
+        batch = 3
+        coeffs = torch.randn(batch, 4, 4, dtype=torch.complex64)
+        result = _get_full_sh_coefficients(coeffs)
+        assert 0 in result
+        assert result[0].shape == (batch, 1)
+        torch.testing.assert_close(result[0][:, 0], coeffs[:, 0, 0])
+
+    def test_negative_m_conjugation(self):
+        batch = 2
+        lmax = 3
+        mmax = lmax
+        coeffs = torch.randn(batch, lmax + 1, mmax + 1, dtype=torch.complex128)
+        result = _get_full_sh_coefficients(coeffs)
+        for l_val in range(1, lmax + 1):
+            full = result[l_val]
+            for m in range(1, l_val + 1):
+                expected_neg_m = ((-1) ** m) * torch.conj(full[:, l_val + m])
+                torch.testing.assert_close(full[:, l_val - m], expected_neg_m, atol=1e-12, rtol=0)
+
+    def test_output_sizes(self):
+        lmax = 3
+        coeffs = torch.randn(2, lmax + 1, lmax + 1, dtype=torch.complex64)
+        result = _get_full_sh_coefficients(coeffs)
+        for l_val in range(lmax + 1):
+            assert l_val in result
+            assert result[l_val].shape == (2, 2 * l_val + 1)
+
+    def test_positive_m_preserved(self):
+        batch = 2
+        lmax = 3
+        coeffs = torch.randn(batch, lmax + 1, lmax + 1, dtype=torch.complex128)
+        result = _get_full_sh_coefficients(coeffs)
+        for l_val in range(lmax + 1):
+            for m in range(min(l_val, lmax) + 1):
+                torch.testing.assert_close(
+                    result[l_val][:, l_val + m],
+                    coeffs[:, l_val, m],
+                    atol=1e-12,
+                    rtol=0,
+                )
+
+
+class TestBispectrumEntry:
+    """Direct tests for _bispectrum_entry."""
+
+    def test_output_shape(self):
+        batch = 4
+        f_coeffs = {
+            0: torch.randn(batch, 1, dtype=torch.complex128),
+            1: torch.randn(batch, 3, dtype=torch.complex128),
+        }
+        cg = torch.eye(3, dtype=torch.complex128)
+        result = _bispectrum_entry(f_coeffs, 0, 1, 1, cg)
+        assert result.shape == (batch,)
+
+    def test_zero_when_l_missing(self):
+        batch = 3
+        f_coeffs = {
+            0: torch.randn(batch, 1, dtype=torch.complex128),
+            1: torch.randn(batch, 3, dtype=torch.complex128),
+        }
+        cg = torch.eye(3, dtype=torch.complex128)
+        result = _bispectrum_entry(f_coeffs, 0, 1, 5, cg)
+        torch.testing.assert_close(result, torch.zeros(batch, dtype=torch.complex128))
+
+    def test_trivial_cg_l0_l0(self):
+        """For l1=l2=l=0, CG is 1x1 identity: beta = f0 * f0 * conj(f0) = |f0|^2 * f0."""
+        batch = 2
+        f0 = torch.randn(batch, 1, dtype=torch.complex128)
+        f_coeffs = {0: f0}
+        cg = torch.ones(1, 1, dtype=torch.complex128)
+        result = _bispectrum_entry(f_coeffs, 0, 0, 0, cg)
+        expected = f0[:, 0] * f0[:, 0] * torch.conj(f0[:, 0])
+        torch.testing.assert_close(result, expected, atol=1e-12, rtol=0)
 
 
 class TestSO3onS2RotationInvariance:

@@ -254,7 +254,6 @@ class DnonDn(nn.Module):
 
         self.register_buffer('_cg_matrices', cg_buf)
 
-        # --- DFT rotation tensors ------------------------------------------
         if n2d > 0:
             i_range = torch.arange(1, n2d + 1, dtype=torch.float64)
             j_range = torch.arange(n, dtype=torch.float64)
@@ -268,12 +267,19 @@ class DnonDn(nn.Module):
 
             rho_ref = rho_rot.clone()
             rho_ref[:, :, 1, :] *= -1
+
+            cos_table = torch.cos(omega)
+            sin_table = torch.sin(omega)
         else:
             rho_rot = torch.zeros(0, 2, 2, n, dtype=torch.float64)
             rho_ref = rho_rot.clone()
+            cos_table = torch.zeros(0, n, dtype=torch.float64)
+            sin_table = torch.zeros(0, n, dtype=torch.float64)
 
         self.register_buffer('_rho_rot', rho_rot)
         self.register_buffer('_rho_ref', rho_ref)
+        self.register_buffer('_idft_cos', cos_table)
+        self.register_buffer('_idft_sin', sin_table)
 
         # --- index map ------------------------------------------------------
         idx_map: list[tuple[int, ...]] = [(0, 0)]
@@ -351,19 +357,20 @@ class DnonDn(nn.Module):
             f_ref += ((F02 - F03)[:, None] * signs) * inv_2n
 
         if n2d > 0:
-            l_range = torch.arange(n, device=device, dtype=dtype)
             inv_n = 1.0 / n
-            for k_idx in range(n2d):
-                theta = 2 * math.pi * (k_idx + 1) * l_range / n
-                cos_t = torch.cos(theta)
-                sin_t = torch.sin(theta)
-                Fk = fhat[:, :, :, k_idx + 1]
-                F00 = Fk[:, 0, 0]
-                F01_ = Fk[:, 0, 1]
-                F10 = Fk[:, 1, 0]
-                F11 = Fk[:, 1, 1]
-                f_rot += (cos_t * (F00 + F11)[:, None] + sin_t * (F10 - F01_)[:, None]) * inv_n
-                f_ref += (cos_t * (F00 - F11)[:, None] + sin_t * (F01_ + F10)[:, None]) * inv_n
+            cos_t = self._idft_cos.to(dtype)
+            sin_t = self._idft_sin.to(dtype)
+
+            Fk = fhat[:, :, :, 1:]
+            F00 = Fk[:, 0, 0]
+            F01_ = Fk[:, 0, 1]
+            F10 = Fk[:, 1, 0]
+            F11 = Fk[:, 1, 1]
+
+            f_rot += torch.einsum('bk,kn->bn', F00 + F11, cos_t) * inv_n
+            f_rot += torch.einsum('bk,kn->bn', F10 - F01_, sin_t) * inv_n
+            f_ref += torch.einsum('bk,kn->bn', F00 - F11, cos_t) * inv_n
+            f_ref += torch.einsum('bk,kn->bn', F01_ + F10, sin_t) * inv_n
 
         return torch.cat([f_rot, f_ref], dim=-1)
 

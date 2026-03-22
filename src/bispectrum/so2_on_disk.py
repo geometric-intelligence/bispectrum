@@ -207,6 +207,21 @@ class SO2onDisk(nn.Module):
 
         self._real_col_map = real_col_map
 
+        re_idx = torch.zeros(m_nonneg, dtype=torch.long)
+        im_idx = torch.zeros(m_nonneg, dtype=torch.long)
+        is_complex = torch.zeros(m_nonneg, dtype=torch.bool)
+        for j, cols in enumerate(real_col_map):
+            re_idx[j] = cols[0]
+            if len(cols) == 2:
+                im_idx[j] = cols[1]
+                is_complex[j] = True
+            else:
+                im_idx[j] = cols[0]
+
+        self.register_buffer('_rc_re_idx', re_idx)
+        self.register_buffer('_rc_im_idx', im_idx)
+        self.register_buffer('_rc_is_complex', is_complex)
+
         self.register_buffer('_bessel_roots', bessel_roots_nonneg)
         self.register_buffer('_phi', phi)
 
@@ -267,16 +282,9 @@ class SO2onDisk(nn.Module):
         Returns:
             Complex DH coefficients for n >= 0, shape (batch, m_nonneg).
         """
-        batch = x.shape[0]
-        a = torch.zeros(batch, self._m_nonneg, dtype=torch.complex128, device=x.device)
-
-        for j, cols in enumerate(self._real_col_map):
-            if len(cols) == 1:
-                a[:, j] = x[:, cols[0]].to(torch.complex128)
-            else:
-                a[:, j] = x[:, cols[0]] + 1j * x[:, cols[1]]
-
-        return a
+        re_part = x[:, self._rc_re_idx]
+        im_part = x[:, self._rc_im_idx] * self._rc_is_complex.unsqueeze(0).to(x.dtype)
+        return (re_part + 1j * im_part).to(torch.complex128)
 
     def _complex_to_real(self, a: torch.Tensor) -> torch.Tensor:
         """Convert complex DH coefficients (n >= 0) to real parameter vector.
@@ -290,14 +298,11 @@ class SO2onDisk(nn.Module):
         batch = a.shape[0]
         d_real = self._phi.shape[1]
         x = torch.zeros(batch, d_real, dtype=torch.float64, device=a.device)
-
-        for j, cols in enumerate(self._real_col_map):
-            if len(cols) == 1:
-                x[:, cols[0]] = a[:, j].real
-            else:
-                x[:, cols[0]] = a[:, j].real
-                x[:, cols[1]] = a[:, j].imag
-
+        x.scatter_(1, self._rc_re_idx.unsqueeze(0).expand(batch, -1), a.real)
+        cmask = self._rc_is_complex
+        if cmask.any():
+            im_idx_c = self._rc_im_idx[cmask].unsqueeze(0).expand(batch, -1)
+            x.scatter_(1, im_idx_c, a[:, cmask].imag)
         return x
 
     def _dht(self, f: torch.Tensor) -> torch.Tensor:

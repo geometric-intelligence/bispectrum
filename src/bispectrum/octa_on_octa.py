@@ -311,6 +311,19 @@ def _compute_cg_octa(
     return C, block_info
 
 
+def _batched_kron_3x3(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+    """Batched Kronecker product for 3x3 matrices.
+
+    Args:
+        A: (batch, 3, 3)
+        B: (batch, 3, 3)
+
+    Returns:
+        (batch, 9, 9) tensor where each [b] = kron(A[b], B[b])
+    """
+    return torch.einsum('bij,bkl->bikjl', A, B).reshape(A.shape[0], 9, 9)
+
+
 class OctaonOcta(nn.Module):
     """Bispectrum of the octahedral group O acting on R^3.
 
@@ -489,7 +502,10 @@ class OctaonOcta(nn.Module):
         Fplus = torch.zeros(batch, d, d, dtype=dtype, device=device)
 
         for irrep_k, r0, r1 in block_info:
-            Fplus[:, r0:r1, r0:r1] = fhat[irrep_k]
+            r1 - r0
+            block = fhat[irrep_k]
+            padded = torch.nn.functional.pad(block, (r0, d - r1, r0, d - r1))
+            Fplus = Fplus + padded
 
         return Fplus
 
@@ -537,9 +553,7 @@ class OctaonOcta(nn.Module):
         # But the standard formula is:
         # beta = C @ (oplus F^dag) @ C^dag @ (F_i kron F_j)^dag
         # For real irreps: dag = T
-        F1_kron = torch.zeros(batch, 9, 9, dtype=dtype, device=f.device)
-        for b in range(batch):
-            F1_kron[b] = torch.kron(F1[b], F1[b])
+        F1_kron = _batched_kron_3x3(F1, F1)
 
         Fplus_11 = self._build_fplus(fhat, self._block_info_11, 9)
         C11 = self._cg_11.to(dtype)
@@ -548,9 +562,7 @@ class OctaonOcta(nn.Module):
 
         # beta_{rho1, rho2}: 9x9
         F2 = fhat[2]  # (batch, 3, 3)
-        F12_kron = torch.zeros(batch, 9, 9, dtype=dtype, device=f.device)
-        for b in range(batch):
-            F12_kron[b] = torch.kron(F1[b], F2[b])
+        F12_kron = _batched_kron_3x3(F1, F2)
 
         Fplus_12 = self._build_fplus(fhat, self._block_info_12, 9)
         C12 = self._cg_12.to(dtype)
@@ -601,38 +613,44 @@ class OctaonOcta(nn.Module):
         # R = C^T beta (S⊗S)^{-1} C; R R^T = block_diag(F_k^T F_k)
         b11 = beta_r[:, 10:91].reshape(batch, 9, 9)
         C11 = self._cg_11.to(dtype)
-        for b_idx in range(batch):
-            S_kron = torch.kron(S[b_idx], S[b_idx])
-            R = C11.T @ b11[b_idx] @ torch.linalg.inv(S_kron) @ C11
-            RRT = R @ R.T
+        S_kron = _batched_kron_3x3(S, S)
+        S_kron_inv = torch.linalg.inv(S_kron)
+        R = torch.bmm(
+            torch.bmm(C11.T.unsqueeze(0).expand(batch, -1, -1), torch.bmm(b11, S_kron_inv)),
+            C11.unsqueeze(0).expand(batch, -1, -1),
+        )
+        RRT = torch.bmm(R, R.transpose(-1, -2))
 
-            # F2 from block [4:7, 4:7]
-            F2TF2 = RRT[4:7, 4:7]
-            ev2, evec2 = torch.linalg.eigh(F2TF2)
-            ev2 = torch.clamp(ev2, min=0.0)
-            fhat[2][b_idx] = evec2 @ torch.diag(torch.sqrt(ev2)) @ evec2.T
+        F2TF2 = RRT[:, 4:7, 4:7]
+        ev2, evec2 = torch.linalg.eigh(F2TF2)
+        ev2 = torch.clamp(ev2, min=0.0)
+        fhat[2] = torch.bmm(
+            evec2, torch.bmm(torch.diag_embed(torch.sqrt(ev2)), evec2.transpose(-1, -2))
+        )
 
-            # F3 from block [7:9, 7:9]
-            F3TF3 = RRT[7:9, 7:9]
-            ev3, evec3 = torch.linalg.eigh(F3TF3)
-            ev3 = torch.clamp(ev3, min=0.0)
-            fhat[3][b_idx] = evec3 @ torch.diag(torch.sqrt(ev3)) @ evec3.T
+        F3TF3 = RRT[:, 7:9, 7:9]
+        ev3, evec3 = torch.linalg.eigh(F3TF3)
+        ev3 = torch.clamp(ev3, min=0.0)
+        fhat[3] = torch.bmm(
+            evec3, torch.bmm(torch.diag_embed(torch.sqrt(ev3)), evec3.transpose(-1, -2))
+        )
 
-        # F4 from beta_12: use diagonal block of extraction
         b12 = beta_r[:, 91:172].reshape(batch, 9, 9)
         C12 = self._cg_12.to(dtype)
-        for b_idx in range(batch):
-            F2_approx = fhat[2][b_idx]
-            F12_kron = torch.kron(S[b_idx], F2_approx)
-            det_check = torch.linalg.det(F12_kron)
-            if det_check.abs() > 1e-10:
-                R12 = C12.T @ b12[b_idx] @ torch.linalg.inv(F12_kron) @ C12
-                RRT12 = R12 @ R12.T
-                # F4 is 1x1, last block
-                for irrep_k, r0, _r1 in self._block_info_12:
-                    if irrep_k == 4:
-                        val = torch.sqrt(torch.clamp(RRT12[r0, r0], min=0.0))
-                        fhat[4][b_idx, 0, 0] = val
+        F12_kron = _batched_kron_3x3(S, fhat[2])
+        det_check = torch.linalg.det(F12_kron)
+        F12_kron_inv = torch.linalg.inv(F12_kron)
+        R12 = torch.bmm(
+            torch.bmm(C12.T.unsqueeze(0).expand(batch, -1, -1), torch.bmm(b12, F12_kron_inv)),
+            C12.unsqueeze(0).expand(batch, -1, -1),
+        )
+        RRT12 = torch.bmm(R12, R12.transpose(-1, -2))
+
+        for irrep_k, r0, _r1 in self._block_info_12:
+            if irrep_k == 4:
+                val = torch.sqrt(torch.clamp(RRT12[:, r0, r0], min=0.0))
+                invertible = det_check.abs() > 1e-10
+                fhat[4][:, 0, 0] = torch.where(invertible, val, fhat[4][:, 0, 0])
 
         return self._inverse_dft(fhat)
 
@@ -717,42 +735,42 @@ class OctaonOcta(nn.Module):
 
         Uses (J^T J + mu I)^{-1} J^T r with mu adapted per sample to ensure the residual decreases.
         """
-        batch = f.shape[0]
-        results = []
+        f.shape[0]
         target_real = beta_target.real
 
-        for b_idx in range(batch):
-            f_b = f[b_idx].detach().clone()
+        def fwd_single(x: torch.Tensor) -> torch.Tensor:
+            return self.forward(x.unsqueeze(0)).squeeze(0).real
 
-            def fwd(x: torch.Tensor) -> torch.Tensor:
-                return self.forward(x.unsqueeze(0)).squeeze(0).real
+        f_detached = f.detach().clone()
+        J_batch = torch.vmap(torch.func.jacfwd(fwd_single))(f_detached)
+        beta_pred = torch.vmap(fwd_single)(f_detached)
+        residual = target_real - beta_pred
+        current_loss = residual.norm(dim=-1)
 
-            J = torch.func.jacfwd(fwd)(f_b)
-            beta_pred = fwd(f_b)
-            residual = target_real[b_idx] - beta_pred
-            current_loss = residual.norm()
+        JTJ = torch.bmm(J_batch.transpose(-1, -2), J_batch)
+        JTr = torch.bmm(J_batch.transpose(-1, -2), residual.unsqueeze(-1)).squeeze(-1)
+        mu = torch.clamp(1e-3 * JTJ.diagonal(dim1=-2, dim2=-1).max(dim=-1).values, min=1e-8)
 
-            JTJ = J.T @ J
-            JTr = J.T @ residual
-            mu = max(1e-3 * JTJ.diag().max().item(), 1e-8)
+        eye = torch.eye(self.GROUP_ORDER, dtype=J_batch.dtype, device=J_batch.device)
+        f_best = f.clone()
 
-            f_best = f[b_idx]
-            for _ in range(10):
-                delta_f = torch.linalg.solve(
-                    JTJ + mu * torch.eye(self.GROUP_ORDER, dtype=J.dtype, device=J.device),
-                    JTr,
-                )
-                f_new = f[b_idx] + delta_f
-                new_loss = (target_real[b_idx] - fwd(f_new)).norm()
-                if new_loss < current_loss:
-                    f_best = f_new
-                    mu = max(mu * 0.5, 1e-10)
+        for _ in range(10):
+            A = JTJ + mu[:, None, None] * eye.unsqueeze(0)
+            delta_f = torch.linalg.solve(A, JTr)
+            f_new = f + delta_f
+            new_pred = torch.vmap(fwd_single)(f_new)
+            new_loss = (target_real - new_pred).norm(dim=-1)
+
+            improved = new_loss < current_loss
+            if improved.any():
+                f_best = torch.where(improved.unsqueeze(-1), f_new, f_best)
+                mu = torch.where(improved, torch.clamp(mu * 0.5, min=1e-10), mu * 5.0)
+                if improved.all():
                     break
-                mu *= 5.0
+            else:
+                mu = mu * 5.0
 
-            results.append(f_best)
-
-        return torch.stack(results, dim=0)
+        return f_best
 
     @property
     def output_size(self) -> int:
