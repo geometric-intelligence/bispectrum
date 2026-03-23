@@ -52,7 +52,7 @@ optional-dependencies.dev = [
   "mypy>=1.5.0",
   "pre-commit>=3.3.3",
 ]
-optional-dependencies.plotting = ["matplotlib>=3.7.0"]
+optional-dependencies.examples = ["matplotlib>=3.7.0"]
 
 urls.Homepage = "https://github.com/geometric-intelligence/bispectrum"
 urls.Repository = "https://github.com/geometric-intelligence/bispectrum"
