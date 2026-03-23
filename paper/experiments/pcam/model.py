@@ -103,7 +103,11 @@ def _rotate_kernel(weight: torch.Tensor, grid: torch.Tensor) -> torch.Tensor:
 
 
 class LiftingConv2d(nn.Module):
-    """Lift spatial input to the group: (B, C_in, H, W) → (B, C_out, |G|, H, W)."""
+    """Lift spatial input to the group: (B, C_in, H, W) → (B, C_out, |G|, H, W).
+
+    Vectorized: all |G| rotated kernels are computed in a single grid_sample
+    call, then applied in a single conv2d.
+    """
 
     def __init__(
         self,
@@ -131,16 +135,26 @@ class LiftingConv2d(nn.Module):
         self.register_buffer('grids', grids)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        outputs = []
-        for g in range(self.group_order):
-            w_rot = _rotate_kernel(self.weight, self.grids[g])
-            out_g = F.conv2d(x, w_rot, padding=self.padding)
-            outputs.append(out_g)
-        return torch.stack(outputs, dim=2)  # (B, C_out, |G|, H, W)
+        C_out, C_in, K, _ = self.weight.shape
+        G = self.group_order
+        n = C_out * C_in
+
+        w = self.weight.reshape(n, 1, K, K).expand(G, -1, -1, -1, -1).reshape(G * n, 1, K, K)
+        g = self.grids.unsqueeze(1).expand(-1, n, -1, -1, -1).reshape(G * n, K, K, 2)
+        w_rot = F.grid_sample(w, g, mode='bilinear', padding_mode='zeros', align_corners=True)
+        w_rot = w_rot.reshape(G * C_out, C_in, K, K)
+
+        out = F.conv2d(x, w_rot, padding=self.padding)
+        B, _, H, W = out.shape
+        return out.reshape(B, G, C_out, H, W).permute(0, 2, 1, 3, 4)
 
 
 class GroupConv2d(nn.Module):
-    """Group convolution: (B, C_in, |G|, H, W) → (B, C_out, |G|, H, W)."""
+    """Group convolution: (B, C_in, |G|, H, W) → (B, C_out, |G|, H, W).
+
+    Vectorized: all |G| reindexed+rotated kernels are computed in a single
+    grid_sample call, then applied in a single conv2d.
+    """
 
     def __init__(
         self,
@@ -158,8 +172,8 @@ class GroupConv2d(nn.Module):
         self.group_order = elements.shape[0]
         self.in_channels = in_channels
         self.out_channels = out_channels
+        self.kernel_size = kernel_size
 
-        # Weight: (C_out, C_in, |G|, K, K)
         self.weight = nn.Parameter(
             torch.empty(out_channels, in_channels, self.group_order, kernel_size, kernel_size)
         )
@@ -169,29 +183,35 @@ class GroupConv2d(nn.Module):
         grids = _make_rotated_grids(elements, kernel_size)
         self.register_buffer('grids', grids)
 
+        # Precompute all group reindexing patterns: (G, G).
+        all_reindex = cayley[inverses]
+        self.register_buffer('all_reindex', all_reindex)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, C_in, G, H, W = x.shape
-        outputs = []
-        for g in range(G):
-            # For output element g: reindex group axis by g⁻¹ and rotate
-            # spatial kernel by g.
-            g_inv = self.inverses[g]
-            # w[c_out, c_in, h, :, :] should use weight[c_out, c_in, g_inv*h, rotated]
-            reindex = self.cayley[g_inv]  # (|G|,): maps h → g⁻¹·h
-            w_reindexed = self.weight[:, :, reindex]  # (C_out, C_in, |G|, K, K)
-            # Rotate each spatial slice by g.
-            C_out, C_in_w, G_w, K, _ = w_reindexed.shape
-            w_flat = w_reindexed.reshape(C_out * C_in_w * G_w, 1, K, K)
-            grid = self.grids[g].unsqueeze(0).expand(w_flat.shape[0], -1, -1, -1)
+        C_out = self.out_channels
+        K = self.kernel_size
+
+        # Reindex weight for all group elements at once.
+        # weight[:, :, all_reindex] → (C_out, C_in, G_out, G_in, K, K)
+        w_reindexed = self.weight[:, :, self.all_reindex]
+        # Rearrange to (G_out, C_out, C_in, G_in, K, K)
+        w_reindexed = w_reindexed.permute(2, 0, 1, 3, 4, 5)
+
+        if K == 1:
+            w_rot = w_reindexed.reshape(G * C_out, C_in * G, 1, 1)
+        else:
+            n = C_out * C_in * G
+            w_flat = w_reindexed.reshape(G * n, 1, K, K)
+            g_expanded = self.grids.unsqueeze(1).expand(-1, n, -1, -1, -1).reshape(G * n, K, K, 2)
             w_rot = F.grid_sample(
-                w_flat, grid, mode='bilinear', padding_mode='zeros', align_corners=True
+                w_flat, g_expanded, mode='bilinear', padding_mode='zeros', align_corners=True,
             )
-            w_rot = w_rot.reshape(C_out, C_in_w * G_w, K, K)
-            # Reshape input: merge C_in and G dims.
-            x_flat = x.reshape(B, C_in * G, H, W)
-            out_g = F.conv2d(x_flat, w_rot, padding=self.padding)
-            outputs.append(out_g)
-        return torch.stack(outputs, dim=2)
+            w_rot = w_rot.reshape(G * C_out, C_in * G, K, K)
+
+        x_flat = x.reshape(B, C_in * G, H, W)
+        out = F.conv2d(x_flat, w_rot, padding=self.padding)
+        return out.reshape(B, G, C_out, H, W).permute(0, 2, 1, 3, 4)
 
 
 class EquivBatchNorm(nn.Module):
@@ -316,22 +336,21 @@ class BispectrumPool(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, C, G, H, W = x.shape
-        # Reshape to (B*C*H*W, G) for the bispectrum module.
-        x_flat = x.permute(0, 1, 3, 4, 2).reshape(-1, G)
-        beta = self.bispec(x_flat)
+        with torch.amp.autocast('cuda', enabled=False):
+            x_flat = x.float().permute(0, 1, 3, 4, 2).reshape(-1, G)
+            beta = self.bispec(x_flat)
 
-        # Log-stabilise (following Oreiller et al. 2022).
-        if beta.is_complex():
-            beta_real = beta.real
-            beta_imag = beta.imag
-            beta_real = torch.sign(beta_real) * torch.log1p(beta_real.abs())
-            beta_imag = torch.sign(beta_imag) * torch.log1p(beta_imag.abs())
-            out = torch.cat([beta_real, beta_imag], dim=-1)
-        else:
-            out = torch.sign(beta) * torch.log1p(beta.abs())
+            if beta.is_complex():
+                beta_real = beta.real
+                beta_imag = beta.imag
+                beta_real = torch.sign(beta_real) * torch.log1p(beta_real.abs())
+                beta_imag = torch.sign(beta_imag) * torch.log1p(beta_imag.abs())
+                out = torch.cat([beta_real, beta_imag], dim=-1)
+            else:
+                out = torch.sign(beta) * torch.log1p(beta.abs())
 
-        out = out.reshape(B, C, H, W, -1).permute(0, 1, 4, 2, 3)
-        out = out.reshape(B, C * self.features_per_channel, H, W)
+            out = out.reshape(B, C, H, W, -1).permute(0, 1, 4, 2, 3)
+            out = out.reshape(B, C * self.features_per_channel, H, W)
         return self.proj(F.relu(out))
 
 

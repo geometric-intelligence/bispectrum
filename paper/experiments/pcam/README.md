@@ -7,13 +7,13 @@ equivariance by construction, but they must eventually extract
 **rotation-invariant** features for classification. The choice of invariant map
 is a fundamental design decision with no consensus solution:
 
-| Invariant map                 | Complete?               | Cost                | Drawback                               |
-| ----------------------------- | ----------------------- | ------------------- | -------------------------------------- |
-| Norm (magnitude)              | No — discards all phase | O(L)                | Loses discriminative texture direction |
-| Gate (learned scalar gate)    | No — scalar bottleneck  | O(2L)               | Wastes half the channels on gates      |
-| FourierELU (FFT → ELU → IFFT) | Approximately           | O(L log L)          | Only approximately equivariant         |
-| Tensor product                | Yes                     | O(L^3)              | Degree explodes with depth             |
-| **Bispectrum (ours)**         | **Yes**                 | **O(L), selective** | —                                      |
+| Method | Nonlinearity | Invariant map | Complete? | Exact equivariance? | Cost per layer | Key reference |
+| -------------- | ----------------------------------------- | ------------------------------------------ | ------------------------------ | ----------------------- | -------------- | ---------------------------------- |
+| **Standard** | ReLU | Data augmentation (flips, 90° rot) | N/A | N/A | O(C) | Cohen & Welling, ICML 2016 |
+| **Norm** | ReLU(‖x‖\_G − bias) · x/‖x‖\_G | GroupMaxPool | No — discards phase | Yes | O(C) | Weiler & Cesa, NeurIPS 2019 |
+| **Gate** | σ(‖x\_gate‖\_G) · x\_feat | GroupMaxPool | No — scalar bottleneck | Yes | O(2C) | Weiler & Cesa, NeurIPS 2019 |
+| **FourierELU** | FFT → upsample → ELU → downsample → IFFT | GroupMaxPool | Approximately | No — aliasing from truncation | O(C log C) | Franzen & Wand, NeurIPS 2021 |
+| **Bispectrum** | ReLU (regular repr) | Selective bispectrum + 1×1 proj | **Yes — provably invertible** | **Yes** | O(C) | Kakarala 2012; Mataigne et al. 2024 |
 
 The bispectrum is the **unique complete rotation invariant**: it preserves all
 signal information except the absolute orientation (Kakarala 2012). The
@@ -99,31 +99,31 @@ rotations + reflections) groups, across 3 random seeds.
 ### Prerequisites
 
 ```bash
-pip install h5py torchvision
+uv pip install h5py torchvision
 # The bispectrum library must be importable:
-pip install -e /path/to/bispectrum
+uv pip install -e /path/to/bispectrum
 ```
 
 ### Single run
 
 ```bash
 # Standard CNN baseline
-python train.py --model standard --data_dir ./pcam_data
+uv run train.py --model standard --data_dir ./pcam_data
 
 # Bispectrum with C8 group
-python train.py --model bispectrum --group c8 --data_dir ./pcam_data
+uv run train.py --model bispectrum --group c8 --data_dir ./pcam_data
 
 # Norm nonlinearity with D4 group
-python train.py --model norm --group d4 --data_dir ./pcam_data
+uv run train.py --model norm --group d4 --data_dir ./pcam_data
 
 # Data-efficiency experiment (10% of training data)
-python train.py --model bispectrum --group c8 --train_fraction 0.1 --data_dir ./pcam_data
+uv run train.py --model bispectrum --group c8 --train_fraction 0.1 --data_dir ./pcam_data
 ```
 
 ### Full sweep (all 5 baselines x 3 seeds)
 
 ```bash
-python train.py --sweep --group c8 --data_dir ./pcam_data
+uv run train.py --sweep --group c8 --data_dir ./pcam_data
 ```
 
 This produces a summary table and saves all results to

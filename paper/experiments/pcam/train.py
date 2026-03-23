@@ -24,11 +24,13 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from data import get_dataloaders
+import torchvision.transforms.functional as TF
+from data import get_dataloaders, gpu_augment
 from model import build_model
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
@@ -46,10 +48,10 @@ def compute_metrics(
     total_loss = 0.0
     n = 0
 
-    with torch.no_grad():
+    with torch.no_grad(), torch.amp.autocast('cuda'):
         for images, labels in loader:
-            images = images.to(device)
-            labels = labels.to(device).float()
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True).float()
             logits = model(images)
             loss = F.binary_cross_entropy_with_logits(logits, labels, reduction='sum')
             total_loss += loss.item()
@@ -77,8 +79,7 @@ def compute_metrics(
 
 
 def _compute_auc(labels: torch.Tensor, probs: torch.Tensor) -> float:
-    """Compute AUC-ROC without sklearn."""
-    # Sort by descending probability.
+    """Compute AUC-ROC without sklearn (vectorised Wilcoxon-Mann-Whitney)."""
     sorted_indices = probs.argsort(descending=True)
     sorted_labels = labels[sorted_indices].long()
 
@@ -87,14 +88,9 @@ def _compute_auc(labels: torch.Tensor, probs: torch.Tensor) -> float:
     if n_pos == 0 or n_neg == 0:
         return 0.5
 
-    # Wilcoxon-Mann-Whitney statistic.
-    tp = 0
-    auc_sum = 0
-    for i in range(len(sorted_labels)):
-        if sorted_labels[i] == 1:
-            tp += 1
-        else:
-            auc_sum += tp
+    tp_cumsum = sorted_labels.cumsum(0)
+    neg_mask = sorted_labels == 0
+    auc_sum = tp_cumsum[neg_mask].sum().item()
     return auc_sum / (n_pos * n_neg)
 
 
@@ -111,8 +107,6 @@ def evaluate_rotation_robustness(
 
     Returns dict with per-angle AUCs and the std across angles.
     """
-    import torchvision.transforms.functional as TF
-
     if angles is None:
         angles = [0, 15, 30, 45, 60, 75, 90, 135, 180, 225, 270, 315]
 
@@ -122,11 +116,11 @@ def evaluate_rotation_robustness(
     for angle in angles:
         all_probs = []
         all_labels = []
-        with torch.no_grad():
+        with torch.no_grad(), torch.amp.autocast('cuda'):
             for images, labels in loader:
                 if angle != 0:
                     images = TF.rotate(images, angle)
-                images = images.to(device)
+                images = images.to(device, non_blocking=True)
                 logits = model(images)
                 all_probs.append(torch.sigmoid(logits).cpu())
                 all_labels.append(labels)
@@ -148,24 +142,43 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     scheduler,
     device: torch.device,
+    scaler: torch.amp.GradScaler,
+    augment_geometry: bool = False,
 ) -> float:
     model.train()
     total_loss = 0.0
     n = 0
-    for images, labels in loader:
-        images = images.to(device)
-        labels = labels.to(device).float()
+    num_batches = len(loader)
+    t_epoch = time.time()
+    for step, (images, labels) in enumerate(loader):
+        images = gpu_augment(images.to(device, non_blocking=True), augment_geometry)
+        labels = labels.to(device, non_blocking=True).float()
 
         optimizer.zero_grad()
-        logits = model(images)
-        loss = F.binary_cross_entropy_with_logits(logits, labels)
-        loss.backward()
-        optimizer.step()
+        with torch.amp.autocast('cuda'):
+            logits = model(images)
+            loss = F.binary_cross_entropy_with_logits(logits, labels)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         scheduler.step()
 
         total_loss += loss.item() * labels.shape[0]
         n += labels.shape[0]
 
+        if (step + 1) % 100 == 0 or step == 0:
+            elapsed = time.time() - t_epoch
+            ms_per_step = elapsed / (step + 1) * 1000
+            eta = (num_batches - step - 1) * elapsed / (step + 1)
+            print(
+                f'  step {step + 1}/{num_batches} | '
+                f'loss={loss.item():.4f} | '
+                f'{ms_per_step:.0f} ms/step | '
+                f'ETA {eta:.0f}s',
+                end='\r',
+            )
+
+    print(' ' * 80, end='\r')
     return total_loss / n
 
 
@@ -186,7 +199,6 @@ def train(args: argparse.Namespace) -> dict:
         data_dir=args.data_dir,
         batch_size=args.batch_size,
         augment_geometry=augment_geo,
-        num_workers=args.num_workers,
         train_fraction=args.train_fraction,
         seed=args.seed,
     )
@@ -205,7 +217,10 @@ def train(args: argparse.Namespace) -> dict:
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f'Model: {args.model} (group={args.group}), {n_params:,} params')
 
+    torch.set_float32_matmul_precision('high')
+
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    scaler = torch.amp.GradScaler('cuda')
     steps_per_epoch = len(train_loader)
     scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10 * steps_per_epoch, T_mult=2)
 
@@ -216,7 +231,10 @@ def train(args: argparse.Namespace) -> dict:
 
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
-        train_loss = train_one_epoch(model, train_loader, optimizer, scheduler, device)
+        train_loss = train_one_epoch(
+            model, train_loader, optimizer, scheduler, device, scaler,
+            augment_geometry=augment_geo,
+        )
         val_metrics = compute_metrics(model, val_loader, device)
         elapsed = time.time() - t0
 
@@ -291,8 +309,6 @@ def run_sweep(args: argparse.Namespace):
     print(f'{"Model":<15} {"Params":>10} {"Test AUC":>10} {"Test Acc":>10} {"Rot Std":>10}')
     print('-' * 60)
 
-    from collections import defaultdict
-
     grouped = defaultdict(list)
     for r in all_results:
         grouped[r['model']].append(r)
@@ -335,15 +351,14 @@ def main():
         help='Nonlinearity / model variant.',
     )
     parser.add_argument('--group', choices=['c8', 'd4'], default='c8')
-    parser.add_argument('--data_dir', type=str, default='./pcam_data')
-    parser.add_argument('--output_dir', type=str, default='./pcam_results')
+    parser.add_argument('--data_dir', '--data-dir', type=str, default='./pcam_data')
+    parser.add_argument('--output_dir', '--output-dir', type=str, default='./pcam_results')
     parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
     parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--growth_rate', type=int, default=12)
     parser.add_argument(
         '--block_config',
