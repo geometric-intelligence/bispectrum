@@ -1,0 +1,418 @@
+\documentclass{article}
+
+\usepackage[main]{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage[textsize=tiny, textwidth=2.6cm]{todonotes}
+\setlength{\marginparwidth}{2.6cm}
+\usepackage{listings}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+\DeclareMathOperator{\tr}{tr}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\SO}{\mathrm{SO}}
+\newcommand{\OG}{\mathrm{O}}
+
+\newcommand{\reviewquestion}[1]{\todo[inline,color=blue!8]{Nina: #1}}
+\newcommand{\papertodo}[1]{\todo[inline,color=orange!12]{TODO: #1}}
+\newcommand{\decision}[1]{\todo[inline,color=green!10]{Decision needed: #1}}
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{red},
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+}
+
+\title{\texttt{bispectrum}: Selective $G$-Bispectra Made Practical}
+
+\author{%
+  Johan Mathe \\
+  Atmo, Inc. \\
+  \texttt{johan@atmo.ai} \\
+  \And
+  Nina Miolane \\
+  University of California, Santa Barbara \\
+  \texttt{nmiolane@ucsb.edu} \\
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\papertodo{Write a clean 120--150 word abstract after we decide the final empirical scope.}
+\reviewquestion{Should the paper pitch itself primarily as a software paper with one engineering/scientific case study, or as a software paper plus empirical ML paper?}
+\reviewquestion{For the abstract, should we keep the empirical claim to PCam only unless a second experiment is complete enough to defend?}
+
+Candidate abstract structure:
+\begin{itemize}
+  \item Problem: selective $G$-bispectra are theoretically attractive but not available as practical ML software.
+  \item Main artifact: a PyTorch library implementing selective or full bispectral invariants across several group/domain pairs.
+  \item Main technical point: implementing inversion for the octahedral group required resolving a concrete algorithmic failure of the bootstrap strategy.
+  \item Empirical point: evaluate the library as an invariant pooling primitive on PatchCamelyon, with final claims deferred until sweeps are complete.
+  \item Scope note: do not mention steerable-to-Fourier in this version.
+\end{itemize}
+\end{abstract}
+
+\reviewquestion{We need a 3D dataset to test the Octahedral group (\texttt{OctaonOcta}). This is required for the empirical story to cover our main technical contribution.}
+\reviewquestion{Deadline is April 14 for internal review.}
+\reviewquestion{We need to look again at the state of the art for the PCam dataset --- make sure our baselines and comparisons are up to date.}
+\reviewquestion{We need to do a Pareto analysis for the amount of data (accuracy vs.\ training set size across pooling methods).}
+
+\section{Introduction}
+\label{sec:intro}
+
+Equivariant neural networks enforce symmetry by construction, but they still
+require an invariant representation at the point where a prediction must no
+longer depend on orientation. In practice, invariant pooling remains a weak
+point: standard choices such as norm pooling, gate-based pooling, or max/sum
+aggregation are usable, but they do not preserve all equivariant information.
+The bispectrum offers a mathematically principled alternative, since for many
+groups it yields exact invariants with reconstruction guarantees.
+
+The obstacle is practical rather than conceptual. Existing bispectral
+constructions are scattered across theory papers, domain-specific derivations,
+and small implementations, with no general-purpose PyTorch library covering the
+finite-group and compact-group cases relevant to modern geometric deep learning.
+Even for groups where selectivity reduces the coefficient count from
+$O(|G|^2)$ to $O(|G|)$, a user still needs a numerically stable implementation,
+a consistent API, inversion routines, tests, and benchmarked runtime behavior.
+
+This paper presents \texttt{bispectrum}, a PyTorch library for computing
+bispectral invariants and, where available, their inverses. The library
+supports cyclic, dihedral, torus, disk, sphere, and octahedral settings as
+differentiable \texttt{nn.Module}s intended to plug into standard ML workflows.
+Our emphasis in this draft is on the software design and on one specific
+engineering contribution that arose during implementation: inversion for the
+octahedral group.
+
+\papertodo{Rewrite the introduction once the final empirical scope is fixed.}
+\decision{Keep the paper centered on the library + octahedral inversion, or broaden to ``library + empirical study of invariant pooling''?}
+\reviewquestion{Do we want the intro to frame the library as infrastructure for geometric deep learning in general, or specifically as a practical invariant nonlinearity for equivariant CNNs?}
+
+\paragraph{Proposed contributions for this version.}
+This scaffold assumes the paper will make the following contributions:
+\begin{enumerate}
+  \item \textbf{Software contribution.} A PyTorch library implementing
+    bispectral invariants for multiple group/domain pairs with a consistent
+    \texttt{nn.Module}-style interface.
+  \item \textbf{Engineering/scientific contribution.} An analysis of why the
+    standard selective-bispectrum bootstrap inversion fails for the octahedral
+    group, together with a working bootstrap + Levenberg--Marquardt correction.
+  \item \textbf{Empirical contribution.} A task-driven evaluation of the
+    library as an invariant pooling primitive, with final claims currently left
+    open pending completed sweeps.
+\end{enumerate}
+
+\reviewquestion{Is this the right level of ambition for a one-month deadline, or should we cut to only (1) + (2) with experiments framed as validation rather than broad empirical claims?}
+
+\section{Mathematical Background}
+\label{sec:background}
+
+\subsection{Equivariant features and invariant maps}
+
+\papertodo{Write a short background subsection on equivariant CNNs and invariant pooling. Keep this focused and non-controversial.}
+
+Suggested points:
+\begin{itemize}
+  \item Equivariant layers transform predictably under a group action.
+  \item Downstream prediction tasks often require a representation invariant to
+    that action.
+  \item Existing invariant maps in equivariant architectures are typically
+    chosen for convenience rather than completeness.
+  \item The paper only needs enough background to motivate the bispectrum as a
+    candidate invariant primitive.
+\end{itemize}
+
+\subsection{The $G$-bispectrum and selective bispectra}
+
+\papertodo{Write a concise subsection giving the bispectrum definition and the idea of selectivity.}
+
+Minimal content to include:
+\begin{itemize}
+  \item finite-group Fourier transform notation,
+  \item the bispectrum as a triple-product / Clebsch--Gordan construction,
+  \item completeness as orbit separation under appropriate nondegeneracy assumptions,
+  \item selective bispectrum as a reduced coefficient set with the same recovery guarantees in the settings covered by prior theory.
+\end{itemize}
+
+\reviewquestion{Should this section stay abstract and general, or should we immediately specialize notation toward the modules in the library table?}
+
+\section{The \texttt{bispectrum} Library}
+\label{sec:library}
+
+This section should read like a software paper, not a tutorial. The goal is to
+explain what the library covers, what abstractions it exposes, and what design
+choices were made to keep the implementation mathematically legible and usable
+in PyTorch workflows.
+
+\subsection{Design principles}
+\label{sec:design}
+
+\papertodo{Write this as a design-principles section, borrowing the ``manifesto'' framing from strong software papers.}
+
+Candidate principles:
+\begin{itemize}
+  \item \textbf{Mathematical naming.} Module names encode both the acting group
+    and the signal domain, e.g.\ \texttt{CnonCn}, \texttt{DnonDn},
+    \texttt{SO2onDisk}, \texttt{SO3onS2}, \texttt{OctaonOcta}.
+  \item \textbf{\texttt{nn.Module} interface.} Every transform is packaged as a
+    module with a forward pass and, where available, an inversion routine.
+  \item \textbf{Raw-signal input.} Users pass signals in their natural domain;
+    the internal Fourier or harmonic transform is handled by the module.
+  \item \textbf{Registered buffers for mathematical objects.} Precomputed
+    Clebsch--Gordan matrices, harmonic bases, and related constants move
+    correctly across device and dtype.
+  \item \textbf{Selective when justified.} Modules expose selective outputs when
+    the mathematics and implementation support them; otherwise the paper should
+    state the limitation explicitly.
+\end{itemize}
+
+\reviewquestion{Do we want to include a short subsection here on what the library deliberately does \emph{not} try to unify, to avoid overclaiming API uniformity?}
+
+\subsection{Supported modules}
+\label{sec:supported-modules}
+
+\papertodo{Fill in the table only with claims that the current package actually supports. Avoid wording that implies full-mode support everywhere.}
+
+\begin{table}[h]
+  \caption{Current scope of the \texttt{bispectrum} library.}
+  \label{tab:supported-groups-scaffold}
+  \centering
+  \small
+  \begin{tabular}{llll}
+    \toprule
+    Module & Group / Domain & Output mode & Inversion status \\
+    \midrule
+    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full & implemented \\
+    \texttt{SO2onS1} & $\SO(2)$ on $S^1$ & selective + full via cyclic case & implemented \\
+    \texttt{TorusOnTorus} & product cyclic groups on torus & selective + full & implemented \\
+    \texttt{DnonDn} & $D_n$ on $D_n$ & selective & implemented \\
+    \texttt{SO2onDisk} & $\SO(2)$ on disk & selective & implemented \\
+    \texttt{SO3onS2} & $\SO(3)$ on $S^2$ & full only & not implemented \\
+    \texttt{OctaonOcta} & octahedral group & selective & implemented \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\papertodo{Verify exact wording for the octahedral domain and whether we want to call it ``on $\R^3$'', ``on the octahedral group'', or something more implementation-specific.}
+
+\subsection{Example API}
+\label{sec:api}
+
+\papertodo{Include one short code snippet that actually matches the public package API.}
+
+\begin{lstlisting}
+import torch
+from bispectrum import CnonCn, SO2onDisk, OctaonOcta
+
+bsp = CnonCn(n=8, selective=True)
+f = torch.randn(16, 8)
+beta = bsp(f)
+f_rec = bsp.invert(beta)
+\end{lstlisting}
+
+\reviewquestion{Should the paper include a single minimal code example only, or one example per modality (finite group, disk, sphere)?}
+
+\subsection{Octahedral inversion as an implementation case study}
+\label{sec:octa}
+
+The clearest technical case study in the library is inversion for the
+octahedral group. Implementing \texttt{OctaonOcta} exposed a failure mode of
+the standard bootstrap strategy: the selective bispectrum remains complete, but
+the sequential reconstruction procedure breaks because the ambiguity recovered
+at the first nontrivial irrep lives in $\SO(3)$, while the octahedral
+Clebsch--Gordan structure only block-diagonalizes the discrete group action.
+
+\papertodo{Write this section as a focused engineering/scientific contribution, not as a broad new theory section.}
+
+Core points to cover:
+\begin{itemize}
+  \item what the bootstrap strategy tries to do,
+  \item why it works in cyclic and dihedral settings,
+  \item what fails in the octahedral case,
+  \item how the library resolves this in practice using bootstrap
+    initialization plus Levenberg--Marquardt refinement and multiple restarts.
+\end{itemize}
+
+\reviewquestion{Should this be the central scientific contribution in the paper, with the rest of the library framed as the enabling software context?}
+
+\section{Benchmarks}
+\label{sec:benchmarks}
+
+\papertodo{Add benchmark figures only after the benchmark script and naming are cleaned up.}
+\papertodo{Decide whether to present both coefficient-count scaling and wall-clock timing, or to prioritize coefficient-count scaling plus one throughput plot.}
+\reviewquestion{Do we want to report only the benchmark regimes that are already stable and reproducible, or keep broader benchmark ambitions in appendix as future work?}
+
+Candidate benchmark questions for co-author review:
+\begin{itemize}
+  \item Which benchmark best supports the software-paper narrative: coefficient
+    scaling, forward runtime, inversion runtime, memory, or all of the above?
+  \item Should runtime figures compare only supported modes, to avoid paper/code mismatch?
+  \item Do we need two GPU types for credibility, or is one clean benchmarked setup enough for submission?
+\end{itemize}
+
+\section{Experiments}
+\label{sec:experiments}
+
+This section is intentionally scaffolded as a planning document rather than a
+final claim section. The main purpose is to give co-authors something concrete
+to react to while experimental sweeps are still being completed.
+
+\subsection{Primary empirical story: PatchCamelyon}
+\label{sec:pcam}
+
+\papertodo{Write the final setup subsection only after deciding which models and seeds are complete enough to defend.}
+
+Proposed stable framing:
+\begin{itemize}
+  \item Dataset: PatchCamelyon, since rotation invariance is physically
+    meaningful in histopathology.
+  \item Architecture: equivariant DenseNet with a fixed backbone template.
+  \item Experimental variable: invariant pooling/nonlinearity choice.
+  \item Goal: evaluate whether a bispectral invariant is competitive as a
+    practical pooling primitive.
+\end{itemize}
+
+\decision{Main comparison set for the final paper: standard vs norm vs gate vs Fourier-ELU vs bispectrum, or a narrower comparison if some baselines remain incomplete?}
+\decision{Will the final main table use only fully matched seeds and train fractions, even if that means dropping some partially completed runs?}
+\reviewquestion{Given the current results, should the main empirical claim be modest (``competitive and exact'') rather than aggressive (``outperforms baselines'') unless additional sweeps close the gap?}
+
+\subsection{Data-efficiency and robustness}
+\label{sec:robustness}
+
+\papertodo{Only keep this subsection in the main paper if the 1\% / low-data results are complete enough to be interpretable.}
+
+Questions for review:
+\begin{itemize}
+  \item Is low-data performance central enough to merit a main-paper figure?
+  \item If the low-data story is mixed, should the figure emphasize rotation
+    stability rather than data efficiency?
+  \item Is it better to present low-data results as exploratory evidence rather
+    than as a headline claim?
+\end{itemize}
+
+\subsection{Optional second experiment}
+\label{sec:second-exp}
+
+\papertodo{Decide whether to keep a placeholder for a second task at all.}
+\reviewquestion{Do we want a second experiment in the submission if it is not clearly stronger than the PCam story?}
+\reviewquestion{Is it better to submit a tighter single-task paper than a broader paper with an underdeveloped second empirical section?}
+
+If a second task remains incomplete near the deadline, this scaffold assumes it
+should be cut rather than weakly included.
+
+\section{Related Work}
+\label{sec:related}
+
+\papertodo{Write this section around software/tools and practical distinctions, not around the abandoned steerable-to-Fourier narrative.}
+
+Suggested structure:
+\begin{itemize}
+  \item equivariant deep learning libraries such as \texttt{e2cnn}/\texttt{escnn},
+  \item classical and modern bispectrum theory,
+  \item selective bispectrum papers for finite groups and the disk,
+  \item bispectral CNNs in the Depeursinge/Oreiller line,
+  \item tensor-product and Clebsch--Gordan nonlinearities,
+  \item software-paper precedents at NeurIPS.
+\end{itemize}
+
+\reviewquestion{How aggressively should we distinguish this paper from prior bispectral CNN work?}
+\reviewquestion{Should we explicitly say that our contribution is breadth of group/domain support + inversion + PyTorch integration, rather than claiming the general idea of bispectral invariants in CNNs is new?}
+
+\section{Discussion and Limitations}
+\label{sec:discussion}
+
+\papertodo{Write this section early, not last. It can help constrain the rest of the paper.}
+
+Minimum limitations to acknowledge:
+\begin{itemize}
+  \item selective $\SO(3)$ on $S^2$ remains open,
+  \item inversion is not available for every supported transform,
+  \item empirical evaluation is currently narrower than the full intended
+    application scope of the library,
+  \item some benchmark or experimental claims may need to be trimmed to match
+    the completed evidence.
+\end{itemize}
+
+\reviewquestion{Should the limitations section explicitly state that the paper does not attempt a general theory of bispectral pooling for arbitrary steerable representations?}
+
+\paragraph{Roadmap.}
+\papertodo{Add a brief roadmap paragraph for PI/co-author review.}
+
+Candidate roadmap items:
+\begin{itemize}
+  \item finish stable benchmark scripts and plots,
+  \item finish matched PCam sweeps,
+  \item improve docs/examples for public release,
+  \item future work on selective $\SO(3)$ and richer empirical applications.
+\end{itemize}
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+\papertodo{Write a short conclusion once the final scope is fixed.}
+
+Proposed conclusion shape:
+\begin{itemize}
+  \item restate the library contribution,
+  \item emphasize octahedral inversion as the main technical case study,
+  \item summarize what the completed experiments support,
+  \item end with realistic next steps rather than broad claims.
+\end{itemize}
+
+\begin{ack}
+\papertodo{Add acknowledgments for camera-ready.}
+\end{ack}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+
+\section{Implementation Details}
+\label{app:impl}
+
+\papertodo{Collect package-level implementation details that do not fit in the main paper: buffers, transforms, inversion APIs, optional dependencies, dtype/device behavior.}
+
+\section{Benchmark Details}
+\label{app:bench}
+
+\papertodo{Include full benchmark tables only after the benchmark script is cleaned up and the figures are final.}
+
+\section{Experimental Details}
+\label{app:exp}
+
+\papertodo{Include architecture details, hyperparameters, seeds, train fractions, hardware, and exact result aggregation procedures.}
+\reviewquestion{Do we want appendix-level tables for every completed sweep, or only the ones directly supporting the paper's final claims?}
+
+\newpage
+\input{checklist.tex}
+
+\end{document}

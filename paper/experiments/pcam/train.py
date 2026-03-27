@@ -192,6 +192,24 @@ def train(args: argparse.Namespace) -> dict:
         torch.cuda.manual_seed_all(args.seed)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    model = build_model(
+        nonlin_type=args.model,
+        group=args.group,
+        growth_rate=args.growth_rate,
+        block_config=tuple(args.block_config),
+    )
+    model = model.to(device)
+    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f'Model: {args.model} (group={args.group}, gr={args.growth_rate}), {n_params:,} params')
+
+    if args.dry_run:
+        print(json.dumps({
+            'model': args.model, 'group': args.group,
+            'growth_rate': args.growth_rate, 'n_params': n_params,
+        }))
+        return {'n_params': n_params}
+
     print(f'Device: {device}')
 
     augment_geo = args.model == 'standard'
@@ -207,15 +225,8 @@ def train(args: argparse.Namespace) -> dict:
         f'val={len(val_loader.dataset)}, test={len(test_loader.dataset)}'
     )
 
-    model = build_model(
-        nonlin_type=args.model,
-        group=args.group,
-        growth_rate=args.growth_rate,
-        block_config=tuple(args.block_config),
-    )
-    model = model.to(device)
-    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f'Model: {args.model} (group={args.group}), {n_params:,} params')
+    if args.compile:
+        model = torch.compile(model)
 
     torch.set_float32_matmul_precision('high')
 
@@ -226,7 +237,7 @@ def train(args: argparse.Namespace) -> dict:
 
     best_auc = 0.0
     patience_counter = 0
-    out_dir = Path(args.output_dir) / f'{args.model}_{args.group}_seed{args.seed}'
+    out_dir = Path(args.output_dir) / f'{args.model}_{args.group}_gr{args.growth_rate}_seed{args.seed}'
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, args.epochs + 1):
@@ -262,18 +273,21 @@ def train(args: argparse.Namespace) -> dict:
     test_metrics = compute_metrics(model, test_loader, device)
     print(f'\nTest results: {test_metrics}')
 
-    # Rotation robustness.
-    rot_metrics = evaluate_rotation_robustness(model, test_loader, device)
-    print(
-        f'Rotation robustness: mean_auc={rot_metrics["mean_auc"]:.4f}, '
-        f'std_auc={rot_metrics["std_auc"]:.4f}'
-    )
+    if not args.skip_rotation:
+        rot_metrics = evaluate_rotation_robustness(model, test_loader, device)
+        print(
+            f'Rotation robustness: mean_auc={rot_metrics["mean_auc"]:.4f}, '
+            f'std_auc={rot_metrics["std_auc"]:.4f}'
+        )
+    else:
+        rot_metrics = {'mean_auc': 0.0, 'std_auc': 0.0}
 
     # Save results.
     results = {
         'model': args.model,
         'group': args.group,
         'seed': args.seed,
+        'growth_rate': args.growth_rate,
         'n_params': n_params,
         'train_fraction': args.train_fraction,
         'best_val_auc': best_auc,
@@ -377,6 +391,21 @@ def main():
         '--sweep',
         action='store_true',
         help='Run all 5 baselines × 3 seeds.',
+    )
+    parser.add_argument(
+        '--dry_run',
+        action='store_true',
+        help='Build model, print param count, and exit (no data loading or training).',
+    )
+    parser.add_argument(
+        '--skip_rotation',
+        action='store_true',
+        help='Skip the 12-angle rotation robustness evaluation.',
+    )
+    parser.add_argument(
+        '--compile',
+        action='store_true',
+        help='Use torch.compile for faster training (H100/A100).',
     )
 
     args = parser.parse_args()

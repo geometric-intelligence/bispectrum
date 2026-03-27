@@ -288,19 +288,19 @@ class FourierELU(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (B, C, |G|, H, W)
-        # FFT along group dim, zero-pad in frequency, IFFT at higher resolution.
-        X = torch.fft.rfft(x, dim=2)
-        n_freq = X.shape[2]
-        pad_size = (self.n_up // 2 + 1) - n_freq
-        if pad_size > 0:
-            X = F.pad(X, (0, 0, 0, 0, 0, pad_size))
-        x_up = torch.fft.irfft(X, n=self.n_up, dim=2)
-        # Pointwise ELU in the spatial/group domain.
-        x_up = F.elu(x_up)
-        # Downsample back.
-        X2 = torch.fft.rfft(x_up, dim=2)
-        X2 = X2[:, :, : self.n // 2 + 1]
-        return torch.fft.irfft(X2, n=self.n, dim=2)
+        # Disable autocast: ComplexHalf is broken and wastes memory.
+        with torch.amp.autocast('cuda', enabled=False):
+            x = x.float()
+            X = torch.fft.rfft(x, dim=2)
+            n_freq = X.shape[2]
+            pad_size = (self.n_up // 2 + 1) - n_freq
+            if pad_size > 0:
+                X = F.pad(X, (0, 0, 0, 0, 0, pad_size))
+            x_up = torch.fft.irfft(X, n=self.n_up, dim=2)
+            x_up = F.elu(x_up)
+            X2 = torch.fft.rfft(x_up, dim=2)
+            X2 = X2[:, :, : self.n // 2 + 1]
+            return torch.fft.irfft(X2, n=self.n, dim=2)
 
 
 class BispectrumPool(nn.Module):

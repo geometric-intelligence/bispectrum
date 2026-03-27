@@ -1,0 +1,18 @@
+{
+  "model": "bispectrum",
+  "group": "c8",
+  "seed": 42,
+  "growth_rate": 12,
+  "n_params": 919609,
+  "train_fraction": 0.1,
+  "best_val_auc": 0.9619766676602893,
+  "test": {
+    "loss": 0.34856547107483493,
+    "accuracy": 0.869140625,
+    "auc": 0.9427796274282103
+  },
+  "rotation_robustness": {
+    "mean_auc": 0.0,
+    "std_auc": 0.0
+  }
+}

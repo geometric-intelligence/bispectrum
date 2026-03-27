@@ -1,0 +1,18 @@
+{
+  "model": "gate",
+  "group": "c8",
+  "seed": 42,
+  "growth_rate": 3,
+  "n_params": 135682,
+  "train_fraction": 0.1,
+  "best_val_auc": 0.9570880172580625,
+  "test": {
+    "loss": 0.374275230220519,
+    "accuracy": 0.856292724609375,
+    "auc": 0.9243756394624946
+  },
+  "rotation_robustness": {
+    "mean_auc": 0.0,
+    "std_auc": 0.0
+  }
+}
