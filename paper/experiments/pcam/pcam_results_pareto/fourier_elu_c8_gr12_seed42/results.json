@@ -1,0 +1,18 @@
+{
+  "model": "fourier_elu",
+  "group": "c8",
+  "seed": 42,
+  "growth_rate": 12,
+  "n_params": 789919,
+  "train_fraction": 0.1,
+  "best_val_auc": 0.9591016277591372,
+  "test": {
+    "loss": 0.354159979353426,
+    "accuracy": 0.85687255859375,
+    "auc": 0.9299131988203032
+  },
+  "rotation_robustness": {
+    "mean_auc": 0.0,
+    "std_auc": 0.0
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "model": "standard",
+  "group": "c8",
+  "seed": 42,
+  "growth_rate": 30,
+  "n_params": 582073,
+  "train_fraction": 0.1,
+  "best_val_auc": 0.9560122121227821,
+  "test": {
+    "loss": 0.4616474057547748,
+    "accuracy": 0.8223876953125,
+    "auc": 0.9041500438129609
+  },
+  "rotation_robustness": {
+    "mean_auc": 0.0,
+    "std_auc": 0.0
+  }
+}
