@@ -1,2 +1,5 @@
-organ3d_data/**
-organ3d_results/**
+pcam_data/**
+pcam_results/**
+pcam_results_pareto/**
+pcam_results_1pct/**
+pcam_results_data_pareto/**
