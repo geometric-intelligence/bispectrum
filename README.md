@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml)
 [![Pre-commit](https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml)
-[![codecov](https://codecov.io/gh/geometric-intelligence/bispectrum/branch/main/graph/badge.svg)](https://codecov.io/gh/geometric-intelligence/bispectrum)
+[![codecov](https://codecov.io/github/geometric-intelligence/bispectrum/graph/badge.svg?token=J6GGY4VK1E)](https://codecov.io/github/geometric-intelligence/bispectrum)
 
 Bispectrum analysis for machine learning.
 
