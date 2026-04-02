@@ -262,14 +262,15 @@ def train(args: argparse.Namespace) -> dict:
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
     scaler = torch.amp.GradScaler('cuda')
-    steps_per_epoch = len(train_loader)
+    steps_per_epoch = max(1, len(train_loader))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, T_0=10 * steps_per_epoch, T_mult=2
     )
 
     best_auc = 0.0
     patience_counter = 0
-    out_dir = Path(args.output_dir) / f'{args.model}_ch{"_".join(map(str, channels))}_seed{args.seed}'
+    frac_tag = f'_frac{args.train_fraction:.2f}' if args.train_fraction < 1.0 else ''
+    out_dir = Path(args.output_dir) / f'{args.model}_ch{"_".join(map(str, channels))}_seed{args.seed}{frac_tag}'
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, args.epochs + 1):

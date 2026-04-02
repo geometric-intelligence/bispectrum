@@ -146,9 +146,10 @@ def get_dataloaders(
         indices = torch.randperm(n, generator=rng)[:k].tolist()
         train_ds = Subset(train_ds, indices)
 
+    drop = len(train_ds) > batch_size
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True,
-        num_workers=0, pin_memory=True, drop_last=True,
+        train_ds, batch_size=min(batch_size, len(train_ds)), shuffle=True,
+        num_workers=0, pin_memory=True, drop_last=drop,
     )
     val_loader = DataLoader(
         val_ds, batch_size=batch_size, shuffle=False,

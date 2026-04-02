@@ -229,6 +229,136 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
     plt.close(fig)
 
 
+def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
+    """Plot data efficiency curves: test accuracy vs train fraction for each model."""
+    plt.rcParams.update({
+        'font.family': 'serif',
+        'font.size': 11,
+        'axes.titlesize': 12,
+        'axes.labelsize': 11,
+        'xtick.labelsize': 10,
+        'ytick.labelsize': 10,
+        'legend.fontsize': 9,
+        'figure.dpi': 300,
+    })
+
+    fracs = [0.05, 0.10, 0.25, 0.50, 1.0]
+    models_to_plot = ['standard', 'max_pool', 'bispectrum']
+    colors = {'standard': '#888888', 'max_pool': '#2D6A9F', 'bispectrum': '#C44E52'}
+    markers = {'standard': 's', 'max_pool': 'D', 'bispectrum': 'o'}
+    labels = {'standard': 'Standard CNN', 'max_pool': 'Max Pool', 'bispectrum': 'Bispectrum'}
+
+    fig, ax = plt.subplots(figsize=(5.5, 3.5))
+
+    for model in models_to_plot:
+        means = []
+        stds = []
+        for frac in fracs:
+            runs = [r for r in grouped.get(model, [])
+                    if abs(r.get('train_fraction', 1.0) - frac) < 0.01
+                    and r.get('channels', [4, 8]) == [4, 8]]
+            if runs:
+                vals = [r['test']['accuracy'] for r in runs]
+                means.append(np.mean(vals))
+                stds.append(np.std(vals))
+            else:
+                means.append(np.nan)
+                stds.append(0)
+
+        means = np.array(means)
+        stds = np.array(stds)
+
+        ax.plot(
+            fracs, means,
+            color=colors[model], marker=markers[model],
+            markersize=7, linewidth=2, label=labels[model],
+            zorder=3,
+        )
+        ax.fill_between(
+            fracs, means - stds, means + stds,
+            color=colors[model], alpha=0.15, zorder=2,
+        )
+
+    ax.set_xlabel('Training data fraction')
+    ax.set_ylabel('Test accuracy')
+    ax.set_xscale('log')
+    ax.set_xticks(fracs)
+    ax.set_xticklabels(['5%', '10%', '25%', '50%', '100%'])
+    ax.set_ylim(0, 0.9)
+
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(0.6)
+    ax.spines['bottom'].set_linewidth(0.6)
+    ax.tick_params(width=0.6, length=3)
+
+    ax.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
+    ax.set_axisbelow(True)
+
+    ax.legend(
+        frameon=True, fancybox=False, edgecolor='#cccccc',
+        framealpha=0.95, loc='upper left',
+    )
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=300)
+    fig.savefig(output_path.replace('.png', '.pdf'))
+    print(f'\nData efficiency plot saved to {output_path} (+ PDF)')
+    plt.close(fig)
+
+
+def print_tier1_summary(grouped: dict[str, list[dict]]):
+    """Print summary tables for tier 1 experiments."""
+    fracs = [0.05, 0.10, 0.25, 0.50, 1.0]
+    models = ['standard', 'max_pool', 'bispectrum']
+
+    print('\n' + '=' * 90)
+    print('DATA EFFICIENCY (channels [4,8], 3 seeds)')
+    print('=' * 90)
+    print(f'{"Model":<15} {"Frac":>6} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}')
+    print('-' * 85)
+
+    for model in models:
+        for frac in fracs:
+            runs = [r for r in grouped.get(model, [])
+                    if abs(r.get('train_fraction', 1.0) - frac) < 0.01
+                    and r.get('channels', [4, 8]) == [4, 8]]
+            if runs:
+                accs = [r['test']['accuracy'] for r in runs]
+                aucs = [r['test']['auc'] for r in runs]
+                rots = [r['rotation_robustness'].get('mean_accuracy', 0) for r in runs]
+                n_seeds = len(runs)
+                print(
+                    f'{model:<15} {frac:>6.0%} {runs[0]["n_params"]:>10,} '
+                    f'{np.mean(accs):>7.4f}±{np.std(accs):.4f} ({n_seeds}s) '
+                    f'{np.mean(aucs):>7.4f}±{np.std(aucs):.4f} '
+                    f'{np.mean(rots):>10.4f}'
+                )
+
+    print('\n' + '=' * 90)
+    print('WIDER CHANNELS (frac=1.0, seed=42)')
+    print('=' * 90)
+    print(f'{"Model":<15} {"Channels":>10} {"Params":>10} {"Test ACC":>10} {"Test AUC":>10} {"Rot ACC":>10}')
+    print('-' * 70)
+
+    for ch in [[4, 8], [8, 16], [16, 32]]:
+        for model in ['max_pool', 'bispectrum']:
+            runs = [r for r in grouped.get(model, [])
+                    if r.get('channels', [4, 8]) == ch
+                    and abs(r.get('train_fraction', 1.0) - 1.0) < 0.01]
+            if runs:
+                r = runs[0]
+                rot = r['rotation_robustness'].get('mean_accuracy', 0)
+                ch_str = '→'.join(map(str, ch))
+                print(
+                    f'{model:<15} {ch_str:>10} {r["n_params"]:>10,} '
+                    f'{r["test"]["accuracy"]:>10.4f} {r["test"]["auc"]:>10.4f} '
+                    f'{rot:>10.4f}'
+                )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Analyze OrganMNIST3D experiment results',
@@ -248,6 +378,8 @@ def main():
 
     if grouped:
         plot_rotation_comparison(grouped, args.output_plot)
+        plot_data_efficiency(grouped, './data_efficiency.png')
+        print_tier1_summary(grouped)
 
 
 if __name__ == '__main__':
