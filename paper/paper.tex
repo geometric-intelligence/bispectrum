@@ -732,6 +732,43 @@ evaluate at 10\% of training data.
 \end{itemize}
 
 
+\subsection{Data-efficiency Pareto analysis}
+\label{sec:exp-data-pareto}
+
+To assess how each invariant pooling method utilises limited training
+data, we fix per-model growth rates to match $\sim$100k parameters
+(standard $k{=}12$, norm/Fourier-ELU $k{=}4$, gate $k{=}3$,
+bispectrum $k{=}4$) and sweep the training set fraction from 1\% to
+100\% (six log-spaced points, three seeds each).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{experiments/pcam/data_pareto_analysis.png}
+  \caption{Data-efficiency Pareto analysis on PCam at matched
+    $\sim$100k parameter budget.
+    \textbf{(a)}~Test AUC vs.\ training set fraction (log scale) for
+    five pooling methods; error bars show $\pm 1$ standard deviation
+    over three seeds.
+    \textbf{(b)}~AUC gain of each equivariant method relative to the
+    standard (augmented) baseline at each data fraction.}
+  \label{fig:data-pareto}
+  \todo[inline]{Replace placeholder once sweep results are available.
+    Run: \texttt{./run\_data\_pareto\_sweep.sh} then
+    \texttt{python analyze\_data\_pareto.py}.}
+\end{figure}
+
+\todo[inline]{Write $\sim$0.3 page interpreting the data-efficiency
+  Pareto analysis. Cover:}
+\begin{itemize}
+  \item Which pooling method achieves the highest AUC at small data
+    fractions (1\%, 5\%)?
+  \item At what data fraction do equivariant methods match or exceed
+    the standard CNN?
+  \item Does bispectral pooling show a steeper learning curve
+    consistent with exact invariants requiring fewer samples?
+\end{itemize}
+
+
 \subsection{Bispectral contrastive regularization}
 \label{sec:exp-contrastive}
 
