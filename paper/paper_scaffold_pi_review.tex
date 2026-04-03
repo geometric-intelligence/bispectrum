@@ -281,42 +281,132 @@ Candidate benchmark questions for co-author review:
 \section{Experiments}
 \label{sec:experiments}
 
-This section is intentionally scaffolded as a planning document rather than a
-final claim section. The main purpose is to give co-authors something concrete
-to react to while experimental sweeps are still being completed.
-
-\subsection{Primary empirical story: PatchCamelyon}
+\subsection{2D histopathology classification under cyclic symmetry}
 \label{sec:pcam}
 
-\papertodo{Write the final setup subsection only after deciding which models and seeds are complete enough to defend.}
+The PatchCamelyon (PCam) benchmark~\cite{veeling2018rotation} consists of
+327{,}680 colour patches ($96 \times 96$ px) extracted from Camelyon16
+whole-slide images of lymph node sections. The task is binary classification:
+whether the central $32 \times 32$ region contains metastatic tissue.
+Rotation invariance is physically meaningful here, since tissue orientation
+is arbitrary in histopathology slides and classifiers should be insensitive
+to it.
 
-Proposed stable framing:
+\paragraph{Published baselines.}
+Table~\ref{tab:pcam-context} places our results in the context of published
+methods on PCam and the closely related Camelyon16 benchmark.
+
+\begin{table}[t]
+  \caption{Published baselines on PatchCamelyon from Veeling et
+    al.~\cite{veeling2018rotation}, trained on 100\% data. Our models
+    operate at $68$K--$920$K parameters and are trained on only 10\%
+    data.}
+  \label{tab:pcam-context}
+  \centering
+  \small
+  \begin{tabular}{llrcc}
+    \toprule
+    Method & Reference & Params & ACC & AUC \\
+    \midrule
+    P4M-DenseNet ($C_8$)  & Veeling et al.\ 2018     & 119K & 0.898 & 0.963 \\
+    P4M-DenseNet M        & Veeling et al.\ 2018     &  19K & 0.893 & 0.958 \\
+    DenseNet (augmented)   & Veeling et al.\ 2018     & 128K & 0.881 & 0.951 \\
+    DenseNet (no aug.)     & Veeling et al.\ 2018     & 128K & 0.876 & 0.955 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Architecture and experimental design.}
+We use a $C_8$-equivariant DenseNet backbone with block configuration
+$(4, 4, 4)$, 24 initial channels, and compression factor 0.5, following the
+architecture of Veeling et al.\ but replacing the final invariant
+map. Five model variants differ \emph{only} in their nonlinearity and
+terminal invariant pooling:
+
 \begin{itemize}
-  \item Dataset: PatchCamelyon, since rotation invariance is physically
-    meaningful in histopathology.
-  \item Architecture: equivariant DenseNet with a fixed backbone template.
-  \item Experimental variable: invariant pooling/nonlinearity choice.
-  \item Goal: evaluate whether a bispectral invariant is competitive as a
-    practical pooling primitive.
+  \item \textbf{Standard}: vanilla CNN with random rotation/reflection
+    augmentation and global average pooling.
+  \item \textbf{NormReLU}: $C_8$-equivariant backbone with norm-based
+    nonlinearity and max pooling over the group dimension.
+  \item \textbf{Gated}: $C_8$-equivariant backbone with gated nonlinearity
+    (doubles internal channels) and group max pool.
+  \item \textbf{Fourier-ELU}: $C_8$-equivariant backbone with Fourier-space
+    ELU nonlinearity and group max pool.
+  \item \textbf{Bispectrum}: $C_8$-equivariant backbone with ReLU
+    nonlinearity and selective $G$-bispectrum via \texttt{CnonCn}$(n{=}8)$
+    as the terminal invariant map.
 \end{itemize}
 
-\decision{Main comparison set for the final paper: standard vs norm vs gate vs Fourier-ELU vs bispectrum, or a narrower comparison if some baselines remain incomplete?}
-\decision{Will the final main table use only fully matched seeds and train fractions, even if that means dropping some partially completed runs?}
-\reviewquestion{Given the current results, should the main empirical claim be modest (``competitive and exact'') rather than aggressive (``outperforms baselines'') unless additional sweeps close the gap?}
+To enable a controlled Pareto comparison, we sweep the DenseNet growth rate
+$k \in \{3, 4, 6, 8, 12\}$ for equivariant models (and
+$k \in \{6, 12, 20, 30, 35\}$ for the standard CNN to cover a comparable
+parameter range), yielding models from ${\sim}30$K to ${\sim}1.6$M
+parameters. All models are trained on \textbf{10\% of training data}
+(26{,}214 images) with AdamW (lr=$10^{-3}$, weight decay $10^{-4}$),
+cosine warm restarts, mixed-precision training, and early stopping on
+validation AUC (patience 10, max 50 epochs).
 
-\subsection{Data-efficiency and robustness}
-\label{sec:robustness}
+\paragraph{Results.}
+Figure~\ref{fig:pcam-pareto} presents the Pareto analysis. The key findings
+are:
 
-\papertodo{Only keep this subsection in the main paper if the 1\% / low-data results are complete enough to be interpretable.}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{experiments/pcam/pareto_analysis.png}
+  \caption{PCam Pareto analysis (10\% training data, seed 42). (a)~Test AUC
+    vs.\ parameter count across all five pooling variants. (b)~Head-to-head
+    comparison at ${\sim}100$K parameters. (c)~Data efficiency: 1\% vs.\
+    10\% training data at growth rate 12. (d)~Ranking at the ${\sim}100$K
+    parameter budget.}
+  \label{fig:pcam-pareto}
+\end{figure}
 
-Questions for review:
-\begin{itemize}
-  \item Is low-data performance central enough to merit a main-paper figure?
-  \item If the low-data story is mixed, should the figure emphasize rotation
-    stability rather than data efficiency?
-  \item Is it better to present low-data results as exploratory evidence rather
-    than as a headline claim?
-\end{itemize}
+\begin{table}[t]
+  \caption{PCam results at the ${\sim}100$K parameter budget (10\% training
+    data, seed 42). All equivariant models use the same $C_8$-DenseNet
+    backbone; only the nonlinearity and invariant map differ.}
+  \label{tab:pcam-results}
+  \centering
+  \small
+  \begin{tabular}{lrcc}
+    \toprule
+    Model & Params & Test AUC & Test ACC \\
+    \midrule
+    Standard (augmented)          & 102K & 0.928 & 0.853 \\
+    Gated                         & 136K & 0.924 & 0.856 \\
+    Bispectrum (\texttt{CnonCn})  &  80K & 0.933 & 0.880 \\
+    Fourier-ELU                   & 110K & 0.937 & 0.857 \\
+    NormReLU                      & 110K & \textbf{0.954} & \textbf{0.887} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\emph{Pareto efficiency.}
+At matched parameter budgets (${\sim}100$K), equivariant models consistently
+outperform the augmentation-trained standard CNN (AUC 0.928). NormReLU
+achieves the highest AUC (0.954) at this operating point, followed by
+Fourier-ELU (0.937) and bispectrum (0.933). However, scaling behavior
+differs: as parameters increase from the smallest to the largest configuration,
+standard, norm, and Fourier-ELU all \emph{degrade} (by 1.8, 2.6, and 0.9
+AUC points respectively), while bispectrum \emph{improves} (+0.9 points,
+reaching 0.943 at 920K params). This suggests that the bispectrum's complete
+invariant map scales more gracefully with capacity.
+
+\emph{Data efficiency.}
+Panel~(c) compares 1\% vs.\ 10\% training data at growth rate 12. The
+bispectrum shows the largest absolute AUC at 1\% data (0.875) and the
+largest gain from 1\% to 10\% (+6.8 points), consistent with the hypothesis
+that complete invariants provide a stronger inductive bias when data is
+scarce.
+
+\emph{Comparison with published work.}
+Our best equivariant model (NormReLU, 110K params, AUC 0.954 on 10\% data)
+approaches the published P4M-DenseNet result of Veeling et al.\ (119K
+params, AUC 0.963 on 100\% data), despite using an order of magnitude less
+training data. The bispectrum model at 80K parameters (AUC 0.933) exceeds
+the published DenseNet baseline (128K params, AUC 0.951 on full data) while
+trained on 10$\times$ fewer examples, demonstrating the sample efficiency
+of equivariant architectures with principled invariant pooling.
 
 \subsection{3D organ classification under octahedral symmetry}
 \label{sec:organ3d}

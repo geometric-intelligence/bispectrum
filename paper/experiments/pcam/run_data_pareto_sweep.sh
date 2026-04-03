@@ -40,16 +40,14 @@ COMMON="--patience 10 --epochs 50"
 
 batch_size_for() {
     local model=$1 gr=$2
-    if [[ "$model" == "fourier_elu" || "$model" == "bispectrum" ]]; then
-        if (( gr >= 8 )); then echo 64
-        elif (( gr >= 6 )); then echo 128
-        else echo 256
-        fi
-    elif [[ "$model" == "gate" ]] && (( gr >= 8 )); then
-        echo 128
-    else
-        echo 256
-    fi
+    case "$model" in
+        standard)    echo 1024 ;;
+        norm)        echo 128 ;;
+        gate)        echo 128 ;;
+        fourier_elu) echo 64 ;;
+        bispectrum)  echo 128 ;;
+        *)           echo 128 ;;
+    esac
 }
 
 run_single() {
