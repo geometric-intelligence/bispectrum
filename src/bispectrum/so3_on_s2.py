@@ -170,8 +170,8 @@ class SO3onS2(nn.Module):
         if num_entries == 0:
             return
 
-        D_max = (2 * lmax + 1) ** 2
-        2 * lmax + 1
+        W = 2 * lmax + 1
+        D_max = W * W
 
         l1_arr = torch.zeros(num_entries, dtype=torch.long)
         l2_arr = torch.zeros(num_entries, dtype=torch.long)
@@ -186,14 +186,22 @@ class SO3onS2(nn.Module):
             l1_arr[idx] = l1
             l2_arr[idx] = l2
             l_arr[idx] = l_val
-            d = (2 * l1 + 1) * (2 * l2 + 1)
+            d1 = 2 * l1 + 1
+            d2 = 2 * l2 + 1
+            d = d1 * d2
             d_prod_arr[idx] = d
             size_l_arr[idx] = 2 * l_val + 1
             n_p, _ = _compute_padding_indices(l1, l2, l_val)
             n_p_arr[idx] = n_p
 
             cg = cg_data[(l1, l2)]
-            cg_padded[idx, :d, :d] = cg
+
+            a_idx = torch.arange(d1)
+            b_idx = torch.arange(d2)
+            pad_rows = ((lmax - l1 + a_idx[:, None]) * W + (lmax - l2 + b_idx[None, :])).reshape(
+                -1
+            )
+            cg_padded[idx][pad_rows, :d] = cg
 
         self.register_buffer('_l1_arr', l1_arr)
         self.register_buffer('_l2_arr', l2_arr)

@@ -90,16 +90,19 @@ Gives β = a₀ · ||F_l||² — a **quadratic** constraint.
 **Quadratic** (or cubic when l' = l) in F_l. Needed at low degrees where
 chain + cross entries are insufficient.
 
-### Entry counts by degree
+### Entry counts by degree (selected, by priority)
 
 | Degree l | Chain | Cross | Power | Self | Total (capped at 2l+1) |
 |----------|-------|-------|-------|------|------------------------|
 | 0        | —     | —     | —     | —    | 1 (just β_{0,0,0})     |
 | 1        | 0     | 0     | 1     | 1    | 2                      |
 | 2        | 1     | 1     | 1     | 2    | 5                      |
-| 3        | 1     | 2     | 1     | 3    | 7                      |
-| 4        | 2     | 3     | 1     | 3    | 9                      |
-| l ≥ 5    | ⌊l/2⌋ | l(l-1)/2 | 1 | l  | 2l+1 (truncated)       |
+| 3        | 2     | 3     | 1     | 1    | 7                      |
+| l ≥ 4    | —     | —     | 0     | 0    | 2l+1 (all linear)     |
+
+At l ≥ 4, chain + cross candidates exceed the 2l+1 budget, so only
+linear entries are selected. For example: l=4 uses 4 chain + 5 cross = 9,
+l=5 uses 6 chain + 5 cross = 11.
 
 Total output size: Σ (entries per l) ≈ (L+1)² - 1.
 

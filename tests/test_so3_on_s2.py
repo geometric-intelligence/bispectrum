@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from bispectrum import SO3onS2, random_rotation_matrix, rotate_spherical_function
+from bispectrum._cg import load_cg_matrices
 from bispectrum.so3_on_s2 import (
     _bispectrum_entry,
     _build_selective_index_map,
@@ -334,3 +335,165 @@ class TestBuildSelectiveIndexMap:
                 assert count <= 2 * deg + 1, (
                     f'degree {deg} has {count} entries > budget {2 * deg + 1}'
                 )
+
+
+class TestBatchedForwardCorrectness:
+    """Verify the batched forward pass matches the scalar _bispectrum_entry reference."""
+
+    @pytest.mark.parametrize('lmax', [1, 2, 3, 4, 5])
+    def test_batched_matches_scalar_full(self, lmax: int):
+        nlat, nlon = 32, 64
+        bsp = SO3onS2(lmax=lmax, nlat=nlat, nlon=nlon, selective=False)
+        torch.manual_seed(lmax)
+        f = torch.randn(2, nlat, nlon)
+
+        beta_batched = bsp(f)
+        coeffs = bsp._sht(f)
+        f_coeffs = _get_full_sh_coefficients(coeffs)
+        cg_data = load_cg_matrices(lmax)
+
+        for i, (l1, l2, l_val) in enumerate(bsp.index_map):
+            beta_ref = _bispectrum_entry(f_coeffs, l1, l2, l_val, cg_data[(l1, l2)])
+            torch.testing.assert_close(
+                beta_batched[:, i],
+                beta_ref,
+                atol=1e-6,
+                rtol=1e-5,
+                msg=f'Mismatch at ({l1},{l2},{l_val}) for lmax={lmax}',
+            )
+
+    @pytest.mark.parametrize('lmax', [1, 2, 3, 4, 5])
+    def test_batched_matches_scalar_selective(self, lmax: int):
+        nlat, nlon = 32, 64
+        bsp = SO3onS2(lmax=lmax, nlat=nlat, nlon=nlon, selective=True)
+        torch.manual_seed(lmax + 100)
+        f = torch.randn(2, nlat, nlon)
+
+        beta_batched = bsp(f)
+        coeffs = bsp._sht(f)
+        f_coeffs = _get_full_sh_coefficients(coeffs)
+        cg_data = load_cg_matrices(lmax)
+
+        for i, (l1, l2, l_val) in enumerate(bsp.index_map):
+            beta_ref = _bispectrum_entry(f_coeffs, l1, l2, l_val, cg_data[(l1, l2)])
+            torch.testing.assert_close(
+                beta_batched[:, i],
+                beta_ref,
+                atol=1e-6,
+                rtol=1e-5,
+                msg=f'Mismatch at ({l1},{l2},{l_val}) for lmax={lmax} selective',
+            )
+
+    def test_output_nonzero(self):
+        """Bispectrum of a non-zero signal must be non-zero."""
+        for selective in [False, True]:
+            bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=selective)
+            torch.manual_seed(0)
+            f = torch.randn(1, 32, 64)
+            beta = bsp(f)
+            assert beta.abs().max() > 1e-10, f'Bispectrum is all zeros (selective={selective})'
+
+
+class TestCompletenessNumerical:
+    """Numerical tests for the completeness claim."""
+
+    def test_discriminativeness(self):
+        """Two random signals (not rotation-related) must produce different bispectra."""
+        bsp = SO3onS2(lmax=4, nlat=32, nlon=64, selective=True)
+        torch.manual_seed(42)
+        f1 = torch.randn(1, 32, 64)
+        f2 = torch.randn(1, 32, 64)
+        beta1 = bsp(f1)
+        beta2 = bsp(f2)
+        diff = (beta1 - beta2).abs().max()
+        assert diff > 1e-6, 'Two random signals gave the same bispectrum'
+
+    @pytest.mark.parametrize('lmax', [3, 4])
+    def test_jacobian_rank_finite_diff(self, lmax: int):
+        """Jacobian of the selective bispectrum w.r.t. real SH coefficient
+        parameters should have rank (L+1)^2 - 3, verifying completeness.
+
+        Restricted to lmax <= 4: at lmax=5 the condition number (~10^10)
+        makes the SVD gap seed-dependent (see doc section on conditioning).
+        """
+        cg_data = load_cg_matrices(lmax)
+        idx_map = _build_selective_index_map(lmax)
+        torch.manual_seed(42)
+
+        f_coeffs: dict[int, torch.Tensor] = {}
+        for l_val in range(lmax + 1):
+            c = torch.zeros(1, 2 * l_val + 1, dtype=torch.complex128)
+            c[0, l_val] = torch.randn(1, dtype=torch.float64)
+            for m in range(1, l_val + 1):
+                re = torch.randn(1, dtype=torch.float64)
+                im = torch.randn(1, dtype=torch.float64)
+                c[0, l_val + m] = re + 1j * im
+                c[0, l_val - m] = ((-1.0) ** m) * (re - 1j * im)
+            f_coeffs[l_val] = c
+
+        def eval_bispec(
+            fc: dict[int, torch.Tensor],
+        ) -> list[float]:
+            return [
+                _bispectrum_entry(fc, l1, l2, lv, cg_data[(l1, l2)])[0].real.item()
+                for l1, l2, lv in idx_map
+            ]
+
+        n_params = (lmax + 1) ** 2
+        n_out = len(idx_map)
+        eps = 1e-8
+
+        J = torch.zeros(n_out, n_params, dtype=torch.float64)
+        param_idx = 0
+        for l_val in range(lmax + 1):
+            for m in range(1, l_val + 1):
+                for part in ['re', 'im']:
+                    fc_p = {k: v.clone() for k, v in f_coeffs.items()}
+                    fc_m = {k: v.clone() for k, v in f_coeffs.items()}
+                    sign = (-1.0) ** m
+                    if part == 're':
+                        fc_p[l_val][0, l_val + m] += eps
+                        fc_p[l_val][0, l_val - m] += sign * eps
+                        fc_m[l_val][0, l_val + m] -= eps
+                        fc_m[l_val][0, l_val - m] -= sign * eps
+                    else:
+                        fc_p[l_val][0, l_val + m] += 1j * eps
+                        fc_p[l_val][0, l_val - m] -= sign * 1j * eps
+                        fc_m[l_val][0, l_val + m] -= 1j * eps
+                        fc_m[l_val][0, l_val - m] += sign * 1j * eps
+                    bp = eval_bispec(fc_p)
+                    bm = eval_bispec(fc_m)
+                    for i in range(n_out):
+                        J[i, param_idx] = (bp[i] - bm[i]) / (2 * eps)
+                    param_idx += 1
+            fc_p = {k: v.clone() for k, v in f_coeffs.items()}
+            fc_m = {k: v.clone() for k, v in f_coeffs.items()}
+            fc_p[l_val][0, l_val] += eps
+            fc_m[l_val][0, l_val] -= eps
+            bp = eval_bispec(fc_p)
+            bm = eval_bispec(fc_m)
+            for i in range(n_out):
+                J[i, param_idx] = (bp[i] - bm[i]) / (2 * eps)
+            param_idx += 1
+
+        sv = torch.linalg.svdvals(J)
+        expected_rank = (lmax + 1) ** 2 - 3
+        if expected_rank < len(sv):
+            gap = sv[expected_rank - 1] / max(sv[expected_rank].item(), 1e-20)
+            assert gap > 10, (
+                f'Insufficient SVD gap at expected rank {expected_rank}: '
+                f'sv[{expected_rank - 1}]={sv[expected_rank - 1]:.2e}, '
+                f'sv[{expected_rank}]={sv[expected_rank]:.2e} for lmax={lmax}'
+            )
+
+
+class TestSelectiveLmax0:
+    """Edge case: selective mode with lmax=0."""
+
+    def test_lmax0_selective(self):
+        bsp = SO3onS2(lmax=0, nlat=16, nlon=32, selective=True)
+        assert bsp.output_size == 1
+        f = torch.randn(2, 16, 32)
+        beta = bsp(f)
+        assert beta.shape == (2, 1)
+        assert beta.abs().max() > 0
