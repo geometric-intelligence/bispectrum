@@ -4,7 +4,11 @@ import pytest
 import torch
 
 from bispectrum import SO3onS2, random_rotation_matrix, rotate_spherical_function
-from bispectrum.so3_on_s2 import _bispectrum_entry, _get_full_sh_coefficients
+from bispectrum.so3_on_s2 import (
+    _bispectrum_entry,
+    _build_selective_index_map,
+    _get_full_sh_coefficients,
+)
 
 
 class TestSO3onS2:
@@ -194,3 +198,139 @@ class TestSO3onS2RotationInvariance:
             rtol=0.1,
             msg='Bispectrum magnitude should be approximately invariant under rotation',
         )
+
+
+class TestSelectiveSO3onS2:
+    """Tests for the selective (O(L²)) bispectrum mode."""
+
+    def test_output_size_is_quadratic(self):
+        """Selective output size should be approximately (lmax+1)²."""
+        for lmax in [2, 3, 4, 5]:
+            bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
+            expected = (lmax + 1) ** 2
+            # Allow small deficit from low-degree budget shortfall
+            assert bsp.output_size <= expected
+            assert bsp.output_size >= expected - 2
+
+    def test_output_smaller_than_full(self):
+        bsp_full = SO3onS2(lmax=5, nlat=32, nlon=64, selective=False)
+        bsp_sel = SO3onS2(lmax=5, nlat=32, nlon=64, selective=True)
+        assert bsp_sel.output_size < bsp_full.output_size
+
+    def test_index_map_validity(self):
+        """All selective triples satisfy l1 <= l2 and the triangle inequality."""
+        for lmax in [1, 2, 3, 4, 5]:
+            bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
+            for l1, l2, l in bsp.index_map:
+                assert l1 <= l2, f'l1 > l2: {(l1, l2, l)}'
+                assert abs(l1 - l2) <= l <= l1 + l2, f'triangle: {(l1, l2, l)}'
+                assert l <= lmax, f'exceeds lmax: {(l1, l2, l)}'
+
+    def test_selective_entries_match_full(self):
+        """Every selective entry must match the full bispectrum on the same triple."""
+        full = SO3onS2(lmax=5, nlat=64, nlon=128, selective=False)
+        sel = SO3onS2(lmax=5, nlat=64, nlon=128, selective=True)
+        f = torch.randn(3, 64, 128)
+
+        beta_full = full(f)
+        beta_sel = sel(f)
+
+        full_lookup = {triple: i for i, triple in enumerate(full.index_map)}
+        for i, triple in enumerate(sel.index_map):
+            j = full_lookup[triple]
+            torch.testing.assert_close(
+                beta_sel[:, i],
+                beta_full[:, j],
+                atol=1e-10,
+                rtol=0,
+            )
+
+    def test_forward_shape(self):
+        nlat, nlon, batch = 32, 64, 4
+        bsp = SO3onS2(lmax=3, nlat=nlat, nlon=nlon, selective=True)
+        output = bsp(torch.randn(batch, nlat, nlon))
+        assert output.shape == (batch, bsp.output_size)
+        assert output.is_complex()
+
+    def test_forward_deterministic(self):
+        bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True)
+        f = torch.randn(2, 32, 64)
+        torch.testing.assert_close(bsp(f), bsp(f))
+
+    def test_rotation_invariance(self):
+        bsp = SO3onS2(lmax=4, nlat=64, nlon=128, selective=True)
+        f = torch.randn(2, 64, 128, dtype=torch.float64)
+        beta_f = bsp(f.float())
+
+        R = random_rotation_matrix()
+        f_rot = rotate_spherical_function(f, R)
+        beta_rot = bsp(f_rot.float())
+
+        torch.testing.assert_close(
+            beta_f.abs(),
+            beta_rot.abs(),
+            atol=0.1,
+            rtol=0.1,
+            msg='Selective bispectrum magnitude should be rotation-invariant',
+        )
+
+    def test_no_trainable_parameters(self):
+        bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True)
+        assert sum(p.numel() for p in bsp.parameters()) == 0
+        assert sum(1 for _ in bsp.buffers()) > 0
+
+    def test_extra_repr_shows_selective(self):
+        bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True)
+        assert 'selective=True' in repr(bsp)
+
+    def test_degree_coverage(self):
+        """Each degree 0..lmax must have at least one entry."""
+        for lmax in [1, 2, 3, 4, 5]:
+            bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
+            degrees_present = set()
+            for l1, l2, l in bsp.index_map:
+                degrees_present.update([l1, l2, l])
+            for deg in range(lmax + 1):
+                assert deg in degrees_present, f'degree {deg} missing for lmax={lmax}'
+
+    def test_seed_entries_present(self):
+        """The seed entries (0,0,0) and (0,1,1) must always be present."""
+        for lmax in [1, 2, 5]:
+            idx = _build_selective_index_map(lmax)
+            assert (0, 0, 0) in idx
+            if lmax >= 1:
+                assert (0, 1, 1) in idx
+
+
+class TestBuildSelectiveIndexMap:
+    """Unit tests for the _build_selective_index_map helper."""
+
+    def test_lmax_zero(self):
+        idx = _build_selective_index_map(0)
+        assert idx == [(0, 0, 0)]
+
+    def test_lmax_one(self):
+        idx = _build_selective_index_map(1)
+        assert (0, 0, 0) in idx
+        # Should have entries involving degree 1
+        max_deg = max(max(t) for t in idx)
+        assert max_deg == 1
+
+    def test_no_duplicates(self):
+        for lmax in range(6):
+            idx = _build_selective_index_map(lmax)
+            assert len(idx) == len(set(idx)), f'duplicates for lmax={lmax}'
+
+    def test_budget_respected(self):
+        """No degree should have more than 2l+1 entries."""
+        for lmax in range(6):
+            idx = _build_selective_index_map(lmax)
+            from collections import Counter
+
+            counts = Counter()
+            for l1, l2, l in idx:
+                counts[max(l1, l2, l)] += 1
+            for deg, count in counts.items():
+                assert count <= 2 * deg + 1, (
+                    f'degree {deg} has {count} entries > budget {2 * deg + 1}'
+                )

@@ -7,6 +7,10 @@ beta(f)_{l1,l2}^{(l)} = (F_l1 ⊗ F_l2) · C_{l1,l2} · F_l^†
 where F_l are the degree-l SH coefficient vectors and C denotes the
 Clebsch-Gordan matrices for SO(3).
 
+Supports a **selective** mode that reduces the output from O(L³) to O(L²)
+bispectral entries while preserving completeness for generic signals.
+See ``_build_selective_index_map`` for the construction.
+
 Reference: Kakarala (1992), Cohen et al.
 """
 
@@ -17,6 +21,90 @@ from torch_harmonics import RealSHT
 from bispectrum._cg import load_cg_matrices
 
 
+def _build_full_index_map(
+    lmax: int, cg_data: dict[tuple[int, int], torch.Tensor]
+) -> list[tuple[int, int, int]]:
+    """Build the full O(L³) bispectrum index map."""
+    index_map: list[tuple[int, int, int]] = []
+    for l1 in range(lmax + 1):
+        for l2 in range(l1, lmax + 1):
+            if (l1, l2) not in cg_data:
+                continue
+            for l_val in range(abs(l1 - l2), min(l1 + l2, lmax) + 1):
+                index_map.append((l1, l2, l_val))
+    return index_map
+
+
+def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
+    """Build the O(L²) selective bispectrum index map.
+
+    For each target degree ``l_target = 0 .. lmax``, selects up to
+    ``2 * l_target + 1`` bispectral triples that provide enough equations
+    to recover the SH coefficients at that degree (given all lower degrees
+    are already known).
+
+    Entry types (in priority order):
+
+    1. **Chain** ``(l1, l2, l_target)`` with ``l1 <= l2 < l_target`` —
+       linear in ``F_{l_target}`` (appears via ``conj(F_l)``).
+    2. **Cross** ``(l1, l_target, l)`` with ``l1 < l_target, l < l_target``
+       — linear in ``F_{l_target}`` (appears in the middle ⊗ position).
+    3. **Power** ``(0, l_target, l_target)`` — gives ``||F_{l_target}||²``
+       (quadratic).
+    4. **Self-coupling** ``(l_target, l_target, l)`` with ``l < l_target``
+       — quadratic/cubic in ``F_{l_target}``.
+
+    Total output size is approximately ``(lmax + 1)²``.
+    """
+    index_map: list[tuple[int, int, int]] = []
+
+    for l_target in range(lmax + 1):
+        budget = 2 * l_target + 1
+
+        if l_target == 0:
+            index_map.append((0, 0, 0))
+            continue
+
+        candidates: list[tuple[int, int, int]] = []
+
+        # 1. Chain entries: (l1, l2, l_target) with l1 <= l2 < l_target,
+        #    l1 + l2 >= l_target (triangle inequality).
+        #    Iterate highest l2 first for better conditioning.
+        for l2 in range(l_target - 1, -1, -1):
+            for l1 in range(min(l2, l_target - 1), -1, -1):
+                if l1 + l2 >= l_target and abs(l1 - l2) <= l_target:
+                    candidates.append((l1, l2, l_target))
+
+        # 2. Cross entries: (l1, l_target, l) with 1 <= l1 < l_target,
+        #    l_target - l1 <= l < l_target (triangle + known).
+        for l1 in range(l_target - 1, 0, -1):
+            l_lo = l_target - l1  # triangle lower bound (since l1 < l_target)
+            l_hi = min(l_target - 1, l1 + l_target)  # must be < l_target
+            for l_val in range(l_hi, l_lo - 1, -1):
+                candidates.append((l1, l_target, l_val))
+
+        # 3. Power entry: (0, l_target, l_target).
+        candidates.append((0, l_target, l_target))
+
+        # 4. Self-coupling: (l_target, l_target, l) with 0 <= l < l_target.
+        for l_val in range(l_target - 1, -1, -1):
+            candidates.append((l_target, l_target, l_val))
+
+        # Deduplicate preserving priority order, take up to budget.
+        seen: set[tuple[int, int, int]] = set()
+        selected: list[tuple[int, int, int]] = []
+        for entry in candidates:
+            if entry not in seen:
+                seen.add(entry)
+                selected.append(entry)
+                if len(selected) == budget:
+                    break
+
+        index_map.extend(selected)
+
+    return index_map
+
+
 class SO3onS2(nn.Module):
     """Bispectrum of SO(3) acting on S^2.
 
@@ -24,12 +112,16 @@ class SO3onS2(nn.Module):
     equiangular grid, computes the spherical harmonic transform internally,
     and returns the bispectrum coefficients.
 
+    When ``selective=True``, outputs O(L²) bispectral entries instead of
+    O(L³), using a degree-by-degree construction that preserves completeness
+    for generic signals.
+
     Args:
         lmax: Maximum spherical harmonic degree.
         nlat: Number of latitude grid points.
         nlon: Number of longitude grid points.
-        selective: Reserved for future use. Selective bispectrum for SO(3)
-            is an open problem (see DESIGN.md TODO-M1).
+        selective: If True, use the O(L²) selective bispectrum. If False,
+            compute all O(L³) entries.
     """
 
     def __init__(
@@ -37,7 +129,7 @@ class SO3onS2(nn.Module):
         lmax: int = 5,
         nlat: int = 64,
         nlon: int = 128,
-        selective: bool = True,
+        selective: bool = False,
     ) -> None:
         super().__init__()
         self.lmax = lmax
@@ -53,16 +145,19 @@ class SO3onS2(nn.Module):
         )
 
         cg_data = load_cg_matrices(lmax)
-        self._index_map: list[tuple[int, int, int]] = []
 
-        for l1 in range(lmax + 1):
-            for l2 in range(l1, lmax + 1):
-                key = (l1, l2)
-                if key not in cg_data:
-                    continue
+        if selective:
+            self._index_map = _build_selective_index_map(lmax)
+        else:
+            self._index_map = _build_full_index_map(lmax, cg_data)
+
+        # Register CG buffers for (l1, l2) pairs used in the index map.
+        registered: set[tuple[int, int]] = set()
+        for l1, l2, _l in self._index_map:
+            key = (l1, l2)
+            if key not in registered and key in cg_data:
                 self.register_buffer(f'cg_{l1}_{l2}', cg_data[key])
-                for l in range(abs(l1 - l2), min(l1 + l2, lmax) + 1):
-                    self._index_map.append((l1, l2, l))
+                registered.add(key)
 
         self._build_batched_bispectrum_tensors(cg_data)
 
@@ -186,7 +281,8 @@ class SO3onS2(nn.Module):
 
     def extra_repr(self) -> str:
         return (
-            f'lmax={self.lmax}, nlat={self.nlat}, nlon={self.nlon}, output_size={self.output_size}'
+            f'lmax={self.lmax}, nlat={self.nlat}, nlon={self.nlon}, '
+            f'selective={self.selective}, output_size={self.output_size}'
         )
 
 
