@@ -1,5 +1,7 @@
 """Tests for SO3onS2 bispectrum module."""
 
+from collections import Counter
+
 import pytest
 import torch
 
@@ -28,9 +30,10 @@ class TestSO3onS2:
         assert bsp.nlat == 64
         assert bsp.nlon == 128
 
-    def test_lmax_exceeds_json_raises(self):
-        with pytest.raises(ValueError, match='exceeds JSON limits'):
-            SO3onS2(lmax=100, nlat=64, nlon=128)
+    def test_large_lmax_computes_analytically(self):
+        """CG matrices are now computed analytically, so any lmax works."""
+        bsp = SO3onS2(lmax=6, nlat=32, nlon=64)
+        assert bsp.output_size > 0
 
     def test_index_map_structure(self):
         bsp = SO3onS2(lmax=3, nlat=32, nlon=64)
@@ -45,15 +48,16 @@ class TestSO3onS2:
         bsp = SO3onS2(lmax=4, nlat=32, nlon=64)
         assert bsp.output_size == len(bsp.index_map)
 
-    def test_cg_buffers_registered(self):
+    def test_reduced_cg_buffers_registered(self):
         bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
-        for l1 in range(3):
-            for l2 in range(l1, 3):
-                buffer_name = f'cg_{l1}_{l2}'
-                assert hasattr(bsp, buffer_name), f'Missing buffer {buffer_name}'
-                buffer = getattr(bsp, buffer_name)
-                expected_size = (2 * l1 + 1) * (2 * l2 + 1)
-                assert buffer.shape == (expected_size, expected_size)
+        # Each group gets a _cg_red_{gid} buffer with d rows and c ≤ d columns.
+        assert len(bsp._group_data) > 0
+        for gid, (l1, l2, c, _) in enumerate(bsp._group_data):
+            buf = getattr(bsp, f'_cg_red_{gid}')
+            d = (2 * l1 + 1) * (2 * l2 + 1)
+            assert buf.shape[0] == d
+            assert buf.shape[1] == c
+            assert c <= d
 
     def test_forward_output_shape(self):
         nlat, nlon = 32, 64
@@ -73,9 +77,9 @@ class TestSO3onS2:
 
     def test_device_movement(self):
         bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
-        assert bsp.cg_0_0.device.type == 'cpu'
+        assert bsp._cg_red_0.device.type == 'cpu'
         bsp_cpu = bsp.to('cpu')
-        assert bsp_cpu.cg_0_0.device.type == 'cpu'
+        assert bsp_cpu._cg_red_0.device.type == 'cpu'
 
     def test_no_trainable_parameters(self):
         bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
@@ -326,8 +330,6 @@ class TestBuildSelectiveIndexMap:
         """No degree should have more than 2l+1 entries."""
         for lmax in range(6):
             idx = _build_selective_index_map(lmax)
-            from collections import Counter
-
             counts = Counter()
             for l1, l2, l in idx:
                 counts[max(l1, l2, l)] += 1
