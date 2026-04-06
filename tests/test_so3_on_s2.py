@@ -9,6 +9,7 @@ from bispectrum import SO3onS2, random_rotation_matrix, rotate_spherical_functio
 from bispectrum._cg import load_cg_matrices
 from bispectrum.so3_on_s2 import (
     _bispectrum_entry,
+    _build_full_index_map,
     _build_selective_index_map,
     _get_full_sh_coefficients,
 )
@@ -487,6 +488,52 @@ class TestCompletenessNumerical:
                 f'sv[{expected_rank - 1}]={sv[expected_rank - 1]:.2e}, '
                 f'sv[{expected_rank}]={sv[expected_rank]:.2e} for lmax={lmax}'
             )
+
+
+class TestBuildFullIndexMap:
+    """Tests for _build_full_index_map."""
+
+    def test_all_triples_valid(self):
+        lmax = 3
+        cg_data = load_cg_matrices(lmax)
+        idx_map = _build_full_index_map(lmax, cg_data)
+        for l1, l2, l_val in idx_map:
+            assert l1 <= l2
+            assert abs(l1 - l2) <= l_val <= l1 + l2
+            assert l_val <= lmax
+            assert (l1, l2) in cg_data
+
+    def test_no_duplicates(self):
+        lmax = 4
+        cg_data = load_cg_matrices(lmax)
+        idx_map = _build_full_index_map(lmax, cg_data)
+        assert len(idx_map) == len(set(idx_map))
+
+    def test_missing_cg_pair_skipped(self):
+        """When a (l1, l2) pair is absent from cg_data, its triples are skipped."""
+        lmax = 3
+        cg_data = load_cg_matrices(lmax)
+        full_map = _build_full_index_map(lmax, cg_data)
+
+        dropped_key = (1, 2)
+        partial_cg = {k: v for k, v in cg_data.items() if k != dropped_key}
+        partial_map = _build_full_index_map(lmax, partial_cg)
+
+        dropped = [t for t in full_map if t not in partial_map]
+        assert len(dropped) > 0, 'Removing a CG pair should drop some triples'
+        for l1, l2, _ in dropped:
+            assert (l1, l2) == dropped_key
+        for l1, l2, _ in partial_map:
+            assert (l1, l2) != dropped_key
+
+    def test_lmax_zero(self):
+        cg_data = load_cg_matrices(0)
+        idx_map = _build_full_index_map(0, cg_data)
+        assert idx_map == [(0, 0, 0)]
+
+    def test_empty_cg_data(self):
+        idx_map = _build_full_index_map(3, {})
+        assert idx_map == []
 
 
 class TestSelectiveLmax0:
