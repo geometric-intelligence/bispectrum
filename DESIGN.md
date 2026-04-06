@@ -244,26 +244,40 @@ Signal $f: S^2 \\to \\mathbb{R}$. Group $\\mathrm{SO}(3)$ acts by 3D rotation.
 
 **Bispectrum formula** \[Kakarala 1992, Cohen et al.\]:
 
-$$\\beta(f)_{l_1, l_2}^{(l)} = \\bigl(\\mathcal{F}_{l_1} \\otimes \\mathcal{F}_{l_2}\\bigr) \\cdot C_{l_1, l_2}^{(l)} \\cdot \\mathcal{F}\_l^\\dagger$$
+$$\\beta(f)_{l_1, l_2}^{(l)} = \\sum_{m_1, m_2, m} C(l_1,m_1;\\ l_2,m_2 \\mid l,m)\\ a\_{l_1}^{m_1}\\ a\_{l_2}^{m_2}\\ \\overline{a_l^m}$$
 
-where $\\mathcal{F}\_l$ are the degree-$l$ SH coefficient matrices and $C$ denotes the Clebsch-Gordan matrices for $\\mathrm{SO}(3)$.
+where $a_l^m$ are the spherical harmonic coefficients and $C$ denotes the Clebsch-Gordan coefficients for $\\mathrm{SO}(3)$. Each $\\beta\_{l_1,l_2,l}$ is a scalar (real for real signals). The full bispectrum has $O(L^3)$ entries.
+
+**Selective bispectrum** (this work, see `docs/selective_so3_on_s2_completeness.md`):
+$O(L^2)$ entries suffice for generic completeness, achieving the dimensional lower bound $(L+1)^2 - 3$. For each degree $l$, up to $2l+1$ triples are selected by priority from four categories: chain entries (linear in $F_l$), cross entries (linear), power entries (quadratic), and self-coupling entries (quadratic/cubic). At $l \\geq 4$, only linear entries are needed and recovery is a direct linear solve.
+
+**Clebsch-Gordan matrices:**
+Computed analytically via the Wigner 3j symbol (Racah formula) with log-factorial numerics. No external dependency or precomputed JSON required. Cached to disk after first computation. Any `lmax` is supported.
 
 **Usage:**
 
 ```python
-bsp = SO3onS2(lmax=5)
+# Full bispectrum: O(L³) entries
+bsp_full = SO3onS2(lmax=5, nlat=64, nlon=128, selective=False)
+
+# Selective bispectrum: O(L²) entries
+bsp_sel = SO3onS2(lmax=5, nlat=64, nlon=128, selective=True)
+
 f = torch.randn(batch_size, 64, 128)    # signal on S², shape (batch, nlat, nlon)
-output = bsp(f)                          # shape (batch, output_size), complex64
+output = bsp_sel(f)                      # shape (batch, 35), complex64
+
+print(bsp_full.output_size)              # 69
+print(bsp_sel.output_size)               # 35
 ```
 
 **Constructor parameters:**
 
 ```python
 SO3onS2(
-    lmax: int = 5,          # Maximum spherical harmonic degree
+    lmax: int = 5,          # Maximum spherical harmonic degree (any value supported)
     nlat: int = 64,         # Latitude grid points
     nlon: int = 128,        # Longitude grid points
-    selective: bool = True  # Selective or full bispectrum
+    selective: bool = True  # Selective O(L²) or full O(L³) bispectrum
 )
 ```
 
@@ -356,34 +370,30 @@ ______________________________________________________________________
 
 The central value proposition of the library is the *selective* G-bispectrum: a minimal subset of bispectral pairs $(\\rho, \\sigma)$ that suffices for complete signal reconstruction, reducing coefficient count from $O(\\lvert G\\rvert^2)$ to $O(\\lvert G\\rvert)$.
 
-This is proven for finite groups only. Here, `O` denotes the finite octahedral rotation group (not the full orthogonal group). The table below tracks the current state across all group/domain combinations of interest.
+This is proven for finite groups (Mataigne et al. 2024) and extended to $\\mathrm{SO}(3)$ on $S^2$ (this work, generic completeness). Here, `O` denotes the finite octahedral rotation group (not the full orthogonal group). The table below tracks the current state across all group/domain combinations of interest.
 
-| Class          | Group                | Domain                             | Selective?                                      | Inversion?      | Status           |
-| -------------- | -------------------- | ---------------------------------- | ----------------------------------------------- | --------------- | ---------------- |
-| `CnonCn`       | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1  | ✅ Done          |
-| `SO2onS1`      | $\\mathrm{SO}(2)$    | $S^1$                              | ✅ $n$ coefficients (via `CnonCn`)              | ✅ Algorithm 1  | ✅ Done          |
-| `TorusOnTorus` | $\\prod C\_{n_l}$    | $\\prod C\_{n_l}$                  | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2  | ✅ Done          |
-| `DnonDn`       | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done          |
-| `OctaonOcta`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done          |
-| `SO3onS2`      | $\\mathrm{SO}(3)$    | $S^2$                              | ❌ Full only                                    | ❌              | **Open problem** |
-| `SO2onDisk`    | $\\mathrm{SO}(2)$    | Disk                               | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅              | ✅ Done          |
-| —              | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌              | Open problem     |
-| —              | Compact $G$          | $G$                                | ❌ Full only                                    | ❌              | Open problem     |
-| —              | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌              | Open problem     |
+| Class          | Group                | Domain                             | Selective?                                      | Inversion?      | Status            |
+| -------------- | -------------------- | ---------------------------------- | ----------------------------------------------- | --------------- | ----------------- |
+| `CnonCn`       | $C_n$                | $C_n$                              | ✅ $n$ coefficients                             | ✅ Algorithm 1  | ✅ Done           |
+| `SO2onS1`      | $\\mathrm{SO}(2)$    | $S^1$                              | ✅ $n$ coefficients (via `CnonCn`)              | ✅ Algorithm 1  | ✅ Done           |
+| `TorusOnTorus` | $\\prod C\_{n_l}$    | $\\prod C\_{n_l}$                  | ✅ $\\lvert G \\rvert$ coefs                    | ✅ Algorithm 2  | ✅ Done           |
+| `DnonDn`       | $D_n$                | $D_n$                              | ✅ $\\lfloor(n{-}1)/2\\rfloor{+}2$ matrix coefs | ✅ Algorithm 3  | ✅ Done           |
+| `OctaonOcta`   | $O$                  | $\\mathbb{R}^3$                    | ✅ 4 matrix coefs (paper App. B)                | ✅ Bootstrap+LM | ✅ Done           |
+| `SO3onS2`      | $\\mathrm{SO}(3)$    | $S^2$                              | ✅ $O(L^2)$ coefficients (generic completeness) | ❌              | ✅ Selective done |
+| `SO2onDisk`    | $\\mathrm{SO}(2)$    | Disk                               | ✅ $N$ coefficients (Myers & Miolane 2025)      | ✅              | ✅ Done           |
+| —              | $\\mathrm{SO}(3)$    | $S^2 \\times \\mathbb{R}^+$ (ball) | ❌ Full only                                    | ❌              | Open problem      |
+| —              | Compact $G$          | $G$                                | ❌ Full only                                    | ❌              | Open problem      |
+| —              | Homogeneous $(H, G)$ | $H = G/G_0$                        | ❌ Full only                                    | ❌              | Open problem      |
 
-Sources: Mataigne et al. 2024 for all ✅ entries; "Bispectral Signatures of Data" (internal draft) for the full-bispectrum formulas of the remaining cases.
+Sources: Mataigne et al. 2024 for finite-group ✅ entries; Myers & Miolane 2025 for SO2onDisk; this work for SO3onS2 selective completeness (see `docs/selective_so3_on_s2_completeness.md`).
 
 ### Mathematical TODOs
 
 The following are open mathematical problems whose solutions would directly extend the library:
 
-**TODO-M1: Selective bispectrum for $\\mathrm{SO}(3)$ on $S^2$**
+**~~TODO-M1~~ DONE: Selective bispectrum for $\\mathrm{SO}(3)$ on $S^2$**
 
-The full bispectrum at band-limit $L$ has $O(L^3)$ coefficients, governed by the Kronecker product rule for $\\mathrm{SO}(3)$:
-
-$$\\rho\_{l_1} \\otimes \\rho\_{l_2} = \\bigoplus\_{l=|l_1-l_2|}^{l_1+l_2} \\rho_l$$
-
-A selective version would identify the minimal set of index pairs needed for inversion. The challenge: $\\mathrm{SO}(3)$ has infinitely many irreps $\\rho_l$ (one per $l \\geq 0$), and the BFS on the Kronecker table (used for finite groups) does not terminate. A truncated selective version with guaranteed reconstruction error bounds would be a meaningful contribution.
+Solved. The selective SO(3) bispectrum on $S^2$ uses $O(L^2)$ scalar entries instead of $O(L^3)$, achieving the dimensional lower bound $(L+1)^2 - 3$ for a complete invariant. For each degree $l$, up to $2l+1$ bispectral triples are selected from four priority categories (chain, cross, power, self-coupling). At $l \\geq 4$ only linear entries are needed; recovery is a linear solve. Completeness holds for Lebesgue-a.e. band-limited signal (generic completeness). See `docs/selective_so3_on_s2_completeness.md` for the full construction and proof sketch. Implemented in `SO3onS2(selective=True)`.
 
 **~~TODO-M2~~ DONE: Selective bispectrum for $\\mathrm{SO}(2)$ on the disk**
 
@@ -421,7 +431,7 @@ We do not depend on `escnn` or any external library for Clebsch-Gordan coefficie
 
 - **$C_n$**: No CG matrices needed. The bispectrum for commutative groups reduces to scalar products — no change-of-basis required.
 - **$D_n$**: CG matrices are computed analytically from the explicit 2D irrep formulas (given in the paper). These are closed-form rotation matrices; no library is needed.
-- **$\\mathrm{SO}(3)$**: CG matrices are pre-computed and stored as a bundled JSON file (`data/cg_lmax5.json`). A generation script is provided so users can extend to higher $l\_\\mathrm{max}$ if needed.
+- **$\\mathrm{SO}(3)$**: CG matrices are computed analytically via the Wigner 3j symbol (Racah formula) with log-factorial numerics for stability at large $l$. Results are cached to `~/.cache/bispectrum/cg_lmax{N}.pt` after first computation. Any `lmax` is supported — no bundled JSON limit.
 
 This keeps the dependency footprint minimal and makes the math transparent — CG coefficients are computed from first principles, not treated as a black box.
 
@@ -485,14 +495,14 @@ ______________________________________________________________________
 
 ## Migration from v0.1.0
 
-| v0.1.0                                | v0.2.0                                          | Notes                                 |
-| ------------------------------------- | ----------------------------------------------- | ------------------------------------- |
-| `SO3onS2(lmax=5)(coeffs)`             | `SO3onS2(lmax=5, nlat=64, nlon=128)(f_spatial)` | Now takes spatial signal              |
-| `bispectrum(f_coeffs, l1, l2, cg_fn)` | Removed                                         | Use `SO3onS2` module                  |
-| `clebsch_gordan(l1, l2)`              | Removed                                         | Internal; use bundled `cg_lmax5.json` |
-| `compute_padding_indices(...)`        | Removed (internal)                              |                                       |
-| `pad_sh_coefficients(...)`            | Removed (internal)                              |                                       |
-| `get_full_sh_coefficients(...)`       | Removed (internal)                              |                                       |
+| v0.1.0                                | v0.2.0                                          | Notes                                        |
+| ------------------------------------- | ----------------------------------------------- | -------------------------------------------- |
+| `SO3onS2(lmax=5)(coeffs)`             | `SO3onS2(lmax=5, nlat=64, nlon=128)(f_spatial)` | Now takes spatial signal                     |
+| `bispectrum(f_coeffs, l1, l2, cg_fn)` | Removed                                         | Use `SO3onS2` module                         |
+| `clebsch_gordan(l1, l2)`              | Removed                                         | Internal; computed analytically via `_cg.py` |
+| `compute_padding_indices(...)`        | Removed (internal)                              |                                              |
+| `pad_sh_coefficients(...)`            | Removed (internal)                              |                                              |
+| `get_full_sh_coefficients(...)`       | Removed (internal)                              |                                              |
 
 ______________________________________________________________________
 
