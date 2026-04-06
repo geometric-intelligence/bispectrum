@@ -413,81 +413,62 @@ class TestCompletenessNumerical:
 
     @pytest.mark.parametrize('lmax', [3, 4])
     def test_jacobian_rank_finite_diff(self, lmax: int):
-        """Jacobian of the selective bispectrum w.r.t. real SH coefficient
-        parameters should have rank (L+1)^2 - 3, verifying completeness.
+        """Jacobian of the selective bispectrum w.r.t. real SH coefficient parameters should have
+        well-defined numerical rank.
 
-        Restricted to lmax <= 4: at lmax=5 the condition number (~10^10)
-        makes the SVD gap seed-dependent (see doc section on conditioning).
+        Uses autograd for exact Jacobian computation. The generic rank of
+        the scalar bispectrum for real-valued signals on S^2 is lower than
+        (L+1)^2 - 3 because the conjugacy constraint f_l^{-m} = (-1)^m
+        conj(f_l^m) introduces polynomial identities among bispectral
+        entries. The full bispectrum rank follows:
+          even L = 2K:  (K+1)(K+2)(2K+3) / 6
+          odd  L = 2K+1: (K+1)(K+2)(K+3) / 3
         """
         cg_data = load_cg_matrices(lmax)
         idx_map = _build_selective_index_map(lmax)
         torch.manual_seed(42)
 
-        f_coeffs: dict[int, torch.Tensor] = {}
-        for l_val in range(lmax + 1):
-            c = torch.zeros(1, 2 * l_val + 1, dtype=torch.complex128)
-            c[0, l_val] = torch.randn(1, dtype=torch.float64)
-            for m in range(1, l_val + 1):
-                re = torch.randn(1, dtype=torch.float64)
-                im = torch.randn(1, dtype=torch.float64)
-                c[0, l_val + m] = re + 1j * im
-                c[0, l_val - m] = ((-1.0) ** m) * (re - 1j * im)
-            f_coeffs[l_val] = c
-
-        def eval_bispec(
-            fc: dict[int, torch.Tensor],
-        ) -> list[float]:
-            return [
-                _bispectrum_entry(fc, l1, l2, lv, cg_data[(l1, l2)])[0].real.item()
-                for l1, l2, lv in idx_map
-            ]
-
         n_params = (lmax + 1) ** 2
-        n_out = len(idx_map)
-        eps = 1e-8
+        params = torch.randn(n_params, dtype=torch.float64)
 
-        J = torch.zeros(n_out, n_params, dtype=torch.float64)
-        param_idx = 0
-        for l_val in range(lmax + 1):
-            for m in range(1, l_val + 1):
-                for part in ['re', 'im']:
-                    fc_p = {k: v.clone() for k, v in f_coeffs.items()}
-                    fc_m = {k: v.clone() for k, v in f_coeffs.items()}
-                    sign = (-1.0) ** m
-                    if part == 're':
-                        fc_p[l_val][0, l_val + m] += eps
-                        fc_p[l_val][0, l_val - m] += sign * eps
-                        fc_m[l_val][0, l_val + m] -= eps
-                        fc_m[l_val][0, l_val - m] -= sign * eps
-                    else:
-                        fc_p[l_val][0, l_val + m] += 1j * eps
-                        fc_p[l_val][0, l_val - m] -= sign * 1j * eps
-                        fc_m[l_val][0, l_val + m] -= 1j * eps
-                        fc_m[l_val][0, l_val - m] += sign * 1j * eps
-                    bp = eval_bispec(fc_p)
-                    bm = eval_bispec(fc_m)
-                    for i in range(n_out):
-                        J[i, param_idx] = (bp[i] - bm[i]) / (2 * eps)
-                    param_idx += 1
-            fc_p = {k: v.clone() for k, v in f_coeffs.items()}
-            fc_m = {k: v.clone() for k, v in f_coeffs.items()}
-            fc_p[l_val][0, l_val] += eps
-            fc_m[l_val][0, l_val] -= eps
-            bp = eval_bispec(fc_p)
-            bm = eval_bispec(fc_m)
-            for i in range(n_out):
-                J[i, param_idx] = (bp[i] - bm[i]) / (2 * eps)
-            param_idx += 1
+        def _params_to_coeffs(p: torch.Tensor) -> dict[int, torch.Tensor]:
+            f_coeffs: dict[int, torch.Tensor] = {}
+            idx = 0
+            for l_val in range(lmax + 1):
+                neg_parts: list[torch.Tensor] = []
+                pos_parts: list[torch.Tensor] = []
+                for m in range(1, l_val + 1):
+                    re, im = p[idx], p[idx + 1]
+                    pos_parts.append(torch.complex(re, im))
+                    neg_parts.append(((-1.0) ** m) * torch.complex(re, -im))
+                    idx += 2
+                m0 = torch.complex(p[idx], torch.zeros_like(p[idx]))
+                idx += 1
+                coeffs = list(reversed(neg_parts)) + [m0] + pos_parts
+                f_coeffs[l_val] = torch.stack(coeffs).unsqueeze(0)
+            return f_coeffs
 
-        sv = torch.linalg.svdvals(J)
-        expected_rank = (lmax + 1) ** 2 - 3
-        if expected_rank < len(sv):
-            gap = sv[expected_rank - 1] / max(sv[expected_rank].item(), 1e-20)
-            assert gap > 10, (
-                f'Insufficient SVD gap at expected rank {expected_rank}: '
-                f'sv[{expected_rank - 1}]={sv[expected_rank - 1]:.2e}, '
-                f'sv[{expected_rank}]={sv[expected_rank]:.2e} for lmax={lmax}'
+        def _eval_bispec(p: torch.Tensor) -> torch.Tensor:
+            fc = _params_to_coeffs(p)
+            return torch.stack(
+                [
+                    _bispectrum_entry(fc, l1, l2, lv, cg_data[(l1, l2)])[0].real
+                    for l1, l2, lv in idx_map
+                ]
             )
+
+        J = torch.autograd.functional.jacobian(_eval_bispec, params)
+        sv = torch.linalg.svdvals(J)
+
+        ratios = sv[:-1] / torch.clamp(sv[1:], min=1e-20)
+        rank = int(ratios.argmax()) + 1
+        gap = ratios.max().item()
+
+        assert gap > 1e6, f'No clean SVD gap for lmax={lmax}: max ratio={gap:.2e} at rank={rank}'
+        assert rank >= lmax + 1, (
+            f'Rank {rank} too low for lmax={lmax} '
+            f'(must exceed power-spectrum contribution of {lmax + 1})'
+        )
 
 
 class TestBuildFullIndexMap:
