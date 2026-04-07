@@ -527,3 +527,54 @@ class TestSelectiveLmax0:
         beta = bsp(f)
         assert beta.shape == (2, 1)
         assert beta.abs().max() > 0
+
+
+class TestForwardEdgeCases:
+    """Edge cases for the batched forward pass."""
+
+    def test_empty_index_map(self):
+        """Forward with zero output entries returns empty tensor."""
+        bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
+        bsp._index_map = []
+        bsp._group_data = []
+        f = torch.randn(3, 32, 64)
+        result = bsp(f)
+        assert result.shape == (3, 0)
+
+    def test_batch_size_one(self):
+        bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True)
+        f = torch.randn(1, 32, 64)
+        result = bsp(f)
+        assert result.shape == (1, bsp.output_size)
+        assert result.is_complex()
+        assert result.abs().max() > 1e-10
+
+    def test_float64_input(self):
+        """Forward with double-precision input."""
+        bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
+        f = torch.randn(2, 32, 64, dtype=torch.float64)
+        result = bsp(f)
+        assert result.shape == (2, bsp.output_size)
+        assert result.abs().max() > 1e-10
+
+    def test_large_batch(self):
+        bsp = SO3onS2(lmax=2, nlat=32, nlon=64, selective=True)
+        f = torch.randn(32, 32, 64)
+        result = bsp(f)
+        assert result.shape == (32, bsp.output_size)
+
+    def test_group_independence(self):
+        """Each (l1, l2) group contributes independently to the result."""
+        bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True)
+        f = torch.randn(2, 32, 64)
+        beta = bsp(f)
+
+        groups_seen = set()
+        for l1, l2, _ in bsp.index_map:
+            groups_seen.add((l1, l2))
+        assert len(groups_seen) > 1, 'Need multiple groups for this test'
+
+        for l1, l2 in groups_seen:
+            group_indices = [i for i, (a, b, _) in enumerate(bsp.index_map) if (a, b) == (l1, l2)]
+            group_result = beta[:, group_indices]
+            assert group_result.abs().max() > 0, f'Group ({l1},{l2}) produced all zeros'

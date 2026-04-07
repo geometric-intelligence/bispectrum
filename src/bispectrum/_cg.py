@@ -567,7 +567,7 @@ def _load_cache(lmax: int) -> dict[tuple[int, int], torch.Tensor] | None:
             l1, l2 = map(int, key.split('_'))
             matrices[(l1, l2)] = val
         return matrices
-    except (OSError, RuntimeError, ValueError, KeyError):
+    except (OSError, RuntimeError, ValueError, KeyError, Exception):
         return None
 
 
