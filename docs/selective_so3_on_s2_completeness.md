@@ -215,6 +215,43 @@ an SO(3) rotation of f.
 
 Therefore: β_sel(f) = β_sel(f') implies f' ∈ SO(3) · f for generic f. ∎
 
+## Complexity in pixel space
+
+On S², a band-limited signal at degree L is sampled on an equiangular grid of
+size N_θ × N_φ ≈ 2L × 2L, so the number of pixels is P = 4L², giving L ≈ √P.
+
+### Output size (number of invariant scalars)
+
+| Invariant          | In L    | In P        |
+|--------------------|---------|-------------|
+| Power spectrum     | O(L)    | O(√P)      |
+| **Selective bispec.** | **O(L²)** | **O(P)** |
+| Full bispectrum    | O(L³)   | O(P^{3/2}) |
+
+The selective bispectrum is **linear in the number of pixels**: it is the
+smallest complete SO(3)-invariant achievable, scaling like the input itself.
+
+### Computation cost
+
+1. **Spherical harmonic transform (SHT)**: O(L² log² L) = O(P log P) with
+   fast algorithms; O(L³) = O(P^{3/2}) naively.
+2. **Bispectral contractions**: each entry β_{l₁,l₂,l} requires a CG-weighted
+   inner product with O(l) terms.
+
+| Variant   | # entries | Cost per entry | Total compute | Total in P    |
+|-----------|-----------|----------------|---------------|---------------|
+| Full      | O(L³)     | O(L)           | O(L⁴)        | O(P²)        |
+| Selective | O(L²)     | O(L)           | O(L³)        | O(P^{3/2})   |
+
+The selective version wins on both axes: fewer outputs **and** cheaper to
+compute.
+
+### Concrete example
+
+For a 128 × 256 grid (P ≈ 32K, L = 64):
+- Full bispectrum: ~87K scalars, ~17M ops
+- Selective bispectrum: ~4K scalars, ~260K ops — a 65× reduction in ops
+
 ## Comparison with existing results
 
 | Result | Invariant type | Size | Completeness |

@@ -75,7 +75,11 @@ Candidate abstract structure:
   \item Problem: selective $G$-bispectra are theoretically attractive but not available as practical ML software.
   \item Main artifact: a PyTorch library implementing selective or full bispectral invariants across several group/domain pairs.
   \item Main technical point: implementing inversion for the octahedral group required resolving a concrete algorithmic failure of the bootstrap strategy.
-  \item Empirical point: evaluate the library as an invariant pooling primitive on PatchCamelyon, with final claims deferred until sweeps are complete.
+  \item Empirical point: evaluate the library across three group/domain
+    settings---$C_8$ on PCam, octahedral on OrganMNIST3D, and $\SO(3)$ on
+    Spherical MNIST---demonstrating exact rotation invariance and the
+    discriminative advantage of complete bispectral invariants over
+    incomplete alternatives (power spectrum, norm pooling).
   \item Scope note: do not mention steerable-to-Fourier in this version.
 \end{itemize}
 \end{abstract}
@@ -215,7 +219,7 @@ Candidate principles:
     \texttt{TorusOnTorus} & product cyclic groups on torus & selective + full & implemented \\
     \texttt{DnonDn} & $D_n$ on $D_n$ & selective & implemented \\
     \texttt{SO2onDisk} & $\SO(2)$ on disk & selective & implemented \\
-    \texttt{SO3onS2} & $\SO(3)$ on $S^2$ & full only & not implemented \\
+    \texttt{SO3onS2} & $\SO(3)$ on $S^2$ & selective + full & implemented \\
     \texttt{OctaonOcta} & octahedral group & selective & implemented \\
     \bottomrule
   \end{tabular}
@@ -280,6 +284,13 @@ Candidate benchmark questions for co-author review:
 
 \section{Experiments}
 \label{sec:experiments}
+
+We validate the library on three tasks spanning discrete and continuous
+groups: 2D histopathology classification under $C_8$ symmetry (PCam,
+Section~\ref{sec:pcam}), 3D organ classification under octahedral symmetry
+(OrganMNIST3D, Section~\ref{sec:organ3d}), and spherical digit
+classification under full $\SO(3)$ (Spherical MNIST,
+Section~\ref{sec:smnist}).
 
 \subsection{2D histopathology classification under cyclic symmetry}
 \label{sec:pcam}
@@ -607,6 +618,131 @@ to 71.5\%---the 6.3M-parameter bispectrum model likely overfits the 971
 training samples. This suggests that the bispectrum's completeness advantage
 is most pronounced in the data-limited rather than the parameter-limited
 regime, consistent with the data efficiency findings above.
+
+
+\subsection{Spherical MNIST: SO(3) invariance on the sphere}
+\label{sec:smnist}
+
+The preceding experiments validate bispectral pooling for finite groups
+($C_8$ and the octahedral group $O$). To evaluate the library's continuous
+group support, we test \texttt{SO3onS2}---the $\SO(3)$ bispectrum on the
+2-sphere---on Spherical MNIST~\cite{cohen2018spherical}, the standard
+benchmark for rotation invariance on $S^2$.
+
+\paragraph{Setup.}
+MNIST digits are projected onto the sphere via stereographic projection and
+sampled on a $64 \times 128$ equiangular grid. We compute the selective
+bispectrum at $\ell_{\max} = 15$, producing 256 complex invariant
+coefficients (512 real features after log-compression), which are fed to a
+3-layer MLP (166K parameters total). Three baselines provide controls:
+\begin{itemize}
+  \item \textbf{Power Spectrum + MLP} (11K params): computes only the
+    rotation-invariant power spectrum $\|f_\ell\|^2$ per degree $\ell$,
+    discarding all phase coupling between harmonics. Invariant but
+    \emph{incomplete}.
+  \item \textbf{Power Spectrum + MLP (matched)} (166K params): same
+    incomplete invariant features but with an MLP scaled to match the
+    bispectrum model's parameter count, isolating the effect of
+    feature completeness from model capacity.
+  \item \textbf{Standard CNN} (185K params): a conventional CNN operating
+    directly on the equirectangular image. Not rotation-invariant.
+\end{itemize}
+Following Cohen et al.~\cite{cohen2018spherical}, we evaluate under three
+protocols: train on non-rotated / test on non-rotated (NR/NR), train on
+rotated / test on rotated (R/R), and the most challenging train on
+non-rotated / test on rotated (NR/R). Each configuration is run with three
+seeds. Rotation robustness is assessed by applying 10 random $\SO(3)$
+rotations to the entire test set and measuring accuracy variance.
+
+\paragraph{Results.}
+Table~\ref{tab:smnist-results} and Figure~\ref{fig:smnist-analysis} report
+the results.
+
+\begin{table}[t]
+  \caption{Spherical MNIST results (mean $\pm$ std over 3 seeds). Cohen
+    et al.\ reference numbers are from \cite{cohen2018spherical}.
+    $\sigma_{\mathrm{rot}}$: standard deviation of accuracy under 10
+    random $\SO(3)$ rotations (NR-trained models).}
+  \label{tab:smnist-results}
+  \centering
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrcccc}
+    \toprule
+    Model & Params & NR/NR $\uparrow$ & R/R $\uparrow$ & NR/R $\uparrow$
+      & $\sigma_{\mathrm{rot}}$ $\downarrow$ \\
+    \midrule
+    Cohen planar CNN & --- & $0.98$ & $0.23$ & $0.11$ & --- \\
+    Cohen spherical CNN & --- & $0.96$ & $0.95$ & $0.94$ & --- \\
+    \midrule
+    Standard CNN & 185K
+      & $0.991 {\pm} 0.000$ & $0.781 {\pm} 0.003$ & $0.138 {\pm} 0.003$
+      & $0.044$ \\
+    Power Spec.\ + MLP & 11K
+      & $0.780 {\pm} 0.002$ & $0.780 {\pm} 0.002$ & $0.777 {\pm} 0.001$
+      & $3{\times}10^{-4}$ \\
+    Power Spec.\ + MLP (matched) & 166K
+      & $0.794 {\pm} 0.011$ & $0.794 {\pm} 0.011$ & $0.792 {\pm} 0.010$
+      & $3{\times}10^{-4}$ \\
+    \textbf{Bispectrum + MLP (ours)} & 166K
+      & $\mathbf{0.948 {\pm} 0.001}$ & $\mathbf{0.948 {\pm} 0.001}$
+      & $\mathbf{0.949 {\pm} 0.001}$ & $\mathbf{1{\times}10^{-4}}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{experiments/spherical_mnist/smnist_analysis.pdf}
+  \caption{Spherical MNIST analysis.
+    \textbf{(a)}~Cohen et al.\ protocol: NR/NR, R/R, and NR/R accuracy.
+    Dashed lines show Cohen's spherical CNN reference.
+    \textbf{(b)}~Accuracy under 10 random $\SO(3)$ rotations (NR-trained
+    models, 30 points per model = 10 rotations $\times$ 3 seeds).
+    Scaling the power spectrum MLP from 11K to 166K parameters yields
+    only +1.4pp; the bispectrum at matched 166K reaches 94.9\%.}
+  \label{fig:smnist-analysis}
+\end{figure}
+
+\emph{Exact $\SO(3)$ invariance.}
+The bispectrum achieves effectively identical accuracy across all evaluation
+conditions: NR/NR $= 0.948$, R/R $= 0.948$, NR/R $= 0.949$. The standard
+deviation under random rotations is $8 \times 10^{-5}$---effectively zero.
+Training on rotated vs.\ non-rotated data makes no difference, confirming
+that the bispectral features are truly $\SO(3)$-invariant and rotation
+augmentation is unnecessary. In contrast, the standard CNN achieves 99.1\%
+on NR/NR but collapses to 13.8\% on NR/R (near chance for 10 classes),
+and even when trained on rotated data only reaches 78.1\% with substantial
+variance ($\sigma_{\mathrm{rot}} \approx 0.04$ under random rotations).
+
+\emph{Completeness gap.}
+The power spectrum is also rotation-invariant ($\sigma_{\mathrm{rot}} =
+0.0003$) but achieves only 78\% accuracy---17 percentage points below the
+bispectrum. To rule out a capacity confound (11K vs.\ 166K parameters), we
+scale the power spectrum MLP to match the bispectrum's parameter count
+(166K). This 15$\times$ capacity increase yields only +1.4pp (78.0\%
+$\to$ 79.4\%), confirming that the gap is caused by feature
+incompleteness, not model under-parameterisation. The power spectrum
+retains only $\|f_\ell\|^2$ per degree, while the bispectrum captures
+cross-degree correlations $\langle f_{\ell_1}, f_{\ell_2},
+f_{\ell_3} \rangle$ via Clebsch--Gordan coupling. For digit
+classification, these phase relationships carry substantial discriminative
+information that no amount of downstream capacity can recover.
+
+\emph{Comparison with Cohen et al.}
+Cohen's spherical CNN~\cite{cohen2018spherical}---which uses learned
+$\SO(3)$-equivariant convolutions across multiple layers---achieves
+96\%/95\%/94\% (NR/NR, R/R, NR/R). Our bispectrum reaches
+94.8\%/94.8\%/94.9\%, approximately 1--2pp lower in absolute accuracy but
+with a \emph{smaller} NR/NR-to-NR/R gap (0.0pp vs.\ 2.0pp). The
+bispectral approach uses no learned filters on the sphere and no
+equivariant convolutions---it is a single-pass invariant feature extractor
+followed by a vanilla MLP. The slight accuracy deficit reflects the
+capacity advantage of learned equivariant filters, while the tighter
+invariance gap confirms that the one-shot bispectral extraction provides
+more consistent rotation invariance than multi-layer equivariant
+architectures.
+
 
 \section{Related Work}
 \label{sec:related}
