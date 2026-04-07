@@ -23,12 +23,12 @@ import matplotlib.pyplot as plt
 import torch
 import torch.utils.benchmark as torchbench
 
-from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onD2, SO3onS2, TorusOnTorus
+from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onDisk, SO3onS2, TorusOnTorus
 
 FIGURES_DIR = Path(__file__).parent / 'figures'
 
-# SO2onD2 L=64 takes ~minutes for Bessel root computation; cap at L=32.
-_SO2OND2_LS = [8, 16, 32]
+# SO2onDisk L=64 takes ~minutes for Bessel root computation; cap at L=32.
+_SO2ONDISK_LS = [8, 16, 32]
 
 
 def _so3_params(lmax: int) -> dict[str, int]:
@@ -44,14 +44,12 @@ def _make_input(
     """Create a random input tensor appropriate for the given module."""
     if module_name == 'CnonCn':
         return torch.randn(batch, params['n'], device=device)
-    if module_name == 'SO2onS1':
-        return torch.randn(batch, params['n'], device=device)
     if module_name == 'TorusOnTorus':
         ns = params['ns']
         return torch.randn(batch, *ns, device=device)
     if module_name == 'DnonDn':
         return torch.randn(batch, 2 * params['n'], device=device)
-    if module_name == 'SO2onD2':
+    if module_name == 'SO2onDisk':
         L = params['L']
         return torch.randn(batch, L, L, device=device)
     if module_name == 'SO3onS2':
@@ -63,13 +61,13 @@ def _make_input(
 
 def _group_order(module_name: str, params: dict[str, Any]) -> int:
     """Compute |G| for display purposes."""
-    if module_name in ('CnonCn', 'SO2onS1'):
+    if module_name == 'CnonCn':
         return params['n']
     if module_name == 'TorusOnTorus':
         return math.prod(params['ns'])
     if module_name == 'DnonDn':
         return 2 * params['n']
-    if module_name == 'SO2onD2':
+    if module_name == 'SO2onDisk':
         return params['L'] ** 2
     if module_name == 'SO3onS2':
         return (params.get('lmax', 5) + 1) ** 2
@@ -89,8 +87,8 @@ def _build_module(
         return TorusOnTorus(ns=params['ns'], selective=selective)
     if module_name == 'DnonDn':
         return DnonDn(n=params['n'], selective=selective)
-    if module_name == 'SO2onD2':
-        return SO2onD2(L=params['L'], selective=selective)
+    if module_name == 'SO2onDisk':
+        return SO2onDisk(L=params['L'], selective=selective)
     if module_name == 'SO3onS2':
         return SO3onS2(
             lmax=params.get('lmax', 5),
@@ -113,8 +111,8 @@ def bench_coefficient_count() -> plt.Figure:
         ('CnonCn', [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256, 512, 1024]]),
         ('TorusOnTorus', [{'ns': (n, n)} for n in [4, 8, 16, 32, 64, 128, 256]]),
         ('DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256]]),
-        ('SO2onD2', [{'L': L} for L in [8, 16, 32]]),
-        ('SO3onS2', [_so3_params(l) for l in [2, 3, 4, 5]]),
+        ('SO2onDisk', [{'L': L} for L in [8, 16, 32]]),
+        ('SO3onS2', [_so3_params(l) for l in [2, 4, 8, 16, 32]]),
     ]
 
     # Full-mode configs: only instantiate for small enough sizes (to avoid OOM),
@@ -122,6 +120,7 @@ def bench_coefficient_count() -> plt.Figure:
     full_configs: list[tuple[str, list[dict[str, Any]]]] = [
         ('CnonCn', [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256, 512, 1024]]),
         ('TorusOnTorus', [{'ns': (n, n)} for n in [4, 8, 16, 32, 64, 128, 256]]),
+        ('SO3onS2', [_so3_params(l) for l in [2, 4, 8]]),
     ]
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 7))
@@ -252,8 +251,12 @@ def bench_forward_pass(device: torch.device) -> plt.Figure:
             [{'ns': (n, n)} for n in full_torus],
         ),
         ('DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128]], None),
-        ('SO2onD2', [{'L': L} for L in _SO2OND2_LS], None),
-        ('SO3onS2', [_so3_params(l) for l in [2, 3, 4, 5]], None),
+        ('SO2onDisk', [{'L': L} for L in _SO2ONDISK_LS], None),
+        (
+            'SO3onS2',
+            [_so3_params(l) for l in [2, 4, 8, 16, 32]],
+            [_so3_params(l) for l in [2, 4, 8]],
+        ),
     ]
 
     fig, axes = plt.subplots(2, 3, figsize=(16, 10))
@@ -333,7 +336,7 @@ def bench_inversion(device: torch.device) -> plt.Figure:
         ('CnonCn', [{'n': n} for n in [8, 16, 32, 64, 128, 256, 512, 1024]], {}),
         ('TorusOnTorus', [{'ns': (n, n)} for n in [8, 16, 32, 64, 128, 256]], {}),
         ('DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128]], {}),
-        ('SO2onD2', [{'L': L} for L in _SO2OND2_LS], {}),
+        ('SO2onDisk', [{'L': L} for L in _SO2ONDISK_LS], {}),
     ]
 
     fig, axes = plt.subplots(2, 3, figsize=(16, 10))
@@ -439,8 +442,8 @@ def bench_gpu_scaling() -> plt.Figure:
         ('CnonCn', {'n': 128}),
         ('TorusOnTorus', {'ns': (32, 32)}),
         ('DnonDn', {'n': 32}),
-        ('SO2onD2', {'L': 32}),
-        ('SO3onS2', _so3_params(5)),
+        ('SO2onDisk', {'L': 32}),
+        ('SO3onS2', _so3_params(16)),
         ('OctaonOcta', {}),
     ]
 
@@ -602,8 +605,14 @@ def paper_figures(device: torch.device) -> None:
             's',
         ),
         (r'$D_n$', 'DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256]], c[2], '^'),
-        (r'$\mathrm{SO}(2)/D^2$', 'SO2onD2', [{'L': L} for L in [8, 16, 32]], c[6], 'v'),
-        (r'$\mathrm{SO}(3)/S^2$', 'SO3onS2', [_so3_params(l) for l in [2, 3, 4, 5]], c[3], 'D'),
+        (r'$\mathrm{SO}(2)/D^2$', 'SO2onDisk', [{'L': L} for L in [8, 16, 32]], c[6], 'v'),
+        (
+            r'$\mathrm{SO}(3)/S^2$',
+            'SO3onS2',
+            [_so3_params(l) for l in [2, 4, 8, 16, 32]],
+            c[3],
+            'D',
+        ),
     ]
 
     all_gs_flat: list[int] = []
@@ -620,7 +629,7 @@ def paper_figures(device: torch.device) -> None:
             markersize=5,
             linewidth=1.3,
         )
-        if mod_name in ('CnonCn', 'TorusOnTorus'):
+        if mod_name in ('CnonCn', 'TorusOnTorus', 'SO3onS2'):
             ax1.plot(
                 gs,
                 full_sizes,
@@ -755,6 +764,7 @@ def paper_figures(device: torch.device) -> None:
         (r'$C_n$', 'CnonCn', {'n': 128}, c[4], 'o'),
         (r'$\mathbb{T}^2$', 'TorusOnTorus', {'ns': (32, 32)}, c[0], 's'),
         (r'$D_n$', 'DnonDn', {'n': 32}, c[2], '^'),
+        (r'$\mathrm{SO}(3)/S^2$', 'SO3onS2', _so3_params(16), c[3], 'v'),
         (r'$O$', 'OctaonOcta', {}, c[5], 'D'),
     ]
 
@@ -796,7 +806,7 @@ def paper_figures(device: torch.device) -> None:
             's',
         ),
         (r'$D_n$', 'DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128]], c[2], '^'),
-        (r'$\mathrm{SO}(2)/D^2$', 'SO2onD2', [{'L': L} for L in _SO2OND2_LS], c[6], 'v'),
+        (r'$\mathrm{SO}(2)/D^2$', 'SO2onDisk', [{'L': L} for L in _SO2ONDISK_LS], c[6], 'v'),
     ]
 
     for label, mod_name, params_list, color, marker in inv_configs:
@@ -852,8 +862,8 @@ def paper_figures(device: torch.device) -> None:
             True,
         ),
         (r'\texttt{DnonDn}', r'$D_{32}$', 'DnonDn', {'n': 32}, True, False),
-        (r'\texttt{SO2onD2}', r'$\mathrm{SO}(2)$', 'SO2onD2', {'L': 32}, True, False),
-        (r'\texttt{SO3onS2}', r'$\mathrm{SO}(3)$', 'SO3onS2', _so3_params(5), False, False),
+        (r'\texttt{SO2onDisk}', r'$\mathrm{SO}(2)$', 'SO2onDisk', {'L': 32}, True, False),
+        (r'\texttt{SO3onS2}', r'$\mathrm{SO}(3)$', 'SO3onS2', _so3_params(16), False, False),
         (r'\texttt{OctaonOcta}', r'$O$', 'OctaonOcta', {}, True, False),
     ]
 

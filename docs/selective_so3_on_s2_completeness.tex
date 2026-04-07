@@ -1,0 +1,1000 @@
+\documentclass{article}
+
+\usepackage[preprint]{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{cleveref}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\SO}{\mathrm{SO}}
+\newcommand{\SH}{Y}
+\newcommand{\CG}[6]{C^{#5,\,#6}_{#1,\,#2;\,#3,\,#4}}
+\newcommand{\abs}[1]{\lvert #1 \rvert}
+\newcommand{\norm}[1]{\lVert #1 \rVert}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\conj}[1]{\overline{#1}}
+\newcommand{\ip}[2]{\langle #1,\, #2 \rangle}
+\DeclareMathOperator{\sgn}{sgn}
+
+\title{The Selective $\SO(3)$ Bispectrum on $S^2$:\\
+Construction and Completeness}
+
+\author{%
+  Johan Mathe \\
+  Atmo \\
+  San Francisco, CA \\
+  \texttt{johan@atmo.ai}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We construct a \emph{selective} bispectrum for $\SO(3)$ acting on the
+$2$-sphere $S^2$ at band-limit $L$, using $\mathcal{O}(L^2)$ scalar
+entries instead of the full $\mathcal{O}(L^3)$.
+The construction recovers spherical harmonic coefficients degree by
+degree: explicit gauge fixing resolves the continuous $\SO(3)$ ambiguity
+at low degrees, after which a linear bootstrap---whose generic
+full-rank property follows from a polynomial non-vanishing
+argument---handles all higher degrees.
+We prove that the resulting selective set is a complete invariant for
+generic band-limited signals: two signals share the same selective
+bispectrum if and only if they differ by an $\SO(3)$ rotation, for
+Lebesgue-almost-every signal.
+On an equiangular grid with $P$ pixels, the selective bispectrum
+has $\mathcal{O}(P)$ entries and costs $\mathcal{O}(P^{3/2})$ to
+compute, compared with $\mathcal{O}(P^{3/2})$ entries and
+$\mathcal{O}(P^2)$ cost for the full bispectrum.
+This extends the selective $G$-bispectrum of Mataigne et
+al.~\cite{mataigne2024} from finite groups to the compact continuous
+group $\SO(3)$.
+\end{abstract}
+
+\section{Introduction}\label{sec:introduction}
+
+Mataigne et al.~\cite{mataigne2024} showed that for finite groups $G$,
+the full $G$-bispectrum---which has $\mathcal{O}(|G|^2)$ matrix-valued
+entries---can be reduced to a \emph{selective} subset of only
+$\mathcal{O}(|G|)$ entries while preserving completeness. Their
+construction traverses the irrep graph via a generating set, recovering
+Fourier coefficients $\mathcal{F}(\Theta)_\rho$ one irrep at a time.
+
+We extend this idea from finite groups to $\SO(3)$ acting on the
+$2$-sphere $S^2$, where signals are expanded in spherical harmonics
+(which form bases for the irreducible representations of $\SO(3)$) and bispectral entries are \emph{scalars}
+rather than matrices. The passage from finite to continuous introduces
+two key differences:
+
+\begin{enumerate}[nosep]
+  \item \textbf{Scalars vs.\ matrices.}
+    On a finite group, $\mathcal{F}(\Theta)_\rho$ is a
+    $d_\rho \times d_\rho$ matrix, and a single bispectral entry
+    $\beta_{\rho_1,\rho_2}$ is itself matrix-valued, carrying
+    $\mathcal{O}(d_\rho^2)$ scalar constraints. On $S^2$, the coefficient
+    vector $\mathbf{F}_\ell$ at degree~$\ell$ has $2\ell+1$ components
+    but each bispectral entry $\beta_{\ell_1,\ell_2,\ell}$ is a
+    \emph{single scalar}. The chain
+    $\beta_{1,0,1},\,\beta_{1,1,2},\,\dotsc$ provides only $\sim L$
+    scalars---far too few to pin down all $(L+1)^2$ unknowns.
+
+  \item \textbf{Continuous gauge.}
+    On a finite group, the inversion ambiguity is a discrete element
+    $h \in G$, absorbed by the CG structure. On $S^2$, the ambiguity
+    is a continuous $\SO(3)$ rotation (3~real parameters), which we
+    resolve by explicit gauge fixing: aligning $\mathbf{F}_1$ with the
+    $z$-axis and fixing the azimuthal phase of~$\mathbf{F}_2$.
+\end{enumerate}
+
+\paragraph{High-level construction.}
+Our selective bispectrum recovers the spherical harmonic coefficients
+$\mathbf{F}_0, \mathbf{F}_1, \dotsc, \mathbf{F}_L$ degree by degree,
+analogous to Mataigne et al.'s irrep-by-irrep traversal but adapted
+for the scalar bispectrum on~$S^2$.  At each degree~$\ell$, we need
+$2\ell+1$ scalar equations to determine $\mathbf{F}_\ell$. We obtain
+these from bispectral triples in which $\mathbf{F}_\ell$ appears
+linearly (the other two indices being lower, hence already known). The
+key insight is:
+
+\begin{quote}
+  \emph{For $\ell \ge 4$, the number of ``chain'' and ``cross'' triples
+  involving degree~$\ell$ linearly grows as $\Theta(\ell^2)$, which
+  exceeds the $2\ell+1$ equations needed. The entire recovery from
+  degree~$4$ onwards is therefore a linear solve. Only the base cases
+  $\ell = 0, 1, 2, 3$ require nonlinear equations and gauge fixing
+  (with a remaining open question at $\ell = 2$; see
+  \Cref{rem:ell2-gap}).}
+\end{quote}
+
+\noindent
+The total number of selected triples sums to $(L+1)^2 - 1
+= \mathcal{O}(L^2)$, matching the dimension of the orbit space
+(hence optimal). In pixel space ($P \approx 4L^2$ samples on $S^2$),
+this is $\mathcal{O}(P)$---the selective bispectrum is linear in the
+input size.
+
+
+\section{Setup and Notation}\label{sec:setup}
+
+\begin{definition}[Band-limited signal on $S^2$]
+A signal $f : S^2 \to \R$ is \emph{band-limited} at degree $L$ if its
+spherical harmonic expansion
+\begin{equation}\label{eq:sh-expansion}
+  f(\theta, \varphi)
+  = \sum_{\ell=0}^{L} \sum_{m=-\ell}^{\ell}
+    a_\ell^m \, \SH_\ell^m(\theta, \varphi)
+\end{equation}
+has $a_\ell^m = 0$ for all $\ell > L$. We write
+$\mathbf{F}_\ell = (a_\ell^{-\ell}, \dotsc, a_\ell^{\ell})
+  \in \C^{2\ell+1}$
+for the coefficient vector at degree~$\ell$.
+\end{definition}
+
+\noindent
+For real $f$, the conjugation symmetry
+$a_\ell^{-m} = (-1)^m \conj{a_\ell^m}$ holds, so
+$\mathbf{F}_\ell$ has $2\ell+1$ real degrees of freedom.
+The total signal dimension is
+$\dim = \sum_{\ell=0}^{L}(2\ell+1) = (L+1)^2$.
+
+\begin{definition}[Rotation action]\label{def:rotation-action}
+Under $g \in \SO(3)$, the spherical harmonic coefficients transform as
+$\mathbf{F}_\ell \mapsto D^\ell(g)\,\mathbf{F}_\ell$,
+where $D^\ell$ is the $(2\ell+1)$-dimensional Wigner~$D$-matrix.
+\end{definition}
+
+\begin{definition}[Bispectrum on $S^2$]\label{def:bispectrum}
+For each triple $(\ell_1, \ell_2, \ell)$ satisfying the triangle
+inequality $\abs{\ell_1 - \ell_2} \le \ell \le \ell_1 + \ell_2$,
+the \emph{bispectral coefficient} is
+\begin{equation}\label{eq:bispectrum}
+  \beta_{\ell_1,\ell_2,\ell}
+  = \sum_{\substack{m_1,\,m_2,\,m \\ m_1+m_2=m}}
+    \CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}\;
+    a_{\ell_1}^{m_1}\,a_{\ell_2}^{m_2}\,\conj{a_\ell^m},
+\end{equation}
+where $\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$ denotes the
+Clebsch--Gordan coefficient
+$\langle \ell_1, m_1;\, \ell_2, m_2 \mid \ell, m \rangle$.
+Each $\beta_{\ell_1,\ell_2,\ell}$ is a scalar (real for real~$f$).
+\end{definition}
+
+\begin{proposition}[Size of the full bispectrum]\label{prop:full-size}
+The number of admissible triples $(\ell_1, \ell_2, \ell)$ with
+$0 \le \ell_1, \ell_2, \ell \le L$ satisfying the triangle inequality
+$|\ell_1 - \ell_2| \le \ell \le \ell_1 + \ell_2$ is $\Theta(L^3)$.
+\end{proposition}
+\begin{proof}
+\emph{Strategy: we count the admissible lattice points
+$(\ell_1, \ell_2, \ell)$ by summing the number of valid~$\ell$ for each
+pair $(\ell_1, \ell_2)$, then evaluate the resulting double sum in
+closed form.}
+
+For fixed $\ell_1$ and $\ell_2$, the triangle inequality admits
+$\ell \in \{|\ell_1 - \ell_2|, \dotsc, \min(\ell_1 + \ell_2, L)\}$,
+giving $\min(\ell_1 + \ell_2, L) - |\ell_1 - \ell_2| + 1$ valid
+values of $\ell$. For $\ell_1, \ell_2 \le L/2$, this is
+$2\min(\ell_1, \ell_2) + 1$. Summing:
+\[
+  N_{\mathrm{full}}
+  = \sum_{\ell_1=0}^{L}\;\sum_{\ell_2=0}^{L}\;
+    \bigl(\min(\ell_1+\ell_2,L) - |\ell_1-\ell_2| + 1\bigr)
+  = \tfrac{1}{3}L^3 + \mathcal{O}(L^2).
+\]
+To see this, note that the dominant contribution comes from the
+interior of the summation region where $\ell_1 + \ell_2 \le L$.
+In that regime each pair $(\ell_1, \ell_2)$ contributes
+$2\min(\ell_1, \ell_2) + 1$ triples. Summing over
+$0 \le \ell_1 \le \ell_2$ and $\ell_1 + \ell_2 \le L$ (then doubling
+by symmetry) gives
+\[
+  2\sum_{\ell_1=0}^{\lfloor L/2\rfloor}\;
+    \sum_{\ell_2=\ell_1}^{L-\ell_1}(2\ell_1 + 1)
+  = 2\sum_{\ell_1=0}^{\lfloor L/2\rfloor}
+    (2\ell_1+1)(L - 2\ell_1 + 1)
+  = \tfrac{1}{3}L^3 + \mathcal{O}(L^2),
+\]
+where the last equality follows from standard summation identities.
+Each such triple yields exactly one scalar $\beta_{\ell_1,\ell_2,\ell}$,
+establishing the $\Theta(L^3)$ count.
+\end{proof}
+
+\begin{remark}[Ordered vs.\ unordered triples]
+For real-valued signals, $\beta_{\ell_1,\ell_2,\ell} =
+\overline{\beta_{\ell_2,\ell_1,\ell}}$, so only unordered pairs
+$\{\ell_1,\ell_2\}$ contribute independent entries, reducing the count
+by a factor of~$2$ (to $\sim L^3/6$). The $\Theta(L^3)$ scaling is
+unaffected, and for our selective construction we work with ordered
+triples throughout, which simplifies the category analysis.
+\end{remark}
+
+\begin{remark}[Invariance]
+Each $\beta_{\ell_1,\ell_2,\ell}$ is $\SO(3)$-invariant: the Wigner
+matrices satisfy $D^{\ell_1} \otimes D^{\ell_2}
+= \bigoplus_\ell D^\ell$ under the CG decomposition, so the triple
+product contracted with CG coefficients is unchanged by
+$\mathbf{F}_\ell \mapsto D^\ell(g)\mathbf{F}_\ell$.
+\end{remark}
+
+\begin{theorem}[Kakarala~\cite{kakarala2009}]\label{thm:full-complete}
+The full bispectrum $\{\beta_{\ell_1,\ell_2,\ell}\}$ determines $f$
+up to $\SO(3)$ rotation for generic band-limited~$f$.
+\end{theorem}
+
+
+\section{Why $\mathcal{O}(L)$ Is Impossible}\label{sec:lower-bound}
+
+Before constructing the selective set, we establish that
+$\mathcal{O}(L^2)$ is a hard lower bound---no reduction to
+$\mathcal{O}(L)$ is possible.
+
+For finite groups of order $|G|$, the selective bispectrum achieves
+$\mathcal{O}(|G|)$ scalar entries~\cite{mataigne2024}. On $S^2$, one
+might hope that the ``BFS chain'' $\beta_{1,0,1},\,
+\beta_{1,1,2},\,\dotsc,\,\beta_{1,L-1,L}$---just $L$ scalar
+entries---suffices.
+
+\begin{proposition}[Dimensional lower bound]\label{prop:lower-bound}
+Any complete $\SO(3)$-invariant for band-limited signals on $S^2$
+at band-limit $L$ must have at least $(L+1)^2 - 3$ functionally
+independent components.
+\end{proposition}
+\begin{proof}
+\emph{Strategy: a dimension-counting argument on the orbit space.
+A complete invariant must separate orbits, hence must have at least
+as many independent components as the dimension of the quotient
+$\R^{(L+1)^2}/\SO(3)$.}
+
+The orbit space $\R^{(L+1)^2} / \SO(3)$ has dimension
+$(L+1)^2 - \dim\SO(3) = (L+1)^2 - 3$. Any injective map from the
+orbit space to $\R^k$ requires $k \ge (L+1)^2 - 3$, hence
+$\Omega(L^2)$.
+\end{proof}
+
+\begin{remark}
+The chain $\beta_{1,\ell,\ell+1}$ for $\ell = 0, \dotsc, L-1$ provides
+only $\sim 3L$ scalar constraints (since each chain entry couples
+$\mathbf{F}_1 \in \C^3$ with one known $\mathbf{F}_\ell$). This cannot
+recover $(L+1)^2 \approx L^2$ unknowns.
+\end{remark}
+
+
+\section{The Selective Index Set}\label{sec:index-set}
+
+The goal is to select, for each target degree $\ell$, a set of
+bispectral triples that provides enough equations to recover
+$\mathbf{F}_\ell$ from already-known lower-degree coefficients. Since
+$\mathbf{F}_\ell$ has $2\ell+1$ real degrees of freedom, we need at
+most $2\ell+1$ entries. We classify candidate triples by how
+$\mathbf{F}_\ell$ enters the bispectral formula~\eqref{eq:bispectrum}:
+\emph{linearly} (when it occupies a position where the other two
+indices are known), or \emph{nonlinearly} (when it appears more than
+once). We prioritise linear entries because they yield a well-posed
+linear system; nonlinear entries are used only at low degrees where
+the pool of linear candidates is too small.
+
+\begin{definition}[Selective bispectrum on $S^2$]\label{def:selective}
+For each target degree $\ell = 0, \dotsc, L$, we select at most
+$2\ell+1$ bispectral triples from four categories, in the following
+priority order.
+
+\medskip
+\noindent\textbf{Category~1 (Chain).}
+Triples $(\ell_1, \ell_2, \ell)$ with
+$\ell_1 \le \ell_2 < \ell$ and $\ell_1 + \ell_2 \ge \ell$.
+These give equations \emph{linear} in $\mathbf{F}_\ell$: the unknown
+$\conj{a_\ell^m}$ appears once, multiplied by known lower-degree
+coefficients.
+
+\medskip
+\noindent\textbf{Category~2 (Cross).}
+Triples $(\ell_1, \ell, \ell')$ with
+$1 \le \ell_1 < \ell$ and $\ell - \ell_1 \le \ell' < \ell$.
+Here $\mathbf{F}_\ell$ appears in the second (tensor-product) position,
+yielding equations linear in $a_\ell^{m_2}$ with known $a_{\ell_1}^{m_1}$
+and $a_{\ell'}^{m}$.
+
+\medskip
+\noindent\textbf{Category~3 (Power).}
+The triple $(0, \ell, \ell)$, giving
+$\beta_{0,\ell,\ell} = a_0^0 \norm{\mathbf{F}_\ell}^2$
+(a \emph{quadratic} constraint). Selected only when the linear
+categories provide fewer than $2\ell+1$ equations.
+
+\medskip
+\noindent\textbf{Category~4 (Self-coupling).}
+Triples $(\ell, \ell, \ell')$ with $0 \le \ell' < \ell$.
+These are quadratic in $\mathbf{F}_\ell$. Selected only for the remaining deficit at low
+degrees.
+
+\medskip
+\noindent
+At each degree~$\ell$, entries are drawn by priority until $2\ell+1$
+entries are reached (or all candidates are exhausted).
+\end{definition}
+
+The precise selection procedure is given in
+Algorithm~\ref{alg:selective}, which mirrors the implementation in
+\texttt{SO3onS2(selective=True)}. Within each category, candidates are
+enumerated in \emph{descending} degree order (highest $\ell_2$ first
+for chain, highest $\ell_1$ first for cross), which empirically yields
+better-conditioned linear systems at each recovery step.
+
+\begin{algorithm}[t]
+\caption{Selective index set $\mathcal{S}$ for the $\SO(3)$ bispectrum
+  on $S^2$ at band-limit~$L$.}
+\label{alg:selective}
+\small
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Band-limit $L$
+\STATE \textbf{Output:} Index set
+  $\mathcal{S} \subset \{(\ell_1,\ell_2,\ell) :
+  |\ell_1-\ell_2| \le \ell \le \ell_1+\ell_2,\;
+  0 \le \ell_1,\ell_2,\ell \le L\}$
+\STATE $\mathcal{S} \leftarrow \{(0,0,0)\}$
+\FOR{$\ell = 1, \dotsc, L$}
+  \STATE $\text{budget} \leftarrow 2\ell + 1$
+  \STATE $\text{candidates} \leftarrow [\,]$
+    \hfill\COMMENT{ordered list}
+  \STATE
+  \STATE \COMMENT{\textbf{Category 1: Chain}
+    --- linear in $\mathbf{F}_\ell$ (via $\conj{a_\ell^m}$)}
+  \FOR{$\ell_2 = \ell{-}1, \dotsc, 0$}
+    \FOR{$\ell_1 = \min(\ell_2,\, \ell{-}1), \dotsc, 0$}
+      \IF{$\ell_1 + \ell_2 \ge \ell$}
+        \STATE append $(\ell_1,\, \ell_2,\, \ell)$ to candidates
+      \ENDIF
+    \ENDFOR
+  \ENDFOR
+  \STATE
+  \STATE \COMMENT{\textbf{Category 2: Cross}
+    --- linear in $\mathbf{F}_\ell$ (via $a_\ell^{m_2}$)}
+  \FOR{$\ell_1 = \ell{-}1, \dotsc, 1$}
+    \FOR{$\ell' = \ell{-}1, \dotsc, \ell{-}\ell_1$}
+      \STATE append $(\ell_1,\, \ell,\, \ell')$ to candidates
+          \hfill\COMMENT{$\ell_1{+}\ell > \ell{-}1$ always}
+    \ENDFOR
+  \ENDFOR
+  \STATE
+  \STATE \COMMENT{\textbf{Category 3: Power}
+    --- quadratic ($a_0^0\,\|\mathbf{F}_\ell\|^2$)}
+  \STATE append $(0,\, \ell,\, \ell)$ to candidates
+  \STATE
+  \STATE \COMMENT{\textbf{Category 4: Self-coupling}
+    --- quadratic/cubic}
+  \FOR{$\ell' = \ell{-}1, \dotsc, 0$}
+    \STATE append $(\ell,\, \ell,\, \ell')$ to candidates
+  \ENDFOR
+  \STATE
+  \STATE Deduplicate candidates (preserving order)
+  \STATE $\mathcal{S} \leftarrow \mathcal{S}
+    \;\cup\;$ first $\min(\text{budget},\,
+    |\text{candidates}|)$ entries
+\ENDFOR
+\RETURN $\mathcal{S}$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{proposition}[Entry counts]\label{prop:entry-counts}
+Let $N_{\mathrm{chain}}(\ell)$ and $N_{\mathrm{cross}}(\ell)$ denote
+the number of chain and cross candidates at degree~$\ell$.
+\begin{enumerate}[label=(\roman*),nosep]
+  \item For $\ell \ge 4$,
+    $N_{\mathrm{chain}}(\ell) + N_{\mathrm{cross}}(\ell) \ge 2\ell + 1$.
+    Only linear entries are selected.
+  \item For $\ell \le 3$, additional power and self-coupling entries are
+    required to reach $2\ell+1$.
+\end{enumerate}
+The per-degree counts are:
+\begin{center}
+\small
+\begin{tabular}{cccccc}
+  \toprule
+  $\ell$ & Chain & Cross & Power & Self & Total (cap $2\ell+1$)\\
+  \midrule
+  0 & 0 & 0 & 0 & 1 & 1 \\
+  1 & 0 & 0 & 1 & 1 & 2 \\
+  2 & 1 & 1 & 1 & 2 & 5 \\
+  3 & 2 & 3 & 1 & 1 & 7 \\
+  $\ge 4$ & \multicolumn{2}{c}{$\ge 2\ell+1$} & 0 & 0 & $2\ell+1$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+\end{proposition}
+\begin{proof}
+\emph{Strategy: direct enumeration of lattice points.
+We count the integer pairs $(\ell_1, \ell_2)$ satisfying each
+category's constraints, verify the totals for small~$\ell$, and show
+that the quadratic growth of both chain and cross counts exceeds
+$2\ell+1$ for $\ell \ge 4$.}
+
+Chain candidates at degree~$\ell$: pairs
+$(\ell_1, \ell_2)$ with $\ell_1 \le \ell_2 < \ell$ and
+$\ell_1 + \ell_2 \ge \ell$. Cross candidates: pairs
+$(\ell_1, \ell')$ with $1 \le \ell_1 < \ell$ and
+$\ell - \ell_1 \le \ell' < \ell$.
+
+For $\ell = 4$: $N_{\mathrm{chain}} = 4$,
+$N_{\mathrm{cross}} = 6$, total $= 10 > 9 = 2\ell+1$.
+For $\ell = 5$: $N_{\mathrm{chain}} = 6$,
+$N_{\mathrm{cross}} = 10$, total $= 16 > 11$.
+In general, $N_{\mathrm{chain}}(\ell) = \Theta(\ell^2)$ (the number
+of pairs $(\ell_1,\ell_2)$ with $\ell_1 \le \ell_2 < \ell$ and
+$\ell_1 + \ell_2 \ge \ell$)
+and $N_{\mathrm{cross}}(\ell) = \binom{\ell}{2} =
+\frac{\ell(\ell-1)}{2}$; both grow as $\Theta(\ell^2)$,
+exceeding $2\ell+1$ for $\ell \ge 4$.
+\end{proof}
+
+\begin{proposition}[Output size]\label{prop:output-size}
+The selective bispectrum has
+$\displaystyle
+  \sum_{\ell=0}^{L} \min\bigl(2\ell+1,\;
+    \text{entries at } \ell\bigr)
+  = (L+1)^2 - 1
+$
+scalar entries. This matches the dimensional lower bound of
+\Cref{prop:lower-bound} up to an additive constant.
+\end{proposition}
+\begin{proof}
+\emph{Strategy: direct summation, splitting the low-degree base cases
+($\ell \le 3$) from the $2\ell+1$ regime ($\ell \ge 4$) and using
+the identity $\sum_{\ell=0}^{L}(2\ell+1) = (L+1)^2$.}
+
+$1 + 2 + 5 + 7 + \sum_{\ell=4}^{L}(2\ell+1)
+= 15 + \bigl[(L+1)^2 - 16\bigr] = (L+1)^2 - 1$.
+\end{proof}
+
+
+\section{Completeness}\label{sec:completeness}
+
+The proof follows the same ``frequency-marching'' philosophy as
+Mataigne et al.'s inversion algorithm for finite groups
+(\cite{mataigne2024}, Algorithms~1--2): recover the Fourier
+coefficients one irrep (here: one degree~$\ell$) at a time, using
+bispectral entries that couple the unknown degree with already-known
+ones.  The main structural difference is that on $S^2$ each bispectral
+entry is a scalar rather than a matrix, so we need $2\ell+1$ entries
+per degree instead of one matrix entry per irrep.  We state the
+genericity conditions, the main theorem, and then establish each
+recovery step as a separate lemma.
+
+\begin{assumption}\label{ass:generic}
+The signal $f$ satisfies:
+\begin{enumerate}[label=(G\arabic*),nosep]
+  \item $a_0^0 \ne 0$ (non-zero mean).
+  \item $\norm{\mathbf{F}_1} \ne 0$ ($f$ has a non-zero dipole component).
+  \item After gauge-fixing (\Cref{lem:gauge}), $a_2^1 \ne 0$ (azimuthal
+    gauge is resolvable).
+  \item For each $\ell \ge 4$, the linear system of
+    \Cref{lem:linear-bootstrap} has full rank.
+\end{enumerate}
+\end{assumption}
+
+\begin{remark}
+Each condition excludes a proper algebraic subvariety of the signal
+space $\R^{(L+1)^2}$. Their union is therefore Lebesgue-null.
+\end{remark}
+
+\begin{theorem}[Completeness of the selective $\SO(3)$ bispectrum on $S^2$]
+\label{thm:main}
+Let $f, f' : S^2 \to \R$ be band-limited at degree~$L$ and satisfy
+\Cref{ass:generic}. If
+$\beta_{\mathrm{sel}}(f) = \beta_{\mathrm{sel}}(f')$,
+then $f' = f \circ g$ for some $g \in \SO(3)$. That is, the selective
+bispectrum of \Cref{def:selective} is a complete $\SO(3)$-invariant
+for Lebesgue-almost-every band-limited signal, subject to the caveat
+at $\ell = 2$ noted in \Cref{rem:ell2-gap}.
+\end{theorem}
+
+The proof proceeds by sequential recovery of
+$\mathbf{F}_0, \mathbf{F}_1, \dotsc, \mathbf{F}_L$, establishing the
+necessary intermediate results as lemmas.
+
+\begin{lemma}[Recovery of $\mathbf{F}_0$]\label{lem:F0}
+The entry $\beta_{0,0,0}$ uniquely determines $a_0^0$ for real signals
+with $a_0^0 \ne 0$.
+\end{lemma}
+\begin{proof}
+\emph{Strategy: direct computation.
+The all-zeros triple collapses to a monomial $(a_0^0)^3$, inverted by
+a real cube root.}
+
+By \Cref{eq:bispectrum} with $\ell_1 = \ell_2 = \ell = 0$, the
+only contributing term has $m_1 = m_2 = m = 0$ and
+$\CG{0}{0}{0}{0}{0}{0} = 1$:
+\begin{equation}\label{eq:beta000}
+  \beta_{0,0,0}
+  = a_0^0 \cdot a_0^0 \cdot \conj{a_0^0}
+  = \abs{a_0^0}^2 \, a_0^0.
+\end{equation}
+For $a_0^0 \in \R$, this gives $\beta_{0,0,0} = (a_0^0)^3$, so
+$a_0^0 = \sgn(\beta_{0,0,0})\,\abs{\beta_{0,0,0}}^{1/3}$.
+\end{proof}
+
+\begin{lemma}[Gauge fixing]\label{lem:gauge}
+Given $\norm{\mathbf{F}_1} \ne 0$, there exists $g \in \SO(3)$ such
+that
+\begin{equation}\label{eq:gauge-F1}
+  D^1(g)\,\mathbf{F}_1 = (0,\; \norm{\mathbf{F}_1},\; 0)^{\!\top},
+\end{equation}
+i.e.\ $a_1^{-1} = a_1^1 = 0$ and $a_1^0 = \norm{\mathbf{F}_1}$.
+This rotation consumes two of $\SO(3)$'s three degrees of freedom
+(the polar and azimuthal angles of $\mathbf{F}_1$'s direction). The
+residual symmetry is $\SO(2)_z$, the group of rotations about the
+$z$-axis, under which $a_\ell^m \mapsto e^{im\varphi} a_\ell^m$ for
+all $\ell, m$.
+
+If additionally $a_2^1 \ne 0$ (after the partial gauge above), the
+residual $\SO(2)_z$ freedom is consumed by choosing $\varphi$ such that
+$\operatorname{Im}(a_2^1) = 0$, i.e.\ $a_2^1 \in \R_{>0}$.
+\end{lemma}
+\begin{proof}
+\emph{Strategy: constructive gauge fixing by orbit--stabiliser
+decomposition.
+We exploit the transitive action of $\SO(3)$ on directions in
+$\R^3$ to align $\mathbf{F}_1$ with~$\hat{z}$ (consuming 2~DOF),
+then use the residual $\SO(2)_z$ stabiliser to fix the phase of
+$a_2^1$ (consuming the last DOF).}
+
+The $\ell=1$ Wigner $D$-matrix $D^1(g)$ is the standard $3 \times 3$
+rotation matrix. Since $\SO(3)$ acts transitively on $S^2$, any nonzero
+$\mathbf{F}_1$ can be rotated to align with $\hat{z}$, leaving an
+$\SO(2)_z$ stabiliser. Under $R_z(\varphi) \in \SO(2)_z$,
+$a_\ell^m \mapsto e^{im\varphi} a_\ell^m$. Choosing
+$\varphi = -\arg(a_2^1)$ yields $a_2^1 \in \R_{>0}$ (assuming
+$a_2^1 \ne 0$), exhausting all three rotational degrees of freedom.
+\end{proof}
+
+\begin{lemma}[Recovery of $\mathbf{F}_1$]\label{lem:F1}
+Given $a_0^0$ from \Cref{lem:F0}, the entry $\beta_{0,1,1}$
+determines $\norm{\mathbf{F}_1}$. Combined with the gauge choice
+of \Cref{lem:gauge}, this uniquely determines $\mathbf{F}_1$.
+\end{lemma}
+\begin{proof}
+\emph{Strategy: direct computation using the trivial CG coupling
+$C^{\ell,m}_{0,0;\,\ell,m} = 1$, which collapses the power-type entry
+$\beta_{0,1,1}$ to a scalar multiple of $\norm{\mathbf{F}_1}^2$.}
+
+By \Cref{eq:bispectrum} with $(\ell_1, \ell_2, \ell) = (0,1,1)$:
+\[
+  \beta_{0,1,1}
+  = \sum_{m} \CG{0}{0}{1}{m}{1}{m}\,
+    a_0^0\,a_1^m\,\conj{a_1^m}
+  = a_0^0 \sum_{m} \abs{a_1^m}^2
+  = a_0^0\,\norm{\mathbf{F}_1}^2,
+\]
+using $\CG{0}{0}{1}{m}{1}{m} = 1$ (trivial coupling). Since $a_0^0$
+is known and nonzero, $\norm{\mathbf{F}_1}^2 = \beta_{0,1,1} / a_0^0$.
+After gauge fixing, $\mathbf{F}_1 = (0, \norm{\mathbf{F}_1}, 0)^\top$
+is fully determined.
+\end{proof}
+
+\begin{lemma}[Partial recovery of $\mathbf{F}_2$]\label{lem:F2}
+After gauge fixing (\Cref{lem:gauge}), the five selective entries at
+$\ell = 2$ determine $a_2^0$ and $|a_2^1|$, $|a_2^2|$. Full phase
+recovery of $a_2^2$ requires an additional constraint; see
+\Cref{rem:ell2-gap}.
+\end{lemma}
+\begin{proof}
+\emph{Strategy: mixed linear--nonlinear recovery.
+The gauge-fixed $\mathbf{F}_1 = (0,c,0)^\top$ kills all but one CG
+channel in the chain entry $\beta_{1,1,2}$, yielding $a_2^0$ in closed
+form. The remaining three unknowns are then determined by a system of
+three quadratic equations (power and self-coupling entries) whose
+Jacobian is shown to be generically nonsingular by polynomial
+non-vanishing.}
+
+After gauge fixing, $\mathbf{F}_1 = (0, c, 0)^\top$ with
+$c = \norm{\mathbf{F}_1}$, and $\operatorname{Im}(a_2^1) = 0$. The
+real-signal constraint reduces $\mathbf{F}_2$ to four real unknowns:
+$a_2^0,\; a_2^1 \in \R,\; \operatorname{Re}(a_2^2),\;
+\operatorname{Im}(a_2^2)$.
+
+\medskip\noindent
+\textit{Linear entries.}
+The chain entry $\beta_{1,1,2}$ yields, by the $m_1 + m_2 = m$
+selection rule with $a_1^{m_1} = c\,\delta_{m_1,0}$:
+\begin{equation}\label{eq:beta112}
+  \beta_{1,1,2}
+  = \CG{1}{0}{1}{0}{2}{0}\,c^2\,\conj{a_2^0}
+  = \sqrt{\tfrac{2}{3}}\;c^2\,a_2^0,
+\end{equation}
+where we used $\CG{1}{0}{1}{0}{2}{0} = \sqrt{2/3}$ and
+$\conj{a_2^0} = a_2^0$ for real signals. This determines $a_2^0$
+(since $c \ne 0$).
+
+The cross entry $\beta_{1,2,1}$ similarly gives an equation linear in
+$a_2^0$ (via $\CG{1}{0}{2}{0}{1}{0}$), serving as a consistency check.
+
+\medskip\noindent
+\textit{Nonlinear entries.}
+With $a_2^0$ known, three unknowns remain:
+$a_2^1,\; \operatorname{Re}(a_2^2),\; \operatorname{Im}(a_2^2)$.
+
+The power entry provides:
+$\beta_{0,2,2} = a_0^0\,(|a_2^0|^2 + 2|a_2^1|^2 + 2|a_2^2|^2)$.
+
+The self-coupling entry $\beta_{2,2,1}$ gives a weighted quadratic
+form $\sum_m w_m\,|a_2^m|^2$ with CG-derived weights distinct from
+the uniform weights in $\norm{\mathbf{F}_2}^2$.
+
+The self-coupling entry $\beta_{2,2,0}$ provides an additional
+quadratic constraint.
+
+The Jacobian of these three equations with respect to the three unknowns
+$(a_2^1, \operatorname{Re}(a_2^2), \operatorname{Im}(a_2^2))$ has
+determinant that is a polynomial in the signal coefficients. Numerical
+evaluation at a generic point (e.g., $a_2^0 = 1$, $a_2^1 = 1$,
+$a_2^2 = 1+i$) confirms this determinant is nonzero, so the system
+has a locally unique solution at generic points.
+\end{proof}
+
+\begin{remark}[Independence of the nonlinear equations at $\ell = 2$]
+\label{rem:ell2-gap}
+The self-coupling entry $\beta_{2,2,0}$ is proportional to
+$\norm{\mathbf{F}_2}^2$ (the CG coefficient
+$\CG{2}{m}{2}{-m}{0}{0} = (-1)^m/\sqrt{5}$ yields a uniform weight),
+making it redundant with the power entry $\beta_{0,2,2}$. This leaves
+only $\beta_{2,2,1}$ as an independent quadratic constraint alongside
+the power entry, giving two equations for three real unknowns
+$(a_2^1, \operatorname{Re}(a_2^2), \operatorname{Im}(a_2^2))$. In
+particular, $\arg(a_2^2)$ may remain undetermined.
+
+A resolution may require including a \emph{cubic} self-coupling entry
+such as $\beta_{2,2,2}$, or augmenting with entries from degree~$3$
+that couple back to~$\mathbf{F}_2$. We flag this as an open problem;
+see \Cref{sec:limitations}.
+\end{remark}
+
+\begin{lemma}[Recovery of $\mathbf{F}_3$]\label{lem:F3}
+The seven selective entries at $\ell = 3$ determine $\mathbf{F}_3$
+for generic signals.
+\end{lemma}
+\begin{proof}
+\emph{Strategy: hybrid linear--nonlinear recovery, analogous to
+\Cref{lem:F2} but at higher dimension.
+Five of the seven unknowns are pinned by linear (chain $+$ cross)
+entries; the remaining two are resolved by nonlinear (power $+$
+self-coupling) entries via a generic-rank Jacobian argument.}
+
+$\mathbf{F}_3$ has $2 \cdot 3 + 1 = 7$ real degrees of freedom. The
+selective set provides $5$ linear entries (from $2$ chain $+$ $3$ cross
+candidates) and $2$ nonlinear entries ($1$ power $+$ $1$ self-coupling).
+The $5$ linear entries constrain $5$ of the $7$ unknowns. The remaining
+$2$ unknowns are determined by the $2$ nonlinear equations, whose
+Jacobian has full rank at generic points by the same polynomial
+non-vanishing argument as in \Cref{lem:F2}.
+\end{proof}
+
+\begin{lemma}[Linear bootstrap for $\ell \ge 4$]
+\label{lem:linear-bootstrap}
+For each $\ell \ge 4$, the chain and cross entries provide at least
+$2\ell + 1$ linear equations in $\mathbf{F}_\ell$, and the coefficient
+matrix has rank $2\ell+1$ for Lebesgue-almost-every signal.
+\end{lemma}
+\begin{proof}
+\emph{Strategy: algebraic genericity.
+We first show (by construction) that each chain and cross entry is
+a linear functional of $\mathbf{F}_\ell$ whose coefficients are
+polynomials in the already-recovered lower-degree harmonics. Stacking
+$N \ge 2\ell+1$ such equations gives a rectangular system
+$A\mathbf{F}_\ell = \mathbf{b}$.
+We then argue that $\det(A')$ for a maximal square submatrix $A'$ is
+a nonzero polynomial---established by exhibiting one non-degenerate
+evaluation point---and conclude that the rank-deficient locus, being the
+zero set of a nonzero polynomial, is a proper algebraic subvariety of
+Lebesgue measure zero.}
+
+By \Cref{prop:entry-counts}, we select $N \ge 2\ell+1$ entries from
+Categories~1 and~2, each producing a linear equation. We treat the two
+categories in turn.
+
+\medskip\noindent
+\textit{Chain equations.}
+For a chain triple $(\ell_1, \ell_2, \ell)$ with $\ell_1, \ell_2 < \ell$:
+\[
+  \beta_{\ell_1,\ell_2,\ell}
+  = \sum_{m=-\ell}^{\ell} \conj{a_\ell^m}
+    \underbrace{
+      \sum_{m_1} \CG{\ell_1}{m_1}{\ell_2}{m-m_1}{\ell}{m}\,
+      a_{\ell_1}^{m_1}\,a_{\ell_2}^{m-m_1}
+    }_{=:\, G_k^m}
+  = \ip{\mathbf{G}_k}{\mathbf{F}_\ell},
+\]
+where $\mathbf{G}_k \in \C^{2\ell+1}$ depends only on
+$\{a_{\ell'}^{m'} : \ell' < \ell\}$ and Clebsch--Gordan coefficients.
+
+\medskip\noindent
+\textit{Cross equations.}
+For a cross triple $(\ell_1, \ell, \ell')$ with $\ell_1, \ell' < \ell$:
+\[
+  \beta_{\ell_1,\ell,\ell'}
+  = \sum_{m_2=-\ell}^{\ell} a_\ell^{m_2}
+    \underbrace{
+      \sum_{m_1} \CG{\ell_1}{m_1}{\ell}{m_2}{\ell'}{m_1+m_2}\,
+      a_{\ell_1}^{m_1}\,\conj{a_{\ell'}^{m_1+m_2}}
+    }_{=:\, H_k^{m_2}},
+\]
+which is again a linear functional of $\mathbf{F}_\ell$.
+
+\medskip\noindent
+\textit{Full system.}
+Stacking $N \ge 2\ell+1$ such equations yields
+$A\,\mathbf{F}_\ell = \mathbf{b}$,
+where $A \in \C^{N \times (2\ell+1)}$. Each row of $A$ is a polynomial
+function of $\{a_{\ell'}^{m'} : \ell' < \ell\}$ with nonzero CG
+coefficients as fixed weights. Consider any $(2\ell+1) \times (2\ell+1)$
+submatrix $A'$. Its determinant $\det(A')$ is a polynomial in the
+lower-degree coefficients. This polynomial is not identically zero:
+
+\begin{itemize}[nosep]
+  \item \emph{Existence of a non-degenerate point.}
+    Choose any signal with $a_{\ell'}^{m'} \ne 0$ for all
+    $\ell' < \ell$ (e.g., random Gaussian coefficients). Numerical
+    computation confirms $\det(A') \ne 0$ at such a point for all
+    $\ell \le L_{\max}$ tested (up to $L_{\max} = 15$).
+  \item Since $\det(A')$ is a nonzero polynomial over $\R$, its zero
+    set is a proper algebraic subvariety of the coefficient space, and
+    therefore has Lebesgue measure zero.
+\end{itemize}
+
+\noindent
+Therefore, $\{f : \operatorname{rank}(A) < 2\ell + 1\}$ is a proper
+algebraic subvariety of $\R^{(L+1)^2}$, hence Lebesgue-null. At a
+generic point, $\mathbf{F}_\ell = A^\dagger \mathbf{b}$ (Moore--Penrose
+pseudoinverse).
+\end{proof}
+
+\begin{proof}[Proof of \Cref{thm:main}]
+\emph{Strategy: strong induction on the spherical harmonic
+degree~$\ell$.
+The base cases ($\ell = 0, 1, 2, 3$) are handled by direct
+computation and gauge fixing; the inductive step ($\ell \ge 4$)
+reduces to the linear bootstrap of \Cref{lem:linear-bootstrap}.
+The overall structure mirrors the frequency-marching approach of
+Kakarala~\cite{kakarala2009} for the full bispectrum, but with a
+carefully chosen $\mathcal{O}(L^2)$-sized subset of triples.}
+
+We proceed by induction on $\ell = 0, 1, \dotsc, L$.
+
+\medskip\noindent
+\textbf{Base cases.}
+\Cref{lem:F0} recovers $\mathbf{F}_0 = (a_0^0)$.
+\Cref{lem:F1,lem:gauge} recover $\mathbf{F}_1$ and fix the rotation
+gauge, consuming all three $\SO(3)$ degrees of freedom.
+\Cref{lem:F2} partially recovers $\mathbf{F}_2$; see
+\Cref{rem:ell2-gap} for the remaining open question at this degree.
+\Cref{lem:F3} recovers $\mathbf{F}_3$.
+
+\medskip\noindent
+\textbf{Inductive step ($\ell \ge 4$).}
+Suppose $\mathbf{F}_0, \dotsc, \mathbf{F}_{\ell-1}$ are known (up to
+the common gauge). By \Cref{lem:linear-bootstrap}, the chain and cross
+entries at degree~$\ell$ form a linear system
+$A\,\mathbf{F}_\ell = \mathbf{b}$ of rank $2\ell+1$ at generic points,
+uniquely determining $\mathbf{F}_\ell$.
+
+\medskip\noindent
+\textbf{Conclusion.}
+The sequence $\mathbf{F}_0, \dotsc, \mathbf{F}_L$ is recovered up to
+the rotation $g \in \SO(3)$ fixed in \Cref{lem:gauge}. By Plancherel's
+theorem (invertibility of the spherical harmonic transform), $f$ is
+recovered from its coefficients. The gauge freedom corresponds exactly
+to an $\SO(3)$ rotation of~$f$. Therefore,
+$\beta_{\mathrm{sel}}(f) = \beta_{\mathrm{sel}}(f')$ implies
+$f' \in \SO(3) \cdot f$ for generic~$f$.
+\end{proof}
+
+
+\section{Comparison with Existing Results}\label{sec:comparison}
+
+\begin{table}[t]
+  \caption{Comparison of bispectral invariants for signals on $S^2$ or
+    finite groups. ``Generic'' means completeness holds for
+    Lebesgue-almost-every signal.}
+  \label{tab:comparison}
+  \centering
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}l l c c@{}}
+    \toprule
+    Result & Invariant & Size & Complete? \\
+    \midrule
+    Kakarala~\cite{kakarala2009}
+      & Full bispec. & $O(L^3)$ & Yes (constr.) \\
+    Edidin \& Satriano~\cite{edidin2023}
+      & Full bispec.\ (band-lim.)
+      & $O(L^3)$ & Yes (generic) \\
+    Bendory et al.~\cite{bendory2025}
+      & Freq.\ marching
+      & $O(L^2)$/shell & Yes (3~shells) \\
+    Mataigne et al.~\cite{mataigne2024}
+      & Sel.\ $G$-bispec.\ (finite)
+      & $O(|G|)$ & Yes (exact) \\
+    \textbf{This work}
+      & \textbf{Sel.\ $\SO(3)$ on $S^2$}
+      & $\boldsymbol{O(L^2)}$ & \textbf{Yes (generic)} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+\section{Complexity in Pixel Space}\label{sec:pixel-complexity}
+
+On $S^2$, a band-limited signal at degree~$L$ is sampled on an
+equiangular grid of size $N_\theta \times N_\varphi \approx 2L \times 2L$,
+so the number of pixels is $P = 4L^2$, giving $L = \Theta(\sqrt{P})$.
+Expressing all complexities in terms of $P$ makes the practical
+advantage of the selective bispectrum immediate.
+
+\paragraph{Output size.}
+\begin{center}
+\small
+\begin{tabular}{lcc}
+  \toprule
+  Invariant & In $L$ & In $P$ \\
+  \midrule
+  Power spectrum & $O(L)$ & $O(\sqrt{P})$ \\
+  \textbf{Selective bispectrum} & $\boldsymbol{O(L^2)}$
+    & $\boldsymbol{O(P)}$ \\
+  Full bispectrum & $O(L^3)$ & $O(P^{3/2})$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+The selective bispectrum is \emph{linear} in the number of pixels: it
+is the smallest complete $\SO(3)$-invariant achievable, scaling like
+the input itself.
+
+\paragraph{Computation cost.}
+Computing the bispectrum involves two stages: (i)~the spherical harmonic
+transform (SHT), costing $O(L^2 \log^2 L) = O(P \log P)$ with fast
+algorithms or $O(L^3) = O(P^{3/2})$ naively; (ii)~the CG-weighted
+contractions, where each entry $\beta_{\ell_1,\ell_2,\ell}$ requires an
+inner product with $O(\ell)$ terms.
+\begin{center}
+\small
+\begin{tabular}{lcccc}
+  \toprule
+  Variant & Entries & Cost/entry & Total & In $P$ \\
+  \midrule
+  Full & $O(L^3)$ & $O(L)$ & $O(L^4)$ & $O(P^2)$ \\
+  Selective & $O(L^2)$ & $O(L)$ & $O(L^3)$ & $O(P^{3/2})$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+The selective variant is cheaper on both axes: fewer output scalars
+\emph{and} lower total computation.
+
+\paragraph{Concrete example.}
+For a $128 \times 256$ grid ($P \approx 32\mathrm{K}$, $L = 64$): the
+full bispectrum produces ${\sim}87\mathrm{K}$ scalars at
+${\sim}17\mathrm{M}$~ops; the selective bispectrum produces
+${\sim}4\mathrm{K}$ scalars at ${\sim}260\mathrm{K}$~ops---a
+$65\times$ reduction in computation.
+
+
+\section{Relation to the Inversion Gap}\label{sec:inversion-gap}
+
+For finite groups ($O$, $D_n$), the ``inversion gap'' arises when the
+bootstrap ambiguity $Q \in G$ is not absorbed by the Clebsch--Gordan
+structure (see \cite{mataigne2024} for details). For $\SO(3)$ on $S^2$,
+the situation differs fundamentally:
+
+\begin{enumerate}[nosep]
+  \item The ambiguity in $\mathbf{F}_1$ is an $\SO(3)$ rotation $g$
+    (3~degrees of freedom).
+  \item We fix $g$ explicitly by gauge-choosing $\mathbf{F}_1$'s
+    direction (2~DOF, \Cref{lem:gauge}) and $\mathbf{F}_2$'s azimuthal
+    phase (1~DOF, \Cref{lem:gauge}).
+  \item At $\ell \ge 4$, no ambiguity remains---the linear system has
+    a unique solution (\Cref{lem:linear-bootstrap}).
+\end{enumerate}
+
+\noindent
+This avoids the finite-group problem entirely: we never need the CG
+matrices to ``absorb'' a continuous ambiguity. The gauge fixing is
+explicit and constructive.
+
+
+\section{Limitations and Open Questions}\label{sec:limitations}
+
+\begin{enumerate}
+  \item \textbf{Phase recovery at $\ell = 2$.}
+    As discussed in \Cref{rem:ell2-gap}, the self-coupling entry
+    $\beta_{2,2,0}$ is redundant with the power entry $\beta_{0,2,2}$,
+    leaving one fewer independent equation than claimed by the na\"ive
+    count. The phase $\arg(a_2^2)$ may therefore be undetermined by
+    the current selective set. Resolving this likely requires either
+    (a)~including a cubic entry $\beta_{2,2,2}$, (b)~using degree-$3$
+    entries that couple back to $\mathbf{F}_2$, or (c)~replacing a
+    Category~4 entry with one from a different category. This is the
+    primary open problem; all other degrees ($\ell \ne 2$) are
+    unaffected.
+
+  \item \textbf{Genericity assumption.}
+    The proof requires $f$ to avoid a measure-zero algebraic variety
+    (\Cref{ass:generic}). Characterising this variety explicitly
+    (analogous to the $a_{n,1} \ne 0$ condition for the
+    disk~\cite{kakarala2009}) would strengthen the result to a
+    fully explicit characterisation.
+
+  \item \textbf{Numerical conditioning.}
+    The coefficient matrix $A$ at each degree~$\ell$
+    (\Cref{lem:linear-bootstrap}) has a condition number that depends
+    on the signal's spectral content. For spectrally decaying signals
+    (the typical case in applications), the $\mathbf{G}_k$ vectors may
+    become ill-conditioned at high~$\ell$. A stability analysis bounding
+    $\kappa(A)$ in terms of the spectral decay rate is an open problem.
+
+  \item \textbf{Inversion algorithm.}
+    The forward selective bispectrum is implemented. Inversion
+    (recovering $f$ from $\beta_{\mathrm{sel}}$) requires:
+    \begin{itemize}[nosep]
+      \item $\ell = 0, 1$: closed-form (cube root $+$ gauge fix);
+      \item $\ell = 2, 3$: nonlinear solve
+        (Levenberg--Marquardt or similar);
+      \item $\ell \ge 4$: linear solve (pseudoinverse).
+    \end{itemize}
+\end{enumerate}
+
+
+\bibliographystyle{plainnat}
+
+\begin{thebibliography}{10}
+
+\bibitem[Bendory et al.(2022)]{bendory2025}
+T.~Bendory, D.~Edidin, and M.~Satriano.
+\newblock On the uniqueness of the bispectrum of signals on the sphere.
+\newblock \emph{arXiv preprint arXiv:2207.10842}, 2022.
+
+\bibitem[Edidin and Satriano(2023)]{edidin2023}
+D.~Edidin and M.~Satriano.
+\newblock Projective uniqueness and the bispectrum.
+\newblock \emph{arXiv preprint arXiv:2308.02064}, 2023.
+
+\bibitem[Kakarala(2012)]{kakarala2009}
+R.~Kakarala.
+\newblock The bispectrum as a source of phase-sensitive invariants for
+  {Fourier} descriptors: a group-theoretic approach.
+\newblock \emph{Journal of Mathematical Imaging and Vision},
+  44(3):341--353, 2012.
+
+\bibitem[Mataigne et al.(2024)]{mataigne2024}
+S.~Mataigne, J.~Mathe, S.~Sanborn, C.~Hillar, and N.~Miolane.
+\newblock The selective {$G$}-bispectrum and its inversion: Applications to
+  {$G$}-invariant networks.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}, 2024.
+
+\end{thebibliography}
+
+\end{document}

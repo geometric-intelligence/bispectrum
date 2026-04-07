@@ -7,14 +7,105 @@ beta(f)_{l1,l2}^{(l)} = (F_l1 ⊗ F_l2) · C_{l1,l2} · F_l^†
 where F_l are the degree-l SH coefficient vectors and C denotes the
 Clebsch-Gordan matrices for SO(3).
 
+Supports a **selective** mode that reduces the output from O(L³) to O(L²)
+bispectral entries while preserving completeness for generic signals.
+See ``_build_selective_index_map`` for the construction.
+
 Reference: Kakarala (1992), Cohen et al.
 """
+
+import hashlib
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
 from torch_harmonics import RealSHT
 
-from bispectrum._cg import load_cg_matrices
+from bispectrum._cg import _CACHE_DIR, compute_reduced_cg_parallel, load_cg_matrices
+
+
+def _build_full_index_map(
+    lmax: int, cg_data: dict[tuple[int, int], torch.Tensor]
+) -> list[tuple[int, int, int]]:
+    """Build the full O(L³) bispectrum index map."""
+    index_map: list[tuple[int, int, int]] = []
+    for l1 in range(lmax + 1):
+        for l2 in range(l1, lmax + 1):
+            if (l1, l2) not in cg_data:
+                continue
+            for l_val in range(abs(l1 - l2), min(l1 + l2, lmax) + 1):
+                index_map.append((l1, l2, l_val))
+    return index_map
+
+
+def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
+    """Build the O(L²) selective bispectrum index map.
+
+    For each target degree ``l_target = 0 .. lmax``, selects up to
+    ``2 * l_target + 1`` bispectral triples that provide enough equations
+    to recover the SH coefficients at that degree (given all lower degrees
+    are already known).
+
+    Entry types (in priority order):
+
+    1. **Chain** ``(l1, l2, l_target)`` with ``l1 <= l2 < l_target`` —
+       linear in ``F_{l_target}`` (appears via ``conj(F_l)``).
+    2. **Cross** ``(l1, l_target, l)`` with ``l1 < l_target, l < l_target``
+       — linear in ``F_{l_target}`` (appears in the middle ⊗ position).
+    3. **Power** ``(0, l_target, l_target)`` — gives ``||F_{l_target}||²``
+       (quadratic).
+    4. **Self-coupling** ``(l_target, l_target, l)`` with ``l < l_target``
+       — quadratic/cubic in ``F_{l_target}``.
+
+    Total output size is approximately ``(lmax + 1)²``.
+    """
+    index_map: list[tuple[int, int, int]] = []
+
+    for l_target in range(lmax + 1):
+        budget = 2 * l_target + 1
+
+        if l_target == 0:
+            index_map.append((0, 0, 0))
+            continue
+
+        candidates: list[tuple[int, int, int]] = []
+
+        # 1. Chain entries: (l1, l2, l_target) with l1 <= l2 < l_target,
+        #    l1 + l2 >= l_target (triangle inequality).
+        #    Iterate highest l2 first for better conditioning.
+        for l2 in range(l_target - 1, -1, -1):
+            for l1 in range(min(l2, l_target - 1), -1, -1):
+                if l1 + l2 >= l_target and abs(l1 - l2) <= l_target:
+                    candidates.append((l1, l2, l_target))
+
+        # 2. Cross entries: (l1, l_target, l) with 1 <= l1 < l_target,
+        #    l_target - l1 <= l < l_target (triangle + known).
+        for l1 in range(l_target - 1, 0, -1):
+            l_lo = l_target - l1  # triangle lower bound (since l1 < l_target)
+            l_hi = min(l_target - 1, l1 + l_target)  # must be < l_target
+            for l_val in range(l_hi, l_lo - 1, -1):
+                candidates.append((l1, l_target, l_val))
+
+        # 3. Power entry: (0, l_target, l_target).
+        candidates.append((0, l_target, l_target))
+
+        # 4. Self-coupling: (l_target, l_target, l) with 0 <= l < l_target.
+        for l_val in range(l_target - 1, -1, -1):
+            candidates.append((l_target, l_target, l_val))
+
+        # Deduplicate preserving priority order, take up to budget.
+        seen: set[tuple[int, int, int]] = set()
+        selected: list[tuple[int, int, int]] = []
+        for entry in candidates:
+            if entry not in seen:
+                seen.add(entry)
+                selected.append(entry)
+                if len(selected) == budget:
+                    break
+
+        index_map.extend(selected)
+
+    return index_map
 
 
 class SO3onS2(nn.Module):
@@ -24,12 +115,16 @@ class SO3onS2(nn.Module):
     equiangular grid, computes the spherical harmonic transform internally,
     and returns the bispectrum coefficients.
 
+    When ``selective=True``, outputs O(L²) bispectral entries instead of
+    O(L³), using a degree-by-degree construction that preserves completeness
+    for generic signals.
+
     Args:
         lmax: Maximum spherical harmonic degree.
         nlat: Number of latitude grid points.
         nlon: Number of longitude grid points.
-        selective: Reserved for future use. Selective bispectrum for SO(3)
-            is an open problem (see DESIGN.md TODO-M1).
+        selective: If True, use the O(L²) selective bispectrum. If False,
+            compute all O(L³) entries.
     """
 
     def __init__(
@@ -37,7 +132,7 @@ class SO3onS2(nn.Module):
         lmax: int = 5,
         nlat: int = 64,
         nlon: int = 128,
-        selective: bool = True,
+        selective: bool = False,
     ) -> None:
         super().__init__()
         self.lmax = lmax
@@ -52,64 +147,112 @@ class SO3onS2(nn.Module):
             nlat, nlon, lmax=sht_lmax, mmax=sht_lmax, grid='equiangular', norm='ortho'
         )
 
-        cg_data = load_cg_matrices(lmax)
-        self._index_map: list[tuple[int, int, int]] = []
+        if selective:
+            self._index_map = _build_selective_index_map(lmax)
+        else:
+            cg_data = load_cg_matrices(lmax)
+            self._index_map = _build_full_index_map(lmax, cg_data)
 
-        for l1 in range(lmax + 1):
-            for l2 in range(l1, lmax + 1):
-                key = (l1, l2)
-                if key not in cg_data:
-                    continue
-                self.register_buffer(f'cg_{l1}_{l2}', cg_data[key])
-                for l in range(abs(l1 - l2), min(l1 + l2, lmax) + 1):
-                    self._index_map.append((l1, l2, l))
+        self._build_group_tables(cg_data if not selective else None)
 
-        self._build_batched_bispectrum_tensors(cg_data)
+    def _build_group_tables(self, cg_data: dict[tuple[int, int], torch.Tensor] | None) -> None:
+        """Precompute per-(l1, l2) group tables with reduced CG matrices.
 
-    def _build_batched_bispectrum_tensors(
-        self, cg_data: dict[tuple[int, int], torch.Tensor]
-    ) -> None:
-        """Precompute padded CG matrices and index arrays for vectorized forward."""
-        lmax = self.lmax
-        num_entries = len(self._index_map)
-        if num_entries == 0:
-            return
+        For each (l1, l2) group, builds a *reduced* CG matrix containing
+        only the columns needed by the entries in the group.  This turns
+        the ``(batch, d) @ (d, d)`` matmul into ``(batch, d) @ (d, c)``
+        where ``c`` is the total number of coupled-basis elements actually
+        used — often much smaller than ``d`` for the selective bispectrum.
 
-        D_max = (2 * lmax + 1) ** 2
-        2 * lmax + 1
-
-        l1_arr = torch.zeros(num_entries, dtype=torch.long)
-        l2_arr = torch.zeros(num_entries, dtype=torch.long)
-        l_arr = torch.zeros(num_entries, dtype=torch.long)
-        d_prod_arr = torch.zeros(num_entries, dtype=torch.long)
-        n_p_arr = torch.zeros(num_entries, dtype=torch.long)
-        size_l_arr = torch.zeros(num_entries, dtype=torch.long)
-
-        cg_padded = torch.zeros(num_entries, D_max, D_max, dtype=torch.float64)
-
-        for idx, (l1, l2, l_val) in enumerate(self._index_map):
-            l1_arr[idx] = l1
-            l2_arr[idx] = l2
-            l_arr[idx] = l_val
-            d = (2 * l1 + 1) * (2 * l2 + 1)
-            d_prod_arr[idx] = d
-            size_l_arr[idx] = 2 * l_val + 1
+        When *cg_data* is ``None`` (selective mode), computes only the
+        needed columns directly using parallel workers — never building
+        full CG matrices.  When *cg_data* is provided (full mode), slices
+        columns from the precomputed full matrices.
+        """
+        groups: OrderedDict[tuple[int, int], list[tuple[int, int, int, int]]] = OrderedDict()
+        for out_idx, (l1, l2, l_val) in enumerate(self._index_map):
+            key = (l1, l2)
             n_p, _ = _compute_padding_indices(l1, l2, l_val)
-            n_p_arr[idx] = n_p
+            size_l = 2 * l_val + 1
+            groups.setdefault(key, []).append((l_val, out_idx, n_p, size_l))
 
-            cg = cg_data[(l1, l2)]
-            cg_padded[idx, :d, :d] = cg
+        # Build extraction metadata for each group.
+        # Sort entries by l_val within each group so columns match the
+        # natural ascending-l order produced by compute_cg_columns.
+        group_meta: list[
+            tuple[int, int, list[tuple[int, int, int, int]], list[int], list[int]]
+        ] = []
+        for (l1, l2), entries in groups.items():
+            entries_sorted = sorted(entries, key=lambda e: e[0])  # sort by l_val
+            col_indices: list[int] = []
+            extract_entries: list[tuple[int, int, int, int]] = []
+            l_vals_needed: list[int] = []
+            offset = 0
+            for l_val, out_idx, n_p, size_l in entries_sorted:
+                col_indices.extend(range(n_p, n_p + size_l))
+                extract_entries.append((out_idx, offset, size_l, l_val))
+                l_vals_needed.append(l_val)
+                offset += size_l
+            group_meta.append((l1, l2, extract_entries, col_indices, l_vals_needed))
 
-        self.register_buffer('_l1_arr', l1_arr)
-        self.register_buffer('_l2_arr', l2_arr)
-        self.register_buffer('_l_arr', l_arr)
-        self.register_buffer('_d_prod_arr', d_prod_arr)
-        self.register_buffer('_n_p_arr', n_p_arr)
-        self.register_buffer('_size_l_arr', size_l_arr)
-        self.register_buffer('_cg_padded', cg_padded)
+        # Compute reduced CG matrices.
+        if cg_data is not None:
+            # Full mode: slice from precomputed full matrices.
+            reduced_cgs = {}
+            for gid, (l1, l2, _, col_indices, _) in enumerate(group_meta):
+                reduced_cgs[gid] = cg_data[(l1, l2)][:, col_indices]
+        else:
+            # Selective mode: try disk cache, else compute in parallel.
+            reduced_cgs = self._load_or_compute_reduced_cg(group_meta)
+
+        # Register buffers and build _group_data.
+        self._group_data: list[tuple[int, int, int, list[tuple[int, int, int, int]]]] = []
+        for gid, (l1, l2, extract_entries, _col_indices, _) in enumerate(group_meta):
+            cg_red = reduced_cgs[gid]
+            c = cg_red.shape[1]
+            self.register_buffer(f'_cg_red_{gid}', cg_red)
+            self._group_data.append((l1, l2, c, extract_entries))
+
+    @staticmethod
+    def _load_or_compute_reduced_cg(
+        group_meta: list,
+    ) -> dict[int, torch.Tensor]:
+        """Load reduced CG from disk cache, or compute + save."""
+        # Build a deterministic cache key from the group structure.
+        key_parts = []
+        for gid, (l1, l2, _, _, l_vals) in enumerate(group_meta):
+            key_parts.append(f'{gid}:{l1},{l2}:{l_vals}')
+        key_str = '|'.join(key_parts)
+        cache_hash = hashlib.sha256(key_str.encode()).hexdigest()[:16]
+        cache_path = _CACHE_DIR / f'cg_reduced_{cache_hash}.pt'
+
+        # Try loading from cache.
+        if cache_path.exists():
+            try:
+                data = torch.load(cache_path, weights_only=True)
+                return {int(k): v for k, v in data.items()}
+            except (OSError, RuntimeError):
+                pass
+
+        # Compute in parallel.
+        tasks = [(gid, l1, l2, l_vals) for gid, (l1, l2, _, _, l_vals) in enumerate(group_meta)]
+        reduced_cgs = compute_reduced_cg_parallel(tasks)
+
+        # Save to cache.
+        try:
+            _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            torch.save({str(k): v for k, v in reduced_cgs.items()}, cache_path)
+        except OSError:
+            pass
+
+        return reduced_cgs
 
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the SO(3)-bispectrum of a signal on S^2.
+
+        Uses block-sparse computation with reduced CG matrices: for each
+        (l1, l2) group, multiplies the tensor product by a CG matrix
+        containing only the needed columns, then extracts and contracts.
 
         Args:
             f: Real-valued signal on S^2. Shape: (batch, nlat, nlon).
@@ -125,41 +268,23 @@ class SO3onS2(nn.Module):
         if num_entries == 0:
             return torch.zeros(batch_size, 0, dtype=coeffs.dtype, device=f.device)
 
-        lmax = self.lmax
-        W = 2 * lmax + 1
-        D_max = W * W
+        result = torch.zeros(batch_size, num_entries, dtype=coeffs.dtype, device=f.device)
 
-        f_padded = torch.zeros(batch_size, lmax + 1, W, dtype=coeffs.dtype, device=f.device)
-        for l_val, fl in f_coeffs.items():
-            sz = fl.shape[1]
-            start = (W - sz) // 2
-            f_padded[:, l_val, start : start + sz] = fl
+        for gid, (l1, l2, _c, extract_entries) in enumerate(self._group_data):
+            fl1 = f_coeffs[l1]  # (batch, 2l1+1)
+            fl2 = f_coeffs[l2]  # (batch, 2l2+1)
 
-        f_l1 = f_padded[:, self._l1_arr]
-        f_l2 = f_padded[:, self._l2_arr]
-        outer = torch.einsum('bni,bnj->bnij', f_l1, f_l2)
-        outer_flat = outer.reshape(batch_size, num_entries, D_max)
+            # Outer product → flatten → reduced CG transform.
+            tp = torch.einsum('bi,bj->bij', fl1, fl2).reshape(batch_size, -1)
+            cg = getattr(self, f'_cg_red_{gid}')
+            cg = cg.to(dtype=tp.dtype, device=tp.device)
+            transformed = tp @ cg  # (batch, c)  — c ≪ d typically
 
-        cg = self._cg_padded.to(dtype=outer_flat.dtype, device=outer_flat.device)
-        transformed = torch.bmm(
-            outer_flat.reshape(batch_size * num_entries, 1, D_max),
-            cg.unsqueeze(0)
-            .expand(batch_size, -1, -1, -1)
-            .reshape(batch_size * num_entries, D_max, D_max),
-        ).reshape(batch_size, num_entries, D_max)
+            # Extract each l-block and contract with conj(F_l).
+            for out_idx, offset, size_l, l_val in extract_entries:
+                block = transformed[:, offset : offset + size_l]
+                result[:, out_idx] = torch.sum(block * torch.conj(f_coeffs[l_val]), dim=-1)
 
-        f_l_vals = f_padded[:, self._l_arr]
-        f_hat_padded = torch.zeros(
-            batch_size, num_entries, D_max, dtype=coeffs.dtype, device=f.device
-        )
-        for idx in range(num_entries):
-            n_p = self._n_p_arr[idx].item()
-            sz = self._size_l_arr[idx].item()
-            l_val = self._l_arr[idx].item()
-            start = (W - (2 * l_val + 1)) // 2
-            f_hat_padded[:, idx, n_p : n_p + sz] = f_l_vals[:, idx, start : start + sz]
-
-        result = torch.sum(transformed * torch.conj(f_hat_padded), dim=-1)
         return result
 
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
@@ -186,7 +311,8 @@ class SO3onS2(nn.Module):
 
     def extra_repr(self) -> str:
         return (
-            f'lmax={self.lmax}, nlat={self.nlat}, nlon={self.nlon}, output_size={self.output_size}'
+            f'lmax={self.lmax}, nlat={self.nlat}, nlon={self.nlon}, '
+            f'selective={self.selective}, output_size={self.output_size}'
         )
 
 
