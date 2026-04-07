@@ -8,9 +8,10 @@
 #   gate:        gr=3  → 136K
 #   fourier_elu: gr=4  → 110K
 #   bispectrum:  gr=4  → 128K
+#   so2_disk:    bl=30 → ~100K (MLP auto-sized)
 #
-# Phase A (30 runs, single seed, skip rotation): ~3-5 hours
-# Phase B (60 runs, 2 more seeds, with rotation): ~8-12 hours
+# Phase A (36 runs, single seed, skip rotation): ~4-6 hours
+# Phase B (72 runs, 2 more seeds, with rotation): ~10-15 hours
 #
 # Usage (run in tmux):
 #   ./run_data_pareto_sweep.sh              # Phase A
@@ -34,6 +35,7 @@ MODEL_GR[bispectrum]=4
 
 MODELS=(standard norm gate fourier_elu bispectrum)
 FRACTIONS=(0.01 0.05 0.1 0.25 0.5 1.0)
+SO2_DISK_BL=30
 
 BASE_OUTPUT_DIR="./pcam_results_data_pareto"
 COMMON="--patience 10 --epochs 50"
@@ -70,6 +72,23 @@ run_single() {
         --train_fraction "$frac" $COMMON $extra
 }
 
+run_so2_disk() {
+    local frac=$1 seed=$2 extra=${3:-}
+    local output_dir="${BASE_OUTPUT_DIR}/frac_${frac}"
+    local out_dir="${output_dir}/so2_disk_bl${SO2_DISK_BL}_seed${seed}"
+    if [[ -f "${out_dir}/results.json" ]]; then
+        echo "SKIP (already done): model=so2_disk frac=$frac seed=$seed"
+        return 0
+    fi
+    echo ""
+    echo "============================================================"
+    echo "  model=so2_disk  bl=$SO2_DISK_BL  frac=$frac  seed=$seed  $(date)"
+    echo "============================================================"
+    python train.py --model so2_disk --bandlimit "$SO2_DISK_BL" \
+        --output_dir "$output_dir" --seed "$seed" --batch_size 256 \
+        --train_fraction "$frac" $COMMON $extra
+}
+
 if [[ "${1:-}" == "--phase-b" ]]; then
     echo "=== PHASE B: remaining seeds (123, 456) with rotation eval ==="
     for frac in "${FRACTIONS[@]}"; do
@@ -77,6 +96,7 @@ if [[ "${1:-}" == "--phase-b" ]]; then
             for model in "${MODELS[@]}"; do
                 run_single "$model" "$frac" "$seed"
             done
+            run_so2_disk "$frac" "$seed"
         done
     done
 else
@@ -85,6 +105,7 @@ else
         for model in "${MODELS[@]}"; do
             run_single "$model" "$frac" 42 "--skip_rotation"
         done
+        run_so2_disk "$frac" 42 "--skip_rotation"
     done
 fi
 

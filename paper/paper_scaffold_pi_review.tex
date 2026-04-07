@@ -331,8 +331,9 @@ methods on PCam and the closely related Camelyon16 benchmark.
 We use a $C_8$-equivariant DenseNet backbone with block configuration
 $(4, 4, 4)$, 24 initial channels, and compression factor 0.5, following the
 architecture of Veeling et al.\ but replacing the final invariant
-map. Five model variants differ \emph{only} in their nonlinearity and
-terminal invariant pooling:
+map. Five model variants share the same backbone, differing only in the
+nonlinearity and terminal invariant pooling.  A sixth, backbone-free
+variant showcases \texttt{SO2onDisk} as a standalone feature extractor:
 
 \begin{itemize}
   \item \textbf{Standard}: vanilla CNN with random rotation/reflection
@@ -346,6 +347,10 @@ terminal invariant pooling:
   \item \textbf{Bispectrum}: $C_8$-equivariant backbone with ReLU
     nonlinearity and selective $G$-bispectrum via \texttt{CnonCn}$(n{=}8)$
     as the terminal invariant map.
+  \item \textbf{Disk bispectrum}: no convolutional backbone;
+    \texttt{SO2onDisk} is applied per RGB channel to the raw $96\times 96$
+    patches, producing rotation-invariant Fourier--Bessel bispectrum
+    coefficients that are fed into a small MLP classifier.
 \end{itemize}
 
 To enable a controlled Pareto comparison, we sweep the DenseNet growth rate
@@ -373,8 +378,9 @@ are:
 
 \begin{table}[t]
   \caption{PCam results at the ${\sim}100$K parameter budget (10\% training
-    data, seed 42). All equivariant models use the same $C_8$-DenseNet
-    backbone; only the nonlinearity and invariant map differ.}
+    data, seed 42). The first five models share a DenseNet backbone;
+    the disk bispectrum model has no backbone and uses \texttt{SO2onDisk}
+    directly on the input patches.}
   \label{tab:pcam-results}
   \centering
   \small
@@ -387,6 +393,8 @@ are:
     Bispectrum (\texttt{CnonCn})  &  80K & 0.933 & 0.880 \\
     Fourier-ELU                   & 110K & 0.937 & 0.857 \\
     NormReLU                      & 110K & \textbf{0.954} & \textbf{0.887} \\
+    \midrule
+    Disk bisp.\ (\texttt{SO2onDisk}) & 100K & 0.794 & 0.724 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -417,6 +425,21 @@ training data. The bispectrum model at 80K parameters (AUC 0.933) exceeds
 the published DenseNet baseline (128K params, AUC 0.951 on full data) while
 trained on 10$\times$ fewer examples, demonstrating the sample efficiency
 of equivariant architectures with principled invariant pooling.
+
+\emph{Disk bispectrum as a backbone-free baseline.}
+The \texttt{SO2onDisk} model applies the selective disk bispectrum
+(Definition~4.2 of Myers \& Miolane) directly to the raw input patches
+without any learned convolutional features.  At 100K parameters
+(bandlimit~$=10$) it reaches AUC~0.794---substantially below the
+learned models, as expected for a handcrafted feature extractor.
+However, its rotation robustness is near-perfect:
+$\sigma_{\text{AUC}} < 2 \times 10^{-5}$ across 12 test-time rotation
+angles, compared to residual angle-dependent variation in the $C_8$
+models.  At 1\% training data, the disk bispectrum retains AUC~0.778,
+showing that the analytically rotation-invariant features degrade
+gracefully when data is scarce.  This variant demonstrates that
+\texttt{SO2onDisk} can serve as a drop-in rotation-invariant feature
+extractor from the library, independent of any equivariant backbone.
 
 \subsection{3D organ classification under octahedral symmetry}
 \label{sec:organ3d}

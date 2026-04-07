@@ -19,8 +19,9 @@ MODEL_STYLE = {
     'gate':        {'color': '#FF9800', 'marker': '^', 'label': 'Gated'},
     'fourier_elu': {'color': '#9C27B0', 'marker': 'D', 'label': 'Fourier-ELU'},
     'bispectrum':  {'color': '#E53935', 'marker': '*', 'label': 'Bispectrum'},
+    'so2_disk':    {'color': '#4CAF50', 'marker': 'P', 'label': 'Disk bisp. (SO2onDisk)'},
 }
-MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum']
+MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum', 'so2_disk']
 
 
 def load_results(directory: Path) -> list[dict]:
@@ -113,7 +114,7 @@ def main() -> None:
     ax1.set_xscale('log')
     ax1.set_xlabel('Parameters')
     ax1.set_ylabel('Test AUC')
-    ax1.set_ylim(0.875, 0.96)
+    ax1.set_ylim(0.75, 0.96)
     ax1.set_title('(a) AUC vs. parameter count (10% data)')
     _style_ax(ax1)
     ax1.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
@@ -143,7 +144,7 @@ def main() -> None:
     ax2.set_yticks(y_pos)
     ax2.set_yticklabels(labels_matched)
     ax2.set_xlabel('Test AUC')
-    ax2.set_xlim(0.915, 0.96)
+    ax2.set_xlim(0.75, 0.96)
     ax2.set_title('(b) Ranking at ~100K parameters')
     _style_ax(ax2)
     ax2.xaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
@@ -167,7 +168,7 @@ def main() -> None:
     ax3.set_title('(c) Data efficiency (~100K params)')
     ax3.set_xticks([0.01, 0.05, 0.1, 0.25])
     ax3.set_xticklabels(['1%', '5%', '10%', '25%'])
-    ax3.set_ylim(0.855, 0.96)
+    ax3.set_ylim(0.75, 0.96)
     _style_ax(ax3)
     ax3.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
     ax3.legend(frameon=True, fancybox=False, edgecolor='#cccccc',

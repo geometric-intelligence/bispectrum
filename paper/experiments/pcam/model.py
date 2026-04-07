@@ -3,14 +3,14 @@
 No escnn dependency — group-equivariant convolutions are implemented from
 scratch following Cohen & Welling (2016).
 
-Five model variants share the same backbone, differing only in the
-nonlinearity / invariant-map used:
+Six model variants:
 
     1. ``standard``   — vanilla DenseNet + data augmentation (no group structure)
     2. ``norm``       — equivariant DenseNet + NormReLU nonlinearity
     3. ``gate``       — equivariant DenseNet + gated nonlinearity
     4. ``fourier_elu``— equivariant DenseNet + FFT→ELU→IFFT nonlinearity
     5. ``bispectrum`` — equivariant DenseNet + bispectral invariant pooling
+    6. ``so2_disk``   — SO2onDisk disk bispectrum on raw patches + MLP (no backbone)
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from bispectrum import CnonCn, DnonDn
+from bispectrum import CnonCn, DnonDn, SO2onDisk
 
 GroupName = Literal['c8', 'd4']
 
@@ -589,13 +589,83 @@ class PCamDenseNet(nn.Module):
         return self.classifier(x).squeeze(-1)
 
 
+class PCamDiskBispectrum(nn.Module):
+    """Rotation-invariant classifier using SO2onDisk on raw image patches.
+
+    Applies the disk harmonic transform + selective bispectrum independently
+    to each input channel, producing rotation-invariant features that are
+    fed into a small MLP.  No convolutional backbone — only the MLP has
+    learnable parameters.
+
+    Args:
+        bandlimit: Maximum Bessel root frequency for the disk harmonic basis.
+            Controls the number of bispectrum features and thus compute cost.
+        target_params: Desired total parameter count.  The MLP hidden-layer
+            width is auto-computed to approximately hit this budget.
+        in_channels: Number of input image channels (3 for RGB).
+        image_size: Spatial side length of the input images.
+    """
+
+    def __init__(
+        self,
+        bandlimit: float = 30.0,
+        target_params: int = 100_000,
+        in_channels: int = 3,
+        image_size: int = 96,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+
+        self.bispec = SO2onDisk(L=image_size, bandlimit=bandlimit)
+        for p in self.bispec.parameters():
+            p.requires_grad_(False)
+
+        n_bispec = self.bispec.output_size
+        self.features_per_channel = n_bispec * 2  # real + imag
+        n_features = in_channels * self.features_per_channel
+
+        # Auto-size hidden layer: params ≈ n_features*H + H + H + 1
+        hidden = max(16, (target_params - 1) // (n_features + 2))
+        self.mlp = nn.Sequential(
+            nn.Linear(n_features, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, 1),
+        )
+        self._n_features = n_features
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, C, H, W = x.shape
+        with torch.amp.autocast('cuda', enabled=False):
+            betas = []
+            for c in range(C):
+                beta = self.bispec(x[:, c].float())  # (B, output_size) complex
+                beta_re = beta.real.float()
+                beta_im = beta.imag.float()
+                beta_re = torch.sign(beta_re) * torch.log1p(beta_re.abs())
+                beta_im = torch.sign(beta_im) * torch.log1p(beta_im.abs())
+                betas.append(beta_re)
+                betas.append(beta_im)
+            features = torch.cat(betas, dim=-1)  # (B, C * output_size * 2)
+
+        return self.mlp(features).squeeze(-1)
+
+
 def build_model(
     nonlin_type: str,
     group: str = 'c8',
     growth_rate: int = 12,
     block_config: tuple[int, ...] = (4, 4, 4),
-) -> PCamDenseNet:
-    """Build a PCamDenseNet with the specified configuration."""
+    bandlimit: float | None = None,
+    target_params: int = 100_000,
+) -> nn.Module:
+    """Build a PCam model with the specified configuration."""
+    if nonlin_type == 'so2_disk':
+        if bandlimit is None:
+            bandlimit = 30.0
+        return PCamDiskBispectrum(
+            bandlimit=bandlimit,
+            target_params=target_params,
+        )
     return PCamDenseNet(
         nonlin_type=nonlin_type,
         group=group,
