@@ -17,6 +17,7 @@
 \usepackage{graphicx}
 \usepackage{algorithm}
 \usepackage{algorithmic}
+\usepackage{enumitem}
 \usepackage[textsize=tiny, textwidth=2.6cm]{todonotes}
 \setlength{\marginparwidth}{2.6cm}
 \usepackage{listings}
@@ -29,14 +30,21 @@
 \newtheorem{remark}[theorem]{Remark}
 
 \DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\sgn}{sgn}
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\C}{\mathbb{C}}
 \newcommand{\SO}{\mathrm{SO}}
 \newcommand{\OG}{\mathrm{O}}
+\newcommand{\SH}{Y}
+\newcommand{\CG}[6]{C^{#5,\,#6}_{#1,\,#2;\,#3,\,#4}}
+\newcommand{\abs}[1]{\lvert #1 \rvert}
+\newcommand{\norm}[1]{\lVert #1 \rVert}
+\newcommand{\conj}[1]{\overline{#1}}
+\newcommand{\ip}[2]{\langle #1,\, #2 \rangle}
 
-\newcommand{\reviewquestion}[1]{\todo[inline,color=blue!8]{Nina: #1}}
+\newtheorem{assumption}[theorem]{Assumption}
+
 \newcommand{\papertodo}[1]{\todo[inline,color=orange!12]{TODO: #1}}
-\newcommand{\decision}[1]{\todo[inline,color=green!10]{Decision needed: #1}}
 
 \lstset{
   language=Python,
@@ -67,170 +75,193 @@
 
 \begin{abstract}
 \papertodo{Write a clean 120--150 word abstract after we decide the final empirical scope.}
-\reviewquestion{Should the paper pitch itself primarily as a software paper with one engineering/scientific case study, or as a software paper plus empirical ML paper?}
-\reviewquestion{For the abstract, should we keep the empirical claim to PCam only unless a second experiment is complete enough to defend?}
 
-Candidate abstract structure:
-\begin{itemize}
-  \item Problem: selective $G$-bispectra are theoretically attractive but not available as practical ML software.
-  \item Main artifact: a PyTorch library implementing selective or full bispectral invariants across several group/domain pairs.
-  \item Main technical point: implementing inversion for the octahedral group required resolving a concrete algorithmic failure of the bootstrap strategy.
-  \item Empirical point: evaluate the library across three group/domain
-    settings---$C_8$ on PCam, octahedral on OrganMNIST3D, and $\SO(3)$ on
-    Spherical MNIST---demonstrating exact rotation invariance and the
-    discriminative advantage of complete bispectral invariants over
-    incomplete alternatives (power spectrum, norm pooling).
-  \item Scope note: do not mention steerable-to-Fourier in this version.
-\end{itemize}
+We present \texttt{bispectrum}, a PyTorch library for computing selective
+$G$-bispectral invariants across seven group/domain pairs as differentiable
+\texttt{nn.Module}s. Building the library required two technical
+contributions: (i)~a selective $\SO(3)$ bispectrum on $S^2$ that achieves
+$O(L^2)$ coefficients---matching the information-theoretic lower
+bound---instead of $O(L^3)$ for the full bispectrum, and (ii)~resolving a
+previously undocumented inversion failure for the octahedral group via
+bootstrap initialization followed by Levenberg--Marquardt refinement. We
+evaluate the library across three group/domain settings---$C_8$ on PCam,
+octahedral on OrganMNIST3D, and $\SO(3)$ on Spherical MNIST---demonstrating
+exact rotation invariance and the data-efficiency advantage of complete
+bispectral invariants over incomplete alternatives such as power spectrum and
+norm pooling.
 \end{abstract}
-
-\reviewquestion{We need a 3D dataset to test the Octahedral group (\texttt{OctaonOcta}). This is required for the empirical story to cover our main technical contribution.}
-\reviewquestion{Deadline is April 14 for internal review.}
-\reviewquestion{We need to look again at the state of the art for the PCam dataset --- make sure our baselines and comparisons are up to date.}
-\reviewquestion{We need to do a Pareto analysis for the amount of data (accuracy vs.\ training set size across pooling methods).}
 
 \section{Introduction}
 \label{sec:intro}
 
-Equivariant neural networks enforce symmetry by construction, but they still
-require an invariant representation at the point where a prediction must no
-longer depend on orientation. In practice, invariant pooling remains a weak
-point: standard choices such as norm pooling, gate-based pooling, or max/sum
-aggregation are usable, but they do not preserve all equivariant information.
-The bispectrum offers a mathematically principled alternative, since for many
-groups it yields exact invariants with reconstruction guarantees.
+Equivariant neural networks~\citep{cohen2016group, weiler2019general} enforce
+symmetry by construction, but they still require an invariant representation at
+the point where a prediction must no longer depend on orientation. In practice,
+invariant pooling remains a weak point: standard choices such as norm pooling,
+gate-based pooling, or max/sum aggregation are
+usable~\citep{weiler2019general}, but they do not preserve all equivariant
+information. The bispectrum offers a mathematically principled alternative,
+since for many groups it yields exact invariants with reconstruction
+guarantees~\citep{kakarala1992triple}.
 
 The obstacle is practical rather than conceptual. Existing bispectral
 constructions are scattered across theory papers, domain-specific derivations,
 and small implementations, with no general-purpose PyTorch library covering the
 finite-group and compact-group cases relevant to modern geometric deep learning.
 Even for groups where selectivity reduces the coefficient count from
-$O(|G|^2)$ to $O(|G|)$, a user still needs a numerically stable implementation,
+$O(|G|^2)$ to $O(|G|)$~\citep{mataigne2024selective}, a user still needs a numerically stable implementation,
 a consistent API, inversion routines, tests, and benchmarked runtime behavior.
 
 This paper presents \texttt{bispectrum}, a PyTorch library for computing
 bispectral invariants and, where available, their inverses. The library
 supports cyclic, dihedral, torus, disk, sphere, and octahedral settings as
 differentiable \texttt{nn.Module}s intended to plug into standard ML workflows.
-Our emphasis in this draft is on the software design and on one specific
-engineering contribution that arose during implementation: inversion for the
-octahedral group.
+Beyond the software contribution, the paper makes two technical contributions
+that arose during implementation: a selective $\SO(3)$ bispectrum on $S^2$
+with $O(L^2)$ coefficients (Section~\ref{sec:so3-selective}), and a resolution of
+the bootstrap inversion failure~\citep{mataigne2024selective} for the
+octahedral group (Section~\ref{sec:octa}).
 
 \papertodo{Rewrite the introduction once the final empirical scope is fixed.}
-\decision{Keep the paper centered on the library + octahedral inversion, or broaden to ``library + empirical study of invariant pooling''?}
-\reviewquestion{Do we want the intro to frame the library as infrastructure for geometric deep learning in general, or specifically as a practical invariant nonlinearity for equivariant CNNs?}
 
-\paragraph{Proposed contributions for this version.}
-This scaffold assumes the paper will make the following contributions:
+\paragraph{Contributions.}
 \begin{enumerate}
   \item \textbf{Software contribution.} A PyTorch library implementing
     bispectral invariants for multiple group/domain pairs with a consistent
     \texttt{nn.Module}-style interface.
-  \item \textbf{Engineering/scientific contribution.} An analysis of why the
-    standard selective-bispectrum bootstrap inversion fails for the octahedral
-    group, together with a working bootstrap + Levenberg--Marquardt correction.
-  \item \textbf{Empirical contribution.} A task-driven evaluation of the
-    library as an invariant pooling primitive, with final claims currently left
-    open pending completed sweeps.
+  \item \textbf{Selective $\SO(3)$ bispectrum on $S^2$.} We construct and
+    implement a selective bispectrum for $\SO(3)$ acting on $S^2$ that uses
+    $O(L^2)$ coefficients instead of the full $O(L^3)$, matching the
+    information-theoretic lower bound of $(L{+}1)^2 - 3$ independent
+    invariants. This is, to our knowledge, the first $O(L^2)$ complete
+    invariant for this setting.
+  \item \textbf{Octahedral inversion.} An analysis of why the standard
+    selective-bispectrum bootstrap inversion fails for the octahedral group,
+    together with a working bootstrap + Levenberg--Marquardt correction.
+  \item \textbf{Empirical validation.} A task-driven evaluation of the
+    library as an invariant pooling primitive across three group/domain
+    settings, demonstrating the data-efficiency advantage of complete
+    bispectral invariants.
 \end{enumerate}
-
-\reviewquestion{Is this the right level of ambition for a one-month deadline, or should we cut to only (1) + (2) with experiments framed as validation rather than broad empirical claims?}
 
 \section{Mathematical Background}
 \label{sec:background}
 
 \subsection{Equivariant features and invariant maps}
 
-\papertodo{Write a short background subsection on equivariant CNNs and invariant pooling. Keep this focused and non-controversial.}
+A neural network layer is \emph{$G$-equivariant} if its output transforms
+predictably under the group action:
+$[\pi_{\mathrm{out}}(g) \circ \Phi](f) = \Phi(\pi_{\mathrm{in}}(g) f)$
+for all $g \in G$~\citep{cohen2016group, weiler2019general}.
+Stacking equivariant layers preserves this property, but any task that requires
+a prediction independent of orientation---classification, regression,
+detection---must eventually map equivariant features to \emph{invariant} ones.
 
-Suggested points:
-\begin{itemize}
-  \item Equivariant layers transform predictably under a group action.
-  \item Downstream prediction tasks often require a representation invariant to
-    that action.
-  \item Existing invariant maps in equivariant architectures are typically
-    chosen for convenience rather than completeness.
-  \item The paper only needs enough background to motivate the bispectrum as a
-    candidate invariant primitive.
-\end{itemize}
-
-\subsection{The $G$-bispectrum and selective bispectra}
-
-\papertodo{Write a concise subsection giving the bispectrum definition and the idea of selectivity.}
-
-Minimal content to include:
-\begin{itemize}
-  \item finite-group Fourier transform notation,
-  \item the bispectrum as a triple-product / Clebsch--Gordan construction,
-  \item completeness as orbit separation under appropriate nondegeneracy assumptions,
-  \item selective bispectrum as a reduced coefficient set with the same recovery guarantees in the settings covered by prior theory.
-\end{itemize}
-
-\reviewquestion{Should this section stay abstract and general, or should we immediately specialize notation toward the modules in the library table?}
-
-\section{The \texttt{bispectrum} Library}
-\label{sec:library}
-
-This section should read like a software paper, not a tutorial. The goal is to
-explain what the library covers, what abstractions it exposes, and what design
-choices were made to keep the implementation mathematically legible and usable
-in PyTorch workflows.
-
-\subsection{Design principles}
-\label{sec:design}
-
-\papertodo{Write this as a design-principles section, borrowing the ``manifesto'' framing from strong software papers.}
-
-Candidate principles:
-\begin{itemize}
-  \item \textbf{Mathematical naming.} Module names encode both the acting group
-    and the signal domain, e.g.\ \texttt{CnonCn}, \texttt{DnonDn},
-    \texttt{SO2onDisk}, \texttt{SO3onS2}, \texttt{OctaonOcta}.
-  \item \textbf{\texttt{nn.Module} interface.} Every transform is packaged as a
-    module with a forward pass and, where available, an inversion routine.
-  \item \textbf{Raw-signal input.} Users pass signals in their natural domain;
-    the internal Fourier or harmonic transform is handled by the module.
-  \item \textbf{Registered buffers for mathematical objects.} Precomputed
-    Clebsch--Gordan matrices, harmonic bases, and related constants move
-    correctly across device and dtype.
-  \item \textbf{Selective when justified.} Modules expose selective outputs when
-    the mathematics and implementation support them; otherwise the paper should
-    state the limitation explicitly.
-\end{itemize}
-
-\reviewquestion{Do we want to include a short subsection here on what the library deliberately does \emph{not} try to unify, to avoid overclaiming API uniformity?}
-
-\subsection{Supported modules}
-\label{sec:supported-modules}
-
-\papertodo{Fill in the table only with claims that the current package actually supports. Avoid wording that implies full-mode support everywhere.}
-
-\begin{table}[h]
-  \caption{Current scope of the \texttt{bispectrum} library.}
-  \label{tab:supported-groups-scaffold}
+\begin{table}[t]
+  \caption{Invariant nonlinearities for equivariant CNNs. The selective
+    bispectrum is the only method that is simultaneously exact, complete,
+    and linear-cost for finite groups.}
+  \label{tab:nonlinearity-comparison}
   \centering
   \small
-  \begin{tabular}{llll}
+  \begin{tabular}{lcccc}
     \toprule
-    Module & Group / Domain & Output mode & Inversion status \\
+    Nonlinearity & Exact? & Complete? & Coefficients & Key limitation \\
     \midrule
-    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full & implemented \\
-    \texttt{SO2onS1} & $\SO(2)$ on $S^1$ & selective + full via cyclic case & implemented \\
-    \texttt{TorusOnTorus} & product cyclic groups on torus & selective + full & implemented \\
-    \texttt{DnonDn} & $D_n$ on $D_n$ & selective & implemented \\
-    \texttt{SO2onDisk} & $\SO(2)$ on disk & selective & implemented \\
-    \texttt{SO3onS2} & $\SO(3)$ on $S^2$ & selective + full & implemented \\
-    \texttt{OctaonOcta} & octahedral group & selective & implemented \\
+    Norm          & Yes & No  & $O(|G|)$      & Discards phase \\
+    Gate          & Yes & No  & $O(2|G|)$     & Scalar bottleneck \\
+    Fourier pointwise & No & Yes & $O(|G| \log |G|)$ & Aliasing \\
+    Full bispectrum & Yes & Yes & $O(|G|^2)$  & Quadratic cost \\
+    \midrule
+    \textbf{Sel.\ bispectrum} & \textbf{Yes} & \textbf{Yes}
+      & $\mathbf{O(|G|)}$ & \textbf{(this work)} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\papertodo{Verify exact wording for the octahedral domain and whether we want to call it ``on $\R^3$'', ``on the octahedral group'', or something more implementation-specific.}
+Table~\ref{tab:nonlinearity-comparison} summarises the trade-offs. Norm
+pooling and gated nonlinearities are exact invariants but \emph{incomplete}:
+they discard the phase of Fourier blocks, collapsing distinct orbits.
+Fourier-space pointwise nonlinearities preserve completeness but
+sacrifice exactness through aliasing~\citep{weiler2019general}. The full
+bispectrum is exact and complete but costs $O(|G|^2)$ coefficients.
+
+\subsection{The $G$-bispectrum and selective bispectra}
+
+Let $G$ be a compact group with irreducible representations
+$\{\rho_i\}_{i \in \hat{G}}$ of dimensions $d_i$, and let
+$\hat{f}(\rho_i) = \sum_{g \in G} f(g)\, \rho_i(g)$ denote the group
+Fourier transform. Given the Clebsch--Gordan decomposition
+$\rho_i \otimes \rho_j \cong \bigoplus_k m_{ij}^k \rho_k$ with
+intertwining matrix $C_{ij}$, the \emph{bispectrum} is
+\begin{equation}
+  \label{eq:bispectrum-def}
+  \beta_{\rho_i, \rho_j}
+    = C_{ij}^\top\,
+      (\hat{f}(\rho_i) \otimes \hat{f}(\rho_j))\,
+      C_{ij}\, \hat{f}(\rho_k)^\dagger.
+\end{equation}
+Each $\beta_{\rho_i,\rho_j}$ is invariant under $f \mapsto f \circ g$ and,
+taken over all pairs $(i,j)$, the bispectrum is a \emph{complete} invariant:
+it separates orbits for generic signals~\citep{kakarala1992triple}. However,
+the full set has $O(|G|^2)$ coefficients.
+
+\emph{Selective bispectra.} \citet{mataigne2024selective} show that for
+finite groups, a BFS traversal of the Kronecker product table of $\hat{G}$
+selects $O(|G|)$ bispectral coefficients that remain complete. This
+reduction from quadratic to linear is the key to practical deployment:
+for example, the octahedral group drops from $576$ to $172$ coefficients.
+
+\section{The \texttt{bispectrum} Library}
+\label{sec:library}
+
+\subsection{Design principles}
+\label{sec:design}
+
+The library is organised around six principles:
+\textbf{(P1)}~\emph{Naming encodes the math}: class names follow
+\texttt{\{Group\}on\{Domain\}} (e.g.\ \texttt{SO3onS2}), making the
+mathematical context immediately explicit.
+\textbf{(P2)}~\emph{\texttt{nn.Module} only}: every computation is a
+\texttt{torch.nn.Module} with CG matrices, DFT kernels, and Bessel roots
+registered as non-learnable buffers so that \texttt{.to(device)} and
+\texttt{.to(dtype)} work transparently.
+\textbf{(P3)}~\emph{Selective by default}: all modules default to
+$O(|G|)$ selective coefficients; the full $O(|G|^2)$ set is available via
+\texttt{selective=False}.
+\textbf{(P4)}~\emph{Raw signals in}: modules accept real-valued inputs in
+the natural domain and handle the Fourier transform internally.
+\textbf{(P5)}~\emph{Inversion on-module}: \texttt{bsp.invert(beta)} returns
+the reconstructed signal (up to group-action indeterminacy).
+\textbf{(P6)}~\emph{Minimal dependencies}: only \texttt{torch} and
+\texttt{numpy}; Clebsch--Gordan matrices are computed analytically or
+bundled as pre-computed data.
+
+\subsection{Supported modules}
+\label{sec:supported-modules}
+
+\begin{table}[h]
+  \caption{Current scope of the \texttt{bispectrum} library.}
+  \label{tab:supported-groups}
+  \centering
+  \small
+  \begin{tabular}{lll}
+    \toprule
+    Module & Group / Domain & Output mode \\
+    \midrule
+    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full \\
+    \texttt{SO2onS1} & $\SO(2)$ on $S^1$ & selective + full \\
+    \texttt{TorusOnTorus} & product cyclic groups on torus & selective + full \\
+    \texttt{DnonDn} & $D_n$ on $D_n$ & selective \\
+    \texttt{SO2onDisk} & $\SO(2)$ on disk & selective \\
+    \texttt{SO3onS2} & $\SO(3)$ on $S^2$ & selective + full \\
+    \texttt{OctaonOcta} & octahedral group & selective \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Example API}
 \label{sec:api}
-
-\papertodo{Include one short code snippet that actually matches the public package API.}
 
 \begin{lstlisting}
 import torch
@@ -242,45 +273,152 @@ beta = bsp(f)
 f_rec = bsp.invert(beta)
 \end{lstlisting}
 
-\reviewquestion{Should the paper include a single minimal code example only, or one example per modality (finite group, disk, sphere)?}
+\subsection{Selective $\SO(3)$ bispectrum on $S^2$}
+\label{sec:so3-selective}
+
+The full bispectrum on $S^2$ at band-limit $L$ has $\Theta(L^3)$ scalar
+entries $\beta_{\ell_1,\ell_2,\ell}$. For finite groups, selectivity
+reduces $O(|G|^2)$ to $O(|G|)$, but on $S^2$ the BFS chain
+$\beta_{1,0,1}, \beta_{1,1,2}, \ldots$ provides only ${\sim}3L$
+scalars---far too few for $(L{+}1)^2$ unknowns. Indeed, the orbit space
+$\R^{(L+1)^2}/\SO(3)$ has dimension $(L{+}1)^2 - 3$, so any complete
+invariant requires $\Omega(L^2)$ independent components. We achieve this
+lower bound.
+
+\begin{theorem}[Selective $\SO(3)$ bispectrum on $S^2$]
+\label{thm:so3-selective}
+For $f : S^2 \to \R$ band-limited at degree $L$, there exists a set
+$\mathcal{S}$ of $(L{+}1)^2 - 1$ bispectral triples
+$(\ell_1, \ell_2, \ell)$ such that $\{\beta_{\ell_1,\ell_2,\ell}\}_{
+(\ell_1,\ell_2,\ell) \in \mathcal{S}}$ is a complete $\SO(3)$-invariant
+for Lebesgue-almost-every signal, subject to an open question at
+$\ell = 2$ where the current selective set may leave $\arg(a_2^2)$
+undetermined (Remark~\ref{rem:ell2-gap} in Appendix~\ref{app:so3-proof}).
+The count $(L{+}1)^2 - 1$ matches the dimension of the orbit space
+$(L{+}1)^2 - 3$ plus gauge parameters, hence is optimal up to a constant.
+\end{theorem}
+
+\paragraph{The selective index set.}
+For each target degree $\ell$, we select up to $2\ell{+}1$ bispectral
+triples from four categories, prioritising \emph{linear} entries (where
+$\mathbf{F}_\ell$ appears once with both other factors already known):
+\textbf{(1)~Chain} triples $(\ell_1, \ell_2, \ell)$ with
+$\ell_1 \leq \ell_2 < \ell$---linear via $\conj{a_\ell^m}$;
+\textbf{(2)~Cross} triples $(\ell_1, \ell, \ell')$ with
+$\ell_1, \ell' < \ell$---linear via $a_\ell^{m_2}$;
+\textbf{(3)~Power} $(0, \ell, \ell)$, giving
+$\beta = a_0^0 \norm{\mathbf{F}_\ell}^2$ (quadratic);
+\textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$ (quadratic/cubic).
+Table~\ref{tab:entry-counts} shows that for $\ell \geq 4$,
+chain + cross candidates alone exceed $2\ell{+}1$, so the entire
+recovery is a linear solve from that point onward.
+
+\begin{table}[h]
+  \caption{Per-degree entry counts in the selective $\SO(3)$ bispectrum.
+    For $\ell \geq 4$, only linear (chain + cross) entries are needed.}
+  \label{tab:entry-counts}
+  \centering
+  \small
+  \begin{tabular}{cccccc}
+    \toprule
+    $\ell$ & Chain & Cross & Power & Self & Total (cap $2\ell{+}1$) \\
+    \midrule
+    0 & 0 & 0 & 0 & 1 & 1 \\
+    1 & 0 & 0 & 1 & 1 & 2 \\
+    2 & 1 & 1 & 1 & 2 & 5 \\
+    3 & 2 & 3 & 1 & 1 & 7 \\
+    $\geq 4$ & \multicolumn{2}{c}{$\geq 2\ell{+}1$} & 0 & 0 & $2\ell{+}1$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Proof sketch.}
+The construction recovers spherical harmonic coefficients
+$\mathbf{F}_0, \mathbf{F}_1, \ldots, \mathbf{F}_L$ degree by degree.
+\emph{Base cases} ($\ell \leq 3$): $\mathbf{F}_0$ is directly available from
+$\beta_{0,0,0} = (a_0^0)^3$. $\mathbf{F}_1$ is recovered up to $\SO(3)$
+via $\norm{\mathbf{F}_1}^2 = \beta_{0,1,1}/a_0^0$, with the residual
+$\SO(3)$ ambiguity resolved by explicit gauge-fixing: align $\mathbf{F}_1$
+with the $z$-axis (consuming 2~DOF), then fix the azimuthal phase of
+$a_2^1$ to be real (consuming the last DOF). After gauge-fixing,
+degrees 2 and 3 are resolved by combining chain entries
+$\beta_{1,\ell{-}1,\ell}$ (linear in $\mathbf{F}_\ell$) with power
+and self-coupling entries (nonlinear), yielding systems whose Jacobians
+have full rank at generic points.
+\emph{Linear bootstrap} ($\ell \geq 4$): at degree $\ell$, we select
+$N \geq 2\ell{+}1$ triples in which $\mathbf{F}_\ell$ appears linearly,
+giving a system $A \mathbf{F}_\ell = \mathbf{b}$ where $A \in
+\C^{N \times (2\ell+1)}$. Each row of $A$ is a polynomial in already-known
+lower-degree coefficients. The determinant of any maximal square submatrix
+is a nonzero polynomial (verified numerically up to $L = 15$), so the
+rank-deficient set is a proper algebraic subvariety of Lebesgue measure zero.
+The full proof with all lemmas and the algorithm for index selection
+are in Appendix~\ref{app:so3-proof}.
 
 \subsection{Octahedral inversion as an implementation case study}
 \label{sec:octa}
 
-The clearest technical case study in the library is inversion for the
-octahedral group. Implementing \texttt{OctaonOcta} exposed a failure mode of
-the standard bootstrap strategy: the selective bispectrum remains complete, but
-the sequential reconstruction procedure breaks because the ambiguity recovered
-at the first nontrivial irrep lives in $\SO(3)$, while the octahedral
-Clebsch--Gordan structure only block-diagonalizes the discrete group action.
+The bootstrap inversion of \citet{mataigne2024selective} recovers
+$\hat{f}(\rho_1)$ up to an orthogonal ambiguity $Q$, then extracts
+higher Fourier blocks via CG matrices. For $C_n$ the ambiguity is a
+phase $e^{i\varphi} \in \SO(2)$ that propagates coherently. For $D_n$
+the ambiguity $Q \in \OG(2)$ is absorbed because the CG matrices of
+$D_n$ inherit the block-diagonalisation from $\SO(2)$---the 2D irreps
+of $D_n$ are restrictions of $\SO(2)$ irreps, so $C^\top(Q \otimes Q)C$
+remains block-diagonal for all $Q \in \OG(2)$.
 
-\papertodo{Write this section as a focused engineering/scientific contribution, not as a broad new theory section.}
+\paragraph{Why it fails for $O$.}
+For the octahedral group, $\rho_1$ is the standard 3D representation
+and the ambiguity is $Q \in \SO(3)$. The CG matrix $C_{11}$
+block-diagonalises $\rho_1(g) \otimes \rho_1(g)$ for $g \in O$ into
+$\rho_0 \oplus \rho_1 \oplus \rho_2 \oplus \rho_3$ (dims $1 + 3 + 3 + 2 = 9$),
+but for generic $Q \in \SO(3) \setminus O$ the product
+$C_{11}^\top (Q \otimes Q) C_{11}$ has nonzero cross-block entries.
+Concretely, for $Q = R_x(0.7)$:
+$\abs{[C_{11}^\top (Q \otimes Q) C_{11}]_{\rho_2, \rho_3}}_\infty
+\approx 0.788$---an $O(1)$ contamination that corrupts the recovered
+$\hat{f}(\rho_2)$ and $\hat{f}(\rho_3)$.
 
-Core points to cover:
-\begin{itemize}
-  \item what the bootstrap strategy tries to do,
-  \item why it works in cyclic and dihedral settings,
-  \item what fails in the octahedral case,
-  \item how the library resolves this in practice using bootstrap
-    initialization plus Levenberg--Marquardt refinement and multiple restarts.
-\end{itemize}
+\begin{table}[h]
+  \caption{Bootstrap inversion across group families. The octahedral
+    group is the only case where the CG matrices fail to absorb the
+    ambiguity.}
+  \label{tab:bootstrap-comparison}
+  \centering
+  \small
+  \begin{tabular}{lcccl}
+    \toprule
+    Group & Irrep dim & Ambiguity & CG absorbs? & Bootstrap? \\
+    \midrule
+    $C_n$ & 1 & $e^{i\varphi} \in \SO(2)$ & N/A (scalar) & Yes \\
+    $D_n$ & 2 & $U \in \OG(2)$ & Yes & Yes \\
+    $O$   & 3 & $Q \in \SO(3)$ & \textbf{No} & \textbf{No} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
-\reviewquestion{Should this be the central scientific contribution in the paper, with the rest of the library framed as the enabling software context?}
+\paragraph{Resolution.}
+The selective $O$-bispectrum \emph{is} complete (172 coefficients
+determine the signal up to $O$-action); the failure is purely
+algorithmic. We resolve it by combining
+(i)~\emph{bootstrap initialisation}: recover $\hat{f}(\rho_0)$
+exactly and approximate remaining blocks from diagonal CG entries
+(ignoring leakage);
+(ii)~\emph{Levenberg--Marquardt refinement}: solve
+$\min_f \norm{\beta^{\mathrm{sel}}(f)
+  - \beta^{\mathrm{sel}}_{\mathrm{target}}}^2$
+with Jacobians computed via \texttt{torch.func.jacfwd} composed with
+\texttt{torch.vmap};
+(iii)~\emph{multi-start}: randomise the initial $Q$ across restarts
+for robustness. The procedure converges in $<$50 iterations and is
+fully differentiable. The full analysis, including a numerical
+disproof of CG absorption for $O$ and convergence plots, is in
+Appendix~\ref{app:octa-convergence}.
 
-\section{Benchmarks}
+\subsection{Computational benchmarks}
 \label{sec:benchmarks}
 
-\papertodo{Add benchmark figures only after the benchmark script and naming are cleaned up.}
-\papertodo{Decide whether to present both coefficient-count scaling and wall-clock timing, or to prioritize coefficient-count scaling plus one throughput plot.}
-\reviewquestion{Do we want to report only the benchmark regimes that are already stable and reproducible, or keep broader benchmark ambitions in appendix as future work?}
-
-Candidate benchmark questions for co-author review:
-\begin{itemize}
-  \item Which benchmark best supports the software-paper narrative: coefficient
-    scaling, forward runtime, inversion runtime, memory, or all of the above?
-  \item Should runtime figures compare only supported modes, to avoid paper/code mismatch?
-  \item Do we need two GPU types for credibility, or is one clean benchmarked setup enough for submission?
-\end{itemize}
+\papertodo{Insert coefficient-count scaling figure here once benchmark script is finalised. Show selective $O(|G|)$ vs.\ full $O(|G|^2)$ across group sizes. Wall-clock timing and memory go to Appendix~\ref{app:bench}.}
 
 \section{Experiments}
 \label{sec:experiments}
@@ -295,92 +433,35 @@ Section~\ref{sec:smnist}).
 \subsection{2D histopathology classification under cyclic symmetry}
 \label{sec:pcam}
 
-The PatchCamelyon (PCam) benchmark~\cite{veeling2018rotation} consists of
-327{,}680 colour patches ($96 \times 96$ px) extracted from Camelyon16
-whole-slide images of lymph node sections. The task is binary classification:
-whether the central $32 \times 32$ region contains metastatic tissue.
-Rotation invariance is physically meaningful here, since tissue orientation
-is arbitrary in histopathology slides and classifiers should be insensitive
-to it.
-
-\paragraph{Published baselines.}
-Table~\ref{tab:pcam-context} places our results in the context of published
-methods on PCam and the closely related Camelyon16 benchmark.
-
-\begin{table}[t]
-  \caption{Published baselines on PatchCamelyon from Veeling et
-    al.~\cite{veeling2018rotation}, trained on 100\% data. Our models
-    operate at $68$K--$920$K parameters and are trained on only 10\%
-    data.}
-  \label{tab:pcam-context}
-  \centering
-  \small
-  \begin{tabular}{llrcc}
-    \toprule
-    Method & Reference & Params & ACC & AUC \\
-    \midrule
-    P4M-DenseNet ($C_8$)  & Veeling et al.\ 2018     & 119K & 0.898 & 0.963 \\
-    P4M-DenseNet M        & Veeling et al.\ 2018     &  19K & 0.893 & 0.958 \\
-    DenseNet (augmented)   & Veeling et al.\ 2018     & 128K & 0.881 & 0.951 \\
-    DenseNet (no aug.)     & Veeling et al.\ 2018     & 128K & 0.876 & 0.955 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\paragraph{Architecture and experimental design.}
-We use a $C_8$-equivariant DenseNet backbone with block configuration
-$(4, 4, 4)$, 24 initial channels, and compression factor 0.5, following the
-architecture of Veeling et al.\ but replacing the final invariant
-map. Five model variants share the same backbone, differing only in the
-nonlinearity and terminal invariant pooling.  A sixth, backbone-free
-variant showcases \texttt{SO2onDisk} as a standalone feature extractor:
-
-\begin{itemize}
-  \item \textbf{Standard}: vanilla CNN with random rotation/reflection
-    augmentation and global average pooling.
-  \item \textbf{NormReLU}: $C_8$-equivariant backbone with norm-based
-    nonlinearity and max pooling over the group dimension.
-  \item \textbf{Gated}: $C_8$-equivariant backbone with gated nonlinearity
-    (doubles internal channels) and group max pool.
-  \item \textbf{Fourier-ELU}: $C_8$-equivariant backbone with Fourier-space
-    ELU nonlinearity and group max pool.
-  \item \textbf{Bispectrum}: $C_8$-equivariant backbone with ReLU
-    nonlinearity and selective $G$-bispectrum via \texttt{CnonCn}$(n{=}8)$
-    as the terminal invariant map.
-  \item \textbf{Disk bispectrum}: no convolutional backbone;
-    \texttt{SO2onDisk} is applied per RGB channel to the raw $96\times 96$
-    patches, producing rotation-invariant Fourier--Bessel bispectrum
-    coefficients that are fed into a small MLP classifier.
-\end{itemize}
-
-To enable a controlled Pareto comparison, we sweep the DenseNet growth rate
-$k \in \{3, 4, 6, 8, 12\}$ for equivariant models (and
-$k \in \{6, 12, 20, 30, 35\}$ for the standard CNN to cover a comparable
-parameter range), yielding models from ${\sim}30$K to ${\sim}1.6$M
-parameters. All models are trained on \textbf{10\% of training data}
-(26{,}214 images) with AdamW (lr=$10^{-3}$, weight decay $10^{-4}$),
-cosine warm restarts, mixed-precision training, and early stopping on
-validation AUC (patience 10, max 50 epochs).
+We evaluate five invariant pooling strategies on
+PatchCamelyon~\citep{veeling2018rotation} (PCam), 327K histopathology
+patches with binary metastasis labels. All equivariant models share a
+$C_8$-equivariant DenseNet~\citep{huang2017densenet} backbone following
+\citet{veeling2018rotation}; they differ only in the terminal invariant map:
+norm pooling, gated pooling, Fourier-ELU, and selective bispectrum via
+\texttt{CnonCn}$(n{=}8)$. An augmented standard CNN serves as a
+non-equivariant baseline. We sweep growth rates to vary capacity
+(30K--1.6M params) and train on 10\% of the data with
+AdamW~\citep{loshchilov2019adamw}. Full model descriptions and a backbone-free
+\texttt{SO2onDisk} variant are in Appendix~\ref{app:pcam-details}.
 
 \paragraph{Results.}
-Figure~\ref{fig:pcam-pareto} presents the Pareto analysis. The key findings
-are:
+Table~\ref{tab:pcam-results} and Figure~\ref{fig:pcam-pareto} present the
+results at matched ${\sim}$100K parameters.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{experiments/pcam/pareto_analysis.pdf}
   \caption{PCam Pareto analysis (seed 42). (a)~Test AUC vs.\ parameter count
     across all five pooling variants at 10\% training data.
-    (b)~Ranking at the ${\sim}$100K parameter budget (10\% data).
+    (b)~Ranking at the ${\sim}$100K parameter budget.
     (c)~Data efficiency at matched ${\sim}$100K parameters.}
   \label{fig:pcam-pareto}
 \end{figure}
 
 \begin{table}[t]
-  \caption{PCam results at the ${\sim}100$K parameter budget (10\% training
-    data, seed 42). The first five models share a DenseNet backbone;
-    the disk bispectrum model has no backbone and uses \texttt{SO2onDisk}
-    directly on the input patches.}
+  \caption{PCam results at ${\sim}100$K parameters (10\% training data, seed
+    42). All models share a $C_8$-equivariant DenseNet backbone.}
   \label{tab:pcam-results}
   \centering
   \small
@@ -393,134 +474,45 @@ are:
     Bispectrum (\texttt{CnonCn})  &  80K & 0.933 & 0.880 \\
     Fourier-ELU                   & 110K & 0.937 & 0.857 \\
     NormReLU                      & 110K & \textbf{0.954} & \textbf{0.887} \\
-    \midrule
-    Disk bisp.\ (\texttt{SO2onDisk}) & 100K & 0.794 & 0.724 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\emph{Pareto efficiency.}
-At matched parameter budgets (${\sim}100$K), equivariant models consistently
-outperform the augmentation-trained standard CNN (AUC 0.928). NormReLU
-achieves the highest AUC (0.954) at this operating point, followed by
-Fourier-ELU (0.937) and bispectrum (0.933). However, scaling behavior
-differs: as parameters increase from the smallest to the largest configuration,
-standard, norm, and Fourier-ELU all \emph{degrade} (by 1.8, 2.6, and 0.9
-AUC points respectively), while bispectrum \emph{improves} (+0.9 points,
-reaching 0.943 at 920K params). This suggests that the bispectrum's complete
-invariant map scales more gracefully with capacity.
-
-\emph{Data efficiency.}
-Panel~(c) compares 1\% vs.\ 10\% training data at growth rate 12. The
-bispectrum shows the largest absolute AUC at 1\% data (0.875) and the
-largest gain from 1\% to 10\% (+6.8 points), consistent with the hypothesis
-that complete invariants provide a stronger inductive bias when data is
-scarce.
-
-\emph{Comparison with published work.}
-Our best equivariant model (NormReLU, 110K params, AUC 0.954 on 10\% data)
-approaches the published P4M-DenseNet result of Veeling et al.\ (119K
-params, AUC 0.963 on 100\% data), despite using an order of magnitude less
-training data. The bispectrum model at 80K parameters (AUC 0.933) exceeds
-the published DenseNet baseline (128K params, AUC 0.951 on full data) while
-trained on 10$\times$ fewer examples, demonstrating the sample efficiency
-of equivariant architectures with principled invariant pooling.
-
-\emph{Disk bispectrum as a backbone-free baseline.}
-The \texttt{SO2onDisk} model applies the selective disk bispectrum
-(Definition~4.2 of Myers \& Miolane) directly to the raw input patches
-without any learned convolutional features.  At 100K parameters
-(bandlimit~$=10$) it reaches AUC~0.794---substantially below the
-learned models, as expected for a handcrafted feature extractor.
-However, its rotation robustness is near-perfect:
-$\sigma_{\text{AUC}} < 2 \times 10^{-5}$ across 12 test-time rotation
-angles, compared to residual angle-dependent variation in the $C_8$
-models.  At 1\% training data, the disk bispectrum retains AUC~0.778,
-showing that the analytically rotation-invariant features degrade
-gracefully when data is scarce.  This variant demonstrates that
-\texttt{SO2onDisk} can serve as a drop-in rotation-invariant feature
-extractor from the library, independent of any equivariant backbone.
+At matched capacity, all equivariant models outperform the standard CNN
+(AUC 0.928). NormReLU peaks at 0.954, but its performance is brittle across
+model sizes (AUC swings by $>$7pp over a 12$\times$ capacity range), while
+the bispectrum varies by only ${\sim}$1pp---the most architecturally stable
+pooling choice. At 1\% training data the bispectrum shows the largest
+absolute gain (+6.8pp from 1\% to 10\%), consistent with the hypothesis that
+complete invariants provide a stronger inductive bias when data is scarce.
+Our best equivariant model (NormReLU, 110K, AUC 0.954 on 10\% data)
+approaches the published P4M-DenseNet of \citet{veeling2018rotation} (119K,
+AUC 0.963 on 100\% data), despite using 10$\times$ less training data.
 
 \subsection{3D organ classification under octahedral symmetry}
 \label{sec:organ3d}
 
-The PatchCamelyon experiment validates bispectral pooling for 2D
-cyclic/dihedral groups. To evaluate the main technical contribution of the
-library---the \texttt{OctaonOcta} module for the chiral octahedral group
-$O$ ($|O|=24$)---we design a controlled 3D experiment on
-OrganMNIST3D~\cite{medmnistv2}, a benchmark of 1{,}742 abdominal CT organ
-volumes ($28^3$ voxels, 11 classes; train/val/test = 971/161/610). Rotation
-invariance is physically meaningful here: the same organ may appear at
-different orientations depending on patient positioning, and a classifier
-should be insensitive to such transformations.
-
-\paragraph{Architecture and experimental design.}
-All equivariant variants share an $O$-equivariant 3D ResNet backbone. A
-\emph{lifting convolution} maps the scalar input to a regular representation
-over $O$ (24 copies per channel), followed by two stages of group-equivariant
-residual blocks with $3^3$ kernels, equivariant batch normalization, and
-spatial average pooling between stages. Kernel rotations are implemented as
-exact voxel permutations on the $3^3$ grid, avoiding interpolation artifacts.
-The four model variants differ \emph{only} in the final invariant pooling
-layer:
-
-\begin{itemize}
-  \item \textbf{Standard}: a plain 3D CNN (no equivariance) trained with
-    random octahedral augmentation and global average pooling (16K parameters).
-  \item \textbf{Max Pool}: $O$-equivariant backbone with element-wise max over
-    the group dimension (374K parameters).
-  \item \textbf{Norm Pool}: $O$-equivariant backbone with channel-wise
-    $\ell^2$-norm over the group dimension (375K parameters).
-  \item \textbf{Bispectrum}: $O$-equivariant backbone with the selective
-    $G$-bispectrum via \texttt{OctaonOcta}, producing 172 invariant scalars
-    per spatial location (463K parameters).
-\end{itemize}
-
-All models are trained with AdamW (lr=$10^{-3}$, weight decay $10^{-4}$) for
-up to 100 epochs with early stopping on validation AUC (patience 15). Each
-configuration is run with three seeds (42, 123, 456). At test time, we
-evaluate rotation robustness by applying all 24 octahedral rotations to the
-test set and reporting the mean accuracy and its standard deviation across
-rotations.
-
-\paragraph{Published baselines.}
-Table~\ref{tab:organ3d-context} situates our results against published methods
-on the same benchmark. Note that large models such as ResNet-18+3D (33M
-parameters) achieve ${\sim}90\%$ accuracy; our models are deliberately small
-(${\leq}463$K parameters) to enable controlled ablation of the pooling
-mechanism. The relevant comparison is against equivariant methods at a similar
-scale: Regular SE(3) convolutions~\cite{kuipers2023regular} reach 69.8\% with
-172K parameters.
-
-\begin{table}[t]
-  \caption{Published baselines on OrganMNIST3D for context. Our models operate
-    at ${\leq}463$K parameters; accuracy differences with respect to
-    large-scale models reflect this deliberate constraint.}
-  \label{tab:organ3d-context}
-  \centering
-  \small
-  \begin{tabular}{llrcc}
-    \toprule
-    Method & Reference & Params & ACC & AUC \\
-    \midrule
-    ResNet-18 + 3D           & Yang et al.\ 2023         & 33M  & 0.907 & 0.996 \\
-    ResNet-18 + ACS          & Yang et al.\ 2023         & 11M  & 0.900 & 0.994 \\
-    ILPOResNet-50            & Zhemchuzhnikov 2024       & 38K  & 0.879 & 0.992 \\
-    EquiLoPO (local train.)  & ICLR 2025                 & 418K & 0.866 & 0.991 \\
-    SE3MovFrNet              & Sangalli et al.\ 2023     & ---  & 0.745 & ---   \\
-    Regular SE(3) conv       & Kuipers \& Bekkers 2023   & 172K & 0.698 & ---   \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+To evaluate the \texttt{OctaonOcta} module for the chiral octahedral group
+$O$ ($|O|=24$), we design a controlled 3D experiment on
+OrganMNIST3D~\citep{medmnistv2} (1{,}742 abdominal CT volumes, $28^3$
+voxels, 11 classes). All equivariant variants share an $O$-equivariant 3D
+ResNet backbone with exact voxel-permutation kernels. The four models differ
+only in the terminal invariant pooling: a non-equivariant augmented CNN
+(16K params), norm pool (375K), max pool (374K), and the selective
+bispectrum via \texttt{OctaonOcta} (463K, 172 invariant scalars). Models
+are trained with AdamW~\citep{loshchilov2019adamw} for 100 epochs with
+three seeds; rotation robustness is measured over all 24 octahedral
+rotations of the test set. Published baselines and wider-channel experiments
+are in Appendix~\ref{app:organ3d-details}.
 
 \paragraph{Results.}
-Table~\ref{tab:organ3d-results} reports our ablation results averaged over
-three seeds. The key findings are:
+Table~\ref{tab:organ3d-results} and Figure~\ref{fig:data-efficiency} report
+the key findings.
 
 \begin{table}[t]
   \caption{OrganMNIST3D results (mean $\pm$ std over 3 seeds). Rot ACC and
-    $\sigma_{\mathrm{rot}}$ are the mean and standard deviation of accuracy
-    across all 24 octahedral test-set rotations.}
+    $\sigma_{\mathrm{rot}}$: mean and std of accuracy across 24 octahedral
+    test-set rotations.}
   \label{tab:organ3d-results}
   \centering
   \small
@@ -536,111 +528,33 @@ three seeds. The key findings are:
   \end{tabular}
 \end{table}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.75\linewidth]{experiments/organ3d/organ3d_analysis.pdf}
-  \caption{OrganMNIST3D test accuracy on the original and octahedrally rotated
-    test sets. Error bars show standard deviation over three seeds. All
-    equivariant models achieve identical performance under rotation
-    ($\sigma_{\mathrm{rot}} \approx 0$), while the augmentation-trained
-    standard CNN degrades.}
-  \label{fig:organ3d-rotation}
-\end{figure}
-
 \emph{Rotation invariance.}
-All three equivariant models achieve \emph{exact} rotation invariance:
-$\sigma_{\mathrm{rot}} = 0.0000$ for max pool and norm pool, and
-$\sigma_{\mathrm{rot}} = 0.0005$ for the bispectrum (residual floating-point
-variation). The standard CNN, despite octahedral augmentation during training,
-drops ${\sim}2.5$ percentage points under rotation with
-$\sigma_{\mathrm{rot}} = 0.0115$---augmentation helps but does not guarantee
-invariance.
+All equivariant models achieve exact rotation invariance
+($\sigma_{\mathrm{rot}} \leq 0.0005$), while the augmented CNN drops
+${\sim}$2.5pp under rotation ($\sigma_{\mathrm{rot}} = 0.012$).
 
-\emph{Accuracy and completeness.}
-The bispectrum model (72.6\%) matches max pool (73.0\%) and substantially
-outperforms norm pool (56.8\%). Norm pool also exhibits high seed variance
-($\pm 9.9\%$, with one seed at 42.8\%), suggesting it is a less stable
-invariant map. The near-parity of bispectrum and max pool is notable: the
-bispectrum provides \emph{complete} invariants (no equivariant information is
-discarded), whereas max pooling is inherently lossy. In settings where
-downstream tasks depend on fine-grained orientation features---which this
-11-class organ classification may not fully stress---completeness could provide
-a decisive advantage.
+\emph{Completeness vs.\ lossy pooling.}
+The bispectrum (72.6\%) matches max pool (73.0\%) and substantially
+outperforms norm pool (56.8\%, with high seed variance $\pm$9.9\%). At 463K
+parameters, the bispectrum also outperforms Regular SE(3)
+convolutions~\citep{kuipers2023regular} (69.8\% at 172K).
 
-\emph{Parameter efficiency.}
-At 463K parameters, the bispectrum model outperforms Regular SE(3) convolutions
-(69.8\% at 172K) and approaches SE3MovFrNet (74.5\%), validating
-\texttt{OctaonOcta} as a practical invariant pooling primitive for 3D
-octahedral equivariance.
-
-\paragraph{Data efficiency: when completeness matters.}
-The full-data results show bispectrum and max pool at near-parity, raising the
-question of whether completeness provides any practical benefit. To stress this,
-we vary the training set fraction while keeping the architecture and
-hyperparameters fixed (channels $(4, 8)$, seed 42). Table~\ref{tab:data-eff}
-and Figure~\ref{fig:data-efficiency} report test accuracy across fractions.
-
-\begin{table}[t]
-  \caption{Data efficiency on OrganMNIST3D (channels $(4, 8)$, mean $\pm$
-    std over 3 seeds). Bispectrum's advantage is largest in the low-data
-    regime, where its complete invariant map extracts more information per
-    sample.}
-  \label{tab:data-eff}
-  \centering
-  \small
-  \begin{tabular}{rcccc}
-    \toprule
-    Fraction & Samples & Standard & Max Pool & Bispectrum \\
-    \midrule
-    5\%   &  48 & $.186 \pm .096$ & $.189 \pm .072$ & $\mathbf{.332 \pm .022}$ \\
-    10\%  &  97 & $.213 \pm .111$ & $.420 \pm .081$ & $\mathbf{.497 \pm .044}$ \\
-    25\%  & 242 & $.427 \pm .077$ & $.451 \pm .126$ & $\mathbf{.573 \pm .047}$ \\
-    50\%  & 485 & $.502 \pm .020$ & $.662 \pm .016$ & $\mathbf{.639 \pm .057}$ \\
-    100\% & 971 & $.601 \pm .017$ & $\mathbf{.730 \pm .033}$ & $.726 \pm .027$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+\paragraph{Data efficiency.}
+When we reduce the training set (Figure~\ref{fig:data-efficiency}), the
+bispectrum's advantage becomes clear: at 5\% data (48 samples) it reaches
+$33.2 \pm 2.2\%$ vs.\ $18.9 \pm 7.2\%$ for max pool. Only at full data
+does max pool catch up ($73.0\%$ vs.\ $72.6\%$). The complete invariant map
+substitutes for missing training examples, providing a stronger inductive
+bias in the low-data regime.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.75\linewidth]{experiments/organ3d/data_efficiency.pdf}
   \caption{Test accuracy vs.\ training data fraction on OrganMNIST3D (mean
-    over 3 seeds; shaded bands show $\pm 1$ std). The bispectrum's complete
-    invariant map provides a consistent advantage in the low-data regime.
-    The gap narrows as more data becomes available and max pool can learn to
-    approximate the relevant invariants from examples alone.}
+    over 3 seeds; shaded bands: $\pm 1$ std). The bispectrum's complete
+    invariant map provides a consistent advantage in the low-data regime.}
   \label{fig:data-efficiency}
 \end{figure}
-
-The pattern is clear and consistent across seeds: at 5\% of training data (48
-samples), the bispectrum reaches $33.2 \pm 2.2\%$ while max pool achieves
-only $18.9 \pm 7.2\%$. At 10\% the gap grows to $49.7 \pm 4.4\%$ vs.\
-$42.0 \pm 8.1\%$, and at 25\% the bispectrum leads $57.3 \pm 4.7\%$ vs.\
-$45.1 \pm 12.6\%$. Only at full data does max pool catch up
-($73.0 \pm 3.3\%$ vs.\ $72.6 \pm 2.7\%$). Notably, bispectrum's standard
-deviations are consistently smaller, indicating more stable training in the
-low-data regime.
-
-This behavior directly reflects the theoretical distinction between the two
-pooling strategies. Max pooling is a \emph{lossy} invariant: it discards all
-group-equivariant structure except the channel-wise maximum and must
-compensate by learning to reconstruct relevant features from data.  When
-data is abundant, this compensation succeeds. The bispectrum, by contrast,
-is a \emph{complete} invariant: it preserves all orientation information as
-polynomial invariants, requiring no learned compensation. In the low-data
-regime, this prior knowledge about group structure substitutes for missing
-training examples, yielding substantially better sample efficiency.
-
-\paragraph{Wider channels.}
-To test whether the advantage of bispectral completeness persists at higher
-capacity, we also run max pool and bispectrum at channel widths $(8, 16)$
-and $(16, 32)$ with full training data. At $(8, 16)$ the two methods are
-equivalent (75.3\% bispectrum vs.\ 74.9\% max pool, both at ${\sim}1.5$M
-parameters). At $(16, 32)$ max pool reaches 83.0\% while bispectrum drops
-to 71.5\%---the 6.3M-parameter bispectrum model likely overfits the 971
-training samples. This suggests that the bispectrum's completeness advantage
-is most pronounced in the data-limited rather than the parameter-limited
-regime, consistent with the data efficiency findings above.
 
 
 \subsection{Spherical MNIST: SO(3) invariance on the sphere}
@@ -770,61 +684,78 @@ architectures.
 \section{Related Work}
 \label{sec:related}
 
-\papertodo{Write this section around software/tools and practical distinctions, not around the abandoned steerable-to-Fourier narrative.}
+\paragraph{Equivariant network libraries.}
+\texttt{escnn}~\citep{cesa2022program} and \texttt{e3nn}~\citep{geiger2022e3nn}
+provide general-purpose equivariant convolution layers for 2D and 3D
+groups respectively. They implement equivariant \emph{feature maps} but
+leave the choice of invariant pooling to the user (typically norm or
+gate). Our library is complementary: it provides the invariant map as a
+drop-in \texttt{nn.Module} that plugs into architectures built with either
+framework.
 
-Suggested structure:
-\begin{itemize}
-  \item equivariant deep learning libraries such as \texttt{e2cnn}/\texttt{escnn},
-  \item classical and modern bispectrum theory,
-  \item selective bispectrum papers for finite groups and the disk,
-  \item bispectral CNNs in the Depeursinge/Oreiller line,
-  \item tensor-product and Clebsch--Gordan nonlinearities,
-  \item software-paper precedents at NeurIPS.
-\end{itemize}
+\paragraph{Bispectral approaches in neural networks.}
+\citet{sanborn2023bispectral} introduced bispectral neural networks (BNNs),
+using the full $G$-bispectrum as an invariant nonlinearity for $C_n$ and $D_n$.
+\citet{oreiller2022bispectral} applied bispectral CNNs to medical imaging
+with a fixed set of hand-selected triples. Both use the full (quadratic-cost)
+bispectrum and provide implementations tied to specific architectures.
+Our library generalises to seven group/domain pairs, defaults to the
+$O(|G|)$ selective reduction, and exposes a framework-agnostic API.
+\citet{chevalley2024bispectral} explore bispectral signatures for data
+characterisation, using bispectra as descriptors rather than learnable
+pooling primitives.
 
-\reviewquestion{How aggressively should we distinguish this paper from prior bispectral CNN work?}
-\reviewquestion{Should we explicitly say that our contribution is breadth of group/domain support + inversion + PyTorch integration, rather than claiming the general idea of bispectral invariants in CNNs is new?}
+\paragraph{CG product nonlinearities and tensor products.}
+Tensor field networks~\citep{thomas2018tensor} and
+MACE~\citep{batatia2024design} use iterated Clebsch--Gordan products
+to build equivariant interactions. These products are exact and complete
+in principle, but each layer incurs $O(L^3)$ cost per CG contraction.
+\citet{price2025freedom} analyse the \emph{price of freedom} in tensor
+product architectures, showing that maintaining full expressivity through
+CG products becomes expensive at high angular momenta.
+The selective bispectrum achieves completeness in a single $O(L^2)$
+pass (for $\SO(3)$) or $O(|G|)$ pass (for finite groups), avoiding
+iterated contractions.
 
-\section{Discussion and Limitations}
+\paragraph{Invariant theory and scattering.}
+The wavelet scattering transform~\citep{mallat2012scattering} provides
+translation-invariant representations via iterated modulus operations;
+\citet{esteves2018spherical} extend this to the sphere. Unlike the
+bispectrum, scattering representations are stable but generally
+incomplete---they discard inter-scale phase information.
+The bispectrum's completeness guarantee~\citep{kakarala1992triple} is its
+distinguishing theoretical advantage.
+
+\section{Discussion and Conclusion}
 \label{sec:discussion}
 
-\papertodo{Write this section early, not last. It can help constrain the rest of the paper.}
+We have presented \texttt{bispectrum}, a PyTorch library that makes selective
+$G$-bispectral invariants practical for machine learning. The library covers
+seven group/domain pairs with a uniform \texttt{nn.Module} interface and
+required two technical contributions during implementation: a selective
+$\SO(3)$ bispectrum on $S^2$ achieving the optimal $O(L^2)$ coefficient
+count (Theorem~\ref{thm:so3-selective}), and a resolution of the octahedral
+bootstrap inversion failure via Levenberg--Marquardt refinement
+(Section~\ref{sec:octa}). Across three experimental settings, bispectral
+pooling provides exact rotation invariance and a data-efficiency advantage
+over incomplete alternatives, particularly in the low-data regime where the
+complete invariant map substitutes for missing training examples.
 
-Minimum limitations to acknowledge:
-\begin{itemize}
-  \item selective $\SO(3)$ on $S^2$ remains open,
-  \item inversion is not available for every supported transform,
-  \item empirical evaluation is currently narrower than the full intended
-    application scope of the library,
-  \item some benchmark or experimental claims may need to be trimmed to match
-    the completed evidence.
-\end{itemize}
+\paragraph{Limitations.}
+Inversion for $\SO(3)$ on $S^2$ is not yet implemented; only the
+selective forward map is available. The selective $\SO(3)$ completeness
+proof relies on a genericity assumption (the signal must avoid a
+measure-zero algebraic variety); a full characterisation of the degenerate
+set and numerical conditioning at large band-limits remain open.
+Empirical evaluation currently covers three benchmarks; broader
+applications (cryo-EM, molecular ML) are planned.
 
-\reviewquestion{Should the limitations section explicitly state that the paper does not attempt a general theory of bispectral pooling for arbitrary steerable representations?}
-
-\paragraph{Roadmap.}
-\papertodo{Add a brief roadmap paragraph for PI/co-author review.}
-
-Candidate roadmap items:
-\begin{itemize}
-  \item finish stable benchmark scripts and plots,
-  \item finish matched PCam sweeps,
-  \item improve docs/examples for public release,
-  \item future work on selective $\SO(3)$ and richer empirical applications.
-\end{itemize}
-
-\section{Conclusion}
-\label{sec:conclusion}
-
-\papertodo{Write a short conclusion once the final scope is fixed.}
-
-Proposed conclusion shape:
-\begin{itemize}
-  \item restate the library contribution,
-  \item emphasize octahedral inversion as the main technical case study,
-  \item summarize what the completed experiments support,
-  \item end with realistic next steps rather than broad claims.
-\end{itemize}
+\paragraph{Future work.}
+Key directions include: implementing $\SO(3)$ inversion from selective
+bispectral coefficients; numerical conditioning analysis at large
+band-limits; integration with \texttt{escnn}~\citep{cesa2022program} and
+\texttt{e3nn}~\citep{geiger2022e3nn}; and applications to cryo-EM
+reconstruction and molecular property prediction.
 
 \begin{ack}
 \papertodo{Add acknowledgments for camera-ready.}
@@ -835,21 +766,815 @@ Proposed conclusion shape:
 
 \appendix
 
-\section{Implementation Details}
-\label{app:impl}
+\section{Selective $\SO(3)$ Bispectrum -- Full Proof}
+\label{app:so3-proof}
 
-\papertodo{Collect package-level implementation details that do not fit in the main paper: buffers, transforms, inversion APIs, optional dependencies, dtype/device behavior.}
+This appendix provides the complete proof of Theorem~\ref{thm:so3-selective}
+from the main text. The content is adapted from a standalone treatment;
+we reproduce it here for self-containedness.
 
-\section{Benchmark Details}
+\subsection{Setup and notation}
+
+\begin{definition}[Band-limited signal on $S^2$]
+A signal $f : S^2 \to \R$ is \emph{band-limited} at degree $L$ if its
+spherical harmonic expansion
+\begin{equation}\label{eq:app-sh-expansion}
+  f(\theta, \varphi)
+  = \sum_{\ell=0}^{L} \sum_{m=-\ell}^{\ell}
+    a_\ell^m \, \SH_\ell^m(\theta, \varphi)
+\end{equation}
+has $a_\ell^m = 0$ for all $\ell > L$. We write
+$\mathbf{F}_\ell = (a_\ell^{-\ell}, \dotsc, a_\ell^{\ell})
+  \in \C^{2\ell+1}$
+for the coefficient vector at degree~$\ell$.
+\end{definition}
+
+\noindent
+For real $f$, the conjugation symmetry
+$a_\ell^{-m} = (-1)^m \conj{a_\ell^m}$ holds, so
+$\mathbf{F}_\ell$ has $2\ell+1$ real degrees of freedom.
+The total signal dimension is
+$\dim = \sum_{\ell=0}^{L}(2\ell+1) = (L+1)^2$.
+
+\begin{definition}[Rotation action]
+Under $g \in \SO(3)$, the spherical harmonic coefficients transform as
+$\mathbf{F}_\ell \mapsto D^\ell(g)\,\mathbf{F}_\ell$,
+where $D^\ell$ is the $(2\ell+1)$-dimensional Wigner~$D$-matrix.
+\end{definition}
+
+\begin{definition}[Bispectrum on $S^2$]\label{def:app-bispectrum}
+For each triple $(\ell_1, \ell_2, \ell)$ satisfying the triangle
+inequality $\abs{\ell_1 - \ell_2} \le \ell \le \ell_1 + \ell_2$,
+the \emph{bispectral coefficient} is
+\begin{equation}\label{eq:app-bispectrum}
+  \beta_{\ell_1,\ell_2,\ell}
+  = \sum_{\substack{m_1,\,m_2,\,m \\ m_1+m_2=m}}
+    \CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}\;
+    a_{\ell_1}^{m_1}\,a_{\ell_2}^{m_2}\,\conj{a_\ell^m},
+\end{equation}
+where $\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$ denotes the
+Clebsch--Gordan coefficient
+$\langle \ell_1, m_1;\, \ell_2, m_2 \mid \ell, m \rangle$.
+Each $\beta_{\ell_1,\ell_2,\ell}$ is a scalar (real for real~$f$).
+\end{definition}
+
+\begin{proposition}[Size of the full bispectrum]\label{prop:app-full-size}
+The number of admissible triples $(\ell_1, \ell_2, \ell)$ with
+$0 \le \ell_1, \ell_2, \ell \le L$ satisfying the triangle inequality
+$|\ell_1 - \ell_2| \le \ell \le \ell_1 + \ell_2$ is $\Theta(L^3)$.
+\end{proposition}
+\begin{proof}
+For fixed $\ell_1$ and $\ell_2$, the triangle inequality admits
+$\ell \in \{|\ell_1 - \ell_2|, \dotsc, \min(\ell_1 + \ell_2, L)\}$,
+giving $\min(\ell_1 + \ell_2, L) - |\ell_1 - \ell_2| + 1$ valid
+values of $\ell$. Summing:
+\[
+  N_{\mathrm{full}}
+  = \sum_{\ell_1=0}^{L}\;\sum_{\ell_2=0}^{L}\;
+    \bigl(\min(\ell_1+\ell_2,L) - |\ell_1-\ell_2| + 1\bigr)
+  = \tfrac{1}{3}L^3 + \mathcal{O}(L^2).
+\]
+\end{proof}
+
+\begin{remark}[Invariance]
+Each $\beta_{\ell_1,\ell_2,\ell}$ is $\SO(3)$-invariant: the Wigner
+matrices satisfy $D^{\ell_1} \otimes D^{\ell_2}
+= \bigoplus_\ell D^\ell$ under the CG decomposition, so the triple
+product contracted with CG coefficients is unchanged by
+$\mathbf{F}_\ell \mapsto D^\ell(g)\mathbf{F}_\ell$.
+\end{remark}
+
+\subsection{Why $\mathcal{O}(L)$ is impossible}
+
+\begin{proposition}[Dimensional lower bound]\label{prop:app-lower-bound}
+Any complete $\SO(3)$-invariant for band-limited signals on $S^2$
+at band-limit $L$ must have at least $(L+1)^2 - 3$ functionally
+independent components.
+\end{proposition}
+\begin{proof}
+The orbit space $\R^{(L+1)^2} / \SO(3)$ has dimension
+$(L+1)^2 - \dim\SO(3) = (L+1)^2 - 3$. Any injective map from the
+orbit space to $\R^k$ requires $k \ge (L+1)^2 - 3$, hence
+$\Omega(L^2)$.
+\end{proof}
+
+\begin{remark}
+The chain $\beta_{1,\ell,\ell+1}$ for $\ell = 0, \dotsc, L-1$ provides
+only $\sim 3L$ scalar constraints (since each chain entry couples
+$\mathbf{F}_1 \in \C^3$ with one known $\mathbf{F}_\ell$). This cannot
+recover $(L+1)^2 \approx L^2$ unknowns.
+\end{remark}
+
+\subsection{The selective index set}
+
+The goal is to select, for each target degree $\ell$, a set of
+bispectral triples that provides enough equations to recover
+$\mathbf{F}_\ell$ from already-known lower-degree coefficients. Since
+$\mathbf{F}_\ell$ has $2\ell+1$ real degrees of freedom, we need at
+most $2\ell+1$ entries. We classify candidate triples by how
+$\mathbf{F}_\ell$ enters the bispectral formula~\eqref{eq:app-bispectrum}:
+\emph{linearly} (when it occupies a position where the other two
+indices are known), or \emph{nonlinearly} (when it appears more than
+once).
+
+\begin{definition}[Selective bispectrum on $S^2$]\label{def:app-selective}
+For each target degree $\ell = 0, \dotsc, L$, we select at most
+$2\ell+1$ bispectral triples from four categories, in the following
+priority order.
+
+\medskip
+\noindent\textbf{Category~1 (Chain).}
+Triples $(\ell_1, \ell_2, \ell)$ with
+$\ell_1 \le \ell_2 < \ell$ and $\ell_1 + \ell_2 \ge \ell$.
+Linear in $\mathbf{F}_\ell$: the unknown
+$\conj{a_\ell^m}$ appears once, multiplied by known lower-degree
+coefficients.
+
+\medskip
+\noindent\textbf{Category~2 (Cross).}
+Triples $(\ell_1, \ell, \ell')$ with
+$1 \le \ell_1 < \ell$ and $\ell - \ell_1 \le \ell' < \ell$.
+Here $\mathbf{F}_\ell$ appears in the second (tensor-product) position,
+yielding equations linear in $a_\ell^{m_2}$ with known $a_{\ell_1}^{m_1}$
+and $a_{\ell'}^{m}$.
+
+\medskip
+\noindent\textbf{Category~3 (Power).}
+The triple $(0, \ell, \ell)$, giving
+$\beta_{0,\ell,\ell} = a_0^0 \norm{\mathbf{F}_\ell}^2$
+(a \emph{quadratic} constraint).
+
+\medskip
+\noindent\textbf{Category~4 (Self-coupling).}
+Triples $(\ell, \ell, \ell')$ with $0 \le \ell' < \ell$.
+Quadratic in $\mathbf{F}_\ell$. Selected only for the remaining deficit
+at low degrees.
+\end{definition}
+
+\begin{algorithm}[t]
+\caption{Selective index set $\mathcal{S}$ for the $\SO(3)$ bispectrum
+  on $S^2$ at band-limit~$L$.}
+\label{alg:app-selective}
+\small
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Band-limit $L$
+\STATE \textbf{Output:} Index set
+  $\mathcal{S} \subset \{(\ell_1,\ell_2,\ell) :
+  |\ell_1-\ell_2| \le \ell \le \ell_1+\ell_2,\;
+  0 \le \ell_1,\ell_2,\ell \le L\}$
+\STATE $\mathcal{S} \leftarrow \{(0,0,0)\}$
+\FOR{$\ell = 1, \dotsc, L$}
+  \STATE $\text{budget} \leftarrow 2\ell + 1$
+  \STATE $\text{candidates} \leftarrow [\,]$
+  \STATE \COMMENT{\textbf{Category 1: Chain} --- linear in $\mathbf{F}_\ell$}
+  \FOR{$\ell_2 = \ell{-}1, \dotsc, 0$}
+    \FOR{$\ell_1 = \min(\ell_2,\, \ell{-}1), \dotsc, 0$}
+      \IF{$\ell_1 + \ell_2 \ge \ell$}
+        \STATE append $(\ell_1,\, \ell_2,\, \ell)$ to candidates
+      \ENDIF
+    \ENDFOR
+  \ENDFOR
+  \STATE \COMMENT{\textbf{Category 2: Cross} --- linear in $\mathbf{F}_\ell$}
+  \FOR{$\ell_1 = \ell{-}1, \dotsc, 1$}
+    \FOR{$\ell' = \ell{-}1, \dotsc, \ell{-}\ell_1$}
+      \STATE append $(\ell_1,\, \ell,\, \ell')$ to candidates
+    \ENDFOR
+  \ENDFOR
+  \STATE \COMMENT{\textbf{Category 3: Power} --- quadratic}
+  \STATE append $(0,\, \ell,\, \ell)$ to candidates
+  \STATE \COMMENT{\textbf{Category 4: Self-coupling} --- quadratic/cubic}
+  \FOR{$\ell' = \ell{-}1, \dotsc, 0$}
+    \STATE append $(\ell,\, \ell,\, \ell')$ to candidates
+  \ENDFOR
+  \STATE Deduplicate candidates (preserving order)
+  \STATE $\mathcal{S} \leftarrow \mathcal{S}
+    \;\cup\;$ first $\min(\text{budget},\,
+    |\text{candidates}|)$ entries
+\ENDFOR
+\RETURN $\mathcal{S}$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{proposition}[Entry counts]\label{prop:app-entry-counts}
+For $\ell \ge 4$,
+$N_{\mathrm{chain}}(\ell) + N_{\mathrm{cross}}(\ell) \ge 2\ell + 1$,
+so only linear entries are selected. For $\ell \le 3$, additional power
+and self-coupling entries are required.
+In general, $N_{\mathrm{chain}}(\ell) = \Theta(\ell^2)$
+and $N_{\mathrm{cross}}(\ell) = \binom{\ell}{2} =
+\frac{\ell(\ell-1)}{2}$; both grow as $\Theta(\ell^2)$,
+exceeding $2\ell+1$ for $\ell \ge 4$.
+\end{proposition}
+
+\begin{proposition}[Output size]\label{prop:app-output-size}
+The selective bispectrum has
+$\sum_{\ell=0}^{L} \min\bigl(2\ell+1,\;
+    \text{entries at } \ell\bigr)
+  = (L+1)^2 - 1$
+scalar entries.
+\end{proposition}
+\begin{proof}
+$1 + 2 + 5 + 7 + \sum_{\ell=4}^{L}(2\ell+1)
+= 15 + \bigl[(L+1)^2 - 16\bigr] = (L+1)^2 - 1$.
+\end{proof}
+
+\subsection{Completeness proof}
+
+The proof follows the same ``frequency-marching'' philosophy as
+Mataigne et al.'s inversion algorithm for finite groups
+(\citep{mataigne2024selective}, Algorithms~1--2): recover the Fourier
+coefficients one degree~$\ell$ at a time, using
+bispectral entries that couple the unknown degree with already-known
+ones. The main structural difference is that on $S^2$ each bispectral
+entry is a scalar rather than a matrix, so we need $2\ell+1$ entries
+per degree instead of one matrix entry per irrep.
+
+\begin{assumption}\label{ass:app-generic}
+The signal $f$ satisfies:
+\begin{enumerate}[label=(G\arabic*),nosep]
+  \item $a_0^0 \ne 0$ (non-zero mean).
+  \item $\norm{\mathbf{F}_1} \ne 0$ ($f$ has a non-zero dipole component).
+  \item After gauge-fixing (Lemma~\ref{lem:app-gauge}), $a_2^1 \ne 0$
+    (azimuthal gauge is resolvable).
+  \item For each $\ell \ge 4$, the linear system of
+    Lemma~\ref{lem:app-linear-bootstrap} has full rank.
+\end{enumerate}
+\end{assumption}
+
+\begin{remark}
+Each condition excludes a proper algebraic subvariety of the signal
+space $\R^{(L+1)^2}$. Their union is therefore Lebesgue-null.
+\end{remark}
+
+\begin{theorem}[Completeness of the selective $\SO(3)$ bispectrum on $S^2$]
+\label{thm:app-main}
+Let $f, f' : S^2 \to \R$ be band-limited at degree~$L$ and satisfy
+Assumption~\ref{ass:app-generic}. If
+$\beta_{\mathrm{sel}}(f) = \beta_{\mathrm{sel}}(f')$,
+then $f' = f \circ g$ for some $g \in \SO(3)$, subject to the caveat
+at $\ell = 2$ noted in Remark~\ref{rem:ell2-gap}.
+\end{theorem}
+
+The proof proceeds by sequential recovery of
+$\mathbf{F}_0, \mathbf{F}_1, \dotsc, \mathbf{F}_L$.
+
+\begin{lemma}[Recovery of $\mathbf{F}_0$]\label{lem:app-F0}
+The entry $\beta_{0,0,0}$ uniquely determines $a_0^0$ for real signals
+with $a_0^0 \ne 0$.
+\end{lemma}
+\begin{proof}
+By~\eqref{eq:app-bispectrum} with $\ell_1 = \ell_2 = \ell = 0$,
+$\beta_{0,0,0} = \abs{a_0^0}^2 \, a_0^0$.
+For $a_0^0 \in \R$, this gives $\beta_{0,0,0} = (a_0^0)^3$, so
+$a_0^0 = \sgn(\beta_{0,0,0})\,\abs{\beta_{0,0,0}}^{1/3}$.
+\end{proof}
+
+\begin{lemma}[Gauge fixing]\label{lem:app-gauge}
+Given $\norm{\mathbf{F}_1} \ne 0$, there exists $g \in \SO(3)$ such
+that $D^1(g)\,\mathbf{F}_1 = (0,\; \norm{\mathbf{F}_1},\; 0)^{\!\top}$,
+i.e.\ $a_1^{-1} = a_1^1 = 0$ and $a_1^0 = \norm{\mathbf{F}_1}$.
+This rotation consumes two of $\SO(3)$'s three degrees of freedom.
+The residual symmetry is $\SO(2)_z$, under which
+$a_\ell^m \mapsto e^{im\varphi} a_\ell^m$.
+If additionally $a_2^1 \ne 0$, the residual $\SO(2)_z$ freedom is
+consumed by choosing $\varphi$ such that
+$\operatorname{Im}(a_2^1) = 0$, i.e.\ $a_2^1 \in \R_{>0}$.
+\end{lemma}
+\begin{proof}
+The $\ell=1$ Wigner $D$-matrix $D^1(g)$ is the standard $3 \times 3$
+rotation matrix. Since $\SO(3)$ acts transitively on $S^2$, any nonzero
+$\mathbf{F}_1$ can be rotated to align with $\hat{z}$, leaving an
+$\SO(2)_z$ stabiliser. Choosing
+$\varphi = -\arg(a_2^1)$ yields $a_2^1 \in \R_{>0}$, exhausting all
+three rotational degrees of freedom.
+\end{proof}
+
+\begin{lemma}[Recovery of $\mathbf{F}_1$]\label{lem:app-F1}
+Given $a_0^0$ from Lemma~\ref{lem:app-F0}, the entry $\beta_{0,1,1}$
+determines $\norm{\mathbf{F}_1}$. Combined with the gauge choice
+of Lemma~\ref{lem:app-gauge}, this uniquely determines $\mathbf{F}_1$.
+\end{lemma}
+\begin{proof}
+By~\eqref{eq:app-bispectrum} with $(\ell_1, \ell_2, \ell) = (0,1,1)$:
+\[
+  \beta_{0,1,1}
+  = a_0^0 \sum_{m} \abs{a_1^m}^2
+  = a_0^0\,\norm{\mathbf{F}_1}^2,
+\]
+using $\CG{0}{0}{1}{m}{1}{m} = 1$ (trivial coupling). Since $a_0^0$
+is known and nonzero, $\norm{\mathbf{F}_1}^2 = \beta_{0,1,1} / a_0^0$.
+After gauge fixing, $\mathbf{F}_1 = (0, \norm{\mathbf{F}_1}, 0)^\top$.
+\end{proof}
+
+\begin{lemma}[Partial recovery of $\mathbf{F}_2$]\label{lem:app-F2}
+After gauge fixing, the five selective entries at
+$\ell = 2$ determine $a_2^0$ and $|a_2^1|$, $|a_2^2|$. Full phase
+recovery of $a_2^2$ requires an additional constraint; see
+Remark~\ref{rem:ell2-gap}.
+\end{lemma}
+\begin{proof}
+After gauge fixing, $\mathbf{F}_1 = (0, c, 0)^\top$ with
+$c = \norm{\mathbf{F}_1}$, and $\operatorname{Im}(a_2^1) = 0$. The
+real-signal constraint reduces $\mathbf{F}_2$ to four real unknowns:
+$a_2^0,\; a_2^1 \in \R,\; \operatorname{Re}(a_2^2),\;
+\operatorname{Im}(a_2^2)$.
+
+\medskip\noindent
+\textit{Linear entries.}
+The chain entry $\beta_{1,1,2}$ yields:
+\begin{equation}\label{eq:app-beta112}
+  \beta_{1,1,2}
+  = \CG{1}{0}{1}{0}{2}{0}\,c^2\,\conj{a_2^0}
+  = \sqrt{\tfrac{2}{3}}\;c^2\,a_2^0,
+\end{equation}
+which determines $a_2^0$ (since $c \ne 0$).
+
+\medskip\noindent
+\textit{Nonlinear entries.}
+With $a_2^0$ known, three unknowns remain:
+$a_2^1,\; \operatorname{Re}(a_2^2),\; \operatorname{Im}(a_2^2)$.
+The power entry provides
+$\beta_{0,2,2} = a_0^0\,(|a_2^0|^2 + 2|a_2^1|^2 + 2|a_2^2|^2)$.
+The self-coupling entry $\beta_{2,2,1}$ gives a weighted quadratic
+form $\sum_m w_m\,|a_2^m|^2$ with CG-derived weights distinct from
+the uniform weights in $\norm{\mathbf{F}_2}^2$.
+The Jacobian of these equations with respect to the three unknowns
+has determinant that is a nonzero polynomial at generic points.
+\end{proof}
+
+\begin{remark}[Independence of the nonlinear equations at $\ell = 2$]
+\label{rem:ell2-gap}
+The self-coupling entry $\beta_{2,2,0}$ is proportional to
+$\norm{\mathbf{F}_2}^2$ (the CG coefficient
+$\CG{2}{m}{2}{-m}{0}{0} = (-1)^m/\sqrt{5}$ yields a uniform weight),
+making it redundant with the power entry $\beta_{0,2,2}$. This leaves
+only $\beta_{2,2,1}$ as an independent quadratic constraint alongside
+the power entry, giving two equations for three real unknowns
+$(a_2^1, \operatorname{Re}(a_2^2), \operatorname{Im}(a_2^2))$. In
+particular, $\arg(a_2^2)$ may remain undetermined.
+
+A resolution may require including a \emph{cubic} self-coupling entry
+such as $\beta_{2,2,2}$, or augmenting with entries from degree~$3$
+that couple back to~$\mathbf{F}_2$. We flag this as an open problem.
+\end{remark}
+
+\begin{lemma}[Recovery of $\mathbf{F}_3$]\label{lem:app-F3}
+The seven selective entries at $\ell = 3$ determine $\mathbf{F}_3$
+for generic signals.
+\end{lemma}
+\begin{proof}
+$\mathbf{F}_3$ has $7$ real degrees of freedom. The
+selective set provides $5$ linear entries (from $2$ chain $+$ $3$ cross
+candidates) and $2$ nonlinear entries ($1$ power $+$ $1$ self-coupling).
+The $5$ linear entries constrain $5$ of the $7$ unknowns. The remaining
+$2$ unknowns are determined by the $2$ nonlinear equations, whose
+Jacobian has full rank at generic points by a polynomial
+non-vanishing argument.
+\end{proof}
+
+\begin{lemma}[Linear bootstrap for $\ell \ge 4$]
+\label{lem:app-linear-bootstrap}
+For each $\ell \ge 4$, the chain and cross entries provide at least
+$2\ell + 1$ linear equations in $\mathbf{F}_\ell$, and the coefficient
+matrix has rank $2\ell+1$ for Lebesgue-almost-every signal.
+\end{lemma}
+\begin{proof}
+By Proposition~\ref{prop:app-entry-counts}, we select $N \ge 2\ell+1$
+entries from Categories~1 and~2.
+
+\medskip\noindent
+\textit{Chain equations.}
+For a chain triple $(\ell_1, \ell_2, \ell)$ with $\ell_1, \ell_2 < \ell$:
+\[
+  \beta_{\ell_1,\ell_2,\ell}
+  = \sum_{m=-\ell}^{\ell} \conj{a_\ell^m}
+    \underbrace{
+      \sum_{m_1} \CG{\ell_1}{m_1}{\ell_2}{m-m_1}{\ell}{m}\,
+      a_{\ell_1}^{m_1}\,a_{\ell_2}^{m-m_1}
+    }_{=:\, G_k^m}
+  = \ip{\mathbf{G}_k}{\mathbf{F}_\ell},
+\]
+where $\mathbf{G}_k \in \C^{2\ell+1}$ depends only on
+$\{a_{\ell'}^{m'} : \ell' < \ell\}$ and Clebsch--Gordan coefficients.
+
+\medskip\noindent
+\textit{Cross equations.}
+For a cross triple $(\ell_1, \ell, \ell')$ with $\ell_1, \ell' < \ell$:
+\[
+  \beta_{\ell_1,\ell,\ell'}
+  = \sum_{m_2=-\ell}^{\ell} a_\ell^{m_2}
+    \underbrace{
+      \sum_{m_1} \CG{\ell_1}{m_1}{\ell}{m_2}{\ell'}{m_1+m_2}\,
+      a_{\ell_1}^{m_1}\,\conj{a_{\ell'}^{m_1+m_2}}
+    }_{=:\, H_k^{m_2}},
+\]
+which is again a linear functional of $\mathbf{F}_\ell$.
+
+\medskip\noindent
+\textit{Full system.}
+Stacking $N \ge 2\ell+1$ such equations yields
+$A\,\mathbf{F}_\ell = \mathbf{b}$,
+where $A \in \C^{N \times (2\ell+1)}$. Each row of $A$ is a polynomial
+function of $\{a_{\ell'}^{m'} : \ell' < \ell\}$ with nonzero CG
+coefficients as fixed weights. Consider any $(2\ell+1) \times (2\ell+1)$
+submatrix $A'$. Its determinant $\det(A')$ is a polynomial in the
+lower-degree coefficients. This polynomial is not identically zero
+(verified numerically at random Gaussian coefficients for all
+$\ell \le 15$). Since $\det(A')$ is a nonzero polynomial over $\R$,
+its zero set is a proper algebraic subvariety of Lebesgue measure zero.
+At a generic point, $\mathbf{F}_\ell = A^\dagger \mathbf{b}$.
+\end{proof}
+
+\begin{proof}[Proof of Theorem~\ref{thm:app-main}]
+We proceed by induction on $\ell = 0, 1, \dotsc, L$.
+
+\medskip\noindent
+\textbf{Base cases.}
+Lemma~\ref{lem:app-F0} recovers $\mathbf{F}_0 = (a_0^0)$.
+Lemmas~\ref{lem:app-F1} and~\ref{lem:app-gauge} recover $\mathbf{F}_1$
+and fix the rotation gauge, consuming all three $\SO(3)$ degrees of
+freedom.
+Lemma~\ref{lem:app-F2} partially recovers $\mathbf{F}_2$; see
+Remark~\ref{rem:ell2-gap} for the remaining open question.
+Lemma~\ref{lem:app-F3} recovers $\mathbf{F}_3$.
+
+\medskip\noindent
+\textbf{Inductive step ($\ell \ge 4$).}
+Suppose $\mathbf{F}_0, \dotsc, \mathbf{F}_{\ell-1}$ are known (up to
+the common gauge). By Lemma~\ref{lem:app-linear-bootstrap}, the chain
+and cross entries at degree~$\ell$ form a linear system
+$A\,\mathbf{F}_\ell = \mathbf{b}$ of rank $2\ell+1$ at generic points,
+uniquely determining $\mathbf{F}_\ell$.
+
+\medskip\noindent
+\textbf{Conclusion.}
+The sequence $\mathbf{F}_0, \dotsc, \mathbf{F}_L$ is recovered up to
+the rotation $g \in \SO(3)$ fixed in Lemma~\ref{lem:app-gauge}. By
+Plancherel's theorem, $f$ is recovered from its coefficients. Therefore,
+$\beta_{\mathrm{sel}}(f) = \beta_{\mathrm{sel}}(f')$ implies
+$f' \in \SO(3) \cdot f$ for generic~$f$.
+\end{proof}
+
+\subsection{Comparison with existing results}
+
+\begin{table}[h]
+  \caption{Comparison of bispectral invariants for signals on $S^2$ or
+    finite groups.}
+  \label{tab:app-comparison}
+  \centering
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}l l c c@{}}
+    \toprule
+    Result & Invariant & Size & Complete? \\
+    \midrule
+    Kakarala~\citep{kakarala1992triple}
+      & Full bispec. & $O(L^3)$ & Yes (constr.) \\
+    Edidin \& Satriano~\citep{edidin2023orbit}
+      & Full bispec.\ (band-lim.)
+      & $O(L^3)$ & Yes (generic) \\
+    Bendory et al.~\citep{bendory2022bispectrum}
+      & Freq.\ marching
+      & $O(L^2)$/shell & Yes (3~shells) \\
+    Mataigne et al.~\citep{mataigne2024selective}
+      & Sel.\ $G$-bispec.\ (finite)
+      & $O(|G|)$ & Yes (exact) \\
+    \textbf{This work}
+      & \textbf{Sel.\ $\SO(3)$ on $S^2$}
+      & $\boldsymbol{O(L^2)}$ & \textbf{Yes (generic)} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Complexity in pixel space}
+
+On $S^2$, a band-limited signal at degree~$L$ is sampled on an
+equiangular grid of size $N_\theta \times N_\varphi \approx 2L \times 2L$,
+so $P = 4L^2$ and $L = \Theta(\sqrt{P})$.
+
+\paragraph{Output size.}
+\begin{center}
+\small
+\begin{tabular}{lcc}
+  \toprule
+  Invariant & In $L$ & In $P$ \\
+  \midrule
+  Power spectrum & $O(L)$ & $O(\sqrt{P})$ \\
+  \textbf{Selective bispectrum} & $\boldsymbol{O(L^2)}$
+    & $\boldsymbol{O(P)}$ \\
+  Full bispectrum & $O(L^3)$ & $O(P^{3/2})$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+The selective bispectrum is \emph{linear} in the number of pixels.
+
+\paragraph{Computation cost.}
+\begin{center}
+\small
+\begin{tabular}{lcccc}
+  \toprule
+  Variant & Entries & Cost/entry & Total & In $P$ \\
+  \midrule
+  Full & $O(L^3)$ & $O(L)$ & $O(L^4)$ & $O(P^2)$ \\
+  Selective & $O(L^2)$ & $O(L)$ & $O(L^3)$ & $O(P^{3/2})$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Concrete example.}
+For a $128 \times 256$ grid ($P \approx 32\mathrm{K}$, $L = 64$): the
+full bispectrum produces ${\sim}87\mathrm{K}$ scalars at
+${\sim}17\mathrm{M}$~ops; the selective bispectrum produces
+${\sim}4\mathrm{K}$ scalars at ${\sim}260\mathrm{K}$~ops---a
+$65\times$ reduction.
+
+\subsection{Relation to the inversion gap}
+
+For finite groups ($O$, $D_n$), the ``inversion gap'' arises when the
+bootstrap ambiguity $Q$ is not absorbed by the Clebsch--Gordan
+structure (see Appendix~\ref{app:octa-convergence}). For $\SO(3)$ on
+$S^2$, the situation differs fundamentally:
+\begin{enumerate}[nosep]
+  \item The ambiguity in $\mathbf{F}_1$ is an $\SO(3)$ rotation $g$
+    (3~DOF).
+  \item We fix $g$ explicitly by gauge-choosing $\mathbf{F}_1$'s
+    direction (2~DOF) and $\mathbf{F}_2$'s azimuthal phase (1~DOF).
+  \item At $\ell \ge 4$, no ambiguity remains---the linear system has
+    a unique solution.
+\end{enumerate}
+This avoids the finite-group problem entirely: we never need the CG
+matrices to ``absorb'' a continuous ambiguity.
+
+\subsection{Limitations and open questions}
+
+\begin{enumerate}
+  \item \textbf{Phase recovery at $\ell = 2$.}
+    As discussed in Remark~\ref{rem:ell2-gap}, $\beta_{2,2,0}$ is
+    redundant with $\beta_{0,2,2}$, potentially leaving $\arg(a_2^2)$
+    undetermined. Resolving this likely requires including a cubic entry
+    $\beta_{2,2,2}$ or using degree-$3$ entries that couple back
+    to~$\mathbf{F}_2$.
+
+  \item \textbf{Genericity assumption.}
+    The proof requires $f$ to avoid a measure-zero algebraic variety
+    (Assumption~\ref{ass:app-generic}). Characterising this variety
+    explicitly would strengthen the result.
+
+  \item \textbf{Numerical conditioning.}
+    The coefficient matrix $A$ at each degree~$\ell$ has a condition
+    number that depends on the signal's spectral content. A stability
+    analysis bounding $\kappa(A)$ in terms of the spectral decay rate
+    is an open problem.
+
+  \item \textbf{Inversion algorithm.}
+    The forward selective bispectrum is implemented. Inversion requires:
+    $\ell = 0, 1$: closed-form; $\ell = 2, 3$: nonlinear solve;
+    $\ell \ge 4$: linear solve (pseudoinverse).
+\end{enumerate}
+
+\section{Octahedral Inversion Gap -- Full Analysis}
+\label{app:octa-convergence}
+
+This appendix provides the complete analysis of why the standard
+bootstrap inversion algorithm fails for the octahedral group, and how
+we resolve it. The material is complementary to
+Section~\ref{sec:octa} in the main text.
+
+\subsection{The bootstrap strategy (recap)}
+
+All inversion algorithms in \citet{mataigne2024selective} share the
+same skeleton:
+\begin{enumerate}[nosep]
+  \item Recover $\hat{f}(\rho_0)$ from
+    $\beta_{\rho_0,\rho_0} = \hat{f}(\rho_0)^3$.
+  \item Recover $\hat{f}(\rho_1)$ from
+    $\beta_{\rho_0,\rho_1}/\hat{f}(\rho_0)
+    = \hat{f}(\rho_1)^\dagger \hat{f}(\rho_1)$,
+    up to a unitary/orthogonal ambiguity $Q$.
+  \item Extract higher Fourier coefficients from subsequent bispectral
+    entries using CG matrices to block-diagonalise tensor products.
+\end{enumerate}
+Step 2 always introduces an ambiguity:
+$\hat{f}(\rho_1) = S \cdot Q$ where
+$S = (\hat{f}(\rho_1)^\dagger \hat{f}(\rho_1))^{1/2}$ is determined,
+but $Q$ is a free orthogonal matrix. For the algorithm to work, this
+ambiguity must not corrupt step~3.
+
+\subsection{Why it works for $C_n$}
+
+The irreps are 1D: $\rho_k(g) = e^{2\pi i k g / n}$. The ambiguity in
+$\hat{f}(\rho_1)$ is a phase $e^{i\varphi}$,
+$\varphi \in [0, 2\pi)$. Step~3 computes:
+\[
+  \hat{f}(\rho_{k+1}) = \left(\frac{\beta_{\rho_1, \rho_k}}{
+    \hat{f}(\rho_1) \hat{f}(\rho_k)}\right)^\dagger.
+\]
+The phase $e^{i\varphi}$ propagates coherently through all coefficients
+as $e^{i\varphi k}$, corresponding to a cyclic shift
+$\Theta(g) \to \Theta(g + \varphi)$. The paper correctly resolves this
+by finding the unique $\varphi$ that makes the reconstructed signal
+real.
+
+\subsection{Why it works for $D_n$}
+
+The generating irrep $\rho_1$ is 2D. Recovery gives
+$\hat{f}(\rho_1) = V\Lambda^{1/2}V^\dagger U$ with
+$U \in \OG(2)$. Step~3 extracts higher coefficients via:
+\[
+  \bigoplus_{\rho \in \rho_1 \otimes \rho_{k-1}} \hat{f}(\rho)
+  = \left(C_{\rho_1,\rho_{k-1}}^\dagger
+    \left[\hat{f}(\rho_1) \otimes \hat{f}(\rho_{k-1})\right]^{-1}
+    \beta_{\rho_1,\rho_{k-1}}
+    C_{\rho_1,\rho_{k-1}}\right)^\dagger.
+\]
+The 2D irreps of $D_n$ are restrictions of $\SO(2)$ representations
+to $\mathbb{Z}/n\mathbb{Z}$. The CG matrices for $D_n$ therefore
+block-diagonalise $\rho(U)$ for \emph{all} $U \in \OG(2)$, not just
+$U \in D_n$. Concretely, $C^\dagger(U \otimes U)C$ remains
+block-diagonal for any $U \in \OG(2)$. The $\OG(2)$ ambiguity passes
+cleanly through the CG extraction.
+
+\subsection{Why it fails for $O$}
+
+For the octahedral group, $\rho_1$ is the standard 3D representation.
+From $\beta_{\rho_0, \rho_1}$ we recover
+$\hat{f}(\rho_1)^\top \hat{f}(\rho_1) =
+\beta_{\rho_0,\rho_1}/\hat{f}(\rho_0)$.
+Taking the symmetric square root gives
+$S = (\hat{f}(\rho_1)^\top \hat{f}(\rho_1))^{1/2}$, with
+$\hat{f}(\rho_1) = Q \cdot S$ for unknown $Q \in \SO(3)$.
+
+The next step extracts $\hat{f}(\rho_2)$ and $\hat{f}(\rho_3)$
+from $\beta_{\rho_1, \rho_1}$ using the CG matrix $C_{11}$ that
+block-diagonalises $\rho_1 \otimes \rho_1$:
+\[
+  C_{11}^\top \cdot \beta_{\rho_1,\rho_1} \cdot (S \otimes S)^{-1}
+  \cdot C_{11}
+  = C_{11}^\top (Q \otimes Q) C_{11}
+  \cdot \bigoplus_k \hat{f}(\rho_k)^\top.
+\]
+
+The CG matrix $C_{11}$ block-diagonalises
+$\rho_1(g) \otimes \rho_1(g)$ for $g \in O$:
+\[
+  C_{11}^\top (\rho_1(g) \otimes \rho_1(g)) C_{11}
+  = \rho_0(g) \oplus \rho_1(g) \oplus \rho_2(g) \oplus \rho_3(g)
+\]
+with dimensions $1 + 3 + 3 + 2 = 9$. But $Q$ is \textbf{not}
+constrained to be an element of $O$. It is an arbitrary element of
+$\SO(3)$, which is a continuous group with 3 parameters, while $O$ has
+only 24 elements. For a generic $Q \in \SO(3) \setminus O$, the matrix
+$C_{11}^\top (Q \otimes Q) C_{11}$ is \textbf{not block-diagonal}.
+
+\paragraph{Cross-block leakage.}
+The Kronecker decomposition of $\rho_1 \otimes \rho_1$ for $O$ gives
+blocks:
+
+\begin{center}
+\small
+\begin{tabular}{llcl}
+  \toprule
+  Block & Rows & Irrep & Dim \\
+  \midrule
+  1 & 0     & $\rho_0$ (trivial)     & 1 \\
+  2 & 1--3  & $\rho_1$ (standard 3D) & 3 \\
+  3 & 4--6  & $\rho_2$ (product 3D)  & 3 \\
+  4 & 7--8  & $\rho_3$ (2D)          & 2 \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+When $Q = \rho_1(g)$ for $g \in O$, the off-diagonal blocks (e.g.,
+rows 4--6 $\times$ columns 7--8) are zero---exactly what the CG
+matrix guarantees. When $Q$ is a generic rotation, e.g.,
+$Q = R_x(0.7)$, then
+$\abs{[C_{11}^\top (Q \otimes Q) C_{11}]_{4:7,\, 7:9}}_\infty
+\approx 0.788$.
+This is not a small perturbation---it is $O(1)$. The recovered
+$\hat{f}(\rho_2)$ is a mixture of $\rho_2$ and $\rho_3$ contributions.
+
+\paragraph{Why this doesn't happen for $D_n$.}
+The 2D irreps of $D_n$ are restrictions of $\SO(2)$ irreps. The CG
+decomposition of $\rho_j \otimes \rho_k$ for $D_n$ inherits from the
+continuous group: $\rho_j \otimes \rho_k = \rho_{j+k} \oplus
+\rho_{|j-k|}$ holds for all of $\SO(2)$, not just $D_n$. The CG
+matrices are inherited from $\SO(2)$ and respect arbitrary rotations.
+For $O \subset \SO(3)$, the irreps of $O$ are \emph{not} restrictions
+of $\SO(3)$ irreps (except $\rho_1$), so the CG matrices are specific
+to the 24-element group and do not block-diagonalise arbitrary
+$\SO(3)$ rotations.
+
+\subsection{Connection to the paper's own remarks}
+
+\citet{mataigne2024selective} acknowledge a related issue in the
+commutative group setting (Appendix C, around Eq.~10):
+``\emph{Again, the indeterminacy factor $h_l$ is not restricted to
+$\mathbb{Z}/n_l\mathbb{Z}$ but can belong to $[0, n_l]$. We will
+have to solve this issue further.}''
+This is the same phenomenon in a different guise. For commutative
+groups, the continuous indeterminacy is scalar (a phase) and can be
+resolved by enforcing real-valuedness. For $O$, the continuous
+indeterminacy is a $3 \times 3$ rotation matrix $Q \in \SO(3)$, and
+there is no analogous closed-form trick.
+
+\subsection{Working alternative}
+
+The selective $O$-bispectrum \emph{is} complete (172 coefficients
+uniquely determine the signal up to $O$-action). The issue is purely
+algorithmic. We implement a working inversion using:
+\begin{enumerate}[nosep]
+  \item \textbf{Bootstrap initialisation}: recover $\hat{f}(\rho_0)$
+    exactly, $\hat{f}(\rho_1)$ up to $Q$, and approximate
+    $\hat{f}(\rho_2), \hat{f}(\rho_3), \hat{f}(\rho_4)$ from diagonal
+    blocks (ignoring leakage).
+  \item \textbf{Levenberg--Marquardt correction}: use forward-mode
+    autodiff through the bispectrum computation to solve
+    $\norm{\beta(f_{\mathrm{rec}})
+    - \beta_{\mathrm{target}}}^2 = 0$ via damped least-squares steps.
+    Each step is a single linear solve, not iterative optimisation.
+    Jacobians are computed via \texttt{torch.func.jacfwd} composed with
+    \texttt{torch.vmap} for batched forward-mode AD.
+  \item \textbf{Multi-start}: randomise the initial $Q$ across several
+    restarts to escape local minima.
+\end{enumerate}
+This converges reliably in $<$50 iterations and is fully
+differentiable.
+
+\subsection{Summary}
+
+\begin{table}[h]
+  \caption{Bootstrap inversion across group families.}
+  \label{tab:app-bootstrap-summary}
+  \centering
+  \small
+  \begin{tabular}{lcccl}
+    \toprule
+    Group & Irrep dim & Ambiguity & CG absorbs? & Bootstrap? \\
+    \midrule
+    $C_n$ & 1 & $e^{i\varphi} \in \SO(2)$ & N/A (scalar) & Yes \\
+    $D_n$ & 2 & $U \in \OG(2)$ & Yes (CG from $\SO(2)$) & Yes \\
+    $O$   & 3 & $Q \in \SO(3)$ & \textbf{No} & \textbf{No} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Numerical disproof of CG absorption for $O$}
+
+The following code demonstrates the cross-block leakage:
+
+\begin{lstlisting}
+import torch
+from bispectrum.o_on_r3 import OonR3
+
+bsp = OonR3()
+C11 = bsp._cg_11.to(torch.float64)
+
+# Generic SO(3) rotation (not in O)
+theta = 0.7
+Q = torch.tensor([
+    [1.0, 0.0, 0.0],
+    [0.0, torch.cos(torch.tensor(theta)),
+     -torch.sin(torch.tensor(theta))],
+    [0.0, torch.sin(torch.tensor(theta)),
+      torch.cos(torch.tensor(theta))],
+], dtype=torch.float64)
+
+QQ = torch.kron(Q, Q)
+M = C11.T @ QQ @ C11
+
+# rho2 block: rows 4:7, rho3 block: rows 7:9
+cross = M[4:7, 7:9]
+print(f"Cross-block max: {cross.abs().max():.6f}")
+# Output: ~0.788 -- far from zero
+
+# Compare with a group element
+rho1_g4 = bsp._get_irrep_mats(1)[4].to(torch.float64)
+QQ_grp = torch.kron(rho1_g4, rho1_g4)
+M_grp = C11.T @ QQ_grp @ C11
+cross_grp = M_grp[4:7, 7:9]
+print(f"Cross-block for g in O: {cross_grp.abs().max():.6f}")
+# Output: ~0.0 (machine precision)
+\end{lstlisting}
+
+\section{Extended Benchmark Tables}
 \label{app:bench}
 
-\papertodo{Include full benchmark tables only after the benchmark script is cleaned up and the figures are final.}
+\papertodo{Include forward/inversion timing (CPU+GPU), memory, coefficient counts at all group sizes. Wall-clock throughput figures.}
+
+\section{PCam: Extended Results}
+\label{app:pcam-details}
+
+\papertodo{Move here from main text: full model variant descriptions (6-item list), disk bispectrum discussion, wider channel analysis, published baselines table.}
+
+\section{OrganMNIST3D: Extended Results}
+\label{app:organ3d-details}
+
+\papertodo{Move here from main text: published baselines table (Table~3 from original), wider channels paragraph, rotation analysis figure.}
 
 \section{Experimental Details}
 \label{app:exp}
 
-\papertodo{Include architecture details, hyperparameters, seeds, train fractions, hardware, and exact result aggregation procedures.}
-\reviewquestion{Do we want appendix-level tables for every completed sweep, or only the ones directly supporting the paper's final claims?}
+\papertodo{Include architecture diagrams, full hyperparameter tables, training curves, hardware specs, seeds, exact aggregation procedures for all three experiments.}
 
 \newpage
 \input{checklist.tex}

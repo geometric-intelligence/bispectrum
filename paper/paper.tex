@@ -557,7 +557,7 @@ nonlinearities, while providing near-perfect rotation invariance.
     RGB patches ($96 \times 96$), binary classification of metastatic tissue
     in histopathology. Tissue orientation under the microscope is arbitrary,
     making rotation invariance physically justified. Standard train/val/test split.
-  \item \textbf{Architecture}: Equivariant DenseNet with $C_8$ group convolutions.
+  \item \textbf{Architecture}: Equivariant DenseNet~\citep{huang2017densenet} with $C_8$ group convolutions.
     Default growth rate 12, block configuration $[4, 4, 4]$.
     All models share the same backbone; only the invariant
     pooling layer differs.
@@ -823,7 +823,7 @@ utility beyond invariant pooling.}
 \todo[inline]{Write $\sim$0.75 page on related work. Frame comparisons in terms of what software/tools exist and what our library adds. Distinguish from each:}
 
 \paragraph{Equivariant network libraries.}
-\texttt{e2cnn}/\texttt{escnn}~\citep{weiler2019general} provide steerable
+\texttt{e2cnn}/\texttt{escnn}~\citep{weiler2019general, cesa2022program} provide steerable
 convolution layers but no bispectral invariant pooling. The \texttt{bispectrum}
 library is complementary: it provides the invariant map that
 \texttt{escnn} lacks, and can be used as a drop-in replacement for
@@ -832,7 +832,8 @@ norm/gate pooling in existing architectures.
 \paragraph{Bispectral neural networks.}
 \citet{sanborn2023bispectral} propose learning the group from data using
 bispectral features, but restrict to commutative groups and achieve lower
-accuracy than equivariant baselines on RotMNIST (98.1\% vs.\ 99.3\% for E2CNN).
+accuracy than equivariant baselines on RotMNIST (98.1\% vs.\ 99.3\% for E2CNN).%
+\todo[inline,color=red!10]{Verify: 98.1\% BNN vs.\ 99.3\% E2CNN from Sanborn et al.\ Table~2.}
 Our library handles non-abelian groups and integrates into existing
 equivariant architectures rather than replacing them.
 
@@ -865,7 +866,13 @@ ke2017lightgbm, moreau2022benchopt}. Our paper follows this template:
 the library is the vehicle, and the steerable-to-Fourier bridge and
 octahedral inversion resolution are the scientific contributions.
 
-\todo[inline]{Add citation for ``Price of Freedom'' (ICLR 2025) on tensor product expressivity/efficiency tradeoffs.}
+\paragraph{Tensor product expressivity.}
+\citet{price2025freedom} systematically analyze the expressivity--runtime
+tradeoff in equivariant tensor products, showing that faster variants
+sacrifice expressivity. The selective bispectrum offers a complementary
+perspective: it achieves completeness at $O(|G|)$ cost by leveraging the
+algebraic structure of Kronecker products rather than approximating the
+full tensor product.
 
 
 \section{Discussion and Conclusion}

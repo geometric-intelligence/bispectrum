@@ -35,7 +35,7 @@ MODEL_GR[bispectrum]=4
 
 MODELS=(standard norm gate fourier_elu bispectrum)
 FRACTIONS=(0.01 0.05 0.1 0.25 0.5 1.0)
-SO2_DISK_BL=30
+SO2_DISK_BL=10
 
 BASE_OUTPUT_DIR="./pcam_results_data_pareto"
 COMMON="--patience 10 --epochs 50"
