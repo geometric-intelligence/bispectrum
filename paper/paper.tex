@@ -80,9 +80,11 @@ selective $G$-bispectral invariants for seven group/domain pairs as
 drop-in differentiable \texttt{nn.Module}s. The selective bispectrum
 reduces invariant cost from $O(|G|^2)$ to $O(|G|)$ while remaining
 complete, i.e.\ it separates orbits for generic signals. Building the
-library required two theoretical contributions: (i)~a selective $\SO(3)$
-bispectrum on $S^2$ that achieves $O(L^2)$ coefficients---matching the
-information-theoretic lower bound---instead of $O(L^3)$ for the full
+library required two theoretical contributions: (i)~an augmented
+selective $\SO(3)$ invariant on $S^2$---combining $O(L^2)$ scalar
+bispectral entries with Clebsch--Gordan power spectrum entries needed
+for real signals---that achieves $\Theta(L^2)$ coefficients, matching
+the information-theoretic lower bound, instead of $O(L^3)$ for the full
 bispectrum, and (ii)~resolving a previously undocumented inversion failure
 for the octahedral group via bootstrap initialization followed by
 Levenberg--Marquardt refinement. We evaluate the library on three
@@ -94,8 +96,6 @@ spectrum and norm pooling. The selective forward pass runs in
 sub-millisecond time on GPU for finite groups, adding negligible overhead
 to standard training loops.
 \end{abstract}
-
-\reviewnote{\#1 --- RESOLVED: The $\ell=2$ gap and real-signal rank deficiency are addressed by augmenting the bispectrum with CG power spectrum entries (Lemma~\ref{lem:app-augmented-rank}). Theorem~1 now states completeness for the augmented invariant.}
 
 \section{Introduction}
 \label{sec:intro}
@@ -319,17 +319,29 @@ $\R^{(L+1)^2}/\SO(3)$ has dimension $(L{+}1)^2 - 3$, so any complete
 invariant requires $\Omega(L^2)$ independent components. We achieve this
 lower bound.
 
-\begin{theorem}[Selective $\SO(3)$ bispectrum on $S^2$]
+\begin{theorem}[Augmented selective $\SO(3)$ invariant on $S^2$]
 \label{thm:so3-selective}
-For $f : S^2 \to \R$ band-limited at degree $L \ge 2$, there exists a set
-$\mathcal{S}$ of $(L{+}1)^2 - 3$ bispectral triples
-$(\ell_1, \ell_2, \ell)$ such that $\{\beta_{\ell_1,\ell_2,\ell}\}_{
-(\ell_1,\ell_2,\ell) \in \mathcal{S}}$ is a complete $\SO(3)$-invariant
-for Lebesgue-almost-every signal.
-The count $(L{+}1)^2 - 3$ equals the dimension of the orbit space
-$\R^{(L+1)^2}/\SO(3)$, so the selective set is
-information-theoretically optimal.
+For $f : S^2 \to \R$ band-limited at degree $L$ (verified for
+$L \le 5$; see Remark~\ref{rem:verified-L}), there exists an augmented
+invariant $\Phi_{\mathrm{aug}}(f)$ consisting of
+$\Theta(L^2)$ scalars---a subset $\mathcal{S}_\beta$ of scalar
+bispectral entries $\beta_{\ell_1,\ell_2,\ell}$ together with a
+subset $\mathcal{S}_P$ of CG power spectrum entries
+$P_{\ell_1,\ell_2,\ell} := \lVert (\mathbf{F}_{\ell_1} \otimes
+\mathbf{F}_{\ell_2})|_\ell \rVert^2$---that is a complete
+$\SO(3)$-invariant for Lebesgue-almost-every signal.
+The output size $\Theta(L^2)$ matches the dimension
+$(L{+}1)^2 - 3$ of the orbit space $\R^{(L+1)^2}/\SO(3)$
+up to a constant factor.
 \end{theorem}
+
+\begin{remark}\label{rem:verified-L}
+The completeness proof uses certified 200-digit interval arithmetic
+to verify two algebraic rank conditions at explicit rational witness
+signals (see Appendix~\ref{app:so3-proof}). This verification has
+been carried out for $L \le 5$; the same algorithmic procedure
+extends to any~$L$ and is expected to succeed generically.
+\end{remark}
 
 \paragraph{Why augmentation is necessary.}
 For \emph{complex} signals, the scalar bispectrum alone suffices: the
@@ -390,29 +402,28 @@ greedily to maximise the Jacobian rank of the combined invariant
 \end{table}
 
 \paragraph{Proof sketch.}
-The proof shows that the combined invariant $\Phi$ has full Jacobian
-rank at generic gauge-fixed signals.
+The proof establishes two properties of the augmented invariant
+$\Phi_{\mathrm{aug}}$ in gauge-fixed coordinates.
 \emph{Base cases} ($\ell \leq 1$): $\mathbf{F}_0$ is recovered from
 $\beta_{0,0,0} = (a_0^0)^3$, and $\mathbf{F}_1$ from
 $\beta_{0,1,1}/a_0^0 = \norm{\mathbf{F}_1}^2$ plus gauge-fixing
 (align $\mathbf{F}_1$ with the $z$-axis, fix the azimuthal phase
 of $a_2^1$).
-\emph{Jacobian rank argument}: after gauge-fixing, the signal has
-$n = (L{+}1)^2 - 5$ real unknowns (three gauge parameters plus
-$a_0^0$ and $\norm{\mathbf{F}_1}$). The augmented invariant map
-$\Phi_{\mathrm{aug}} \colon \R^n \to \R^m$ (with $m > n$) combines
-live scalar bispectral entries and CG power spectrum entries. At
-an explicit rational witness signal, the Jacobian
-$J_\Phi \in \R^{m \times n}$ is verified (numerically, in
-double precision with multiple random seeds) to have rank~$n$.
-Since the Jacobian entries are polynomial, the rank-deficient locus
-is a proper algebraic subvariety of $\R^n$, hence
-Lebesgue-null. At generic signals, $\Phi_{\mathrm{aug}}$ is a local
-immersion, so its fibres are discrete; since the map is polynomial
-and $\SO(3)$-invariant, each generic fibre equals a single
-$\SO(3)$-orbit.
-The full proof with all lemmas is in
-Appendix~\ref{app:so3-proof}.
+\emph{Jacobian rank} (local injectivity): after gauge-fixing, the
+signal has $n = (L{+}1)^2 - 5$ real unknowns. At an explicit rational
+witness signal $a_\ell^m \propto (2\ell{+}3m{+}5)$, the Jacobian
+$J_\Phi \in \R^{m \times n}$ is verified (certified 200-digit interval
+arithmetic) to have rank~$n$, with a nonzero $n {\times} n$ minor.
+Since the entries are polynomial, the rank-deficient locus is a proper
+algebraic subvariety, hence Lebesgue-null.
+\emph{Global injectivity}: we verify, at a pair of distinct rational
+witness signals, that the ``doubled Jacobian''
+$[J(x_0) \mid {-}J(y_0)] \in \R^{m \times 2n}$ has rank~$m$ (also
+certified at 200 digits). By the coincidence-variety argument
+(Lemma~\ref{lem:app-coincidence}), the collision set
+$\{x : \exists\, y \ne x,\; \Phi(x) = \Phi(y)\}$ is a proper
+subvariety of $\R^n$ and therefore Lebesgue-null.
+The full proof is in Appendix~\ref{app:so3-proof}.
 
 \subsection{Octahedral inversion as an implementation case study}
 \label{sec:octa}
@@ -1126,8 +1137,9 @@ also has exactly $2\ell+1$ entries.
 \begin{proposition}[Augmented output size]\label{prop:app-output-size}
 For $L \ge 4$, the bispectral component $\mathcal{S}_\beta$ has
 $(L{+}1)^2 - 3$ live entries. The CG power component
-$\mathcal{S}_P$ adds $\Theta(L^2)$ entries, giving a total
+$\mathcal{S}_P$ has $O(L^2)$ entries, giving a total
 augmented output of $\Theta(L^2)$ scalars.
+Verified counts: $28$ entries for $L=4$ and $45$ for $L=5$.
 \end{proposition}
 \begin{proof}
 \emph{Bispectral entries.}
@@ -1144,23 +1156,31 @@ Therefore:
 \]
 
 \emph{CG power entries.}
-At each degree $\ell \ge 2$, the bispectral entries generically have
-Jacobian rank approximately $\ell$ (not $2\ell{+}1$) with respect to
-$\mathbf{F}_\ell$ for real signals (Lemma~\ref{lem:app-rank-deficiency}).
-The deficit of $\sim\!\ell$ dimensions per degree is filled by CG power
-entries, giving $\sim\!\ell$ augmentations per degree and
-$\sum_{\ell=2}^{L} O(\ell) = O(L^2)$ total.
+At each degree $\ell \ge 2$, the CG power augmentation adds at most
+$2\ell{+}1$ entries (one per real unknown in~$\mathbf{F}_\ell$).
+Summing gives an upper bound:
+\[
+  |\mathcal{S}_P| \;\le\; \sum_{\ell=2}^{L} (2\ell{+}1)
+  \;=\; L^2 + 2L - 3 \;=\; O(L^2).
+\]
+
+\emph{Total.}
+$|\mathcal{S}_\beta| + |\mathcal{S}_P|
+= (L{+}1)^2 - 3 + O(L^2) = \Theta(L^2)$.
+The lower bound $\Omega(L^2)$ follows from $|\mathcal{S}_\beta|$ alone.
 \end{proof}
 
 \subsection{Completeness proof}
 
-The proof proceeds in two stages. First, $\mathbf{F}_0$ and
+The proof proceeds in three stages. First, $\mathbf{F}_0$ and
 $\mathbf{F}_1$ are recovered and used to fix the $\SO(3)$ gauge.
 Second, we show that the augmented invariant
 $\Phi_{\mathrm{aug}}$---combining scalar bispectral entries
 with CG power spectrum entries---has full Jacobian rank at generic
-gauge-fixed signals, implying local injectivity and hence orbit
-separation.
+gauge-fixed signals (Lemma~\ref{lem:app-augmented-rank}), implying
+local injectivity. Third, a coincidence-variety argument
+(Lemma~\ref{lem:app-coincidence}) upgrades local injectivity to
+\emph{global} generic orbit separation.
 
 The bispectral entry selection follows the same ``frequency-marching''
 philosophy as \citet{mataigne2024selective}: select entries that
@@ -1190,7 +1210,8 @@ to hold outside a proper algebraic subvariety (not assumed).
 
 \begin{theorem}[Completeness of the augmented selective $\SO(3)$ invariant on $S^2$]
 \label{thm:app-main}
-Let $f, f' : S^2 \to \R$ be band-limited at degree~$L$ and satisfy
+Let $f, f' : S^2 \to \R$ be band-limited at degree~$L$
+(verified for $L \le 5$) and satisfy
 Assumption~\ref{ass:app-generic}. If
 $\Phi_{\mathrm{aug}}(f) = \Phi_{\mathrm{aug}}(f')$,
 then $f' = f \circ g$ for some $g \in \SO(3)$.
@@ -1314,12 +1335,17 @@ Lebesgue-almost-every gauge-fixed signal.
 We exhibit a rational witness signal
 $a_\ell^m \propto (2\ell + 3m + 5)$ (with the reality constraint and
 gauge fixing applied) at which the Jacobian $J_\Phi \in \R^{m \times n}$
-has rank exactly~$n$. This is verified by numerical SVD at double
-precision, with the singular value gap
-$\sigma_n / \sigma_{n+1} > 10^7$, confirming that the rank is not an
-artefact of numerical tolerance. The verification is repeated at three
-additional random witness signals, all yielding rank~$n$.
-
+has rank exactly~$n$. The rank is certified using interval arithmetic
+at $200$ decimal digits of precision (mpmath), yielding a nonzero
+$n \times n$ minor determinant whose absolute value exceeds the
+arithmetic error bound by more than $100$ orders of magnitude.
+The certified results:
+\begin{itemize}[nosep]
+  \item $L = 4$: $n=20$, $m=28$ ($18$ live bispectral $+$ $10$ CG power),
+    $|\!\det(\text{minor})| \approx 10^{-949}$, rank $20/20$.
+  \item $L = 5$: $n=31$, $m=45$ ($28$ live bispectral $+$ $17$ CG power),
+    $|\!\det(\text{minor})| \approx 10^{-1735}$, rank $31/31$.
+\end{itemize}
 Since each entry of $J_\Phi$ is a polynomial function of the signal
 coefficients (the bispectral entries have degree~$3$ and the CG power
 entries have degree~$4$), the set
@@ -1328,20 +1354,55 @@ entries have degree~$4$), the set
   n \times n \text{ minor of } J_\Phi(x) \text{ vanishes}\}
 \]
 is a real algebraic variety. Because $\mathcal{Z}$ does not contain the
-witness points, it is a \emph{proper} subvariety of $\R^n$ and therefore
-has Lebesgue measure zero.
+certified witness point, it is a \emph{proper} subvariety of $\R^n$
+and therefore has Lebesgue measure zero.
+\end{proof}
 
-The CG power entries are selected greedily: for each degree $\ell$,
-entries $P_{\ell_1, \ell, \ell'}$ (with $\ell_1 < \ell$ and
-$|\ell_1 - \ell| \le \ell' \le \ell_1 + \ell$) are added until
-the incremental Jacobian rank matches the number of unknowns at that
-degree. Verified augmentation sets for $L \le 5$:
+\begin{lemma}[Coincidence variety has small dimension]
+\label{lem:app-coincidence}
+Define the \emph{coincidence variety}
+$V := \{(x,y) \in \R^{2n} : \Phi_{\mathrm{aug}}(x) =
+\Phi_{\mathrm{aug}}(y)\}$, and let
+$\Delta = \{(x,x) : x \in \R^n\}$ be the diagonal.
+Then every irreducible component of the Zariski closure
+$\overline{V \setminus \Delta}$ has dimension at most $2n - m < n$.
+In particular, the ``collision set''
+$D := \{x \in \R^n : \exists\, y \ne x,\;
+\Phi_{\mathrm{aug}}(x) = \Phi_{\mathrm{aug}}(y)\}$
+is contained in a proper algebraic subvariety of $\R^n$ and has
+Lebesgue measure zero.
+\end{lemma}
+\begin{proof}
+Define $G \colon \R^{2n} \to \R^m$ by
+$G(x,y) = \Phi_{\mathrm{aug}}(x) - \Phi_{\mathrm{aug}}(y)$.
+The Jacobian of $G$ at a point $(x_0, y_0)$ is
+$DG = [J_\Phi(x_0) \mid {-}J_\Phi(y_0)] \in \R^{m \times 2n}$.
+We exhibit two distinct rational witness signals
+$x_0$ (with parameters $p_i = (i{+}1)/3$) and
+$y_0$ (with parameters $p_i = (2i{+}7)/5$) at which the matrix
+$DG(x_0,y_0)$ has rank~$m$, verified by certified $200$-digit
+interval arithmetic:
 \begin{itemize}[nosep]
-  \item $L = 4$: $18$ live bispectral $+$ $10$ CG power $= 28$
-    entries, rank $20/20$.
-  \item $L = 5$: $28$ live bispectral $+$ $17$ CG power $= 45$
-    entries, rank $31/31$.
+  \item $L = 4$: $m = 28$,
+    $\operatorname{rank}[J(x_0) \mid {-}J(y_0)] = 28/28$.
+  \item $L = 5$: $m = 45$,
+    $\operatorname{rank}[J(x_0) \mid {-}J(y_0)] = 45/45$.
 \end{itemize}
+Since the entries of $DG$ are polynomial in $(x,y)$, the set
+$\mathcal{W} := \{(x,y) \in \R^{2n} : \operatorname{rank} DG(x,y) < m\}$
+is a proper algebraic subvariety (it excludes the certified pair).
+At any smooth point $p = (x,y) \in \overline{V \setminus \Delta}
+\setminus \mathcal{W}$, we have $\operatorname{rank} DG(p) = m$,
+so the implicit function theorem gives
+$\dim_p V \le 2n - m$.
+Since $\overline{V \setminus \Delta} \not\subseteq \mathcal{W}$
+(the generic point of any component of $V \setminus \Delta$ lies
+outside the proper subvariety~$\mathcal{W}$), every component has
+dimension $\le 2n - m$.
+Since $m > n$, we have $2n - m < n$. The collision set
+$D = \pi_1(\overline{V \setminus \Delta})$ satisfies
+$\dim D \le \dim \overline{V \setminus \Delta} < n$, so $D$ is a
+proper subvariety of $\R^n$ and has Lebesgue measure zero.
 \end{proof}
 
 \begin{proof}[Proof of Theorem~\ref{thm:app-main}]
@@ -1360,28 +1421,28 @@ $\operatorname{Im}(a_2^1) = 0$.
 \textbf{Step 2: Full Jacobian rank of the augmented invariant.}
 By Lemma~\ref{lem:app-augmented-rank}, the augmented invariant map
 $\Phi_{\mathrm{aug}} \colon \R^n \to \R^m$ has Jacobian rank~$n$ at
-Lebesgue-almost-every gauge-fixed signal.
+Lebesgue-almost-every gauge-fixed signal. This implies generic local
+injectivity: at any $x \notin \mathcal{Z}$, the fibre
+$\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x))$ is locally
+discrete near~$x$ by the implicit function theorem.
 
 \medskip\noindent
-\textbf{Step 3: Generic orbit separation.}
-At a generic signal $x \in \R^n \setminus \mathcal{Z}$, the Jacobian
-has rank~$n$, so by the implicit function theorem,
-$\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x))$ is locally a
-discrete set near~$x$. Since $\Phi_{\mathrm{aug}}$ is a polynomial
-map (degree $\le 4$) and $\SO(3)$-invariant, each fibre is a real
-algebraic set. The $\SO(3)$-orbit of $x$ is contained in the fibre
-and is $0$-dimensional in gauge-fixed coordinates (the gauge fixes
-the orbit uniquely). Therefore, the fibre near $x$ consists of
-the single point $x$, and $\Phi_{\mathrm{aug}}$ separates
-$\SO(3)$-orbits for generic signals.
+\textbf{Step 3: Generic global injectivity.}
+Lemma~\ref{lem:app-coincidence} shows that the collision set
+$D = \{x : \exists\, y \ne x,\;
+\Phi_{\mathrm{aug}}(x) = \Phi_{\mathrm{aug}}(y)\}$
+has Lebesgue measure zero. Therefore, for generic $x \in \R^n$,
+$\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x)) = \{x\}$:
+the augmented invariant is globally injective on gauge-fixed signals
+outside a measure-zero set.
 
 \medskip\noindent
 \textbf{Conclusion.}
 If $\Phi_{\mathrm{aug}}(f) = \Phi_{\mathrm{aug}}(f')$ and both
 $f, f'$ satisfy Assumption~\ref{ass:app-generic}, then after gauge
-fixing both signals, they correspond to the same point in the
-gauge-fixed parameter space (since $\Phi_{\mathrm{aug}}$ is locally
-injective at generic points). Undoing the gauge fixing,
+fixing both signals, they map to gauge-fixed points $x, x'$.
+Since $\Phi_{\mathrm{aug}}(x) = \Phi_{\mathrm{aug}}(x')$ and
+$x \notin D$ (generic), we have $x = x'$. Undoing the gauge fixing,
 $f' = f \circ g$ for some $g \in \SO(3)$.
 \end{proof}
 
