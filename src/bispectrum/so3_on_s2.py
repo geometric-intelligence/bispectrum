@@ -38,6 +38,96 @@ def _build_full_index_map(
     return index_map
 
 
+def _small_linear_bootstrap_block(l_target: int) -> list[tuple[int, int, int]]:
+    """Explicit low-degree linear blocks used in the completeness proof."""
+    explicit_blocks: dict[int, list[tuple[int, int, int]]] = {
+        4: [
+            (1, 3, 4),
+            (2, 2, 4),
+            (2, 3, 4),
+            (3, 3, 4),
+            (1, 4, 3),
+            (2, 4, 2),
+            (3, 4, 1),
+            (2, 4, 3),
+            (3, 4, 2),
+        ],
+        5: [
+            (1, 4, 5),
+            (2, 3, 5),
+            (2, 4, 5),
+            (3, 4, 5),
+            (1, 5, 4),
+            (2, 5, 3),
+            (3, 5, 2),
+            (4, 5, 1),
+            (2, 5, 4),
+            (3, 5, 4),
+            (4, 5, 4),
+        ],
+        6: [
+            (1, 5, 6),
+            (2, 4, 6),
+            (3, 3, 6),
+            (3, 4, 6),
+            (1, 6, 5),
+            (2, 6, 4),
+            (3, 6, 3),
+            (4, 6, 2),
+            (5, 6, 1),
+            (2, 6, 5),
+            (3, 6, 5),
+            (4, 6, 5),
+            (5, 6, 5),
+        ],
+        7: [
+            (1, 6, 7),
+            (2, 5, 7),
+            (3, 4, 7),
+            (4, 5, 7),
+            (1, 7, 6),
+            (2, 7, 5),
+            (3, 7, 4),
+            (4, 7, 3),
+            (5, 7, 2),
+            (6, 7, 1),
+            (2, 7, 6),
+            (3, 7, 6),
+            (4, 7, 6),
+            (5, 7, 6),
+            (6, 7, 6),
+        ],
+    }
+    return explicit_blocks[l_target]
+
+
+def _proved_linear_bootstrap_block(l_target: int) -> list[tuple[int, int, int]]:
+    """Closed-form linear block used for l_target >= 8.
+
+    For each target degree ell >= 8, use:
+
+    - X0_a = (a, ell, ell-a),    1 <= a <= ell-1
+    - X1_a = (a, ell, ell-a+1),  2 <= a <= ell-1
+    - C_a  = (a, ell-a, ell),    1 <= a <= 4
+
+    This gives exactly
+        (ell - 1) + (ell - 2) + 4 = 2*ell + 1
+    linear equations in F_ell.
+    """
+    block: list[tuple[int, int, int]] = []
+
+    for a in range(1, l_target):
+        block.append((a, l_target, l_target - a))
+
+    for a in range(2, l_target):
+        block.append((a, l_target, l_target - a + 1))
+
+    for a in range(1, 5):
+        block.append((a, l_target - a, l_target))
+
+    return block
+
+
 def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
     """Build the O(L²) selective bispectrum index map.
 
@@ -48,17 +138,19 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
 
     Entry types (in priority order):
 
-    1. **Mixed chains** ``(l1, l2, l_target)`` with ``l1 < l2 < l_target``
-       — linear in ``F_{l_target}`` (appears via ``conj(F_l)``).
-    2. **Cross** ``(l1, l_target, l)`` with ``l1 < l_target, l < l_target``
-       — linear in ``F_{l_target}`` (appears in the middle ⊗ position).
-       Interleaved round-robin across ``l1`` for diverse coupling.
-    3. **Self-pairing chains** ``(l, l, l_target)`` — deprioritized because
-       symmetric tensor products can be linearly dependent on mixed chains.
+    1. **Seed block** for ``l_target <= 3``: the original low-degree
+       construction, including the joint ``(2,3)`` seed.
+    2. **Explicit low-degree linear blocks** for ``4 <= l_target <= 7``:
+       hard-coded linear families proved separately in the appendix.
+    3. **Closed-form linear block** for ``l_target >= 8``:
+       all cross rows ``(a, l_target, l_target-a)`` and
+       ``(a, l_target, l_target-a+1)``, plus four chain rows
+       ``(a, l_target-a, l_target)`` for ``a = 1,2,3,4``.
     4. **Power** ``(0, l_target, l_target)`` — gives ``||F_{l_target}||²``
-       (quadratic).
+       (quadratic), used only when the linear block does not already fill
+       the budget.
     5. **Self-coupling** ``(l_target, l_target, l)`` with ``l < l_target``
-       — quadratic/cubic in ``F_{l_target}``.
+       — quadratic/cubic in ``F_{l_target}``, likewise only used when needed.
 
     At ``l_target = 2`` the self-coupling entries are excluded:
     ``beta_{2,2,0}`` is redundant with the power entry, and
@@ -80,48 +172,45 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
 
         candidates: list[tuple[int, int, int]] = []
 
-        # 1+2. Chain and cross entries, interleaved for generic full rank.
-        #
-        # Chain: (l1, l2, l_target) with l1 <= l2 < l_target,
-        #        l1 + l2 >= l_target.  Mixed (l1 < l2) before self-pairing.
-        # Cross: (l1, l_target, l) with 1 <= l1 < l_target,
-        #        l_target - l1 <= l < l_target.  Round-robin across l1.
-        chain_mixed: list[tuple[int, int, int]] = []
-        chain_self: list[tuple[int, int, int]] = []
-        for l2 in range(l_target - 1, -1, -1):
-            for l1 in range(min(l2, l_target - 1), -1, -1):
-                if l1 + l2 >= l_target and abs(l1 - l2) <= l_target:
-                    if l1 < l2:
-                        chain_mixed.append((l1, l2, l_target))
-                    else:
-                        chain_self.append((l1, l2, l_target))
+        if 4 <= l_target <= 7:
+            candidates.extend(_small_linear_bootstrap_block(l_target))
+        elif l_target >= 8:
+            candidates.extend(_proved_linear_bootstrap_block(l_target))
+        else:
+            # Low-degree seed logic.
+            chain_mixed: list[tuple[int, int, int]] = []
+            chain_self: list[tuple[int, int, int]] = []
+            for l2 in range(l_target - 1, -1, -1):
+                for l1 in range(min(l2, l_target - 1), -1, -1):
+                    if l1 + l2 >= l_target and abs(l1 - l2) <= l_target:
+                        if l1 < l2:
+                            chain_mixed.append((l1, l2, l_target))
+                        else:
+                            chain_self.append((l1, l2, l_target))
 
-        cross_all: list[tuple[int, int, int]] = []
-        cross_by_l1: dict[int, list[tuple[int, int, int]]] = {}
-        for l1 in range(l_target - 1, 0, -1):
-            l_lo = l_target - l1
-            l_hi = min(l_target - 1, l1 + l_target)
-            entries = [(l1, l_target, lv) for lv in range(l_hi, l_lo - 1, -1)]
-            if entries:
-                cross_by_l1[l1] = entries
-        round_idx = 0
-        active_l1s = sorted(cross_by_l1.keys(), reverse=True)
-        while active_l1s:
-            next_active: list[int] = []
-            for l1 in active_l1s:
-                if round_idx < len(cross_by_l1[l1]):
-                    cross_all.append(cross_by_l1[l1][round_idx])
-                if round_idx + 1 < len(cross_by_l1[l1]):
-                    next_active.append(l1)
-            active_l1s = next_active
-            round_idx += 1
+            cross_all: list[tuple[int, int, int]] = []
+            cross_by_l1: dict[int, list[tuple[int, int, int]]] = {}
+            for l1 in range(l_target - 1, 0, -1):
+                l_lo = l_target - l1
+                l_hi = min(l_target - 1, l1 + l_target)
+                entries = [(l1, l_target, lv) for lv in range(l_hi, l_lo - 1, -1)]
+                if entries:
+                    cross_by_l1[l1] = entries
+            round_idx = 0
+            active_l1s = sorted(cross_by_l1.keys(), reverse=True)
+            while active_l1s:
+                next_active: list[int] = []
+                for l1 in active_l1s:
+                    if round_idx < len(cross_by_l1[l1]):
+                        cross_all.append(cross_by_l1[l1][round_idx])
+                    if round_idx + 1 < len(cross_by_l1[l1]):
+                        next_active.append(l1)
+                active_l1s = next_active
+                round_idx += 1
 
-        # Interleave: mixed chains, then cross entries, then self-pairing
-        # chains. Cross entries provide independent linear constraints
-        # that self-pairing chains cannot (due to CG symmetries).
-        candidates.extend(chain_mixed)
-        candidates.extend(cross_all)
-        candidates.extend(chain_self)
+            candidates.extend(chain_mixed)
+            candidates.extend(cross_all)
+            candidates.extend(chain_self)
 
         # 3. Power entry: (0, l_target, l_target).
         candidates.append((0, l_target, l_target))

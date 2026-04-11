@@ -15,6 +15,90 @@ from bispectrum.so3_on_s2 import (
 )
 
 
+def _linear_rows_for_target(
+    index_map: list[tuple[int, int, int]], ell: int
+) -> list[tuple[int, int, int]]:
+    rows: list[tuple[int, int, int]] = []
+    for l1, l2, l_val in index_map:
+        if l_val == ell and l1 < ell and l2 < ell:
+            rows.append((l1, l2, l_val))
+        elif l2 == ell and l1 < ell and l_val < ell:
+            rows.append((l1, l2, l_val))
+    return rows
+
+
+def _expected_linear_block(ell: int) -> list[tuple[int, int, int]]:
+    explicit_blocks: dict[int, list[tuple[int, int, int]]] = {
+        4: [
+            (1, 3, 4),
+            (2, 2, 4),
+            (2, 3, 4),
+            (3, 3, 4),
+            (1, 4, 3),
+            (2, 4, 2),
+            (3, 4, 1),
+            (2, 4, 3),
+            (3, 4, 2),
+        ],
+        5: [
+            (1, 4, 5),
+            (2, 3, 5),
+            (2, 4, 5),
+            (3, 4, 5),
+            (1, 5, 4),
+            (2, 5, 3),
+            (3, 5, 2),
+            (4, 5, 1),
+            (2, 5, 4),
+            (3, 5, 4),
+            (4, 5, 4),
+        ],
+        6: [
+            (1, 5, 6),
+            (2, 4, 6),
+            (3, 3, 6),
+            (3, 4, 6),
+            (1, 6, 5),
+            (2, 6, 4),
+            (3, 6, 3),
+            (4, 6, 2),
+            (5, 6, 1),
+            (2, 6, 5),
+            (3, 6, 5),
+            (4, 6, 5),
+            (5, 6, 5),
+        ],
+        7: [
+            (1, 6, 7),
+            (2, 5, 7),
+            (3, 4, 7),
+            (4, 5, 7),
+            (1, 7, 6),
+            (2, 7, 5),
+            (3, 7, 4),
+            (4, 7, 3),
+            (5, 7, 2),
+            (6, 7, 1),
+            (2, 7, 6),
+            (3, 7, 6),
+            (4, 7, 6),
+            (5, 7, 6),
+            (6, 7, 6),
+        ],
+    }
+    if ell in explicit_blocks:
+        return explicit_blocks[ell]
+
+    block: list[tuple[int, int, int]] = []
+    for a in range(1, ell):
+        block.append((a, ell, ell - a))
+    for a in range(2, ell):
+        block.append((a, ell, ell - a + 1))
+    for a in range(1, 5):
+        block.append((a, ell - a, ell))
+    return block
+
+
 class TestSO3onS2:
     """Tests for SO3onS2 module."""
 
@@ -338,6 +422,13 @@ class TestBuildSelectiveIndexMap:
                 assert count <= 2 * deg + 1, (
                     f'degree {deg} has {count} entries > budget {2 * deg + 1}'
                 )
+
+    def test_linear_blocks_match_proved_family(self):
+        for ell in range(4, 11):
+            idx = _build_selective_index_map(ell)
+            actual = _linear_rows_for_target(idx, ell)
+            expected = _expected_linear_block(ell)
+            assert actual == expected
 
 
 class TestBatchedForwardCorrectness:
