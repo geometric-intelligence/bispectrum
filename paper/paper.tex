@@ -340,28 +340,34 @@ $\ell_1, \ell' < \ell$---linear via $a_\ell^{m_2}$;
 \textbf{(3)~Power} $(0, \ell, \ell)$, giving
 $\beta = a_0^0 \norm{\mathbf{F}_\ell}^2$ (quadratic);
 \textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$ (quadratic/cubic).
-At $\ell = 1$ and $\ell = 2$ the self-coupling $\beta_{\ell,\ell,0}$
-is excluded: for real signals
-$\beta_{\ell,\ell,0} = (-1)^\ell \beta_{0,\ell,\ell}/\!\sqrt{2\ell{+}1}$,
-making it redundant with the power entry. At $\ell = 2$ the symmetric
-self-coupling $\beta_{2,2,2}$ is included instead (it lies in
-$\operatorname{Sym}^2(V_2)$ and is generically nonzero).
-Table~\ref{tab:entry-counts} shows that for $\ell \geq 4$,
-chain + cross candidates alone exceed $2\ell{+}1$, so the entire
+At $\ell = 1$ the self-coupling $\beta_{1,1,0}$
+is excluded (redundant with the power entry for real signals).
+At $\ell = 2$ the cross entry $\beta_{1,2,1}$ is excluded: after
+gauge-fixing $\mathbf{F}_1 = (0,c,0)$ it collapses to a scalar
+multiple of $\beta_{1,1,2}$, carrying no additional information.
+The symmetric self-coupling $\beta_{2,2,2}$ is included instead
+(it lies in $\operatorname{Sym}^2(V_2)$ and is generically nonzero).
+To compensate for the dropped cross entry at $\ell = 2$,
+all $10$ chain+cross candidates are retained at $\ell = 4$
+(one more than $2\ell{+}1$), producing an overdetermined linear
+system whose compatibility condition resolves the seed-stage
+ambiguity at degrees $2$ and $3$.
+Table~\ref{tab:entry-counts} shows that for $\ell \geq 5$,
+chain + cross candidates alone exceed $2\ell{+}1$, so the
 recovery is a linear solve from that point onward.
 
 \begin{table}[h]
   \caption{Per-degree entry counts in the selective $\SO(3)$ bispectrum.
-    For $\ell \geq 4$, only linear (chain + cross) entries are needed.
-    At $\ell = 1$ and $\ell = 2$, the self-coupling
-    $\beta_{\ell,\ell,0}$ is excluded: it equals
-    $(-1)^\ell \beta_{0,\ell,\ell}/\!\sqrt{2\ell{+}1}$ for real
-    signals, so it is redundant with the power entry.
-    At $\ell = 2$, $\beta_{2,2,1}$ also vanishes (CG antisymmetry),
-    and the symmetric self-coupling $\beta_{2,2,2}$ is included
-    instead (it lies in $\operatorname{Sym}^2(V_2)$ and is
-    generically nonzero).
-    Degrees $2$ and $3$ are solved jointly
+    At $\ell = 1$, the self-coupling $\beta_{1,1,0}$ is excluded
+    (redundant with the power entry).
+    At $\ell = 2$, the cross entry $\beta_{1,2,1}$ is excluded: after
+    gauge-fixing $\mathbf{F}_1 = (0,c,0)$ it collapses to a scalar
+    multiple of the chain entry $\beta_{1,1,2}$.
+    The symmetric self-coupling $\beta_{2,2,2}$ is included instead.
+    At $\ell = 4$, all $10$ chain+cross candidates are kept
+    (one more than $2\ell{+}1 = 9$), making the linear system
+    overdetermined and providing the compatibility constraint that
+    resolves the degree-$2{,}3$ seed ambiguity
     (Lemma~\ref{lem:app-seed}).}
   \label{tab:entry-counts}
   \centering
@@ -372,9 +378,10 @@ recovery is a linear solve from that point onward.
     \midrule
     0 & 0 & 0 & 0 & 1 & 1 \\
     1 & 0 & 0 & 1 & 0 & 1 \\
-    2 & 1 & 1 & 1 & 1 & 4 \\
+    2 & 1 & 0 & 1 & 1 & 3 \\
     3 & 2 & 3 & 1 & 1 & 7 \\
-    $\geq 4$ & \multicolumn{2}{c}{$\geq 2\ell{+}1$} & 0 & 0 & $2\ell{+}1$ \\
+    4 & 4 & 6 & 0 & 0 & 10 \\
+    $\geq 5$ & \multicolumn{2}{c}{$\geq 2\ell{+}1$} & 0 & 0 & $2\ell{+}1$ \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -390,12 +397,17 @@ with the $z$-axis (consuming 2~DOF), then fix the azimuthal phase of
 $a_2^1$ to be real (consuming the last DOF).
 \emph{Joint seed stage} ($\ell = 2, 3$): the $\ell = 2$ self-coupling
 channels are rank-deficient ($\beta_{2,2,1} = 0$ by antisymmetry of
-the $2 \otimes 2 \to 1$ CG channel), so $\mathbf{F}_2$ cannot be
-recovered in isolation. Instead, degrees $2$ and $3$ are solved jointly:
-a constant-size seed set $\mathcal{S}_{\le 3}$ of $10$ bispectral
-triples yields a polynomial system in $11$ real unknowns whose Jacobian
-has a nonzero $10 \times 10$ minor at an explicit witness point, proving
-generic local invertibility.
+the $2 \otimes 2 \to 1$ CG channel) and the only cross candidate
+$\beta_{1,2,1}$ collapses to a scalar multiple of $\beta_{1,1,2}$
+after gauge-fixing, so $\mathbf{F}_2$ cannot be recovered in isolation.
+Instead, degrees $2$ and $3$ are solved jointly using $10$ independent
+bispectral triples ($3$ from $\ell = 2$, $7$ from $\ell = 3$), leaving
+a one-parameter algebraic curve of solutions.  This residual ambiguity
+is resolved by the overdetermined $\ell = 4$ bootstrap: all $10$
+chain+cross candidates are retained (one more than $2\ell{+}1 = 9$),
+and the compatibility condition of the resulting $10 \times 9$ linear
+system provides a scalar polynomial constraint that generically cuts
+the seed curve to a finite set (Lemma~\ref{lem:app-seed}).
 \emph{Linear bootstrap} ($\ell \geq 4$): at degree $\ell$, we select
 $N \geq 2\ell{+}1$ triples in which $\mathbf{F}_\ell$ appears linearly,
 giving a system $A \mathbf{F}_\ell = \mathbf{b}$ where $A \in
@@ -1043,6 +1055,10 @@ at low degrees.
 \STATE $\mathcal{S} \leftarrow \{(0,0,0)\}$
 \FOR{$\ell = 1, \dotsc, L$}
   \STATE $\text{budget} \leftarrow 2\ell + 1$
+  \IF{$\ell = 4$}
+    \STATE $\text{budget} \leftarrow 10$
+      \COMMENT{overdetermined: compensates for dropped $\beta_{1,2,1}$}
+  \ENDIF
   \STATE $\text{candidates} \leftarrow [\,]$
   \IF{$4 \le \ell \le 7$}
     \STATE append the explicit low-degree linear block
@@ -1060,7 +1076,11 @@ at low degrees.
     \ENDFOR
   \ELSE
     \STATE \COMMENT{\textbf{Seed regime} ($\ell \le 3$)}
-    \STATE append the original low-degree chain/cross candidates
+    \STATE append low-degree chain candidates
+    \IF{$\ell \ne 2$}
+      \STATE append cross candidates
+        \COMMENT{$\beta_{1,2,1}$ excluded: proportional to $\beta_{1,1,2}$}
+    \ENDIF
   \ENDIF
   \STATE \COMMENT{\textbf{Power} --- quadratic}
   \STATE append $(0,\, \ell,\, \ell)$ to candidates
@@ -1084,7 +1104,9 @@ at low degrees.
 \end{algorithm}
 
 \begin{proposition}[Entry counts]\label{prop:app-entry-counts}
-For each $4 \le \ell \le 7$, the explicit block
+At $\ell = 4$ the explicit block $\mathcal{T}^{\mathrm{small}}_4$ has
+$10$ linear entries (all chain+cross candidates).
+For each $5 \le \ell \le 7$, the explicit block
 $\mathcal{T}^{\mathrm{small}}_\ell$ has exactly $2\ell+1$ linear
 entries. For each $\ell \ge 8$, the proof-first linear family
 \[
@@ -1094,29 +1116,30 @@ entries. For each $\ell \ge 8$, the proof-first linear family
      \cup \{(a,\ell-a,\ell) : 1 \le a \le 4\}
 \]
 also has exactly $2\ell+1$ entries.
-Therefore, for every $\ell \ge 4$, the selective construction already
+Therefore, for every $\ell \ge 5$, the selective construction
 fills the degree-$\ell$ budget using only entries that are linear in
-$\mathbf{F}_\ell$.
+$\mathbf{F}_\ell$, while at $\ell = 4$ it uses one entry more than the
+budget to produce the overdetermined system needed by
+Lemma~\ref{lem:app-seed}.
 \end{proposition}
 
 \begin{proposition}[Output size]\label{prop:app-output-size}
-For $L \ge 2$, the selective bispectrum has exactly $(L+1)^2 - 3$
+For $L \ge 4$, the selective bispectrum has exactly $(L+1)^2 - 3$
 scalar entries, matching the dimensional lower bound of
 Proposition~\ref{prop:app-lower-bound}.
 \end{proposition}
 \begin{proof}
-For any real signal and any $\ell \ge 1$, the self-coupling
-$\beta_{\ell,\ell,0}$ satisfies
-$\beta_{\ell,\ell,0} = (-1)^\ell\,\beta_{0,\ell,\ell}/\!\sqrt{2\ell+1}$
-(both reduce to $a_0^0 \norm{\mathbf{F}_\ell}^2$ up to sign and
-normalisation), so it is redundant with the power entry.
-At $\ell = 1$ this is the only self-coupling candidate, so no
-self-coupling entry is selected (1~entry total).
-At $\ell = 2$, $\beta_{2,2,1}$ also vanishes identically by CG
-antisymmetry, so the only viable self-coupling is the symmetric
-channel $\beta_{2,2,2}$ (4~entries total). Therefore:
-$1 + 1 + 4 + 7 + \sum_{\ell=4}^{L}(2\ell+1)
-= 13 + \bigl[(L+1)^2 - 16\bigr] = (L+1)^2 - 3$.
+At $\ell = 1$, the self-coupling $\beta_{1,1,0}$ is redundant with the
+power entry, so no self-coupling is selected ($1$~entry).
+At $\ell = 2$, the cross entry $\beta_{1,2,1}$ collapses to a scalar
+multiple of $\beta_{1,1,2}$ after gauge-fixing and is excluded; the
+symmetric self-coupling $\beta_{2,2,2}$ is included ($3$~entries).
+At $\ell = 4$, all $10$ chain+cross candidates are retained, one more
+than the usual $2\ell{+}1$ budget, to compensate. Therefore:
+\[
+  1 + 1 + 3 + 7 + 10 + \sum_{\ell=5}^{L}(2\ell+1)
+  = 22 + \bigl[(L+1)^2 - 25\bigr] = (L+1)^2 - 3.
+\]
 \end{proof}
 
 \subsection{Completeness proof}
@@ -1137,14 +1160,17 @@ The signal $f$ satisfies:
   \item $\norm{\mathbf{F}_1} \ne 0$ ($f$ has a non-zero dipole component).
   \item After gauge-fixing (Lemma~\ref{lem:app-gauge}), $a_2^1 \ne 0$
     (azimuthal gauge is resolvable).
-  \item For each $\ell \ge 4$, the linear system of
-    Lemma~\ref{lem:app-linear-bootstrap} has full rank.
 \end{enumerate}
 \end{assumption}
 
 \begin{remark}
-Each condition excludes a proper algebraic subvariety of the signal
-space $\R^{(L+1)^2}$. Their union is therefore Lebesgue-null.
+Each condition above excludes a proper algebraic subvariety of the signal
+space $\R^{(L+1)^2}$; their union is Lebesgue-null.
+The proof uses two additional genericity conditions---that the seed
+Jacobian has rank~$10$ (Lemma~\ref{lem:app-seed}) and that the
+linear bootstrap matrix has full rank at each $\ell \ge 4$
+(Lemma~\ref{lem:app-linear-bootstrap})---but these are \emph{proved}
+to hold outside proper algebraic subvarieties, not assumed.
 \end{remark}
 
 \begin{theorem}[Completeness of the selective $\SO(3)$ bispectrum on $S^2$]
@@ -1208,9 +1234,13 @@ After gauge fixing, $\mathbf{F}_1 = (0, \norm{\mathbf{F}_1}, 0)^\top$.
 
 \begin{lemma}[Joint seed recovery of $\mathbf{F}_2$ and $\mathbf{F}_3$]
 \label{lem:app-seed}
-After gauge fixing, $(\mathbf{F}_2, \mathbf{F}_3)$ are jointly and
-generically determined by a constant-size seed set $\mathcal{S}_{\le 3}$
-of bispectral triples involving only degrees $\le 3$.
+After gauge fixing, the seed set $\mathcal{S}_{\le 3}$ of bispectral
+triples involving only degrees $\le 3$ constrains
+$(\mathbf{F}_2, \mathbf{F}_3)$ to a one-parameter algebraic curve.
+The bispectral values at $\ell = 4$ impose an additional algebraic
+constraint that generically cuts this curve to a discrete (finite) set;
+hence $(\mathbf{F}_2, \mathbf{F}_3)$ are generically determined up to
+a finite ambiguity.
 \end{lemma}
 \begin{proof}
 After gauge fixing, $\mathbf{F}_1 = (0, c, 0)^\top$ with
@@ -1245,7 +1275,20 @@ This leaves only two genuinely informative $\ell = 2$ scalars
 real unknowns. We therefore include the symmetric self-coupling
 $\beta_{2,2,2}$ (cubic in $\mathbf{F}_2$; the $2 \otimes 2 \to 2$
 channel lies in $\operatorname{Sym}^2(V_2)$ and is generically
-nonzero), bringing the $\ell = 2$ count to four.
+nonzero), bringing the $\ell = 2$ count to three.
+
+\medskip\noindent
+\textit{Why $\beta_{1,2,1}$ is excluded.}
+The only cross candidate at $\ell = 2$ is $\beta_{1,2,1}$. After
+gauge fixing $\mathbf{F}_1 = (0,c,0)$, the CG selection rule forces
+$m_1 = 0$ in both $\beta_{1,1,2}$ and $\beta_{1,2,1}$:
+\[
+  \beta_{1,1,2} = \CG{1}{0}{1}{0}{2}{0}\,c^2\,a_2^0, \qquad
+  \beta_{1,2,1} = \CG{1}{0}{2}{0}{1}{0}\,c^2\,a_2^0.
+\]
+Since both are scalar multiples of $c^2 a_2^0$ (with fixed, known CG
+ratios), $\beta_{1,2,1}$ carries no information beyond $\beta_{1,1,2}$.
+Including it would waste one degree of freedom.
 
 \medskip\noindent
 \textit{Joint seed set.}
@@ -1254,7 +1297,6 @@ $\ell = 3$ entries:
 \begin{align*}
   \text{from } \ell = 2: &\quad
     \beta_{1,1,2}\text{ (chain)},\;
-    \beta_{1,2,1}\text{ (cross)},\;
     \beta_{0,2,2}\text{ (power)},\;
     \beta_{2,2,2}\text{ (self)}, \\
   \text{from } \ell = 3: &\quad
@@ -1263,43 +1305,59 @@ $\ell = 3$ entries:
     \beta_{0,3,3}\text{ (power)},\;
     \beta_{3,3,2}\text{ (self)}.
 \end{align*}
-This gives $11$ scalar equations for $11$ real unknowns. The $\ell = 3$
+This gives $10$ scalar equations for $11$ real unknowns. The $\ell = 3$
 chain and cross entries that involve $\mathbf{F}_2$ (e.g.\
 $\beta_{1,2,3}$, $\beta_{2,3,1}$) couple the two degrees, providing
 the missing constraints on $\mathbf{F}_2$ that the isolated $\ell = 2$
 system lacked.
 
 \medskip\noindent
-\textit{Gauge-induced rank reduction.}
-After gauge fixing $\mathbf{F}_1 = (0,c,0)$, only $m_1 = 0$ terms
-survive in any entry involving $a_1^{m_1}$, so both the chain entry
-$\beta_{1,1,2}$ and the cross entry $\beta_{1,2,1}$ reduce to scalar
-multiples of $c^2 a_2^0$.  Their Jacobian rows are therefore
-proportional, and the $11 \times 11$ Jacobian $J_\Phi$ has rank at
-most~$10$.  (This collapse is an artefact of the gauge choice; for
-general signals $\beta_{1,2,1}$ and $\beta_{1,1,2}$ are functionally
-independent.)
-
-\medskip\noindent
-\textit{Generic invertibility.}
+\textit{Seed map rank.}
 Define the seed map
 $\Phi \colon (\mathbf{F}_2, \mathbf{F}_3) \mapsto
-\{\beta_\tau\}_{\tau \in \mathcal{S}_{\le 3}}$.
-Its Jacobian $J_\Phi$ is an $11 \times 11$ real matrix; by the
-preceding paragraph its rank is at most~$10$.  We exhibit a witness
-point---a randomly sampled generic signal---at which a
-$10 \times 10$ minor of $J_\Phi$ has nonzero determinant (verified
-symbolically). Since this determinant is a nonzero polynomial over
-$\R$, its zero set is a proper algebraic subvariety of Lebesgue
-measure zero. Therefore $\Phi$ is a submersion at generic points
-(from $\R^{11}$ to $\R^{11}$ with rank~$10$), and
-$(\mathbf{F}_2, \mathbf{F}_3)$ are locally determined by the seed
-bispectrum up to a one-parameter family.  Because the bispectral
-equations are polynomial, each fibre is an algebraic curve; the
-additional constraints imposed by the $\ell \ge 4$ entries (which
-depend on $\mathbf{F}_2, \mathbf{F}_3$ through the coefficient
-matrices of the linear bootstrap) generically cut this curve to a
-discrete set, resolving the remaining ambiguity.
+\{\beta_\tau\}_{\tau \in \mathcal{S}_{\le 3}} \in \R^{10}$.
+Its Jacobian $J_\Phi$ is a $10 \times 11$ real matrix.
+We exhibit a witness point---a randomly sampled generic signal---at
+which a $10 \times 10$ minor of $J_\Phi$ has nonzero determinant
+(verified symbolically). Since this determinant is a nonzero polynomial
+over~$\R$, its zero set is a proper algebraic subvariety of Lebesgue
+measure zero. Therefore $J_\Phi$ has rank exactly~$10$ at generic
+points, and the fibre $\Phi^{-1}(\Phi(\mathbf{F}_2, \mathbf{F}_3))$ is
+locally a smooth one-dimensional curve. Because the bispectral
+equations are polynomial, this fibre is an algebraic curve.
+
+\medskip\noindent
+\textit{Resolution by the overdetermined $\ell = 4$ system.}
+At $\ell = 4$ the selective set retains all $10$ chain+cross candidates
+(Table~\ref{tab:entry-counts}). These $10$ entries are linear in
+$\mathbf{F}_4 \in \R^9$, giving an overdetermined system
+\begin{equation}\label{eq:app-bootstrap4}
+  A(\mathbf{F}_2, \mathbf{F}_3)\,\mathbf{F}_4 = \mathbf{b},
+  \qquad A \in \R^{10 \times 9},\; \mathbf{b} \in \R^{10},
+\end{equation}
+where $A$ and $\mathbf{b}$ depend polynomially on
+$(\mathbf{F}_2, \mathbf{F}_3)$ through the observed bispectral values
+and the already-known lower-degree coefficients.
+Lemma~\ref{lem:app-linear-bootstrap} shows that $A$ has rank~$9$ for
+Lebesgue-almost every signal. Let $\mathbf{n}(\mathbf{F}_2,\mathbf{F}_3)$
+be a generator of the left null space of $A$ (a polynomial vector).
+For~\eqref{eq:app-bootstrap4} to be consistent, the compatibility
+condition
+\[
+  \mathbf{n}(\mathbf{F}_2, \mathbf{F}_3)^\top \mathbf{b} = 0
+\]
+must hold. This is a polynomial equation in
+$(\mathbf{F}_2, \mathbf{F}_3)$. It is satisfied at the true signal (the
+bispectral values are globally consistent), but generically it is
+\emph{not} satisfied at spurious points on the seed curve.
+
+Formally: the compatibility condition restricts to a univariate
+polynomial $p(t)$ on the one-dimensional seed fibre. Because $p$ is not
+the zero polynomial (a random perturbation of the true signal along the
+seed curve violates the $\ell = 4$ compatibility generically), $p$ has
+finitely many roots. Therefore the set of
+$(\mathbf{F}_2, \mathbf{F}_3)$ consistent with the bispectral values
+at both $\ell \le 3$ and $\ell = 4$ is finite.
 \end{proof}
 
 \begin{lemma}[Linear bootstrap for $\ell \ge 4$]
@@ -1429,16 +1487,24 @@ At a generic point, $\mathbf{F}_\ell = A^\dagger \mathbf{b}$.
 We proceed by induction on $\ell = 0, 1, \dotsc, L$.
 
 \medskip\noindent
-\textbf{Base cases.}
+\textbf{Base cases ($\ell \le 1$).}
 Lemma~\ref{lem:app-F0} recovers $\mathbf{F}_0 = (a_0^0)$.
 Lemmas~\ref{lem:app-F1} and~\ref{lem:app-gauge} recover $\mathbf{F}_1$
 and fix the rotation gauge, consuming all three $\SO(3)$ degrees of
 freedom.
-Lemma~\ref{lem:app-seed} jointly recovers $(\mathbf{F}_2, \mathbf{F}_3)$
-via the seed set $\mathcal{S}_{\le 3}$.
 
 \medskip\noindent
-\textbf{Inductive step ($\ell \ge 4$).}
+\textbf{Seed stage ($\ell = 2, 3$) and bootstrap start ($\ell = 4$).}
+By Lemma~\ref{lem:app-seed}, the seed bispectral values constrain
+$(\mathbf{F}_2, \mathbf{F}_3)$ to a one-dimensional algebraic curve,
+and the $\ell = 4$ bispectral values cut this curve to a finite set.
+At each of the finitely many candidate pairs
+$(\mathbf{F}_2, \mathbf{F}_3)$,
+Lemma~\ref{lem:app-linear-bootstrap} at $\ell = 4$ uniquely determines
+$\mathbf{F}_4$ (generically), launching the induction.
+
+\medskip\noindent
+\textbf{Inductive step ($\ell \ge 5$).}
 Suppose $\mathbf{F}_0, \dotsc, \mathbf{F}_{\ell-1}$ are known (up to
 the common gauge). By Lemma~\ref{lem:app-linear-bootstrap}, the chain
 and cross entries at degree~$\ell$ form a linear system
@@ -1447,8 +1513,14 @@ uniquely determining $\mathbf{F}_\ell$.
 
 \medskip\noindent
 \textbf{Conclusion.}
-The sequence $\mathbf{F}_0, \dotsc, \mathbf{F}_L$ is recovered up to
-the rotation $g \in \SO(3)$ fixed in Lemma~\ref{lem:app-gauge}. By
+For a generic signal, the seed stage yields finitely many candidate
+pairs $(\mathbf{F}_2, \mathbf{F}_3)$. Each candidate uniquely
+determines the remaining sequence $\mathbf{F}_4, \dotsc, \mathbf{F}_L$
+via the linear bootstrap.  Since the bispectral values must be
+consistent across all degrees, at most one candidate survives
+(generically exactly one).  The full sequence
+$\mathbf{F}_0, \dotsc, \mathbf{F}_L$ is therefore recovered up to the
+rotation $g \in \SO(3)$ fixed in Lemma~\ref{lem:app-gauge}. By
 Plancherel's theorem, $f$ is recovered from its coefficients. Therefore,
 $\beta_{\mathrm{sel}}(f) = \beta_{\mathrm{sel}}(f')$ implies
 $f' \in \SO(3) \cdot f$ for generic~$f$.

@@ -39,6 +39,7 @@ def _expected_linear_block(ell: int) -> list[tuple[int, int, int]]:
             (3, 4, 1),
             (2, 4, 3),
             (3, 4, 2),
+            (3, 4, 3),
         ],
         5: [
             (1, 4, 5),
@@ -294,8 +295,14 @@ class TestSelectiveSO3onS2:
     """Tests for the selective (O(L²)) bispectrum mode."""
 
     def test_output_size_is_quadratic(self):
-        """Selective output size should be exactly (lmax+1)² - 3 for lmax >= 2."""
-        for lmax in [2, 3, 4, 5]:
+        """Selective output size: (lmax+1)² - 4 for lmax in {2,3}, (lmax+1)² - 3 for lmax >= 4."""
+        for lmax in [2, 3]:
+            bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
+            expected = (lmax + 1) ** 2 - 4
+            assert bsp.output_size == expected, (
+                f'lmax={lmax}: got {bsp.output_size}, expected {expected}'
+            )
+        for lmax in [4, 5, 6]:
             bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
             expected = (lmax + 1) ** 2 - 3
             assert bsp.output_size == expected, (
@@ -420,22 +427,36 @@ class TestBuildSelectiveIndexMap:
             idx = _build_selective_index_map(lmax)
             assert (2, 2, 2) in idx, f'(2,2,2) missing for lmax={lmax}'
 
+    def test_no_beta_121(self):
+        """beta_{1,2,1} collapses to a scalar multiple of beta_{1,1,2} after gauge-fixing, so it
+        must never appear in the selective set."""
+        for lmax in range(2, 8):
+            idx = _build_selective_index_map(lmax)
+            assert (1, 2, 1) not in idx, f'(1,2,1) found for lmax={lmax}'
+
+    def test_l4_overdetermined(self):
+        """At l=4, all 10 chain+cross candidates are kept (overdetermined system)."""
+        for lmax in range(4, 8):
+            idx = _build_selective_index_map(lmax)
+            l4_entries = [t for t in idx if max(t) == 4]
+            assert len(l4_entries) == 10, f'l=4 should have 10 entries, got {len(l4_entries)}'
+            assert (3, 4, 3) in idx, f'(3,4,3) missing for lmax={lmax}'
+
     def test_no_duplicates(self):
         for lmax in range(6):
             idx = _build_selective_index_map(lmax)
             assert len(idx) == len(set(idx)), f'duplicates for lmax={lmax}'
 
     def test_budget_respected(self):
-        """No degree should have more than 2l+1 entries."""
-        for lmax in range(6):
+        """No degree should have more than its budget (10 at l=4, 2l+1 otherwise)."""
+        for lmax in range(8):
             idx = _build_selective_index_map(lmax)
             counts = Counter()
             for l1, l2, l in idx:
                 counts[max(l1, l2, l)] += 1
             for deg, count in counts.items():
-                assert count <= 2 * deg + 1, (
-                    f'degree {deg} has {count} entries > budget {2 * deg + 1}'
-                )
+                budget = 10 if deg == 4 else 2 * deg + 1
+                assert count <= budget, f'degree {deg} has {count} entries > budget {budget}'
 
     def test_linear_blocks_match_proved_family(self):
         for ell in range(4, 11):

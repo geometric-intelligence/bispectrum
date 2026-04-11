@@ -51,6 +51,7 @@ def _small_linear_bootstrap_block(l_target: int) -> list[tuple[int, int, int]]:
             (3, 4, 1),
             (2, 4, 3),
             (3, 4, 2),
+            (3, 4, 3),
         ],
         5: [
             (1, 4, 5),
@@ -159,7 +160,14 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
     ``beta_{2,2,1}`` also vanishes by CG antisymmetry). At
     ``l_target = 2`` the symmetric self-coupling ``beta_{2,2,2}`` is
     added instead—it lives in ``Sym^2(V_2)`` and is generically nonzero.
-    Degrees 2 and 3 are recovered jointly; see the completeness proof.
+
+    At ``l_target = 2``, the cross entry ``(1,2,1)`` is also excluded:
+    after gauge-fixing ``F_1 = (0,c,0)``, it collapses to a scalar
+    multiple of the chain entry ``(1,1,2)`` (both proportional to
+    ``c² a_2^0``). To compensate, ``l_target = 4`` keeps all 10
+    chain+cross candidates instead of the usual 9, making that system
+    overdetermined and providing a compatibility constraint that
+    resolves the seed ambiguity.
 
     Total output size is exactly ``(lmax + 1)² - 3``, matching the
     information-theoretic lower bound ``dim(R^{(L+1)²} / SO(3))``.
@@ -168,6 +176,8 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
 
     for l_target in range(lmax + 1):
         budget = 2 * l_target + 1
+        if l_target == 4:
+            budget = 10
 
         if l_target == 0:
             index_map.append((0, 0, 0))
@@ -193,12 +203,13 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
 
             cross_all: list[tuple[int, int, int]] = []
             cross_by_l1: dict[int, list[tuple[int, int, int]]] = {}
-            for l1 in range(l_target - 1, 0, -1):
-                l_lo = l_target - l1
-                l_hi = min(l_target - 1, l1 + l_target)
-                entries = [(l1, l_target, lv) for lv in range(l_hi, l_lo - 1, -1)]
-                if entries:
-                    cross_by_l1[l1] = entries
+            if l_target != 2:
+                for l1 in range(l_target - 1, 0, -1):
+                    l_lo = l_target - l1
+                    l_hi = min(l_target - 1, l1 + l_target)
+                    entries = [(l1, l_target, lv) for lv in range(l_hi, l_lo - 1, -1)]
+                    if entries:
+                        cross_by_l1[l1] = entries
             round_idx = 0
             active_l1s = sorted(cross_by_l1.keys(), reverse=True)
             while active_l1s:
