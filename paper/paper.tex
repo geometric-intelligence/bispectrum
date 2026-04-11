@@ -340,6 +340,12 @@ $\ell_1, \ell' < \ell$---linear via $a_\ell^{m_2}$;
 \textbf{(3)~Power} $(0, \ell, \ell)$, giving
 $\beta = a_0^0 \norm{\mathbf{F}_\ell}^2$ (quadratic);
 \textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$ (quadratic/cubic).
+At $\ell = 1$ and $\ell = 2$ the self-coupling $\beta_{\ell,\ell,0}$
+is excluded: for real signals
+$\beta_{\ell,\ell,0} = (-1)^\ell \beta_{0,\ell,\ell}/\!\sqrt{2\ell{+}1}$,
+making it redundant with the power entry. At $\ell = 2$ the symmetric
+self-coupling $\beta_{2,2,2}$ is included instead (it lies in
+$\operatorname{Sym}^2(V_2)$ and is generically nonzero).
 Table~\ref{tab:entry-counts} shows that for $\ell \geq 4$,
 chain + cross candidates alone exceed $2\ell{+}1$, so the entire
 recovery is a linear solve from that point onward.
@@ -347,9 +353,14 @@ recovery is a linear solve from that point onward.
 \begin{table}[h]
   \caption{Per-degree entry counts in the selective $\SO(3)$ bispectrum.
     For $\ell \geq 4$, only linear (chain + cross) entries are needed.
-    At $\ell = 2$, self-coupling entries are excluded: $\beta_{2,2,1}$
-    vanishes identically (antisymmetry of the $2 \otimes 2 \to 1$ CG
-    channel) and $\beta_{2,2,0}$ is redundant with the power entry.
+    At $\ell = 1$ and $\ell = 2$, the self-coupling
+    $\beta_{\ell,\ell,0}$ is excluded: it equals
+    $(-1)^\ell \beta_{0,\ell,\ell}/\!\sqrt{2\ell{+}1}$ for real
+    signals, so it is redundant with the power entry.
+    At $\ell = 2$, $\beta_{2,2,1}$ also vanishes (CG antisymmetry),
+    and the symmetric self-coupling $\beta_{2,2,2}$ is included
+    instead (it lies in $\operatorname{Sym}^2(V_2)$ and is
+    generically nonzero).
     Degrees $2$ and $3$ are solved jointly
     (Lemma~\ref{lem:app-seed}).}
   \label{tab:entry-counts}
@@ -360,8 +371,8 @@ recovery is a linear solve from that point onward.
     $\ell$ & Chain & Cross & Power & Self & Total \\
     \midrule
     0 & 0 & 0 & 0 & 1 & 1 \\
-    1 & 0 & 0 & 1 & 1 & 2 \\
-    2 & 1 & 1 & 1 & 0 & 3 \\
+    1 & 0 & 0 & 1 & 0 & 1 \\
+    2 & 1 & 1 & 1 & 1 & 4 \\
     3 & 2 & 3 & 1 & 1 & 7 \\
     $\geq 4$ & \multicolumn{2}{c}{$\geq 2\ell{+}1$} & 0 & 0 & $2\ell{+}1$ \\
     \bottomrule
@@ -1054,10 +1065,14 @@ at low degrees.
   \STATE \COMMENT{\textbf{Power} --- quadratic}
   \STATE append $(0,\, \ell,\, \ell)$ to candidates
   \STATE \COMMENT{\textbf{Self-coupling} --- quadratic/cubic}
-  \IF{$\ell \ne 2$}
+  \IF{$\ell \notin \{1,\, 2\}$}
     \FOR{$\ell' = \ell{-}1, \dotsc, 0$}
       \STATE append $(\ell,\, \ell,\, \ell')$ to candidates
     \ENDFOR
+  \ENDIF
+  \IF{$\ell = 2$}
+    \STATE append $(\ell,\, \ell,\, \ell)$ to candidates
+      \COMMENT{symmetric self-coupling $\beta_{2,2,2}$}
   \ENDIF
   \STATE Deduplicate candidates (preserving order)
   \STATE $\mathcal{S} \leftarrow \mathcal{S}
@@ -1090,11 +1105,17 @@ scalar entries, matching the dimensional lower bound of
 Proposition~\ref{prop:app-lower-bound}.
 \end{proposition}
 \begin{proof}
-At $\ell = 2$, the self-coupling entries $\beta_{2,2,0}$ and
-$\beta_{2,2,1}$ are excluded (the former is redundant with the power
-entry; the latter vanishes identically by CG antisymmetry), leaving
-$3$ informative entries. Therefore:
-$1 + 2 + 3 + 7 + \sum_{\ell=4}^{L}(2\ell+1)
+For any real signal and any $\ell \ge 1$, the self-coupling
+$\beta_{\ell,\ell,0}$ satisfies
+$\beta_{\ell,\ell,0} = (-1)^\ell\,\beta_{0,\ell,\ell}/\!\sqrt{2\ell+1}$
+(both reduce to $a_0^0 \norm{\mathbf{F}_\ell}^2$ up to sign and
+normalisation), so it is redundant with the power entry.
+At $\ell = 1$ this is the only self-coupling candidate, so no
+self-coupling entry is selected (1~entry total).
+At $\ell = 2$, $\beta_{2,2,1}$ also vanishes identically by CG
+antisymmetry, so the only viable self-coupling is the symmetric
+channel $\beta_{2,2,2}$ (4~entries total). Therefore:
+$1 + 1 + 4 + 7 + \sum_{\ell=4}^{L}(2\ell+1)
 = 13 + \bigl[(L+1)^2 - 16\bigr] = (L+1)^2 - 3$.
 \end{proof}
 
@@ -1220,44 +1241,65 @@ product $a_2^{m_1} a_2^{m_2}$ is symmetric:
   (\mathbf{F}_2 \otimes \mathbf{F}_2)_1 = 0.
 \]
 This leaves only two genuinely informative $\ell = 2$ scalars
-($\beta_{1,1,2}$ and $\beta_{0,2,2}$, with $\beta_{2,2,2}$ as a
-third cubic entry), which cannot determine four real unknowns.
+($\beta_{1,1,2}$ and $\beta_{0,2,2}$), which cannot determine four
+real unknowns. We therefore include the symmetric self-coupling
+$\beta_{2,2,2}$ (cubic in $\mathbf{F}_2$; the $2 \otimes 2 \to 2$
+channel lies in $\operatorname{Sym}^2(V_2)$ and is generically
+nonzero), bringing the $\ell = 2$ count to four.
 
 \medskip\noindent
 \textit{Joint seed set.}
-We form the seed set $\mathcal{S}_{\le 3}$ from the informative
-$\ell = 2$ entries and all $\ell = 3$ entries:
+We form the seed set $\mathcal{S}_{\le 3}$ from the $\ell = 2$ and
+$\ell = 3$ entries:
 \begin{align*}
   \text{from } \ell = 2: &\quad
     \beta_{1,1,2}\text{ (chain)},\;
     \beta_{1,2,1}\text{ (cross)},\;
-    \beta_{0,2,2}\text{ (power)}, \\
+    \beta_{0,2,2}\text{ (power)},\;
+    \beta_{2,2,2}\text{ (self)}, \\
   \text{from } \ell = 3: &\quad
     \beta_{2,2,3},\; \beta_{1,2,3}\text{ (chain)},\;
     \beta_{2,3,2},\; \beta_{2,3,1},\; \beta_{1,3,2}\text{ (cross)},\;
     \beta_{0,3,3}\text{ (power)},\;
     \beta_{3,3,2}\text{ (self)}.
 \end{align*}
-This gives $10$ scalar equations. The $\ell = 3$ chain and cross entries
-that involve $\mathbf{F}_2$ (e.g.\ $\beta_{1,2,3}$, $\beta_{2,3,1}$)
-couple the two degrees, providing the missing constraints on
-$\mathbf{F}_2$ that the isolated $\ell = 2$ system lacked.
+This gives $11$ scalar equations for $11$ real unknowns. The $\ell = 3$
+chain and cross entries that involve $\mathbf{F}_2$ (e.g.\
+$\beta_{1,2,3}$, $\beta_{2,3,1}$) couple the two degrees, providing
+the missing constraints on $\mathbf{F}_2$ that the isolated $\ell = 2$
+system lacked.
+
+\medskip\noindent
+\textit{Gauge-induced rank reduction.}
+After gauge fixing $\mathbf{F}_1 = (0,c,0)$, only $m_1 = 0$ terms
+survive in any entry involving $a_1^{m_1}$, so both the chain entry
+$\beta_{1,1,2}$ and the cross entry $\beta_{1,2,1}$ reduce to scalar
+multiples of $c^2 a_2^0$.  Their Jacobian rows are therefore
+proportional, and the $11 \times 11$ Jacobian $J_\Phi$ has rank at
+most~$10$.  (This collapse is an artefact of the gauge choice; for
+general signals $\beta_{1,2,1}$ and $\beta_{1,1,2}$ are functionally
+independent.)
 
 \medskip\noindent
 \textit{Generic invertibility.}
 Define the seed map
 $\Phi \colon (\mathbf{F}_2, \mathbf{F}_3) \mapsto
 \{\beta_\tau\}_{\tau \in \mathcal{S}_{\le 3}}$.
-Its Jacobian $J_\Phi$ is an $10 \times 11$ real matrix whose entries
-are polynomials in the $11$ unknowns (with CG coefficients as fixed
-weights). We exhibit a witness point---a randomly sampled generic
-signal---at which a $10 \times 10$ minor of $J_\Phi$ has nonzero
-determinant (verified symbolically). Since this determinant is a
-nonzero polynomial over $\R$, its zero set is a proper algebraic
-subvariety of Lebesgue measure zero. Therefore $\Phi$ is a submersion
-at generic points, and $(\mathbf{F}_2, \mathbf{F}_3)$ are locally
-determined by the seed bispectrum up to a discrete (generically finite)
-ambiguity.
+Its Jacobian $J_\Phi$ is an $11 \times 11$ real matrix; by the
+preceding paragraph its rank is at most~$10$.  We exhibit a witness
+point---a randomly sampled generic signal---at which a
+$10 \times 10$ minor of $J_\Phi$ has nonzero determinant (verified
+symbolically). Since this determinant is a nonzero polynomial over
+$\R$, its zero set is a proper algebraic subvariety of Lebesgue
+measure zero. Therefore $\Phi$ is a submersion at generic points
+(from $\R^{11}$ to $\R^{11}$ with rank~$10$), and
+$(\mathbf{F}_2, \mathbf{F}_3)$ are locally determined by the seed
+bispectrum up to a one-parameter family.  Because the bispectral
+equations are polynomial, each fibre is an algebraic curve; the
+additional constraints imposed by the $\ell \ge 4$ entries (which
+depend on $\mathbf{F}_2, \mathbf{F}_3$ through the coefficient
+matrices of the linear bootstrap) generically cut this curve to a
+discrete set, resolving the remaining ambiguity.
 \end{proof}
 
 \begin{lemma}[Linear bootstrap for $\ell \ge 4$]

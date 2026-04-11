@@ -401,10 +401,24 @@ class TestBuildSelectiveIndexMap:
 
     def test_lmax_one(self):
         idx = _build_selective_index_map(1)
-        assert (0, 0, 0) in idx
-        # Should have entries involving degree 1
-        max_deg = max(max(t) for t in idx)
-        assert max_deg == 1
+        assert idx == [(0, 0, 0), (0, 1, 1)], (
+            f'lmax=1 should have exactly (0,0,0) and (0,1,1), got {idx}'
+        )
+        assert (1, 1, 0) not in idx, 'beta_{1,1,0} is redundant and must be excluded'
+
+    def test_no_beta_110(self):
+        """beta_{1,1,0} = -beta_{0,1,1}/sqrt(3) for real signals, so it must never appear in the
+        selective index set (same pattern as beta_{2,2,0})."""
+        for lmax in range(1, 8):
+            idx = _build_selective_index_map(lmax)
+            assert (1, 1, 0) not in idx, f'(1,1,0) found for lmax={lmax}'
+
+    def test_beta_222_at_l2(self):
+        """beta_{2,2,2} (symmetric self-coupling) replaces the excluded beta_{1,1,0} and must be
+        present for lmax >= 2."""
+        for lmax in range(2, 8):
+            idx = _build_selective_index_map(lmax)
+            assert (2, 2, 2) in idx, f'(2,2,2) missing for lmax={lmax}'
 
     def test_no_duplicates(self):
         for lmax in range(6):

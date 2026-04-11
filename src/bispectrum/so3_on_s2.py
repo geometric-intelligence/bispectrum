@@ -152,11 +152,14 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
     5. **Self-coupling** ``(l_target, l_target, l)`` with ``l < l_target``
        — quadratic/cubic in ``F_{l_target}``, likewise only used when needed.
 
-    At ``l_target = 2`` the self-coupling entries are excluded:
-    ``beta_{2,2,0}`` is redundant with the power entry, and
-    ``beta_{2,2,1}`` vanishes identically (antisymmetry of the
-    ``2 ⊗ 2 → 1`` Clebsch–Gordan channel). Degrees 2 and 3 are
-    recovered jointly; see the completeness proof for details.
+    Self-coupling ``(l, l, 0)`` is redundant with the power entry for
+    all real signals: ``beta_{l,l,0} = (-1)^l beta_{0,l,l}/sqrt(2l+1)``.
+    This is excluded at ``l_target = 1`` (where it is the only
+    self-coupling candidate) and at ``l_target = 2`` (where
+    ``beta_{2,2,1}`` also vanishes by CG antisymmetry). At
+    ``l_target = 2`` the symmetric self-coupling ``beta_{2,2,2}`` is
+    added instead—it lives in ``Sym^2(V_2)`` and is generically nonzero.
+    Degrees 2 and 3 are recovered jointly; see the completeness proof.
 
     Total output size is exactly ``(lmax + 1)² - 3``, matching the
     information-theoretic lower bound ``dim(R^{(L+1)²} / SO(3))``.
@@ -216,11 +219,16 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
         candidates.append((0, l_target, l_target))
 
         # 4. Self-coupling: (l_target, l_target, l) with 0 <= l < l_target.
-        #    Skipped at l_target=2: beta_{2,2,0} ∝ ||F_2||² (redundant with
-        #    power) and beta_{2,2,1} ≡ 0 (CG antisymmetry).
-        if l_target != 2:
+        #    Skipped at l_target in {1, 2}: beta_{l,l,0} is always redundant
+        #    with the power entry; at l=2, beta_{2,2,1} also vanishes (CG
+        #    antisymmetry).
+        if l_target not in (1, 2):
             for l_val in range(l_target - 1, -1, -1):
                 candidates.append((l_target, l_target, l_val))
+
+        # 5. At l_target=2, add the symmetric self-coupling (2,2,2).
+        if l_target == 2:
+            candidates.append((2, 2, 2))
 
         # Deduplicate preserving priority order, take up to budget.
         seen: set[tuple[int, int, int]] = set()
