@@ -118,8 +118,9 @@ Even for groups where selectivity reduces the coefficient count from
 $O(|G|^2)$ to $O(|G|)$~\citep{mataigne2024selective}, a user still needs a numerically stable implementation,
 a consistent API, inversion routines, tests, and benchmarked runtime behavior.
 
-This paper presents \texttt{bispectrum}, a PyTorch library for computing
-bispectral invariants and, where available, their inverses. The library
+This paper presents \texttt{bispectrum}, a PyTorch~\citep{paszke2019pytorch}
+library for computing bispectral invariants and, where available, their
+inverses. The library
 supports cyclic, dihedral, torus, disk, sphere, and octahedral settings as
 differentiable \texttt{nn.Module}s intended to plug into standard ML workflows.
 Beyond the software contribution, the paper makes two technical contributions
@@ -242,9 +243,12 @@ the natural domain and handle the Fourier transform internally.
 \texttt{bsp.invert(beta)} returns the reconstructed signal (up to
 group-action indeterminacy); currently supported for all finite-group
 modules.
-\textbf{(P6)}~\emph{Minimal dependencies}: only \texttt{torch} and
-\texttt{numpy}; Clebsch--Gordan matrices are computed analytically or
-bundled as pre-computed data.
+\textbf{(P6)}~\emph{Minimal dependencies}: only
+PyTorch~\citep{paszke2019pytorch},
+NumPy~\citep{harris2020numpy}, and
+\texttt{torch\_harmonics}~\citep{bonev2023spherical} (for the spherical
+harmonic transform in \texttt{SO3onS2}); Clebsch--Gordan matrices are
+computed analytically or bundled as pre-computed data.
 
 \paragraph{Implementation optimizations.}
 All heavy algebraic data---CG matrices, DFT kernels, Bessel roots, disk
@@ -489,7 +493,8 @@ The selective forward pass is sub-millisecond for all abelian modules
 and under 1\,ms for the octahedral group (0.72\,ms), making it
 negligible relative to backbone computation. $\SO(3)$ on $S^2$ at
 $\ell_{\max}{=}16$ takes 18.6\,ms, dominated by the spherical harmonic
-transform. Selective coefficient counts confirm the $O(|G|)$ scaling:
+transform (via \texttt{torch\_harmonics}~\citep{bonev2023spherical}).
+Selective coefficient counts confirm the $O(|G|)$ scaling:
 $C_{128}$ uses 128 coefficients vs.\ 8{,}256 full (64$\times$
 reduction); $\mathbb{T}^2$ at $|G|{=}1{,}024$ uses 1{,}024 vs.\
 524{,}800 full (512$\times$). Inversion is fast for abelian groups
