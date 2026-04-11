@@ -210,13 +210,13 @@ class TestSelectiveSO3onS2:
     """Tests for the selective (O(L²)) bispectrum mode."""
 
     def test_output_size_is_quadratic(self):
-        """Selective output size should be approximately (lmax+1)²."""
+        """Selective output size should be exactly (lmax+1)² - 3 for lmax >= 2."""
         for lmax in [2, 3, 4, 5]:
             bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-            expected = (lmax + 1) ** 2
-            # Allow small deficit from low-degree budget shortfall
-            assert bsp.output_size <= expected
-            assert bsp.output_size >= expected - 2
+            expected = (lmax + 1) ** 2 - 3
+            assert bsp.output_size == expected, (
+                f'lmax={lmax}: got {bsp.output_size}, expected {expected}'
+            )
 
     def test_output_smaller_than_full(self):
         bsp_full = SO3onS2(lmax=5, nlat=32, nlon=64, selective=False)

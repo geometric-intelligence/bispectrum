@@ -48,16 +48,26 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
 
     Entry types (in priority order):
 
-    1. **Chain** ``(l1, l2, l_target)`` with ``l1 <= l2 < l_target`` —
-       linear in ``F_{l_target}`` (appears via ``conj(F_l)``).
+    1. **Mixed chains** ``(l1, l2, l_target)`` with ``l1 < l2 < l_target``
+       — linear in ``F_{l_target}`` (appears via ``conj(F_l)``).
     2. **Cross** ``(l1, l_target, l)`` with ``l1 < l_target, l < l_target``
        — linear in ``F_{l_target}`` (appears in the middle ⊗ position).
-    3. **Power** ``(0, l_target, l_target)`` — gives ``||F_{l_target}||²``
+       Interleaved round-robin across ``l1`` for diverse coupling.
+    3. **Self-pairing chains** ``(l, l, l_target)`` — deprioritized because
+       symmetric tensor products can be linearly dependent on mixed chains.
+    4. **Power** ``(0, l_target, l_target)`` — gives ``||F_{l_target}||²``
        (quadratic).
-    4. **Self-coupling** ``(l_target, l_target, l)`` with ``l < l_target``
+    5. **Self-coupling** ``(l_target, l_target, l)`` with ``l < l_target``
        — quadratic/cubic in ``F_{l_target}``.
 
-    Total output size is approximately ``(lmax + 1)²``.
+    At ``l_target = 2`` the self-coupling entries are excluded:
+    ``beta_{2,2,0}`` is redundant with the power entry, and
+    ``beta_{2,2,1}`` vanishes identically (antisymmetry of the
+    ``2 ⊗ 2 → 1`` Clebsch–Gordan channel). Degrees 2 and 3 are
+    recovered jointly; see the completeness proof for details.
+
+    Total output size is exactly ``(lmax + 1)² - 3``, matching the
+    information-theoretic lower bound ``dim(R^{(L+1)²} / SO(3))``.
     """
     index_map: list[tuple[int, int, int]] = []
 
@@ -70,28 +80,58 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
 
         candidates: list[tuple[int, int, int]] = []
 
-        # 1. Chain entries: (l1, l2, l_target) with l1 <= l2 < l_target,
-        #    l1 + l2 >= l_target (triangle inequality).
-        #    Iterate highest l2 first for better conditioning.
+        # 1+2. Chain and cross entries, interleaved for generic full rank.
+        #
+        # Chain: (l1, l2, l_target) with l1 <= l2 < l_target,
+        #        l1 + l2 >= l_target.  Mixed (l1 < l2) before self-pairing.
+        # Cross: (l1, l_target, l) with 1 <= l1 < l_target,
+        #        l_target - l1 <= l < l_target.  Round-robin across l1.
+        chain_mixed: list[tuple[int, int, int]] = []
+        chain_self: list[tuple[int, int, int]] = []
         for l2 in range(l_target - 1, -1, -1):
             for l1 in range(min(l2, l_target - 1), -1, -1):
                 if l1 + l2 >= l_target and abs(l1 - l2) <= l_target:
-                    candidates.append((l1, l2, l_target))
+                    if l1 < l2:
+                        chain_mixed.append((l1, l2, l_target))
+                    else:
+                        chain_self.append((l1, l2, l_target))
 
-        # 2. Cross entries: (l1, l_target, l) with 1 <= l1 < l_target,
-        #    l_target - l1 <= l < l_target (triangle + known).
+        cross_all: list[tuple[int, int, int]] = []
+        cross_by_l1: dict[int, list[tuple[int, int, int]]] = {}
         for l1 in range(l_target - 1, 0, -1):
-            l_lo = l_target - l1  # triangle lower bound (since l1 < l_target)
-            l_hi = min(l_target - 1, l1 + l_target)  # must be < l_target
-            for l_val in range(l_hi, l_lo - 1, -1):
-                candidates.append((l1, l_target, l_val))
+            l_lo = l_target - l1
+            l_hi = min(l_target - 1, l1 + l_target)
+            entries = [(l1, l_target, lv) for lv in range(l_hi, l_lo - 1, -1)]
+            if entries:
+                cross_by_l1[l1] = entries
+        round_idx = 0
+        active_l1s = sorted(cross_by_l1.keys(), reverse=True)
+        while active_l1s:
+            next_active: list[int] = []
+            for l1 in active_l1s:
+                if round_idx < len(cross_by_l1[l1]):
+                    cross_all.append(cross_by_l1[l1][round_idx])
+                if round_idx + 1 < len(cross_by_l1[l1]):
+                    next_active.append(l1)
+            active_l1s = next_active
+            round_idx += 1
+
+        # Interleave: mixed chains, then cross entries, then self-pairing
+        # chains. Cross entries provide independent linear constraints
+        # that self-pairing chains cannot (due to CG symmetries).
+        candidates.extend(chain_mixed)
+        candidates.extend(cross_all)
+        candidates.extend(chain_self)
 
         # 3. Power entry: (0, l_target, l_target).
         candidates.append((0, l_target, l_target))
 
         # 4. Self-coupling: (l_target, l_target, l) with 0 <= l < l_target.
-        for l_val in range(l_target - 1, -1, -1):
-            candidates.append((l_target, l_target, l_val))
+        #    Skipped at l_target=2: beta_{2,2,0} ∝ ||F_2||² (redundant with
+        #    power) and beta_{2,2,1} ≡ 0 (CG antisymmetry).
+        if l_target != 2:
+            for l_val in range(l_target - 1, -1, -1):
+                candidates.append((l_target, l_target, l_val))
 
         # Deduplicate preserving priority order, take up to budget.
         seen: set[tuple[int, int, int]] = set()

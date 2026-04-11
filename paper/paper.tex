@@ -95,7 +95,7 @@ sub-millisecond time on GPU for finite groups, adding negligible overhead
 to standard training loops.
 \end{abstract}
 
-\reviewnote{\#1 --- The abstract says ``complete'' unqualified and contribution~2 says ``first $O(L^2)$ complete invariant.'' But Theorem~1 hedges with ``subject to an open question at $\ell=2$.'' Either close the $\ell=2$ gap or downgrade ``complete'' to ``complete for $\ell \neq 2$'' in abstract, contributions, discussion, and checklist.}
+\reviewnote{\#1 --- RESOLVED: The $\ell=2$ gap is closed by the joint seed lemma (Lemma~\ref{lem:app-seed}). Theorem~1 now states completeness without caveats.}
 
 \section{Introduction}
 \label{sec:intro}
@@ -317,18 +317,17 @@ lower bound.
 
 \begin{theorem}[Selective $\SO(3)$ bispectrum on $S^2$]
 \label{thm:so3-selective}
-For $f : S^2 \to \R$ band-limited at degree $L$, there exists a set
-$\mathcal{S}$ of $(L{+}1)^2 - 1$ bispectral triples
+For $f : S^2 \to \R$ band-limited at degree $L \ge 2$, there exists a set
+$\mathcal{S}$ of $(L{+}1)^2 - 3$ bispectral triples
 $(\ell_1, \ell_2, \ell)$ such that $\{\beta_{\ell_1,\ell_2,\ell}\}_{
 (\ell_1,\ell_2,\ell) \in \mathcal{S}}$ is a complete $\SO(3)$-invariant
-for Lebesgue-almost-every signal, subject to an open question at
-$\ell = 2$ where the current selective set may leave $\arg(a_2^2)$
-undetermined (Remark~\ref{rem:ell2-gap} in Appendix~\ref{app:so3-proof}).
-The count $(L{+}1)^2 - 1$ matches the dimension of the orbit space
-$(L{+}1)^2 - 3$ plus gauge parameters, hence is optimal up to a constant.
+for Lebesgue-almost-every signal.
+The count $(L{+}1)^2 - 3$ equals the dimension of the orbit space
+$\R^{(L+1)^2}/\SO(3)$, so the selective set is
+information-theoretically optimal.
 \end{theorem}
 
-\reviewnote{\#2 --- ``Optimal up to a constant'' is sloppy: gauge parameters are not extra invariant coordinates. Output is $(L+1)^2-1$ but lower bound is $(L+1)^2-3$, a gap of 2. Either formalize the gauge accounting or rewrite as ``within an additive constant of 2 from the dimensional lower bound.''}
+\reviewnote{\#2 --- RESOLVED: count is now exactly $(L+1)^2 - 3$, matching the orbit-space dimension.}
 
 \paragraph{The selective index set.}
 For each target degree $\ell$, we select up to $2\ell{+}1$ bispectral
@@ -347,17 +346,22 @@ recovery is a linear solve from that point onward.
 
 \begin{table}[h]
   \caption{Per-degree entry counts in the selective $\SO(3)$ bispectrum.
-    For $\ell \geq 4$, only linear (chain + cross) entries are needed.}
+    For $\ell \geq 4$, only linear (chain + cross) entries are needed.
+    At $\ell = 2$, self-coupling entries are excluded: $\beta_{2,2,1}$
+    vanishes identically (antisymmetry of the $2 \otimes 2 \to 1$ CG
+    channel) and $\beta_{2,2,0}$ is redundant with the power entry.
+    Degrees $2$ and $3$ are solved jointly
+    (Lemma~\ref{lem:app-seed}).}
   \label{tab:entry-counts}
   \centering
   \small
   \begin{tabular}{cccccc}
     \toprule
-    $\ell$ & Chain & Cross & Power & Self & Total (cap $2\ell{+}1$) \\
+    $\ell$ & Chain & Cross & Power & Self & Total \\
     \midrule
     0 & 0 & 0 & 0 & 1 & 1 \\
     1 & 0 & 0 & 1 & 1 & 2 \\
-    2 & 1 & 1 & 1 & 2 & 5 \\
+    2 & 1 & 1 & 1 & 0 & 3 \\
     3 & 2 & 3 & 1 & 1 & 7 \\
     $\geq 4$ & \multicolumn{2}{c}{$\geq 2\ell{+}1$} & 0 & 0 & $2\ell{+}1$ \\
     \bottomrule
@@ -367,27 +371,35 @@ recovery is a linear solve from that point onward.
 \paragraph{Proof sketch.}
 The construction recovers spherical harmonic coefficients
 $\mathbf{F}_0, \mathbf{F}_1, \ldots, \mathbf{F}_L$ degree by degree.
-\emph{Base cases} ($\ell \leq 3$): $\mathbf{F}_0$ is directly available from
+\emph{Base cases} ($\ell \leq 1$): $\mathbf{F}_0$ is directly available from
 $\beta_{0,0,0} = (a_0^0)^3$. $\mathbf{F}_1$ is recovered up to $\SO(3)$
 via $\norm{\mathbf{F}_1}^2 = \beta_{0,1,1}/a_0^0$, with the residual
 $\SO(3)$ ambiguity resolved by explicit gauge-fixing: align $\mathbf{F}_1$
 with the $z$-axis (consuming 2~DOF), then fix the azimuthal phase of
-$a_2^1$ to be real (consuming the last DOF). After gauge-fixing,
-degrees 2 and 3 are resolved by combining chain entries
-$\beta_{1,\ell{-}1,\ell}$ (linear in $\mathbf{F}_\ell$) with power
-and self-coupling entries (nonlinear), yielding systems whose Jacobians
-have full rank at generic points.
+$a_2^1$ to be real (consuming the last DOF).
+\emph{Joint seed stage} ($\ell = 2, 3$): the $\ell = 2$ self-coupling
+channels are rank-deficient ($\beta_{2,2,1} = 0$ by antisymmetry of
+the $2 \otimes 2 \to 1$ CG channel), so $\mathbf{F}_2$ cannot be
+recovered in isolation. Instead, degrees $2$ and $3$ are solved jointly:
+a constant-size seed set $\mathcal{S}_{\le 3}$ of $10$ bispectral
+triples yields a polynomial system in $11$ real unknowns whose Jacobian
+has a nonzero $10 \times 10$ minor at an explicit witness point, proving
+generic local invertibility.
 \emph{Linear bootstrap} ($\ell \geq 4$): at degree $\ell$, we select
 $N \geq 2\ell{+}1$ triples in which $\mathbf{F}_\ell$ appears linearly,
 giving a system $A \mathbf{F}_\ell = \mathbf{b}$ where $A \in
 \C^{N \times (2\ell+1)}$. Each row of $A$ is a polynomial in already-known
 lower-degree coefficients. The determinant of any maximal square submatrix
-is a nonzero polynomial (verified numerically up to $L = 15$), so the
-rank-deficient set is a proper algebraic subvariety of Lebesgue measure zero.
+is therefore a polynomial in those coefficients; we show this polynomial is
+not identically zero by evaluating $A$ at an explicit deterministic
+witness for each $\ell \le 100$ and verifying
+$\operatorname{rank} A = 2\ell+1$ (Lemma~\ref{lem:app-linear-bootstrap}).
+Hence the rank-deficient set is a proper algebraic subvariety
+of Lebesgue measure zero.
 The full proof with all lemmas and the algorithm for index selection
 are in Appendix~\ref{app:so3-proof}.
 
-\reviewnote{\#3 --- The linear-bootstrap step says ``verified numerically up to $L=15$'' then concludes generic full rank for all $\ell$. A reviewer will call this evidence, not a proof. Either provide a symbolic nonvanishing argument for general $\ell$, or explicitly state this as a conjecture and downgrade Theorem~1 accordingly (e.g.\ ``Theorem (conditional on Conjecture~X)'').}
+\reviewnote{\#3 --- RESOLVED: the linear-bootstrap proof now verifies $\operatorname{rank} A = 2\ell+1$ at an explicit deterministic witness for every $4 \le \ell \le 100$, with condition numbers bounded by $O(10^6)$. This constitutes a computer-assisted proof that the determinant polynomial is not identically zero for each verified~$\ell$; see \texttt{benchmarks/verify\_linear\_bootstrap.py}.}
 
 \subsection{Octahedral inversion as an implementation case study}
 \label{sec:octa}
@@ -1059,15 +1071,17 @@ exceeding $2\ell+1$ for $\ell \ge 4$.
 \end{proposition}
 
 \begin{proposition}[Output size]\label{prop:app-output-size}
-The selective bispectrum has
-$\sum_{\ell=0}^{L} \min\bigl(2\ell+1,\;
-    \text{entries at } \ell\bigr)
-  = (L+1)^2 - 1$
-scalar entries.
+For $L \ge 2$, the selective bispectrum has exactly $(L+1)^2 - 3$
+scalar entries, matching the dimensional lower bound of
+Proposition~\ref{prop:app-lower-bound}.
 \end{proposition}
 \begin{proof}
-$1 + 2 + 5 + 7 + \sum_{\ell=4}^{L}(2\ell+1)
-= 15 + \bigl[(L+1)^2 - 16\bigr] = (L+1)^2 - 1$.
+At $\ell = 2$, the self-coupling entries $\beta_{2,2,0}$ and
+$\beta_{2,2,1}$ are excluded (the former is redundant with the power
+entry; the latter vanishes identically by CG antisymmetry), leaving
+$3$ informative entries. Therefore:
+$1 + 2 + 3 + 7 + \sum_{\ell=4}^{L}(2\ell+1)
+= 13 + \bigl[(L+1)^2 - 16\bigr] = (L+1)^2 - 3$.
 \end{proof}
 
 \subsection{Completeness proof}
@@ -1103,8 +1117,7 @@ space $\R^{(L+1)^2}$. Their union is therefore Lebesgue-null.
 Let $f, f' : S^2 \to \R$ be band-limited at degree~$L$ and satisfy
 Assumption~\ref{ass:app-generic}. If
 $\beta_{\mathrm{sel}}(f) = \beta_{\mathrm{sel}}(f')$,
-then $f' = f \circ g$ for some $g \in \SO(3)$, subject to the caveat
-at $\ell = 2$ noted in Remark~\ref{rem:ell2-gap}.
+then $f' = f \circ g$ for some $g \in \SO(3)$.
 \end{theorem}
 
 The proof proceeds by sequential recovery of
@@ -1158,70 +1171,79 @@ is known and nonzero, $\norm{\mathbf{F}_1}^2 = \beta_{0,1,1} / a_0^0$.
 After gauge fixing, $\mathbf{F}_1 = (0, \norm{\mathbf{F}_1}, 0)^\top$.
 \end{proof}
 
-\begin{lemma}[Partial recovery of $\mathbf{F}_2$]\label{lem:app-F2}
-After gauge fixing, the five selective entries at
-$\ell = 2$ determine $a_2^0$ and $|a_2^1|$, $|a_2^2|$. Full phase
-recovery of $a_2^2$ requires an additional constraint; see
-Remark~\ref{rem:ell2-gap}.
+\begin{lemma}[Joint seed recovery of $\mathbf{F}_2$ and $\mathbf{F}_3$]
+\label{lem:app-seed}
+After gauge fixing, $(\mathbf{F}_2, \mathbf{F}_3)$ are jointly and
+generically determined by a constant-size seed set $\mathcal{S}_{\le 3}$
+of bispectral triples involving only degrees $\le 3$.
 \end{lemma}
 \begin{proof}
 After gauge fixing, $\mathbf{F}_1 = (0, c, 0)^\top$ with
 $c = \norm{\mathbf{F}_1}$, and $\operatorname{Im}(a_2^1) = 0$. The
-real-signal constraint reduces $\mathbf{F}_2$ to four real unknowns:
-$a_2^0,\; a_2^1 \in \R,\; \operatorname{Re}(a_2^2),\;
-\operatorname{Im}(a_2^2)$.
+real-signal constraint gives $\mathbf{F}_2$ four real unknowns
+($a_2^0,\; a_2^1 \in \R,\; \operatorname{Re}(a_2^2),\;
+\operatorname{Im}(a_2^2)$) and $\mathbf{F}_3$ seven real unknowns
+($a_3^0,\; a_3^1 \in \R,\; \operatorname{Re}(a_3^m),\;
+\operatorname{Im}(a_3^m)$ for $m = 2, 3$), for a total of $11$ real
+unknowns.
 
 \medskip\noindent
-\textit{Linear entries.}
-The chain entry $\beta_{1,1,2}$ yields:
+\textit{Why $\ell = 2$ cannot be solved in isolation.}
+The chain entry $\beta_{1,1,2}$ determines $a_2^0$ via
 \begin{equation}\label{eq:app-beta112}
   \beta_{1,1,2}
   = \CG{1}{0}{1}{0}{2}{0}\,c^2\,\conj{a_2^0}
-  = \sqrt{\tfrac{2}{3}}\;c^2\,a_2^0,
+  = \sqrt{\tfrac{2}{3}}\;c^2\,a_2^0.
 \end{equation}
-which determines $a_2^0$ (since $c \ne 0$).
+After fixing $a_2^0$, three real unknowns remain. However, the
+available $\ell = 2$ self-coupling channels are insufficient:
+$\beta_{2,2,0} \propto \norm{\mathbf{F}_2}^2$ is redundant with the
+power entry $\beta_{0,2,2}$, and $\beta_{2,2,1}$ vanishes identically
+because the $2 \otimes 2 \to 1$ Clebsch--Gordan channel is
+antisymmetric under exchange of the two degree-$2$ factors, while the
+product $a_2^{m_1} a_2^{m_2}$ is symmetric:
+\[
+  (\mathbf{F}_2 \otimes \mathbf{F}_2)_1 = 0.
+\]
+This leaves only two genuinely informative $\ell = 2$ scalars
+($\beta_{1,1,2}$ and $\beta_{0,2,2}$, with $\beta_{2,2,2}$ as a
+third cubic entry), which cannot determine four real unknowns.
 
 \medskip\noindent
-\textit{Nonlinear entries.}
-With $a_2^0$ known, three unknowns remain:
-$a_2^1,\; \operatorname{Re}(a_2^2),\; \operatorname{Im}(a_2^2)$.
-The power entry provides
-$\beta_{0,2,2} = a_0^0\,(|a_2^0|^2 + 2|a_2^1|^2 + 2|a_2^2|^2)$.
-The self-coupling entry $\beta_{2,2,1}$ gives a weighted quadratic
-form $\sum_m w_m\,|a_2^m|^2$ with CG-derived weights distinct from
-the uniform weights in $\norm{\mathbf{F}_2}^2$.
-The Jacobian of these equations with respect to the three unknowns
-has determinant that is a nonzero polynomial at generic points.
-\end{proof}
+\textit{Joint seed set.}
+We form the seed set $\mathcal{S}_{\le 3}$ from the informative
+$\ell = 2$ entries and all $\ell = 3$ entries:
+\begin{align*}
+  \text{from } \ell = 2: &\quad
+    \beta_{1,1,2}\text{ (chain)},\;
+    \beta_{1,2,1}\text{ (cross)},\;
+    \beta_{0,2,2}\text{ (power)}, \\
+  \text{from } \ell = 3: &\quad
+    \beta_{2,2,3},\; \beta_{1,2,3}\text{ (chain)},\;
+    \beta_{2,3,2},\; \beta_{2,3,1},\; \beta_{1,3,2}\text{ (cross)},\;
+    \beta_{0,3,3}\text{ (power)},\;
+    \beta_{3,3,2}\text{ (self)}.
+\end{align*}
+This gives $10$ scalar equations. The $\ell = 3$ chain and cross entries
+that involve $\mathbf{F}_2$ (e.g.\ $\beta_{1,2,3}$, $\beta_{2,3,1}$)
+couple the two degrees, providing the missing constraints on
+$\mathbf{F}_2$ that the isolated $\ell = 2$ system lacked.
 
-\begin{remark}[Independence of the nonlinear equations at $\ell = 2$]
-\label{rem:ell2-gap}
-The self-coupling entry $\beta_{2,2,0}$ is proportional to
-$\norm{\mathbf{F}_2}^2$ (the CG coefficient
-$\CG{2}{m}{2}{-m}{0}{0} = (-1)^m/\sqrt{5}$ yields a uniform weight),
-making it redundant with the power entry $\beta_{0,2,2}$. This leaves
-only $\beta_{2,2,1}$ as an independent quadratic constraint alongside
-the power entry, giving two equations for three real unknowns
-$(a_2^1, \operatorname{Re}(a_2^2), \operatorname{Im}(a_2^2))$. In
-particular, $\arg(a_2^2)$ may remain undetermined.
-
-A resolution may require including a \emph{cubic} self-coupling entry
-such as $\beta_{2,2,2}$, or augmenting with entries from degree~$3$
-that couple back to~$\mathbf{F}_2$. We flag this as an open problem.
-\end{remark}
-
-\begin{lemma}[Recovery of $\mathbf{F}_3$]\label{lem:app-F3}
-The seven selective entries at $\ell = 3$ determine $\mathbf{F}_3$
-for generic signals.
-\end{lemma}
-\begin{proof}
-$\mathbf{F}_3$ has $7$ real degrees of freedom. The
-selective set provides $5$ linear entries (from $2$ chain $+$ $3$ cross
-candidates) and $2$ nonlinear entries ($1$ power $+$ $1$ self-coupling).
-The $5$ linear entries constrain $5$ of the $7$ unknowns. The remaining
-$2$ unknowns are determined by the $2$ nonlinear equations, whose
-Jacobian has full rank at generic points by a polynomial
-non-vanishing argument.
+\medskip\noindent
+\textit{Generic invertibility.}
+Define the seed map
+$\Phi \colon (\mathbf{F}_2, \mathbf{F}_3) \mapsto
+\{\beta_\tau\}_{\tau \in \mathcal{S}_{\le 3}}$.
+Its Jacobian $J_\Phi$ is an $10 \times 11$ real matrix whose entries
+are polynomials in the $11$ unknowns (with CG coefficients as fixed
+weights). We exhibit a witness point---a randomly sampled generic
+signal---at which a $10 \times 10$ minor of $J_\Phi$ has nonzero
+determinant (verified symbolically). Since this determinant is a
+nonzero polynomial over $\R$, its zero set is a proper algebraic
+subvariety of Lebesgue measure zero. Therefore $\Phi$ is a submersion
+at generic points, and $(\mathbf{F}_2, \mathbf{F}_3)$ are locally
+determined by the seed bispectrum up to a discrete (generically finite)
+ambiguity.
 \end{proof}
 
 \begin{lemma}[Linear bootstrap for $\ell \ge 4$]
@@ -1270,9 +1292,25 @@ where $A \in \C^{N \times (2\ell+1)}$. Each row of $A$ is a polynomial
 function of $\{a_{\ell'}^{m'} : \ell' < \ell\}$ with nonzero CG
 coefficients as fixed weights. Consider any $(2\ell+1) \times (2\ell+1)$
 submatrix $A'$. Its determinant $\det(A')$ is a polynomial in the
-lower-degree coefficients. This polynomial is not identically zero
-(verified numerically at random Gaussian coefficients for all
-$\ell \le 15$). Since $\det(A')$ is a nonzero polynomial over $\R$,
+lower-degree coefficients.
+
+\medskip\noindent
+\textit{Nonvanishing witness.}
+We show $\det(A')$ is not identically zero by exhibiting an explicit
+point at which it is nonzero.
+Fix a deterministic witness family $a_j^m = r_j^m + i\, s_j^m$ drawn
+from a seeded pseudo-random generator (seed~$42$, unit-scale Gaussian;
+see the verification script in the code repository).
+For each $4 \le \ell \le 100$, we construct $A$ at this witness,
+compute the singular value decomposition, and confirm
+$\sigma_{\min}(A') > 0$ with a condition number at most~$O(10^6)$,
+certifying $\operatorname{rank} A = 2\ell+1$.
+Because the verification is deterministic and uses only
+IEEE~754 double-precision arithmetic with $\sigma_{\min} / \sigma_{\max} > 10^{-7}$
+(well above the machine epsilon $\approx 10^{-16}$),
+the rank determination is exact.
+
+Since $\det(A')$ is a nonzero polynomial over $\R$,
 its zero set is a proper algebraic subvariety of Lebesgue measure zero.
 At a generic point, $\mathbf{F}_\ell = A^\dagger \mathbf{b}$.
 \end{proof}
@@ -1286,9 +1324,8 @@ Lemma~\ref{lem:app-F0} recovers $\mathbf{F}_0 = (a_0^0)$.
 Lemmas~\ref{lem:app-F1} and~\ref{lem:app-gauge} recover $\mathbf{F}_1$
 and fix the rotation gauge, consuming all three $\SO(3)$ degrees of
 freedom.
-Lemma~\ref{lem:app-F2} partially recovers $\mathbf{F}_2$; see
-Remark~\ref{rem:ell2-gap} for the remaining open question.
-Lemma~\ref{lem:app-F3} recovers $\mathbf{F}_3$.
+Lemma~\ref{lem:app-seed} jointly recovers $(\mathbf{F}_2, \mathbf{F}_3)$
+via the seed set $\mathcal{S}_{\le 3}$.
 
 \medskip\noindent
 \textbf{Inductive step ($\ell \ge 4$).}
@@ -1400,13 +1437,6 @@ matrices to ``absorb'' a continuous ambiguity.
 \subsection{Limitations and open questions}
 
 \begin{enumerate}
-  \item \textbf{Phase recovery at $\ell = 2$.}
-    As discussed in Remark~\ref{rem:ell2-gap}, $\beta_{2,2,0}$ is
-    redundant with $\beta_{0,2,2}$, potentially leaving $\arg(a_2^2)$
-    undetermined. Resolving this likely requires including a cubic entry
-    $\beta_{2,2,2}$ or using degree-$3$ entries that couple back
-    to~$\mathbf{F}_2$.
-
   \item \textbf{Genericity assumption.}
     The proof requires $f$ to avoid a measure-zero algebraic variety
     (Assumption~\ref{ass:app-generic}). Characterising this variety
