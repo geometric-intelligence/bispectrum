@@ -9,6 +9,7 @@ from bispectrum import SO3onS2, random_rotation_matrix, rotate_spherical_functio
 from bispectrum._cg import load_cg_matrices
 from bispectrum.so3_on_s2 import (
     _bispectrum_entry,
+    _build_cg_power_index_map,
     _build_full_index_map,
     _build_selective_index_map,
     _get_full_sh_coefficients,
@@ -295,19 +296,11 @@ class TestSelectiveSO3onS2:
     """Tests for the selective (O(L²)) bispectrum mode."""
 
     def test_output_size_is_quadratic(self):
-        """Selective output size: (lmax+1)² - 4 for lmax in {2,3}, (lmax+1)² - 3 for lmax >= 4."""
-        for lmax in [2, 3]:
+        """Augmented selective output: bispec + CG power entries, all O(L²)."""
+        expected_total = {0: 1, 1: 2, 2: 6, 3: 17, 4: 32, 5: 50, 6: 68}
+        for lmax, exp in expected_total.items():
             bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-            expected = (lmax + 1) ** 2 - 4
-            assert bsp.output_size == expected, (
-                f'lmax={lmax}: got {bsp.output_size}, expected {expected}'
-            )
-        for lmax in [4, 5, 6]:
-            bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-            expected = (lmax + 1) ** 2 - 3
-            assert bsp.output_size == expected, (
-                f'lmax={lmax}: got {bsp.output_size}, expected {expected}'
-            )
+            assert bsp.output_size == exp, f'lmax={lmax}: got {bsp.output_size}, expected {exp}'
 
     def test_output_smaller_than_full(self):
         bsp_full = SO3onS2(lmax=5, nlat=32, nlon=64, selective=False)
@@ -324,7 +317,7 @@ class TestSelectiveSO3onS2:
                 assert l <= lmax, f'exceeds lmax: {(l1, l2, l)}'
 
     def test_selective_entries_match_full(self):
-        """Every selective entry must match the full bispectrum on the same triple."""
+        """Every selective bispectral entry must match the full bispectrum."""
         full = SO3onS2(lmax=5, nlat=64, nlon=128, selective=False)
         sel = SO3onS2(lmax=5, nlat=64, nlon=128, selective=True)
         f = torch.randn(3, 64, 128)
@@ -333,7 +326,8 @@ class TestSelectiveSO3onS2:
         beta_sel = sel(f)
 
         full_lookup = {triple: i for i, triple in enumerate(full.index_map)}
-        for i, triple in enumerate(sel.index_map):
+        for i in range(sel.n_bispec):
+            triple = sel.index_map[i]
             j = full_lookup[triple]
             torch.testing.assert_close(
                 beta_sel[:, i],
@@ -466,6 +460,59 @@ class TestBuildSelectiveIndexMap:
             assert actual == expected
 
 
+class TestCGPowerIndexMap:
+    """Tests for _build_cg_power_index_map."""
+
+    def test_empty_for_small_lmax(self):
+        assert _build_cg_power_index_map(0) == []
+        assert _build_cg_power_index_map(1) == []
+
+    def test_verified_counts(self):
+        expected_counts = {2: 1, 3: 5, 4: 10, 5: 17, 6: 22, 7: 29}
+        for lmax, exp in expected_counts.items():
+            entries = _build_cg_power_index_map(lmax)
+            assert len(entries) == exp, (
+                f'lmax={lmax}: got {len(entries)} CG power entries, expected {exp}'
+            )
+
+    def test_triangle_inequality(self):
+        for lmax in range(2, 8):
+            for l1, l2, l_out in _build_cg_power_index_map(lmax):
+                assert abs(l1 - l2) <= l_out <= l1 + l2
+                assert l_out <= lmax
+
+    def test_no_duplicates(self):
+        for lmax in range(2, 8):
+            entries = _build_cg_power_index_map(lmax)
+            assert len(entries) == len(set(entries))
+
+    def test_l1_leq_l2(self):
+        for lmax in range(2, 8):
+            for l1, l2, _ in _build_cg_power_index_map(lmax):
+                assert l1 <= l2
+
+    def test_cg_power_rotation_invariant(self):
+        """CG power entries must be rotation-invariant (real, non-negative)."""
+        bsp = SO3onS2(lmax=4, nlat=64, nlon=128, selective=True)
+        f = torch.randn(2, 64, 128, dtype=torch.float64)
+        beta_f = bsp(f.float())
+
+        R = random_rotation_matrix()
+        from bispectrum import rotate_spherical_function
+
+        f_rot = rotate_spherical_function(f, R)
+        beta_rot = bsp(f_rot.float())
+
+        cg_start = bsp.n_bispec
+        torch.testing.assert_close(
+            beta_f[:, cg_start:].real,
+            beta_rot[:, cg_start:].real,
+            atol=0.1,
+            rtol=0.1,
+            msg='CG power entries should be rotation-invariant',
+        )
+
+
 class TestBatchedForwardCorrectness:
     """Verify the batched forward pass matches the scalar _bispectrum_entry reference."""
 
@@ -503,7 +550,8 @@ class TestBatchedForwardCorrectness:
         f_coeffs = _get_full_sh_coefficients(coeffs)
         cg_data = load_cg_matrices(lmax)
 
-        for i, (l1, l2, l_val) in enumerate(bsp.index_map):
+        for i in range(bsp.n_bispec):
+            l1, l2, l_val = bsp.index_map[i]
             beta_ref = _bispectrum_entry(f_coeffs, l1, l2, l_val, cg_data[(l1, l2)])
             torch.testing.assert_close(
                 beta_batched[:, i],
@@ -512,6 +560,14 @@ class TestBatchedForwardCorrectness:
                 rtol=1e-5,
                 msg=f'Mismatch at ({l1},{l2},{l_val}) for lmax={lmax} selective',
             )
+
+        for j in range(bsp.n_cg_power):
+            out_idx = bsp.n_bispec + j
+            val = beta_batched[:, out_idx]
+            assert val.imag.abs().max() < 1e-6, (
+                f'CG power entry {j} should be real, got imag={val.imag.abs().max()}'
+            )
+            assert val.real.min() >= -1e-6, f'CG power entry {j} should be non-negative'
 
     def test_output_nonzero(self):
         """Bispectrum of a non-zero signal must be non-zero."""
@@ -592,8 +648,7 @@ class TestCompletenessNumerical:
 
         assert gap > 1e6, f'No clean SVD gap for lmax={lmax}: max ratio={gap:.2e} at rank={rank}'
         assert rank >= lmax + 1, (
-            f'Rank {rank} too low for lmax={lmax} '
-            f'(must exceed power-spectrum contribution of {lmax + 1})'
+            f'Rank {rank} too low for lmax={lmax} (must exceed power-spectrum contribution of {lmax + 1})'
         )
 
 
@@ -662,6 +717,7 @@ class TestForwardEdgeCases:
         """Forward with zero output entries returns empty tensor."""
         bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
         bsp._index_map = []
+        bsp._cg_power_map = []
         bsp._group_data = []
         f = torch.randn(3, 32, 64)
         result = bsp(f)

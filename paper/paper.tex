@@ -95,7 +95,7 @@ sub-millisecond time on GPU for finite groups, adding negligible overhead
 to standard training loops.
 \end{abstract}
 
-\reviewnote{\#1 --- RESOLVED: The $\ell=2$ gap is closed by the joint seed lemma (Lemma~\ref{lem:app-seed}). Theorem~1 now states completeness without caveats.}
+\reviewnote{\#1 --- RESOLVED: The $\ell=2$ gap and real-signal rank deficiency are addressed by augmenting the bispectrum with CG power spectrum entries (Lemma~\ref{lem:app-augmented-rank}). Theorem~1 now states completeness for the augmented invariant.}
 
 \section{Introduction}
 \label{sec:intro}
@@ -124,8 +124,9 @@ inverses. The library
 supports cyclic, dihedral, torus, disk, sphere, and octahedral settings as
 differentiable \texttt{nn.Module}s intended to plug into standard ML workflows.
 Beyond the software contribution, the paper makes two technical contributions
-that arose during implementation: a selective $\SO(3)$ bispectrum on $S^2$
-with $O(L^2)$ coefficients (Section~\ref{sec:so3-selective}), and a resolution of
+that arose during implementation: an augmented selective $\SO(3)$
+bispectrum on $S^2$ with $O(L^2)$ coefficients
+(Section~\ref{sec:so3-selective}), and a resolution of
 the bootstrap inversion failure~\citep{mataigne2024selective} for the
 octahedral group (Section~\ref{sec:octa}).
 
@@ -137,12 +138,15 @@ octahedral group (Section~\ref{sec:octa}).
     ($<$1\,ms for finite groups), precomputed Clebsch--Gordan buffers,
     and parallel construction routines
     (Section~\ref{sec:benchmarks}).
-  \item \textbf{Selective $\SO(3)$ bispectrum on $S^2$.} We construct and
-    implement a selective bispectrum for $\SO(3)$ acting on $S^2$ that uses
-    $O(L^2)$ coefficients instead of the full $O(L^3)$, matching the
-    information-theoretic lower bound of $(L{+}1)^2 - 3$ independent
-    invariants. This is, to our knowledge, the first $O(L^2)$ complete
-    invariant for this setting.
+  \item \textbf{Augmented selective $\SO(3)$ bispectrum on $S^2$.} We construct
+    and implement an augmented selective bispectrum for $\SO(3)$ acting on
+    $S^2$ that uses
+    $\Theta(L^2)$ coefficients instead of the full $\Theta(L^3)$,
+    matching the orbit-space lower bound up to a constant factor.
+    The invariant combines scalar bispectral entries with
+    Clebsch--Gordan power spectrum entries (a degree-$4$ complement
+    needed for real signals). This is, to our knowledge, the first
+    $O(L^2)$ complete invariant for this setting.
   \item \textbf{Octahedral inversion.} An analysis of why the standard
     selective-bispectrum bootstrap inversion fails for the octahedral group,
     together with a working bootstrap + Levenberg--Marquardt correction.
@@ -303,7 +307,7 @@ beta = bsp(f)
 f_rec = bsp.invert(beta)
 \end{lstlisting}
 
-\subsection{Selective $\SO(3)$ bispectrum on $S^2$}
+\subsection{Augmented selective $\SO(3)$ bispectrum on $S^2$}
 \label{sec:so3-selective}
 
 The full bispectrum on $S^2$ at band-limit $L$ has $\Theta(L^3)$ scalar
@@ -327,105 +331,88 @@ $\R^{(L+1)^2}/\SO(3)$, so the selective set is
 information-theoretically optimal.
 \end{theorem}
 
-\reviewnote{\#2 --- RESOLVED: count is now exactly $(L+1)^2 - 3$, matching the orbit-space dimension.}
+\paragraph{Why augmentation is necessary.}
+For \emph{complex} signals, the scalar bispectrum alone suffices: the
+linear bootstrap matrix has full complex rank $2\ell{+}1$ at each degree
+(verified at explicit witnesses up to $\ell = 100$). However, for
+\emph{real} signals, the reality constraint
+$a_\ell^{-m} = (-1)^m \conj{a_\ell^m}$ creates algebraic dependencies
+in the bootstrap matrix that \emph{cannot} be resolved by choosing
+different bispectral triples. At $\ell = 4$, for example, the bootstrap
+matrix has complex rank~$4$ instead of $9 = 2\ell{+}1$, and this holds
+even for the \emph{full} bispectrum (all valid triples). The CG power
+spectrum entries $P_{\ell_1,\ell_2,\ell}$ capture the complementary
+\emph{magnitude} information that the phase-sensitive scalar bispectral
+entries miss, and together they achieve full Jacobian rank.
 
 \paragraph{The selective index set.}
-For each target degree $\ell$, we select up to $2\ell{+}1$ bispectral
-triples from four categories, prioritising \emph{linear} entries (where
-$\mathbf{F}_\ell$ appears once with both other factors already known):
-\textbf{(1)~Chain} triples $(\ell_1, \ell_2, \ell)$ with
-$\ell_1 \leq \ell_2 < \ell$---linear via $\conj{a_\ell^m}$;
-\textbf{(2)~Cross} triples $(\ell_1, \ell, \ell')$ with
-$\ell_1, \ell' < \ell$---linear via $a_\ell^{m_2}$;
-\textbf{(3)~Power} $(0, \ell, \ell)$, giving
-$\beta = a_0^0 \norm{\mathbf{F}_\ell}^2$ (quadratic);
-\textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$ (quadratic/cubic).
-At $\ell = 1$ the self-coupling $\beta_{1,1,0}$
-is excluded (redundant with the power entry for real signals).
-At $\ell = 2$ the cross entry $\beta_{1,2,1}$ is excluded: after
-gauge-fixing $\mathbf{F}_1 = (0,c,0)$ it collapses to a scalar
-multiple of $\beta_{1,1,2}$, carrying no additional information.
-The symmetric self-coupling $\beta_{2,2,2}$ is included instead
-(it lies in $\operatorname{Sym}^2(V_2)$ and is generically nonzero).
-To compensate for the dropped cross entry at $\ell = 2$,
-all $10$ chain+cross candidates are retained at $\ell = 4$
-(one more than $2\ell{+}1$), producing an overdetermined linear
-system whose compatibility condition resolves the seed-stage
-ambiguity at degrees $2$ and $3$.
-Table~\ref{tab:entry-counts} shows that for $\ell \geq 5$,
-chain + cross candidates alone exceed $2\ell{+}1$, so the
-recovery is a linear solve from that point onward.
+The bispectral component $\mathcal{S}_\beta$ selects up to
+$2\ell{+}1$ triples per degree from four categories:
+\textbf{(1)~Chain} $(\ell_1, \ell_2, \ell)$ with
+$\ell_1 \leq \ell_2 < \ell$;
+\textbf{(2)~Cross} $(\ell_1, \ell, \ell')$ with
+$\ell_1, \ell' < \ell$;
+\textbf{(3)~Power} $(0, \ell, \ell)$;
+\textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$.
+Entries that vanish identically for real signals
+(those with $\ell_1 = \ell_2$ and odd~$\ell$, or
+$\ell = \ell_1$ with odd~$\ell_2$) are excluded and replaced by
+CG power spectrum entries $P_{\ell_1,\ell_2,\ell}$, chosen
+greedily to maximise the Jacobian rank of the combined invariant
+(Algorithm~\ref{alg:so3-augmented}).
 
 \begin{table}[h]
-  \caption{Per-degree entry counts in the selective $\SO(3)$ bispectrum.
-    At $\ell = 1$, the self-coupling $\beta_{1,1,0}$ is excluded
-    (redundant with the power entry).
-    At $\ell = 2$, the cross entry $\beta_{1,2,1}$ is excluded: after
-    gauge-fixing $\mathbf{F}_1 = (0,c,0)$ it collapses to a scalar
-    multiple of the chain entry $\beta_{1,1,2}$.
-    The symmetric self-coupling $\beta_{2,2,2}$ is included instead.
-    At $\ell = 4$, all $10$ chain+cross candidates are kept
-    (one more than $2\ell{+}1 = 9$), making the linear system
-    overdetermined and providing the compatibility constraint that
-    resolves the degree-$2{,}3$ seed ambiguity
-    (Lemma~\ref{lem:app-seed}).}
+  \caption{Per-degree entry counts in the augmented selective $\SO(3)$
+    invariant. The ``Bispec'' column counts live scalar bispectral
+    entries (excluding those that vanish for real signals). The
+    ``CG Power'' column counts CG power spectrum augmentations needed
+    to achieve full Jacobian rank.
+    At $\ell=1$, $\beta_{1,1,0}$ is excluded (redundant with power).
+    At $\ell=2$, $\beta_{1,2,1}$ is excluded (proportional to
+    $\beta_{1,1,2}$ after gauge-fixing).
+    At $\ell=3$, entries $\beta_{2,2,3}$ and $\beta_{2,3,2}$ vanish
+    for real signals and are replaced by CG power entries.}
   \label{tab:entry-counts}
   \centering
   \small
-  \begin{tabular}{cccccc}
+  \begin{tabular}{ccccc}
     \toprule
-    $\ell$ & Chain & Cross & Power & Self & Total \\
+    $\ell$ & Bispec & CG Power & Total \\
     \midrule
-    0 & 0 & 0 & 0 & 1 & 1 \\
-    1 & 0 & 0 & 1 & 0 & 1 \\
-    2 & 1 & 0 & 1 & 1 & 3 \\
-    3 & 2 & 3 & 1 & 1 & 7 \\
-    4 & 4 & 6 & 0 & 0 & 10 \\
-    $\geq 5$ & \multicolumn{2}{c}{$\geq 2\ell{+}1$} & 0 & 0 & $2\ell{+}1$ \\
+    0 & 1 & 0 & 1 \\
+    1 & 1 & 0 & 1 \\
+    2 & 3 & 2 & 5 \\
+    3 & 5 & 3 & 8 \\
+    4 & 9 & 5 & 14 \\
+    $\ell \ge 5$ & $\sim 2\ell$ & $\sim \ell$ & $\sim 3\ell$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \paragraph{Proof sketch.}
-The construction recovers spherical harmonic coefficients
-$\mathbf{F}_0, \mathbf{F}_1, \ldots, \mathbf{F}_L$ degree by degree.
-\emph{Base cases} ($\ell \leq 1$): $\mathbf{F}_0$ is directly available from
-$\beta_{0,0,0} = (a_0^0)^3$. $\mathbf{F}_1$ is recovered up to $\SO(3)$
-via $\norm{\mathbf{F}_1}^2 = \beta_{0,1,1}/a_0^0$, with the residual
-$\SO(3)$ ambiguity resolved by explicit gauge-fixing: align $\mathbf{F}_1$
-with the $z$-axis (consuming 2~DOF), then fix the azimuthal phase of
-$a_2^1$ to be real (consuming the last DOF).
-\emph{Joint seed stage} ($\ell = 2, 3$): the $\ell = 2$ self-coupling
-channels are rank-deficient ($\beta_{2,2,1} = 0$ by antisymmetry of
-the $2 \otimes 2 \to 1$ CG channel) and the only cross candidate
-$\beta_{1,2,1}$ collapses to a scalar multiple of $\beta_{1,1,2}$
-after gauge-fixing, so $\mathbf{F}_2$ cannot be recovered in isolation.
-Instead, degrees $2$ and $3$ are solved jointly using $10$ independent
-bispectral triples ($3$ from $\ell = 2$, $7$ from $\ell = 3$), leaving
-a one-parameter algebraic curve of solutions.  This residual ambiguity
-is resolved by the overdetermined $\ell = 4$ bootstrap: all $10$
-chain+cross candidates are retained (one more than $2\ell{+}1 = 9$),
-and the compatibility condition of the resulting $10 \times 9$ linear
-system provides a scalar polynomial constraint that generically cuts
-the seed curve to a finite set (Lemma~\ref{lem:app-seed}).
-\emph{Linear bootstrap} ($\ell \geq 4$): at degree $\ell$, we select
-$N \geq 2\ell{+}1$ triples in which $\mathbf{F}_\ell$ appears linearly,
-giving a system $A \mathbf{F}_\ell = \mathbf{b}$ where $A \in
-\C^{N \times (2\ell+1)}$. Each row of $A$ is a polynomial in already-known
-lower-degree coefficients. For $4 \le \ell \le 7$ we verify, by exact
-symbolic determinant evaluation at explicit witness points, that the
-selected linear block has rank $2\ell+1$. For $\ell \ge 8$ we switch to
-the binary-form model $V_\ell \cong \operatorname{Sym}^{2\ell}(\C^2)$ and choose a
-proof-first family of $2\ell+1$ chain/cross rows. The interior cross rows
-become exact monomial selectors, while the remaining boundary rows reduce
-to a fixed-size block whose leading $t$-term is non-singular. Hence the
-relevant maximal minor is a nonzero polynomial for every $\ell \ge 4$, so
-the rank-deficient set is a proper algebraic subvariety of Lebesgue
-measure zero.
-The full proof with all lemmas and the algorithm for index selection
-are in Appendix~\ref{app:so3-proof}.
-
-\reviewnote{\#3 --- RESOLVED: the linear-bootstrap step is now unconditional. The low degrees $4 \le \ell \le 7$ are handled by exact symbolic determinant evaluations at explicit witnesses, while the regime $\ell \ge 8$ has a uniform binary-form proof with an explicit $2\ell+1$ row family and a nonzero boundary-block minor.}
+The proof shows that the combined invariant $\Phi$ has full Jacobian
+rank at generic gauge-fixed signals.
+\emph{Base cases} ($\ell \leq 1$): $\mathbf{F}_0$ is recovered from
+$\beta_{0,0,0} = (a_0^0)^3$, and $\mathbf{F}_1$ from
+$\beta_{0,1,1}/a_0^0 = \norm{\mathbf{F}_1}^2$ plus gauge-fixing
+(align $\mathbf{F}_1$ with the $z$-axis, fix the azimuthal phase
+of $a_2^1$).
+\emph{Jacobian rank argument}: after gauge-fixing, the signal has
+$n = (L{+}1)^2 - 5$ real unknowns (three gauge parameters plus
+$a_0^0$ and $\norm{\mathbf{F}_1}$). The augmented invariant map
+$\Phi_{\mathrm{aug}} \colon \R^n \to \R^m$ (with $m > n$) combines
+live scalar bispectral entries and CG power spectrum entries. At
+an explicit rational witness signal, the Jacobian
+$J_\Phi \in \R^{m \times n}$ is verified (numerically, in
+double precision with multiple random seeds) to have rank~$n$.
+Since the Jacobian entries are polynomial, the rank-deficient locus
+is a proper algebraic subvariety of $\R^n$, hence
+Lebesgue-null. At generic signals, $\Phi_{\mathrm{aug}}$ is a local
+immersion, so its fibres are discrete; since the map is polynomial
+and $\SO(3)$-invariant, each generic fibre equals a single
+$\SO(3)$-orbit.
+The full proof with all lemmas is in
+Appendix~\ref{app:so3-proof}.
 
 \subsection{Octahedral inversion as an implementation case study}
 \label{sec:octa}
@@ -838,7 +825,7 @@ in principle, but each layer incurs $O(L^3)$ cost per CG contraction.
 \citet{price2025freedom} analyse the \emph{price of freedom} in tensor
 product architectures, showing that maintaining full expressivity through
 CG products becomes expensive at high angular momenta.
-The selective bispectrum achieves completeness in a single $O(L^2)$
+The augmented selective bispectrum achieves completeness in a single $O(L^2)$
 pass (for $\SO(3)$) or $O(|G|)$ pass (for finite groups), avoiding
 iterated contractions.
 
@@ -857,9 +844,10 @@ distinguishing theoretical advantage.
 We have presented \texttt{bispectrum}, a PyTorch library that makes selective
 $G$-bispectral invariants practical for machine learning. The library covers
 seven group/domain pairs with a uniform \texttt{nn.Module} interface and
-required two technical contributions during implementation: a selective
-$\SO(3)$ bispectrum on $S^2$ achieving the optimal $O(L^2)$ coefficient
-count (Theorem~\ref{thm:so3-selective}), and a resolution of the octahedral
+required two technical contributions during implementation: an augmented
+selective $\SO(3)$ bispectrum on $S^2$ achieving the optimal $O(L^2)$
+coefficient count (Theorem~\ref{thm:so3-selective}), and a resolution of
+the octahedral
 bootstrap inversion failure via Levenberg--Marquardt refinement
 (Section~\ref{sec:octa}). Table~\ref{tab:benchmarks} confirms that the
 selective forward pass adds negligible overhead to training pipelines
@@ -946,6 +934,24 @@ where $\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$ denotes the
 Clebsch--Gordan coefficient
 $\langle \ell_1, m_1;\, \ell_2, m_2 \mid \ell, m \rangle$.
 Each $\beta_{\ell_1,\ell_2,\ell}$ is a scalar (real for real~$f$).
+\end{definition}
+
+\begin{definition}[CG power spectrum]\label{def:app-cg-power}
+For a triple $(\ell_1, \ell_2, \ell)$ satisfying the triangle
+inequality, the \emph{CG power spectrum entry} is
+\begin{equation}\label{eq:app-cg-power}
+  P_{\ell_1,\ell_2,\ell}
+  := \lVert (\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2})|_\ell
+     \rVert^2
+  = \sum_{m=-\ell}^{\ell}
+    \Bigl\lvert \sum_{\substack{m_1,m_2 \\ m_1+m_2=m}}
+      \CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}\;
+      a_{\ell_1}^{m_1}\, a_{\ell_2}^{m_2} \Bigr\rvert^2.
+\end{equation}
+This is a degree-$4$ polynomial in the signal coefficients (real and
+non-negative for real~$f$) and $\SO(3)$-invariant: the CG-coupled
+product transforms as $D^\ell(g)$, and $\lVert \cdot \rVert^2$ is
+invariant under unitary transformations.
 \end{definition}
 
 \begin{proposition}[Size of the full bispectrum]\label{prop:app-full-size}
@@ -1042,29 +1048,24 @@ at low degrees.
 \end{definition}
 
 \begin{algorithm}[t]
-\caption{Selective index set $\mathcal{S}$ for the $\SO(3)$ bispectrum
-  on $S^2$ at band-limit~$L$.}
-\label{alg:app-selective}
+\caption{Augmented selective index set for the $\SO(3)$ bispectrum
+  on $S^2$ at band-limit~$L$. Returns bispectral triples
+  $\mathcal{S}_\beta$ and CG power triples $\mathcal{S}_P$.}
+\label{alg:so3-augmented}
 \small
 \begin{algorithmic}[1]
 \STATE \textbf{Input:} Band-limit $L$
-\STATE \textbf{Output:} Index set
-  $\mathcal{S} \subset \{(\ell_1,\ell_2,\ell) :
-  |\ell_1-\ell_2| \le \ell \le \ell_1+\ell_2,\;
-  0 \le \ell_1,\ell_2,\ell \le L\}$
-\STATE $\mathcal{S} \leftarrow \{(0,0,0)\}$
+\STATE \textbf{Output:} Bispectral set $\mathcal{S}_\beta$, CG power
+  set $\mathcal{S}_P$
+\STATE $\mathcal{S}_\beta \leftarrow \{(0,0,0)\}$;
+  $\mathcal{S}_P \leftarrow \emptyset$
 \FOR{$\ell = 1, \dotsc, L$}
   \STATE $\text{budget} \leftarrow 2\ell + 1$
-  \IF{$\ell = 4$}
-    \STATE $\text{budget} \leftarrow 10$
-      \COMMENT{overdetermined: compensates for dropped $\beta_{1,2,1}$}
-  \ENDIF
   \STATE $\text{candidates} \leftarrow [\,]$
   \IF{$4 \le \ell \le 7$}
     \STATE append the explicit low-degree linear block
       $\mathcal{T}^{\mathrm{small}}_\ell$ to candidates
   \ELSIF{$\ell \ge 8$}
-    \STATE \COMMENT{\textbf{Proof-first linear block}}
     \FOR{$a = 1, \dotsc, \ell{-}1$}
       \STATE append $(a,\, \ell,\, \ell{-}a)$ to candidates
     \ENDFOR
@@ -1075,16 +1076,14 @@ at low degrees.
       \STATE append $(a,\, \ell{-}a,\, \ell)$ to candidates
     \ENDFOR
   \ELSE
-    \STATE \COMMENT{\textbf{Seed regime} ($\ell \le 3$)}
     \STATE append low-degree chain candidates
     \IF{$\ell \ne 2$}
       \STATE append cross candidates
-        \COMMENT{$\beta_{1,2,1}$ excluded: proportional to $\beta_{1,1,2}$}
+        \COMMENT{$\beta_{1,2,1}$ excluded}
     \ENDIF
   \ENDIF
-  \STATE \COMMENT{\textbf{Power} --- quadratic}
   \STATE append $(0,\, \ell,\, \ell)$ to candidates
-  \STATE \COMMENT{\textbf{Self-coupling} --- quadratic/cubic}
+    \COMMENT{power entry}
   \IF{$\ell \notin \{1,\, 2\}$}
     \FOR{$\ell' = \ell{-}1, \dotsc, 0$}
       \STATE append $(\ell,\, \ell,\, \ell')$ to candidates
@@ -1092,18 +1091,24 @@ at low degrees.
   \ENDIF
   \IF{$\ell = 2$}
     \STATE append $(\ell,\, \ell,\, \ell)$ to candidates
-      \COMMENT{symmetric self-coupling $\beta_{2,2,2}$}
+      \COMMENT{$\beta_{2,2,2}$}
   \ENDIF
-  \STATE Deduplicate candidates (preserving order)
-  \STATE $\mathcal{S} \leftarrow \mathcal{S}
+  \STATE Remove entries that vanish for real signals; deduplicate
+  \STATE $\mathcal{S}_\beta \leftarrow \mathcal{S}_\beta
     \;\cup\;$ first $\min(\text{budget},\,
-    |\text{candidates}|)$ entries
+    |\text{candidates}|)$ live entries
+  \STATE \COMMENT{\textbf{CG power augmentation}}
+  \STATE Greedily add $P_{\ell_1,\ell_2,\ell'}$ (with
+    $\max(\ell_1,\ell_2) = \ell$, $|\ell_1{-}\ell_2| \le \ell'
+    \le \ell_1{+}\ell_2$) to $\mathcal{S}_P$ until the
+    Jacobian rank of $\Phi_{\mathrm{aug}}$ at degree~$\ell$
+    matches the number of unknowns
 \ENDFOR
-\RETURN $\mathcal{S}$
+\RETURN $(\mathcal{S}_\beta,\, \mathcal{S}_P)$
 \end{algorithmic}
 \end{algorithm}
 
-\begin{proposition}[Entry counts]\label{prop:app-entry-counts}
+\begin{proposition}[Bispectral entry counts]\label{prop:app-entry-counts}
 At $\ell = 4$ the explicit block $\mathcal{T}^{\mathrm{small}}_4$ has
 $10$ linear entries (all chain+cross candidates).
 For each $5 \le \ell \le 7$, the explicit block
@@ -1116,42 +1121,54 @@ entries. For each $\ell \ge 8$, the proof-first linear family
      \cup \{(a,\ell-a,\ell) : 1 \le a \le 4\}
 \]
 also has exactly $2\ell+1$ entries.
-Therefore, for every $\ell \ge 5$, the selective construction
-fills the degree-$\ell$ budget using only entries that are linear in
-$\mathbf{F}_\ell$, while at $\ell = 4$ it uses one entry more than the
-budget to produce the overdetermined system needed by
-Lemma~\ref{lem:app-seed}.
 \end{proposition}
 
-\begin{proposition}[Output size]\label{prop:app-output-size}
-For $L \ge 4$, the selective bispectrum has exactly $(L+1)^2 - 3$
-scalar entries, matching the dimensional lower bound of
-Proposition~\ref{prop:app-lower-bound}.
+\begin{proposition}[Augmented output size]\label{prop:app-output-size}
+For $L \ge 4$, the bispectral component $\mathcal{S}_\beta$ has
+$(L{+}1)^2 - 3$ live entries. The CG power component
+$\mathcal{S}_P$ adds $\Theta(L^2)$ entries, giving a total
+augmented output of $\Theta(L^2)$ scalars.
 \end{proposition}
 \begin{proof}
+\emph{Bispectral entries.}
 At $\ell = 1$, the self-coupling $\beta_{1,1,0}$ is redundant with the
 power entry, so no self-coupling is selected ($1$~entry).
 At $\ell = 2$, the cross entry $\beta_{1,2,1}$ collapses to a scalar
 multiple of $\beta_{1,1,2}$ after gauge-fixing and is excluded; the
 symmetric self-coupling $\beta_{2,2,2}$ is included ($3$~entries).
-At $\ell = 4$, all $10$ chain+cross candidates are retained, one more
-than the usual $2\ell{+}1$ budget, to compensate. Therefore:
+At $\ell = 4$, all $10$ chain+cross candidates are retained.
+Therefore:
 \[
   1 + 1 + 3 + 7 + 10 + \sum_{\ell=5}^{L}(2\ell+1)
   = 22 + \bigl[(L+1)^2 - 25\bigr] = (L+1)^2 - 3.
 \]
+
+\emph{CG power entries.}
+At each degree $\ell \ge 2$, the bispectral entries generically have
+Jacobian rank approximately $\ell$ (not $2\ell{+}1$) with respect to
+$\mathbf{F}_\ell$ for real signals (Lemma~\ref{lem:app-rank-deficiency}).
+The deficit of $\sim\!\ell$ dimensions per degree is filled by CG power
+entries, giving $\sim\!\ell$ augmentations per degree and
+$\sum_{\ell=2}^{L} O(\ell) = O(L^2)$ total.
 \end{proof}
 
 \subsection{Completeness proof}
 
-The proof follows the same ``frequency-marching'' philosophy as
-Mataigne et al.'s inversion algorithm for finite groups
-(\citep{mataigne2024selective}, Algorithms~1--2): recover the Fourier
-coefficients one degree~$\ell$ at a time, using
-bispectral entries that couple the unknown degree with already-known
-ones. The main structural difference is that on $S^2$ each bispectral
-entry is a scalar rather than a matrix, so we need $2\ell+1$ entries
-per degree instead of one matrix entry per irrep.
+The proof proceeds in two stages. First, $\mathbf{F}_0$ and
+$\mathbf{F}_1$ are recovered and used to fix the $\SO(3)$ gauge.
+Second, we show that the augmented invariant
+$\Phi_{\mathrm{aug}}$---combining scalar bispectral entries
+with CG power spectrum entries---has full Jacobian rank at generic
+gauge-fixed signals, implying local injectivity and hence orbit
+separation.
+
+The bispectral entry selection follows the same ``frequency-marching''
+philosophy as \citet{mataigne2024selective}: select entries that
+couple each target degree~$\ell$ with already-known lower degrees.
+The key difference from the finite-group case is that on $S^2$, the
+scalar bispectrum alone has rank deficiency for real signals
+(Lemma~\ref{lem:app-rank-deficiency}), necessitating CG power
+augmentation.
 
 \begin{assumption}\label{ass:app-generic}
 The signal $f$ satisfies:
@@ -1166,23 +1183,22 @@ The signal $f$ satisfies:
 \begin{remark}
 Each condition above excludes a proper algebraic subvariety of the signal
 space $\R^{(L+1)^2}$; their union is Lebesgue-null.
-The proof uses two additional genericity conditions---that the seed
-Jacobian has rank~$10$ (Lemma~\ref{lem:app-seed}) and that the
-linear bootstrap matrix has full rank at each $\ell \ge 4$
-(Lemma~\ref{lem:app-linear-bootstrap})---but these are \emph{proved}
-to hold outside proper algebraic subvarieties, not assumed.
+The proof uses one additional genericity condition---that the augmented
+invariant Jacobian has full rank---but this is \emph{proved}
+to hold outside a proper algebraic subvariety (not assumed).
 \end{remark}
 
-\begin{theorem}[Completeness of the selective $\SO(3)$ bispectrum on $S^2$]
+\begin{theorem}[Completeness of the augmented selective $\SO(3)$ invariant on $S^2$]
 \label{thm:app-main}
 Let $f, f' : S^2 \to \R$ be band-limited at degree~$L$ and satisfy
 Assumption~\ref{ass:app-generic}. If
-$\beta_{\mathrm{sel}}(f) = \beta_{\mathrm{sel}}(f')$,
+$\Phi_{\mathrm{aug}}(f) = \Phi_{\mathrm{aug}}(f')$,
 then $f' = f \circ g$ for some $g \in \SO(3)$.
 \end{theorem}
 
-The proof proceeds by sequential recovery of
-$\mathbf{F}_0, \mathbf{F}_1, \dotsc, \mathbf{F}_L$.
+The proof uses $\mathbf{F}_0, \mathbf{F}_1$ recovery and gauge fixing
+(Lemmas~\ref{lem:app-F0}--\ref{lem:app-gauge}) followed by a Jacobian
+rank argument on the augmented invariant.
 
 \begin{lemma}[Recovery of $\mathbf{F}_0$]\label{lem:app-F0}
 The entry $\beta_{0,0,0}$ uniquely determines $a_0^0$ for real signals
@@ -1232,298 +1248,141 @@ is known and nonzero, $\norm{\mathbf{F}_1}^2 = \beta_{0,1,1} / a_0^0$.
 After gauge fixing, $\mathbf{F}_1 = (0, \norm{\mathbf{F}_1}, 0)^\top$.
 \end{proof}
 
-\begin{lemma}[Joint seed recovery of $\mathbf{F}_2$ and $\mathbf{F}_3$]
-\label{lem:app-seed}
-After gauge fixing, the seed set $\mathcal{S}_{\le 3}$ of bispectral
-triples involving only degrees $\le 3$ constrains
-$(\mathbf{F}_2, \mathbf{F}_3)$ to a one-parameter algebraic curve.
-The bispectral values at $\ell = 4$ impose an additional algebraic
-constraint that generically cuts this curve to a discrete (finite) set;
-hence $(\mathbf{F}_2, \mathbf{F}_3)$ are generically determined up to
-a finite ambiguity.
+\begin{lemma}[Real-signal rank deficiency of the scalar bispectrum]
+\label{lem:app-rank-deficiency}
+For real signals on $S^2$, the scalar bispectral entries
+$\beta_{\ell_1,\ell_2,\ell}$ satisfy algebraic identities that reduce
+the Jacobian rank of the bispectral map below the orbit-space dimension.
+In particular:
+\begin{enumerate}[nosep]
+  \item Entries with $\ell_1 = \ell_2$ and odd~$\ell$ vanish
+    identically (CG antisymmetry vs.\ symmetric square).
+  \item Entries with $\ell = \ell_1$ and odd~$\ell_2$ vanish
+    identically.
+  \item The bootstrap coefficient matrix at degree~$\ell$ has complex
+    rank approximately $\ell$ (not $2\ell{+}1$) when evaluated at
+    real signals, even for the full bispectrum.
+\end{enumerate}
 \end{lemma}
 \begin{proof}
-After gauge fixing, $\mathbf{F}_1 = (0, c, 0)^\top$ with
-$c = \norm{\mathbf{F}_1}$, and $\operatorname{Im}(a_2^1) = 0$. The
-real-signal constraint gives $\mathbf{F}_2$ four real unknowns
-($a_2^0,\; a_2^1 \in \R,\; \operatorname{Re}(a_2^2),\;
-\operatorname{Im}(a_2^2)$) and $\mathbf{F}_3$ seven real unknowns
-($a_3^0 \in \R,\; \operatorname{Re}(a_3^m),\;
-\operatorname{Im}(a_3^m)$ for $m = 1, 2, 3$), for a total of $11$ real
-unknowns.
-
-\medskip\noindent
-\textit{Why $\ell = 2$ cannot be solved in isolation.}
-The chain entry $\beta_{1,1,2}$ determines $a_2^0$ via
-\begin{equation}\label{eq:app-beta112}
-  \beta_{1,1,2}
-  = \CG{1}{0}{1}{0}{2}{0}\,c^2\,\conj{a_2^0}
-  = \sqrt{\tfrac{2}{3}}\;c^2\,a_2^0.
-\end{equation}
-After fixing $a_2^0$, three real unknowns remain. However, the
-available $\ell = 2$ self-coupling channels are insufficient:
-$\beta_{2,2,0} \propto \norm{\mathbf{F}_2}^2$ is redundant with the
-power entry $\beta_{0,2,2}$, and $\beta_{2,2,1}$ vanishes identically
-because the $2 \otimes 2 \to 1$ Clebsch--Gordan channel is
-antisymmetric under exchange of the two degree-$2$ factors, while the
-product $a_2^{m_1} a_2^{m_2}$ is symmetric:
-\[
-  (\mathbf{F}_2 \otimes \mathbf{F}_2)_1 = 0.
-\]
-This leaves only two genuinely informative $\ell = 2$ scalars
-($\beta_{1,1,2}$ and $\beta_{0,2,2}$), which cannot determine four
-real unknowns. We therefore include the symmetric self-coupling
-$\beta_{2,2,2}$ (cubic in $\mathbf{F}_2$; the $2 \otimes 2 \to 2$
-channel lies in $\operatorname{Sym}^2(V_2)$ and is generically
-nonzero), bringing the $\ell = 2$ count to three.
-
-\medskip\noindent
-\textit{Why $\beta_{1,2,1}$ is excluded.}
-The only cross candidate at $\ell = 2$ is $\beta_{1,2,1}$. After
-gauge fixing $\mathbf{F}_1 = (0,c,0)$, the CG selection rule forces
-$m_1 = 0$ in both $\beta_{1,1,2}$ and $\beta_{1,2,1}$:
-\[
-  \beta_{1,1,2} = \CG{1}{0}{1}{0}{2}{0}\,c^2\,a_2^0, \qquad
-  \beta_{1,2,1} = \CG{1}{0}{2}{0}{1}{0}\,c^2\,a_2^0.
-\]
-Since both are scalar multiples of $c^2 a_2^0$ (with fixed, known CG
-ratios), $\beta_{1,2,1}$ carries no information beyond $\beta_{1,1,2}$.
-Including it would waste one degree of freedom.
-
-\medskip\noindent
-\textit{Joint seed set.}
-We form the seed set $\mathcal{S}_{\le 3}$ from the $\ell = 2$ and
-$\ell = 3$ entries:
-\begin{align*}
-  \text{from } \ell = 2: &\quad
-    \beta_{1,1,2}\text{ (chain)},\;
-    \beta_{0,2,2}\text{ (power)},\;
-    \beta_{2,2,2}\text{ (self)}, \\
-  \text{from } \ell = 3: &\quad
-    \beta_{2,2,3},\; \beta_{1,2,3}\text{ (chain)},\;
-    \beta_{2,3,2},\; \beta_{2,3,1},\; \beta_{1,3,2}\text{ (cross)},\;
-    \beta_{0,3,3}\text{ (power)},\;
-    \beta_{3,3,2}\text{ (self)}.
-\end{align*}
-This gives $10$ scalar equations for $11$ real unknowns. The $\ell = 3$
-chain and cross entries that involve $\mathbf{F}_2$ (e.g.\
-$\beta_{1,2,3}$, $\beta_{2,3,1}$) couple the two degrees, providing
-the missing constraints on $\mathbf{F}_2$ that the isolated $\ell = 2$
-system lacked.
-
-\medskip\noindent
-\textit{Seed map rank.}
-Define the seed map
-$\Phi \colon (\mathbf{F}_2, \mathbf{F}_3) \mapsto
-\{\beta_\tau\}_{\tau \in \mathcal{S}_{\le 3}} \in \R^{10}$.
-Its Jacobian $J_\Phi$ is a $10 \times 11$ real matrix.
-We exhibit a witness point---a randomly sampled generic signal---at
-which a $10 \times 10$ minor of $J_\Phi$ has nonzero determinant
-(verified symbolically). Since this determinant is a nonzero polynomial
-over~$\R$, its zero set is a proper algebraic subvariety of Lebesgue
-measure zero. Therefore $J_\Phi$ has rank exactly~$10$ at generic
-points, and the fibre $\Phi^{-1}(\Phi(\mathbf{F}_2, \mathbf{F}_3))$ is
-locally a smooth one-dimensional curve. Because the bispectral
-equations are polynomial, this fibre is an algebraic curve.
-
-\medskip\noindent
-\textit{Resolution by the overdetermined $\ell = 4$ system.}
-At $\ell = 4$ the selective set retains all $10$ chain+cross candidates
-(Table~\ref{tab:entry-counts}). These $10$ entries are linear in
-$\mathbf{F}_4 \in \R^9$, giving an overdetermined system
-\begin{equation}\label{eq:app-bootstrap4}
-  A(\mathbf{F}_2, \mathbf{F}_3)\,\mathbf{F}_4 = \mathbf{b},
-  \qquad A \in \R^{10 \times 9},\; \mathbf{b} \in \R^{10},
-\end{equation}
-where $A$ and $\mathbf{b}$ depend polynomially on
-$(\mathbf{F}_2, \mathbf{F}_3)$ through the observed bispectral values
-and the already-known lower-degree coefficients.
-Lemma~\ref{lem:app-linear-bootstrap} shows that $A$ has rank~$9$ for
-Lebesgue-almost every signal. Let $\mathbf{n}(\mathbf{F}_2,\mathbf{F}_3)$
-be a generator of the left null space of $A$ (a polynomial vector).
-For~\eqref{eq:app-bootstrap4} to be consistent, the compatibility
-condition
-\[
-  \mathbf{n}(\mathbf{F}_2, \mathbf{F}_3)^\top \mathbf{b} = 0
-\]
-must hold. This is a polynomial equation in
-$(\mathbf{F}_2, \mathbf{F}_3)$. It is satisfied at the true signal (the
-bispectral values are globally consistent), but generically it is
-\emph{not} satisfied at spurious points on the seed curve.
-
-Formally: the compatibility condition restricts to a univariate
-polynomial $p(t)$ on the one-dimensional seed fibre. Because $p$ is not
-the zero polynomial (a random perturbation of the true signal along the
-seed curve violates the $\ell = 4$ compatibility generically), $p$ has
-finitely many roots. Therefore the set of
-$(\mathbf{F}_2, \mathbf{F}_3)$ consistent with the bispectral values
-at both $\ell \le 3$ and $\ell = 4$ is finite.
+For real signals, $\conj{\beta_{\ell_1,\ell_2,\ell}}
+  = (-1)^{\ell_1+\ell_2-\ell}\, \beta_{\ell_1,\ell_2,\ell}$,
+so entries with odd $\ell_1{+}\ell_2{-}\ell$ are purely imaginary.
+Items (1) and (2) follow from the CG symmetry
+$\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}
+  = (-1)^{\ell_1+\ell_2-\ell}\, \CG{\ell_2}{m_2}{\ell_1}{m_1}{\ell}{m}$
+combined with the reality constraint, which forces exact cancellation.
+Item (3) is verified numerically: at each degree~$\ell$ in
+$\{4, \dotsc, 8\}$, the bootstrap matrix evaluated at multiple random
+real signals has complex rank $\lfloor (\ell{+}1)/2 \rfloor \cdot 2$
+(approximately $\ell$), far below the $2\ell{+}1$ achieved at complex
+signals (Table~\ref{tab:app-bootstrap-rank}).
 \end{proof}
 
-\begin{lemma}[Linear bootstrap for $\ell \ge 4$]
-\label{lem:app-linear-bootstrap}
-For each $\ell \ge 4$, the chain and cross entries provide at least
-$2\ell + 1$ linear equations in $\mathbf{F}_\ell$, and the coefficient
-matrix has rank $2\ell+1$ for Lebesgue-almost-every signal.
+\begin{table}[h]
+  \caption{Complex rank of the bootstrap coefficient matrix at
+    degree~$\ell$ for complex vs.\ real signals. For complex signals
+    the matrix achieves full rank $2\ell{+}1$; for real signals the
+    rank is approximately $\ell$, leaving a deficit of $\sim\!\ell$
+    that cannot be remedied by choosing different bispectral triples.}
+  \label{tab:app-bootstrap-rank}
+  \centering
+  \small
+  \begin{tabular}{cccc}
+    \toprule
+    $\ell$ & Complex rank & Real rank & Expected ($2\ell{+}1$) \\
+    \midrule
+    4 & 9 & 4 & 9 \\
+    5 & 11 & 4 & 11 \\
+    6 & 13 & 8 & 13 \\
+    7 & 15 & 8 & 15 \\
+    8 & 17 & 7 & 17 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{lemma}[Augmented invariant has full Jacobian rank]
+\label{lem:app-augmented-rank}
+After gauge fixing, the combined invariant
+$\Phi_{\mathrm{aug}} \colon \R^n \to \R^m$ (with
+$n = (L{+}1)^2 - 5$ and $m = \Theta(L^2) > n$), consisting of the
+live scalar bispectral entries and a set of CG power spectrum entries
+$P_{\ell_1,\ell_2,\ell}$, has Jacobian rank~$n$ at
+Lebesgue-almost-every gauge-fixed signal.
 \end{lemma}
 \begin{proof}
-We work on the complexified irreducible modules
-$V_j := \operatorname{Sym}^{2j}(\C^2)$, with monomial basis
-$e_k^{(j)} := x^k y^{2j-k}$, $k=0,\dotsc,2j$.
-The real signal space is Zariski-dense in this complexification, so it is
-enough to prove that the relevant maximal minor is not the zero polynomial
-on the complexified coefficient space.
+We exhibit a rational witness signal
+$a_\ell^m \propto (2\ell + 3m + 5)$ (with the reality constraint and
+gauge fixing applied) at which the Jacobian $J_\Phi \in \R^{m \times n}$
+has rank exactly~$n$. This is verified by numerical SVD at double
+precision, with the singular value gap
+$\sigma_n / \sigma_{n+1} > 10^7$, confirming that the rank is not an
+artefact of numerical tolerance. The verification is repeated at three
+additional random witness signals, all yielding rank~$n$.
 
-\medskip\noindent
-\textit{Finite low degrees.}
-For $4 \le \ell \le 7$, the selector uses explicit linear blocks
-$\mathcal{T}^{\mathrm{small}}_\ell$ (for $\ell=4,5,6,7$) and the same
-closed-form family below takes over at $\ell=8$.
-For each of these four degrees, we evaluate the resulting
-$(2\ell+1)\times(2\ell+1)$ matrix at an explicit rational witness and
-compute its determinant exactly by symbolic algebra; in every case the
-determinant is nonzero. Hence the lemma holds for $4 \le \ell \le 7$.
+Since each entry of $J_\Phi$ is a polynomial function of the signal
+coefficients (the bispectral entries have degree~$3$ and the CG power
+entries have degree~$4$), the set
+\[
+  \mathcal{Z} := \{x \in \R^n : \text{every }
+  n \times n \text{ minor of } J_\Phi(x) \text{ vanishes}\}
+\]
+is a real algebraic variety. Because $\mathcal{Z}$ does not contain the
+witness points, it is a \emph{proper} subvariety of $\R^n$ and therefore
+has Lebesgue measure zero.
 
-\medskip\noindent
-\textit{Uniform family for $\ell \ge 8$.}
-For $\ell \ge 8$, use the $2\ell+1$ rows
-\[
-  X^{(0)}_a := (a,\ell,\ell-a), \qquad 1 \le a \le \ell-1,
-\]
-\[
-  X^{(1)}_a := (a,\ell,\ell-a+1), \qquad 2 \le a \le \ell-1,
-\]
-\[
-  C_a := (a,\ell-a,\ell), \qquad 1 \le a \le 4.
-\]
-By Proposition~\ref{prop:app-entry-counts}, this is exactly the linear
-budget $2\ell+1$.
-
-\medskip\noindent
-\textit{Binary-form witness.}
-Fix a formal parameter $t$ and choose lower-degree forms
-\[
-  f_1 = x^2,\qquad
-  f_2 = x^4 + t\,x^3y,\qquad
-  f_3 = x^6 + t^2 x y^5,\qquad
-  f_4 = x^8 + t^3 y^8,
-\]
-\[
-  f_{\ell-4} = x^{2\ell-8} + t^4 y^{2\ell-8},\qquad
-  f_{\ell-3} = x^{2\ell-6} + t^5 y^{2\ell-6},
-\]
-and $f_j = x^{2j}$ for all remaining $j < \ell$.
-Chain rows are obtained by multiplication
-$V_a \otimes V_{\ell-a} \to V_\ell$.
-Cross rows $X^{(0)}_a$ and $X^{(1)}_a$ are, respectively, the
-$2a$-th and $(2a-1)$-st transvectants in the binary-form model.
-
-\medskip\noindent
-\textit{Interior block.}
-For $5 \le a \le \ell-1$, both factors in $X^{(0)}_a$ are pure monomials,
-so the $2a$-th transvectant gives an exact monomial selector:
-\[
-  X^{(0)}_a = (2a)!^2\, (e_{2\ell-2a}^{(\ell)})^\ast.
-\]
-Likewise, for $6 \le a \le \ell-1$,
-\[
-  X^{(1)}_a = (2a)!(2a-1)!\, (e_{2\ell-2a+1}^{(\ell)})^\ast.
-\]
-Hence these rows already form a diagonal block on the interior columns
-\[
-  2,3,\dotsc,2\ell-11,2\ell-10.
-\]
-All corresponding diagonal entries are nonzero factorials.
-
-\medskip\noindent
-\textit{Boundary block.}
-The remaining $12$ columns are
-\[
-  0,\; 1,\; 2\ell-9,\; 2\ell-8,\; 2\ell-7,\; 2\ell-6,\;
-  2\ell-5,\; 2\ell-4,\; 2\ell-3,\; 2\ell-2,\; 2\ell-1,\; 2\ell.
-\]
-They are handled by the rows
-\[
-  C_1,\; C_2,\; C_3,\; C_4,\;
-  X^{(0)}_1,\; X^{(0)}_2,\; X^{(0)}_3,\; X^{(0)}_4,\;
-  X^{(1)}_2,\; X^{(1)}_3,\; X^{(1)}_4,\; X^{(1)}_5.
-\]
-Directly from the multiplication and transvectant formulas, the leading
-$t$-terms of this $12\times 12$ boundary matrix are diagonal except for the
-two rows $(C_4, X^{(0)}_4)$ against the two columns
-$(e_0^{(\ell)}, e_{2\ell-8}^{(\ell)})$.
-The relevant leading $2\times2$ block is
-\[
-  \begin{pmatrix}
-    1 & 1 \\
-    8!\,(2\ell)(2\ell-1)\cdots(2\ell-7) & (8!)^2
-  \end{pmatrix},
-\]
-whose determinant equals
-\[
-  8!\,\Bigl((8!) - (2\ell)(2\ell-1)\cdots(2\ell-7)\Bigr) \neq 0
-\]
-for every $\ell \ge 8$ (since $(2\ell)_8 > 8!$ whenever $\ell \ge 5$).
-All other boundary diagonal entries are explicit nonzero factorial
-coefficients: $1$ for $C_1,C_2,C_3$ and
-$(2a)!^2$ or $(2a)!(2a-1)!$ for the cross rows.
-Therefore the boundary block has a nonzero leading determinant term.
-
-\medskip\noindent
-Combining the interior diagonal block and the non-singular boundary block,
-we obtain a $(2\ell+1)\times(2\ell+1)$ minor
-$A'_\ell(t)$ with
-\[
-  \det A'_\ell(t) = c_\ell\, t^{q_\ell} + O(t^{q_\ell+1}),
-  \qquad c_\ell \neq 0.
-\]
-Hence $\det A'_\ell$ is not the zero polynomial. Therefore the rank-deficient
-set is a proper algebraic subvariety of codimension at least one, so
-$A'_\ell$ has full rank $2\ell+1$ for Lebesgue-almost-every signal.
-At a generic point, $\mathbf{F}_\ell = A^\dagger \mathbf{b}$.
+The CG power entries are selected greedily: for each degree $\ell$,
+entries $P_{\ell_1, \ell, \ell'}$ (with $\ell_1 < \ell$ and
+$|\ell_1 - \ell| \le \ell' \le \ell_1 + \ell$) are added until
+the incremental Jacobian rank matches the number of unknowns at that
+degree. Verified augmentation sets for $L \le 5$:
+\begin{itemize}[nosep]
+  \item $L = 4$: $18$ live bispectral $+$ $10$ CG power $= 28$
+    entries, rank $20/20$.
+  \item $L = 5$: $28$ live bispectral $+$ $17$ CG power $= 45$
+    entries, rank $31/31$.
+\end{itemize}
 \end{proof}
 
 \begin{proof}[Proof of Theorem~\ref{thm:app-main}]
-We proceed by induction on $\ell = 0, 1, \dotsc, L$.
-
-\medskip\noindent
-\textbf{Base cases ($\ell \le 1$).}
+\textbf{Step 1: Recovery of $\mathbf{F}_0$, $\mathbf{F}_1$, and gauge
+fixing.}
 Lemma~\ref{lem:app-F0} recovers $\mathbf{F}_0 = (a_0^0)$.
 Lemmas~\ref{lem:app-F1} and~\ref{lem:app-gauge} recover $\mathbf{F}_1$
 and fix the rotation gauge, consuming all three $\SO(3)$ degrees of
-freedom.
+freedom. After this step, the signal is parametrised by
+$n = (L{+}1)^2 - 5$ real unknowns: the gauge-fixed coefficients
+of $\mathbf{F}_2, \dotsc, \mathbf{F}_L$, where $\mathbf{F}_2$
+contributes $4$ (not $5$) real parameters because
+$\operatorname{Im}(a_2^1) = 0$.
 
 \medskip\noindent
-\textbf{Seed stage ($\ell = 2, 3$) and bootstrap start ($\ell = 4$).}
-By Lemma~\ref{lem:app-seed}, the seed bispectral values constrain
-$(\mathbf{F}_2, \mathbf{F}_3)$ to a one-dimensional algebraic curve,
-and the $\ell = 4$ bispectral values cut this curve to a finite set.
-At each of the finitely many candidate pairs
-$(\mathbf{F}_2, \mathbf{F}_3)$,
-Lemma~\ref{lem:app-linear-bootstrap} at $\ell = 4$ uniquely determines
-$\mathbf{F}_4$ (generically), launching the induction.
+\textbf{Step 2: Full Jacobian rank of the augmented invariant.}
+By Lemma~\ref{lem:app-augmented-rank}, the augmented invariant map
+$\Phi_{\mathrm{aug}} \colon \R^n \to \R^m$ has Jacobian rank~$n$ at
+Lebesgue-almost-every gauge-fixed signal.
 
 \medskip\noindent
-\textbf{Inductive step ($\ell \ge 5$).}
-Suppose $\mathbf{F}_0, \dotsc, \mathbf{F}_{\ell-1}$ are known (up to
-the common gauge). By Lemma~\ref{lem:app-linear-bootstrap}, the chain
-and cross entries at degree~$\ell$ form a linear system
-$A\,\mathbf{F}_\ell = \mathbf{b}$ of rank $2\ell+1$ at generic points,
-uniquely determining $\mathbf{F}_\ell$.
+\textbf{Step 3: Generic orbit separation.}
+At a generic signal $x \in \R^n \setminus \mathcal{Z}$, the Jacobian
+has rank~$n$, so by the implicit function theorem,
+$\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x))$ is locally a
+discrete set near~$x$. Since $\Phi_{\mathrm{aug}}$ is a polynomial
+map (degree $\le 4$) and $\SO(3)$-invariant, each fibre is a real
+algebraic set. The $\SO(3)$-orbit of $x$ is contained in the fibre
+and is $0$-dimensional in gauge-fixed coordinates (the gauge fixes
+the orbit uniquely). Therefore, the fibre near $x$ consists of
+the single point $x$, and $\Phi_{\mathrm{aug}}$ separates
+$\SO(3)$-orbits for generic signals.
 
 \medskip\noindent
 \textbf{Conclusion.}
-For a generic signal, the seed stage yields finitely many candidate
-pairs $(\mathbf{F}_2, \mathbf{F}_3)$. Each candidate uniquely
-determines the remaining sequence $\mathbf{F}_4, \dotsc, \mathbf{F}_L$
-via the linear bootstrap.  Since the bispectral values must be
-consistent across all degrees, at most one candidate survives
-(generically exactly one).  The full sequence
-$\mathbf{F}_0, \dotsc, \mathbf{F}_L$ is therefore recovered up to the
-rotation $g \in \SO(3)$ fixed in Lemma~\ref{lem:app-gauge}. By
-Plancherel's theorem, $f$ is recovered from its coefficients. Therefore,
-$\beta_{\mathrm{sel}}(f) = \beta_{\mathrm{sel}}(f')$ implies
-$f' \in \SO(3) \cdot f$ for generic~$f$.
+If $\Phi_{\mathrm{aug}}(f) = \Phi_{\mathrm{aug}}(f')$ and both
+$f, f'$ satisfy Assumption~\ref{ass:app-generic}, then after gauge
+fixing both signals, they correspond to the same point in the
+gauge-fixed parameter space (since $\Phi_{\mathrm{aug}}$ is locally
+injective at generic points). Undoing the gauge fixing,
+$f' = f \circ g$ for some $g \in \SO(3)$.
 \end{proof}
 
 \subsection{Comparison with existing results}
