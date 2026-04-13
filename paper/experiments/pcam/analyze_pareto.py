@@ -19,9 +19,8 @@ MODEL_STYLE = {
     'gate':        {'color': '#FF9800', 'marker': '^', 'label': 'Gated'},
     'fourier_elu': {'color': '#9C27B0', 'marker': 'D', 'label': 'Fourier-ELU'},
     'bispectrum':  {'color': '#E53935', 'marker': '*', 'label': 'Bispectrum'},
-    'so2_disk':    {'color': '#4CAF50', 'marker': 'P', 'label': 'Disk bisp. (SO2onDisk)'},
 }
-MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum', 'so2_disk']
+MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum']
 
 
 def load_results(directory: Path) -> list[dict]:
