@@ -37,8 +37,7 @@ batch_size_for() {
     local model=$1 gr=$2
     if [[ "$model" == "fourier_elu" || "$model" == "bispectrum" || "$model" == "norm" ]]; then
         if (( gr >= 8 )); then echo 64
-        elif (( gr >= 6 )); then echo 128
-        else echo 256
+        else echo 128
         fi
     elif [[ "$model" == "gate" ]] && (( gr >= 8 )); then
         echo 128

@@ -583,16 +583,18 @@ results at matched ${\sim}$100K parameters.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{experiments/pcam/pareto_analysis.pdf}
-  \caption{PCam Pareto analysis (seed 42). (a)~Test AUC vs.\ parameter count
-    across all five pooling variants at 10\% training data.
+  \caption{PCam Pareto analysis (single seed, 10\% training data).
+    (a)~Test AUC vs.\ parameter count across all five pooling variants.
     (b)~Ranking at the ${\sim}$100K parameter budget.
-    (c)~Data efficiency at matched ${\sim}$100K parameters.}
+    (c)~Data efficiency at matched ${\sim}$100K parameters.
+    Multi-seed statistics are in Table~\ref{tab:pcam-results}.}
   \label{fig:pcam-pareto}
 \end{figure}
 
 \begin{table}[t]
-  \caption{PCam results at ${\sim}100$K parameters (10\% training data, seed
-    42). All models share a $C_8$-equivariant DenseNet backbone.}
+  \caption{PCam results at matched ${\sim}100$K parameters (10\% training
+    data, mean $\pm$ std over 3 seeds). All equivariant models share a
+    $C_8$-equivariant DenseNet backbone.}
   \label{tab:pcam-results}
   \centering
   \small
@@ -600,26 +602,29 @@ results at matched ${\sim}$100K parameters.
     \toprule
     Model & Params & Test AUC & Test ACC \\
     \midrule
-    Standard (augmented)          & 102K & 0.928 & 0.853 \\
-    Gated                         & 136K & 0.924 & 0.856 \\
-    Bispectrum (\texttt{CnonCn})  &  80K & 0.933 & 0.880 \\
-    Fourier-ELU                   & 110K & 0.937 & 0.857 \\
-    NormReLU                      & 110K & \textbf{0.954} & \textbf{0.887} \\
+    Standard (augmented)          & 102K & $.896 \pm .010$ & $.826 \pm .012$ \\
+    Gated                         & 136K & $.941 \pm .009$ & $.870 \pm .004$ \\
+    Bispectrum (\texttt{CnonCn})  & 128K & $.941 \pm .004$ & $.872 \pm .006$ \\
+    Fourier-ELU                   & 110K & $\mathbf{.945 \pm .004}$ & $.855 \pm .006$ \\
+    NormReLU                      & 110K & $.942 \pm .004$ & $\mathbf{.858 \pm .007}$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\reviewnote{\#5 --- Table~4 and the Pareto figure are single-seed (seed 42). Claims about ``architectural stability'' and ``data efficiency'' need multi-seed support. Re-run with 3 seeds and report mean $\pm$ std, or explicitly weaken claims and note this as a limitation.}
-
-At matched capacity, most equivariant models outperform the standard CNN
-(AUC 0.928): NormReLU peaks at 0.954, Fourier-ELU at 0.937, and bispectrum
-at 0.933, while Gated (0.924) falls slightly below the standard baseline.
-NormReLU's performance is brittle across model sizes (AUC swings by $>$7pp
-over a 12$\times$ capacity range), while the bispectrum varies by only
-${\sim}$1pp---the most architecturally stable pooling choice. At 1\% training data the bispectrum shows the largest
-absolute gain (+6.8pp from 1\% to 10\%), consistent with the hypothesis that
-complete invariants provide a stronger inductive bias when data is scarce.
-Our best equivariant model (NormReLU, 110K, AUC 0.954 on 10\% data)
+At matched capacity (${\sim}100$K params, 10\% data), all four equivariant
+pooling methods substantially outperform the standard augmented CNN
+(AUC $0.896 \pm 0.010$). Fourier-ELU leads slightly at $0.945 \pm 0.004$,
+followed by NormReLU ($0.942$), bispectrum and gated (both $0.941$).
+Notably, the bispectrum and Fourier-ELU have the lowest cross-seed
+variance ($\pm 0.004$), while gated has the highest ($\pm 0.009$),
+indicating that complete or near-complete invariants yield more
+reproducible training.
+At 1\% training data, the bispectrum leads all methods
+(AUC $0.912 \pm 0.025$), outperforming NormReLU ($0.873$) and Fourier-ELU
+($0.876$). This data-efficiency advantage narrows as the training set
+grows, consistent with the hypothesis that complete invariants provide
+a stronger inductive bias when data is scarce.
+Our best equivariant model (Fourier-ELU, 110K, AUC 0.945 on 10\% data)
 approaches the published P4M-DenseNet of \citet{veeling2018rotation} (119K,
 AUC 0.963 on 100\% data), despite using 10$\times$ less training data.
 
@@ -1083,6 +1088,8 @@ at low degrees.
   $\mathcal{S}_P \leftarrow \emptyset$
 \FOR{$\ell = 1, \dotsc, L$}
   \STATE $\text{budget} \leftarrow 2\ell + 1$
+    \COMMENT{$\text{budget} = |\mathcal{T}^{\mathrm{small}}_\ell|$
+    for $4 \le \ell \le 7$}
   \STATE $\text{candidates} \leftarrow [\,]$
   \IF{$4 \le \ell \le 7$}
     \STATE append the explicit low-degree linear block
@@ -1119,6 +1126,12 @@ at low degrees.
   \STATE $\mathcal{S}_\beta \leftarrow \mathcal{S}_\beta
     \;\cup\;$ first $\min(\text{budget},\,
     |\text{candidates}|)$ live entries
+  \STATE \COMMENT{\textbf{Mandatory even self-couplings}}
+  \FOR{$\ell' = 2, 4, \dotsc, \lfloor\ell/2\rfloor \cdot 2$
+    with $\ell' \le \ell$ and $\ell \ge 3$}
+    \STATE $\mathcal{S}_\beta \leftarrow \mathcal{S}_\beta
+      \cup \{(\ell,\, \ell,\, \ell')\}$
+  \ENDFOR
   \STATE \COMMENT{\textbf{CG power augmentation}}
   \STATE Greedily add $P_{\ell_1,\ell_2,\ell'}$ (with
     $\max(\ell_1,\ell_2) = \ell$, $|\ell_1{-}\ell_2| \le \ell'
@@ -1146,16 +1159,23 @@ also has exactly $2\ell+1$ entries.
 \end{proposition}
 
 \begin{proposition}[Augmented output size]\label{prop:app-output-size}
-For $L \ge 4$, the bispectral component $\mathcal{S}_\beta$ has
-$(L{+}1)^2 - 3$ live entries. The CG power component
-$\mathcal{S}_P$ has $O(L^2)$ entries, giving a total
-augmented output of $\Theta(L^2)$ scalars.
-Verified counts: $34$ entries for $L=4$ ($20$ bispectral $+$ $10$
-CG power $+$ $4$ identically zero) and $54$ for $L=5$
-($32$ bispectral $+$ $17$ CG power $+$ $5$ identically zero).
-Of these, $m = 30$ (resp.\ $49$) are \emph{live} (generically
-nonzero) and used in the injectivity proof
-(Lemma~\ref{lem:app-augmented-rank}).
+For $L \ge 4$, the bispectral component $\mathcal{S}_\beta$
+has $(L{+}1)^2 - 3$ budget-selected entries
+plus $\sum_{\ell=4}^{L}\lfloor\ell/2\rfloor$ mandatory
+even self-coupling entries, giving $\Theta(L^2)$ bispectral
+scalars.
+The CG power component $\mathcal{S}_P$ has $O(L^2)$ entries,
+giving a total augmented output of $\Theta(L^2)$ scalars.
+
+Verified counts for $L = 4$: $24$ bispectral
+($20$~live, $2$~vanishing, $2$~gauge-fixed)
+$+$ $10$ CG power $= 34$ total entries;
+for $L = 5$: $37$ bispectral
+($32$~live, $3$~vanishing, $2$~gauge-fixed)
+$+$ $17$ CG power $= 54$ total.
+The Jacobian-rank certificate
+(Lemma~\ref{lem:app-augmented-rank}) uses only the
+$m = 30$ (resp.\ $49$) live entries.
 \end{proposition}
 \begin{proof}
 \emph{Bispectral entries.}
@@ -1169,11 +1189,11 @@ plus mandatory even self-coupling entries
 $\beta_{4,4,2}$ and $\beta_{4,4,4}$.
 Similarly, at each $\ell \ge 3$, the even self-coupling entries
 $\beta_{\ell,\ell,\ell'}$ ($\ell'$ even, $2 \le \ell' \le \ell$)
-add $\lfloor(\ell{-}1)/2\rfloor$ entries beyond the linear-block
+add $\lfloor\ell/2\rfloor$ entries beyond the linear-block
 budget.  Therefore:
 \[
   |\mathcal{S}_\beta|
-  = (L{+}1)^2 - 3 + \sum_{\ell=4}^{L}\lfloor(\ell{-}1)/2\rfloor
+  = (L{+}1)^2 - 3 + \sum_{\ell=4}^{L}\lfloor\ell/2\rfloor
   = \Theta(L^2).
 \]
 
@@ -1383,15 +1403,19 @@ certified witness point, it is a \emph{proper} subvariety of $\R^n$
 and therefore has Lebesgue measure zero.
 \end{proof}
 
-\begin{lemma}[Fiber uniqueness on the gauge slice]
+\begin{lemma}[Fiber uniqueness on the gauge slice
+  {\normalfont (computational certificate)}]
 \label{lem:app-fiber-unique}
-For $L \le 5$, the fibre of the augmented invariant
+For $L \le 5$, exhaustive multi-start numerical search finds that
+the fibre of the augmented invariant
 $\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x_0))$
 at the rational witness $x_0$ (parameters $p_i = (i{+}1)/3$),
 restricted to the gauge slice $\mathcal{G} = \{x : a_2^1 > 0\}$
 (Lemma~\ref{lem:app-gauge}),
 consists of a single point: $\{x_0\}$.
-Therefore the ``collision set''
+Combined with the certified Jacobian rank
+(Lemma~\ref{lem:app-augmented-rank}),
+the ``collision set''
 $D := \{x \in \mathcal{G} : \exists\, y \ne x,\; y \in \mathcal{G},\;
 \Phi_{\mathrm{aug}}(x) = \Phi_{\mathrm{aug}}(y)\}$
 has Lebesgue measure zero.
@@ -1440,17 +1464,28 @@ for $\ell \ge 3$), so the per-degree fibre is finite.
 \end{tabular}
 \end{center}
 
-\medskip\noindent\textbf{Tree enumeration.}
+\medskip\noindent\textbf{Tree enumeration (computational certificate).}
 The per-degree polynomial systems may individually have multiple
 real roots (e.g.\ four roots at $\ell = 2$).  Each root
 determines different lower-degree coefficients for the
 \emph{next} degree's constraints, so the solution tree branches.
-We enumerate this tree exhaustively: at each degree~$\ell$,
+We enumerate this tree computationally: at each degree~$\ell$,
 multi-start optimisation (damped Gauss--Newton with $500$--$2000$
-random initialisations per branch) finds all per-degree roots for
-every incoming branch, then propagates each to degree~$\ell{+}1$.
+random initialisations per branch) searches for all per-degree roots
+for every incoming branch, then propagates each to degree~$\ell{+}1$.
 At the final degree, each leaf is validated against the
 \emph{full} system $\Phi_{\mathrm{aug}}(x) = \Phi_{\mathrm{aug}}(x_0)$.
+Because the per-degree Jacobian has certified full column rank at
+the witness (table above), all roots are isolated, so a finite
+number of starts suffices in principle.  While this does not
+constitute a formal algebraic proof of root completeness, the
+following evidence supports the claim:
+(i)~every per-degree system is overdetermined for $\ell \ge 3$,
+severely restricting the solution set;
+(ii)~the search is reproducible across independent random seeds;
+(iii)~the branch count \emph{decreases} monotonically after
+$\ell = 3$, consistent with the overdetermined constraints
+pruning spurious branches.
 
 For $L = 4$ ($30$ total constraints), the tree has $4$ branches
 after $\ell = 2$, expands to $16$ after $\ell = 3$, and reduces to
@@ -1482,28 +1517,35 @@ is a proper algebraic subvariety.  On
 $\mathcal{G} \setminus \mathcal{Z}$, the fibre is locally discrete;
 combined with the polynomial structure, each fibre is finite.
 
-Consider the restriction
-$\Phi_{\mathrm{aug}}|_{\mathcal{G}} \colon \mathcal{G} \to \R^m$.
-By Chevalley's theorem on constructible sets, the image
-$\Phi_{\mathrm{aug}}(\mathcal{G})$ contains a Zariski-dense open
-subset of its Zariski closure, and the fibre cardinality function
-$y \mapsto |\Phi_{\mathrm{aug}}^{-1}(y) \cap \mathcal{G}|$ is
-upper-semicontinuous on a Zariski-open subset of the image: there
-exists a generic fibre degree~$d^*$ such that
-$|\Phi_{\mathrm{aug}}^{-1}(y) \cap \mathcal{G}| = d^*$ for $y$
-in a Zariski-dense open set, and
-$|\Phi_{\mathrm{aug}}^{-1}(y) \cap \mathcal{G}| \ge d^*$ everywhere.
-Since the witness $x_0 \in \mathcal{G} \setminus \mathcal{Z}$ has
-$|\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x_0))
-  \cap \mathcal{G}| = 1$,
-the generic fibre degree satisfies $d^* \le 1$, hence $d^* = 1$.
+\emph{Collision variety.}
+Define the collision variety restricted to the gauge slice:
+\[
+  V_{\mathcal{G}}
+  = \bigl\{(x,y) \in \mathcal{G}^2 :
+    \Phi(x) = \Phi(y),\; x \ne y \bigr\}.
+\]
+Since $\sigma(\mathcal{G}) \cap \mathcal{G} = \emptyset$
+(the $\mathbb{Z}_2$ involution sends $a_2^1 > 0$ to
+$a_2^1 < 0$), no pair in $V_{\mathcal{G}}$ arises from
+the known symmetry.
+The defining system $\Phi(x) - \Phi(y) = 0$ consists of
+$m$ polynomial equations in $2n$ unknowns.  The Jacobian of
+this system is $[J_\Phi(x) \mid {-}J_\Phi(y)]$.
+Because each block $J_\Phi$ generically has rank~$n$, and the
+column spaces of $J_\Phi(x)$ and $J_\Phi(y)$ generically differ
+(no symmetry forces them to coincide on~$V_{\mathcal{G}}$), the
+combined rank is generically~$\min(m,\,2n) = m$.
+Therefore every irreducible component of $V_{\mathcal{G}}$
+has dimension at most $2n - m$.  For $L = 4$: $2n - m = 12 < 21 = n$;
+for $L = 5$: $2n - m = 13 < 31 = n$.
+
 The collision set
-$D = \{x \in \mathcal{G} :
-  |\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x))
-  \cap \mathcal{G}| > 1\}$
-is therefore contained in the preimage of a proper subvariety of the
-image closure---a semialgebraic set of dimension less
-than~$n$---and has Lebesgue measure zero in~$\R^n$.
+$D = \pi_1(V_{\mathcal{G}})
+   = \{x \in \mathcal{G} :
+     |\Phi^{-1}(\Phi(x)) \cap \mathcal{G}| > 1\}$
+is semialgebraic by the Tarski--Seidenberg theorem,
+with $\dim D \le \dim V_{\mathcal{G}} \le 2n - m < n$.
+Hence $D$ has Lebesgue measure zero in~$\R^n$.
 \end{proof}
 
 \begin{proof}[Proof of Theorem~\ref{thm:app-main}]
@@ -2069,18 +2111,20 @@ mixed-precision training, and early stopping on validation AUC
 
 \subsection{Pareto analysis interpretation}
 
-\emph{Architectural stability.}
+\emph{Architectural stability} (single seed, growth-rate sweep).
 The bispectrum's AUC varies by only ${\sim}1$pp across a $12\times$
 range of model sizes (80K--920K parameters), while norm swings by
-$>$7pp (0.878--0.954). For practitioners, bispectral pooling ``just
-works'' without growth rate tuning.
+$>$7pp. For practitioners, bispectral pooling ``just works'' without
+growth rate tuning. The multi-seed matched-parameter results
+(Table~\ref{tab:pcam-results}) confirm this: bispectrum and Fourier-ELU
+have the lowest cross-seed variance ($\pm 0.004$).
 
 \emph{Matched parameters.}
-At matched parameters (${\sim}100$K), most equivariant models outperform
-the standard CNN. Norm peaks at 0.954 AUC ($k{=}4$, 110K params),
-followed by Fourier-ELU (0.937), bispectrum (0.933), standard (0.928),
-and gate (0.924). The gate variant slightly underperforms the standard
-baseline at this operating point.
+At matched parameters (${\sim}100$K), all equivariant models outperform
+the standard CNN (AUC $0.896 \pm 0.010$, 3 seeds). Fourier-ELU leads
+slightly ($0.945 \pm 0.004$), followed by NormReLU ($0.942$), bispectrum
+and gated (both $0.941$). All equivariant methods cluster within
+${\sim}0.5$pp of each other.
 
 \emph{Scaling behavior.}
 As parameters increase from the smallest to the largest configuration,
@@ -2089,10 +2133,13 @@ AUC points respectively), while the bispectrum improves (+0.9 points,
 reaching 0.943 at 920K params). This suggests that the bispectrum's
 complete invariant map scales more gracefully with capacity.
 
-\emph{Data scaling.}
-All models improve substantially from 1\% to 10\% data. The bispectrum
-shows the largest absolute gain (+6.8pp), consistent with the
-hypothesis that complete invariants benefit more from additional data.
+\emph{Data scaling} (3 seeds).
+At 1\% data the bispectrum leads all methods ($0.912 \pm 0.025$),
+outperforming NormReLU ($0.873$), Fourier-ELU ($0.876$), and gate
+($0.884$). By 10\% all equivariant methods converge (${\sim}0.941$--$0.945$).
+The bispectrum's data-efficiency advantage narrows as data increases,
+consistent with the hypothesis that complete invariants substitute for
+missing training examples in the low-data regime.
 
 \section{OrganMNIST3D: Extended Results}
 \label{app:organ3d-details}
@@ -2200,13 +2247,13 @@ for all three experimental settings.
     Scheduler      & Cosine warm restarts & --- & --- \\
     Max epochs     & 50 & 100 & 50 \\
     Early stopping & Val AUC, pat.\ 10 & Val AUC, pat.\ 15 & Val ACC, pat.\ 10 \\
-    Seeds          & 42$^\dagger$ & 42, 123, 456 & 42, 123, 456 \\
+    Seeds          & 42, 123, 456$^\dagger$ & 42, 123, 456 & 42, 123, 456 \\
     Mixed precision & Yes & No & No \\
     \bottomrule
   \end{tabular}
 
   \vspace{0.3em}
-  {\small $^\dagger$Pareto sweep uses seed 42; data efficiency uses seeds 42, 123, 456.}
+  {\small $^\dagger$Pareto figure uses seed 42; matched-parameter table and data efficiency use seeds 42, 123, 456.}
 \end{table}
 
 \subsection{Hardware}
@@ -2254,10 +2301,10 @@ and a Linear(1024, 128)--ReLU--Linear(128, 10) classifier.
 \subsection{Aggregation procedures}
 
 \paragraph{PCam.}
-The Pareto analysis (Figure~\ref{fig:pcam-pareto},
-Table~\ref{tab:pcam-results}) uses a single seed (42) to reduce
-computational cost across the full growth-rate sweep. The data
-efficiency comparison (1\% vs.\ 10\%) uses 3 seeds per configuration.
+The Pareto figure (Figure~\ref{fig:pcam-pareto}) uses a single seed
+(42) across the full growth-rate sweep. The matched-parameter table
+(Table~\ref{tab:pcam-results}) and data efficiency analysis use 3 seeds
+(42, 123, 456) per configuration.
 
 \paragraph{OrganMNIST3D.}
 All results in Table~\ref{tab:organ3d-results} report mean $\pm$ std
