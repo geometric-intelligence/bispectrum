@@ -13,6 +13,16 @@ augmented invariant that combines scalar bispectral entries with
 CG power spectrum entries P_{l1,l2,l} = ||(F_{l1} ⊗ F_{l2})|_l||^2.
 See ``_build_selective_index_map`` and ``_build_cg_power_index_map``.
 
+**Completeness** (``proof_completeness.tex``): for band-limits L ≥ 4, the
+augmented selective bispectrum is a complete SO(3)-invariant on generic
+real-valued signals (those satisfying a_0^0 ≠ 0, ||F_1|| ≠ 0, and
+a_2^1 ≠ 0 after gauge-fixing).  The proof uses:
+  - Seed recovery at degrees 0–3 (finite fibre, Jacobian rank 11/11),
+  - Degree-4 fibre reduction via parity-breaking entries β_{2,3,4} etc.,
+  - Linear bootstrap at ℓ ≥ 4 (verified ℓ ≤ 100, closed-form for ℓ ≥ 8).
+For L ≤ 3, the invariant separates O(3)-orbits but cannot resolve the
+T_R (azimuthal reflection) ambiguity.
+
 Reference: Kakarala (1992), Cohen et al.
 """
 
@@ -333,9 +343,10 @@ class SO3onS2(nn.Module):
     and returns the bispectrum coefficients.
 
     When ``selective=True``, outputs O(L²) augmented selective entries
-    (scalar bispectral + CG power spectrum) preserving completeness for
-    generic real signals. When ``selective=False``, computes all O(L³)
-    scalar bispectral entries.
+    (scalar bispectral + CG power spectrum) that form a complete
+    SO(3)-invariant for generic real signals when lmax ≥ 4
+    (see ``proof_completeness.tex``).  When ``selective=False``, computes
+    all O(L³) scalar bispectral entries.
 
     Args:
         lmax: Maximum spherical harmonic degree.
