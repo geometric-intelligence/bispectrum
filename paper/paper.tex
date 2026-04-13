@@ -526,27 +526,27 @@ batch\,=\,16 for forward, 4 for inversion, median wall-clock via
     \cmidrule(lr){4-5} \cmidrule(lr){6-7}
      & & & Sel. & Full & Sel. & Full & Sel. \\
     \midrule
-    \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8256 & 0.21 & 13.64 & 5.52 \\
-    \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 524800 & 0.10 & 0.43 & 93.54 \\
-    \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 3.39 & -- & 7.40 \\
-    \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & 1024 & 411 & -- & 0.43 & -- & 14.28 \\
-    \texttt{SO3onS2} & $\mathrm{SO}(3)$ & 289 & 368 & -- & 32.54 & -- & -- \\
-    \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.89 & -- & 1158.88 \\
+    \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8256 & 0.15 & 9.17 & 8.56 \\
+    \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 524800 & 0.08 & 0.71 & 68.02 \\
+    \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 2.52 & -- & 42.33 \\
+    \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & 1024 & 411 & -- & 1.94 & -- & 17.69 \\
+    \texttt{SO3onS2} & $\mathrm{SO}(3)$ & 289 & 430 & -- & 26.54 & -- & -- \\
+    \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.70 & -- & 2172.76 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 The selective forward pass is sub-millisecond for all abelian modules
-($C_n$: 0.21\,ms, $\mathbb{T}^2$: 0.10\,ms, $\SO(2)$/disk: 0.43\,ms)
-and under 1\,ms for the octahedral group (0.89\,ms), making it
+($C_n$: 0.15\,ms, $\mathbb{T}^2$: 0.08\,ms, $\SO(2)$/disk: 1.94\,ms)
+and under 1\,ms for the octahedral group (0.70\,ms), making it
 negligible relative to backbone computation. $\SO(3)$ on $S^2$ at
-$\ell_{\max}{=}16$ takes 32.5\,ms, dominated by the spherical harmonic
+$\ell_{\max}{=}16$ takes 26.5\,ms, dominated by the spherical harmonic
 transform (via \texttt{torch\_harmonics}~\citep{bonev2023spherical}).
 Selective coefficient counts confirm the $O(|G|)$ scaling:
 $C_{128}$ uses 128 coefficients vs.\ 8{,}256 full (64$\times$
 reduction); $\mathbb{T}^2$ at $|G|{=}1{,}024$ uses 1{,}024 vs.\
 524{,}800 full (512$\times$). Inversion is fast for abelian groups
-(5--94\,ms) and practical for the octahedral group (1.16\,s via
+(9--68\,ms) and practical for the octahedral group (2.17\,s via
 Levenberg--Marquardt). GPU throughput scales linearly with batch size,
 exceeding $10^7$~samples/s for $C_n$ and $\mathbb{T}^2$
 (Appendix~\ref{app:bench}).
@@ -708,9 +708,9 @@ benchmark for rotation invariance on $S^2$.
 \paragraph{Setup.}
 MNIST digits are projected onto the sphere via stereographic projection and
 sampled on a $64 \times 128$ equiangular grid. We compute the selective
-bispectrum at $\ell_{\max} = 15$, producing 330 complex invariant
-coefficients (660 real features after log-compression), which are fed to a
-3-layer MLP (204K parameters total).  Note that $\ell_{\max} = 15$ exceeds
+bispectrum at $\ell_{\max} = 15$, producing 384 complex invariant
+coefficients (768 real features after log-compression), which are fed to a
+3-layer MLP (232K parameters total).  Note that $\ell_{\max} = 15$ exceeds
 the proved range ($L \le 5$); the experiments serve as empirical evidence
 that the augmented invariant remains discriminative at higher bandwidths. Three baselines provide controls:
 \begin{itemize}
@@ -761,9 +761,9 @@ the results.
     Power Spec.\ + MLP (matched) & 166K
       & $0.794 {\pm} 0.011$ & $0.794 {\pm} 0.011$ & $0.792 {\pm} 0.010$
       & $3{\times}10^{-4}$ \\
-    \textbf{Bispectrum + MLP (ours)} & 204K
-      & $\mathbf{0.947 {\pm} 0.000}$ & $\mathbf{0.947 {\pm} 0.001}$
-      & $\mathbf{0.947 {\pm} 0.001}$ & $\mathbf{2{\times}10^{-4}}$ \\
+    \textbf{Bispectrum + MLP (ours)} & 232K
+      & $\mathbf{0.950 {\pm} 0.000}$ & $\mathbf{0.949 {\pm} 0.002}$
+      & $\mathbf{0.951 {\pm} 0.001}$ & $\mathbf{1{\times}10^{-4}}$ \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -777,13 +777,13 @@ the results.
     \textbf{(b)}~Accuracy under 10 random $\SO(3)$ rotations (NR-trained
     models, 30 points per model = 10 rotations $\times$ 3 seeds).
     Scaling the power spectrum MLP from 11K to 166K parameters yields
-    only +1.4pp; the bispectrum at 204K reaches 94.7\%.}
+    only +1.4pp; the bispectrum at 232K reaches 95.0\%.}
   \label{fig:smnist-analysis}
 \end{figure}
 
 \emph{Numerically exact $\SO(3)$ invariance.}
 The bispectrum achieves effectively identical accuracy across all evaluation
-conditions: NR/NR $= 0.947$, R/R $= 0.947$, NR/R $= 0.947$. The standard
+conditions: NR/NR $= 0.950$, R/R $= 0.949$, NR/R $= 0.951$. The standard
 deviation under random rotations is ${\sim}10^{-4}$---effectively zero.
 Training on rotated vs.\ non-rotated data makes no difference, confirming
 that the bispectral features are truly $\SO(3)$-invariant and rotation
@@ -794,7 +794,7 @@ variance ($\sigma_{\mathrm{rot}} \approx 0.04$ under random rotations).
 
 \emph{Completeness gap.}
 The power spectrum is also rotation-invariant ($\sigma_{\mathrm{rot}} =
-0.0003$) but achieves only 78\% accuracy---17 percentage points below the
+0.0003$) but achieves only 78\% accuracy---17.2 percentage points below the
 bispectrum. To rule out a capacity confound, we
 scale the power spectrum MLP to 166K parameters.
 This 15$\times$ capacity increase yields only +1.4pp (78.0\%
@@ -2289,9 +2289,9 @@ permutations on the $3^3$ grid, avoiding interpolation artifacts.
 MNIST digits are projected onto the sphere via stereographic
 projection following \citet{cohen2018spherical} and sampled on a
 $64 \times 128$ equiangular grid. The selective bispectrum is
-computed at $\ell_{\max} = 15$, producing 330 complex invariant
-coefficients (660 real features after taking log-magnitude), which
-are fed to a 3-layer MLP: Linear(660, 256)--BN--ReLU--Linear(256,
+computed at $\ell_{\max} = 15$, producing 384 complex invariant
+coefficients (768 real features after taking log-magnitude), which
+are fed to a 3-layer MLP: Linear(768, 256)--BN--ReLU--Linear(256,
 128)--BN--ReLU--Linear(128, 10). The power spectrum MLP uses the
 same structure with hidden=128: Linear(16, 128)--BN--ReLU--Linear(128,
 64)--BN--ReLU--Linear(64, 10). The standard CNN has 4 convolutional
