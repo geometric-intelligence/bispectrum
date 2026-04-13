@@ -1,7 +1,5 @@
 """Tests for SO3onS2 bispectrum module."""
 
-from collections import Counter
-
 import pytest
 import torch
 
@@ -297,7 +295,7 @@ class TestSelectiveSO3onS2:
 
     def test_output_size_is_quadratic(self):
         """Augmented selective output: bispec + CG power entries, all O(L²)."""
-        expected_total = {0: 1, 1: 2, 2: 6, 3: 17, 4: 32, 5: 50, 6: 68}
+        expected_total = {0: 1, 1: 2, 2: 6, 3: 17, 4: 34, 5: 54, 6: 75}
         for lmax, exp in expected_total.items():
             bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
             assert bsp.output_size == exp, f'lmax={lmax}: got {bsp.output_size}, expected {exp}'
@@ -429,11 +427,17 @@ class TestBuildSelectiveIndexMap:
             assert (1, 2, 1) not in idx, f'(1,2,1) found for lmax={lmax}'
 
     def test_l4_overdetermined(self):
-        """At l=4, all 10 chain+cross candidates are kept (overdetermined system)."""
+        """At l=4, all 10 chain+cross candidates are kept plus mandatory self-coupling."""
         for lmax in range(4, 8):
             idx = _build_selective_index_map(lmax)
             l4_entries = [t for t in idx if max(t) == 4]
-            assert len(l4_entries) == 10, f'l=4 should have 10 entries, got {len(l4_entries)}'
+            linear_entries = [t for t in l4_entries if not (t[0] == t[1] == 4 and t[2] <= 4)]
+            sc_entries = [t for t in l4_entries if t[0] == t[1] == 4 and t[2] <= 4]
+            assert len(linear_entries) == 10, (
+                f'l=4 linear block should have 10 entries, got {len(linear_entries)}'
+            )
+            assert (4, 4, 2) in sc_entries, f'(4,4,2) missing for lmax={lmax}'
+            assert (4, 4, 4) in sc_entries, f'(4,4,4) missing for lmax={lmax}'
             assert (3, 4, 3) in idx, f'(3,4,3) missing for lmax={lmax}'
 
     def test_no_duplicates(self):
@@ -442,15 +446,30 @@ class TestBuildSelectiveIndexMap:
             assert len(idx) == len(set(idx)), f'duplicates for lmax={lmax}'
 
     def test_budget_respected(self):
-        """No degree should have more than its budget (10 at l=4, 2l+1 otherwise)."""
+        """The linear block at each degree must not exceed its budget.
+
+        Mandatory even self-coupling entries (added for global injectivity) are allowed to exceed
+        the linear budget.
+        """
         for lmax in range(8):
             idx = _build_selective_index_map(lmax)
-            counts = Counter()
-            for l1, l2, l in idx:
-                counts[max(l1, l2, l)] += 1
-            for deg, count in counts.items():
+            for deg in range(lmax + 1):
+                deg_entries = [t for t in idx if max(t) == deg]
+                linear = [t for t in deg_entries if not (t[0] == t[1] == deg and t[2] <= deg)]
                 budget = 10 if deg == 4 else 2 * deg + 1
-                assert count <= budget, f'degree {deg} has {count} entries > budget {budget}'
+                assert len(linear) <= budget, (
+                    f'degree {deg} has {len(linear)} linear entries > budget {budget}'
+                )
+
+    def test_mandatory_self_coupling_present(self):
+        """Even self-coupling entries β(ℓ,ℓ,l) must be present for global injectivity."""
+        for lmax in range(4, 8):
+            idx = _build_selective_index_map(lmax)
+            for ell in range(4, lmax + 1):
+                for l_sc in range(2, ell + 1, 2):
+                    assert (ell, ell, l_sc) in idx, (
+                        f'β({ell},{ell},{l_sc}) missing for lmax={lmax}'
+                    )
 
     def test_linear_blocks_match_proved_family(self):
         for ell in range(4, 11):

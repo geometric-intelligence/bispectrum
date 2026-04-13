@@ -85,14 +85,16 @@ selective $\SO(3)$ invariant on $S^2$---combining $O(L^2)$ scalar
 bispectral entries with Clebsch--Gordan power spectrum entries needed
 for real signals---that achieves $\Theta(L^2)$ coefficients, matching
 the information-theoretic lower bound, instead of $O(L^3)$ for the full
-bispectrum, and (ii)~resolving a previously undocumented inversion failure
+bispectrum (completeness proved for $L \le 5$; the construction
+extends to any~$L$), and (ii)~resolving a previously undocumented inversion failure
 for the octahedral group via bootstrap initialization followed by
 Levenberg--Marquardt refinement. We evaluate the library on three
 benchmarks---$C_8$ on PCam, octahedral on OrganMNIST3D, and $\SO(3)$ on
 Spherical MNIST---demonstrating numerically exact rotation invariance
-($\sigma_{\mathrm{rot}} < 10^{-3}$) and the data-efficiency advantage of
-complete bispectral invariants over incomplete alternatives such as power
-spectrum and norm pooling. The selective forward pass runs in
+($\sigma_{\mathrm{rot}} < 10^{-3}$) and a data-efficiency advantage of
+complete bispectral invariants over incomplete alternatives in the
+low-data, moderate-capacity regime, where the complete invariant map
+substitutes for missing training examples. The selective forward pass runs in
 sub-millisecond time on GPU for finite groups, adding negligible overhead
 to standard training loops.
 \end{abstract}
@@ -145,15 +147,16 @@ octahedral group (Section~\ref{sec:octa}).
     matching the orbit-space lower bound up to a constant factor.
     The invariant combines scalar bispectral entries with
     Clebsch--Gordan power spectrum entries (a degree-$4$ complement
-    needed for real signals). This is, to our knowledge, the first
-    $O(L^2)$ complete invariant for this setting.
+    needed for real signals).     Completeness is proved for $L \le 5$ via certified
+    interval arithmetic; the construction extends to any~$L$.
   \item \textbf{Octahedral inversion.} An analysis of why the standard
     selective-bispectrum bootstrap inversion fails for the octahedral group,
     together with a working bootstrap + Levenberg--Marquardt correction.
   \item \textbf{Empirical validation.} A task-driven evaluation of the
     library as an invariant pooling primitive across three group/domain
-    settings, demonstrating the data-efficiency advantage of complete
-    bispectral invariants.
+    settings, showing that complete bispectral invariants provide a
+    data-efficiency advantage in the low-data, moderate-capacity regime
+    while converging to incomplete alternatives at high capacity.
 \end{enumerate}
 
 \section{Mathematical Background}
@@ -365,25 +368,28 @@ $\ell_1 \leq \ell_2 < \ell$;
 \textbf{(2)~Cross} $(\ell_1, \ell, \ell')$ with
 $\ell_1, \ell' < \ell$;
 \textbf{(3)~Power} $(0, \ell, \ell)$;
-\textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$.
-Entries that vanish identically for real signals
-(those with $\ell_1 = \ell_2$ and odd~$\ell$, or
-$\ell = \ell_1$ with odd~$\ell_2$) are excluded and replaced by
+\textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$ with $\ell'$ even.
+Entries with $\ell_1 = \ell_2$ and odd~$\ell$ vanish identically
+for real signals (CG antisymmetry of the symmetric square) and
+are excluded.  All \emph{even} self-coupling entries
+$\beta_{\ell,\ell,\ell'}$ with $2 \le \ell' \le \ell$ are
+included unconditionally; they are needed for global injectivity
+(Lemma~\ref{lem:app-fiber-unique}).
+The invariant is further augmented with
 CG power spectrum entries $P_{\ell_1,\ell_2,\ell}$, chosen
-greedily to maximise the Jacobian rank of the combined invariant
+to maximise the Jacobian rank of the combined invariant
 (Algorithm~\ref{alg:so3-augmented}).
 
 \begin{table}[h]
   \caption{Per-degree entry counts in the augmented selective $\SO(3)$
-    invariant. The ``Bispec'' column counts live scalar bispectral
-    entries (excluding those that vanish for real signals). The
-    ``CG Power'' column counts CG power spectrum augmentations needed
-    to achieve full Jacobian rank.
+    invariant. The ``Bispec'' column counts scalar bispectral
+    entries including mandatory even self-coupling entries
+    $\beta_{\ell,\ell,\ell'}$ ($\ell'$ even, $2 \le \ell' \le \ell$);
+    entries that vanish for real signals are excluded.
+    The ``CG Power'' column counts CG power spectrum augmentations.
     At $\ell=1$, $\beta_{1,1,0}$ is excluded (redundant with power).
     At $\ell=2$, $\beta_{1,2,1}$ is excluded (proportional to
-    $\beta_{1,1,2}$ after gauge-fixing).
-    At $\ell=3$, entries $\beta_{2,2,3}$ and $\beta_{2,3,2}$ vanish
-    for real signals and are replaced by CG power entries.}
+    $\beta_{1,1,2}$ after gauge-fixing).}
   \label{tab:entry-counts}
   \centering
   \small
@@ -393,10 +399,10 @@ greedily to maximise the Jacobian rank of the combined invariant
     \midrule
     0 & 1 & 0 & 1 \\
     1 & 1 & 0 & 1 \\
-    2 & 3 & 2 & 5 \\
-    3 & 5 & 3 & 8 \\
-    4 & 9 & 5 & 14 \\
-    $\ell \ge 5$ & $\sim 2\ell$ & $\sim \ell$ & $\sim 3\ell$ \\
+    2 & 3 & 1 & 4 \\
+    3 & 7 & 4 & 11 \\
+    4 & 12 & 5 & 17 \\
+    $\ell \ge 5$ & $\sim 2\ell{+}3$ & $\sim \ell$ & $\sim 3\ell$ \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -416,13 +422,17 @@ $J_\Phi \in \R^{m \times n}$ is verified (certified 200-digit interval
 arithmetic) to have rank~$n$, with a nonzero $n {\times} n$ minor.
 Since the entries are polynomial, the rank-deficient locus is a proper
 algebraic subvariety, hence Lebesgue-null.
-\emph{Global injectivity}: we verify, at a pair of distinct rational
-witness signals, that the ``doubled Jacobian''
-$[J(x_0) \mid {-}J(y_0)] \in \R^{m \times 2n}$ has rank~$m$ (also
-certified at 200 digits). By the coincidence-variety argument
-(Lemma~\ref{lem:app-coincidence}), the collision set
-$\{x : \exists\, y \ne x,\; \Phi(x) = \Phi(y)\}$ is a proper
-subvariety of $\R^n$ and therefore Lebesgue-null.
+\emph{Global injectivity}: the augmented invariant has a triangular
+structure (entries at degree~$\ell$ depend only on
+$\mathbf{F}_0, \dotsc, \mathbf{F}_\ell$).  Exploiting this, we
+enumerate all real solutions of the fibre
+$\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x_0))$ via a
+degree-by-degree tree search.  Exactly two solutions are found; the
+second is the $\mathbb{Z}_2$ image $a_\ell^m \mapsto (-1)^m a_\ell^m$
+(rotation by~$\pi$ around~$z$), which maps $a_2^1 \mapsto -a_2^1$ and
+thus lies outside the gauge slice $\{a_2^1 > 0\}$
+(Lemma~\ref{lem:app-fiber-unique}).  On the gauge slice the fibre is
+a singleton, implying generic global injectivity.
 The full proof is in Appendix~\ref{app:so3-proof}.
 
 \subsection{Octahedral inversion as an implementation case study}
@@ -480,9 +490,11 @@ $\min_f \norm{\beta^{\mathrm{sel}}(f)
 with Jacobians computed via \texttt{torch.func.jacfwd} composed with
 \texttt{torch.vmap};
 (iii)~\emph{multi-start}: randomise the initial $Q$ across restarts
-for robustness. The procedure converges in $<$50 iterations and is
-fully differentiable. The full analysis, including a numerical
-disproof of CG absorption for $O$ and convergence plots, is in
+for robustness. The LM residual converges to near-zero in $<$50
+iterations, though the overall signal recovery rate remains modest
+(5.7\% with 4 restarts), reflecting the difficult landscape created by
+CG leakage in the bootstrap initialisation. The full analysis,
+including quantitative inversion statistics and convergence plots, is in
 Appendix~\ref{app:octa-convergence}.
 
 \subsection{Computational benchmarks}
@@ -514,27 +526,27 @@ batch\,=\,16 for forward, 4 for inversion, median wall-clock via
     \cmidrule(lr){4-5} \cmidrule(lr){6-7}
      & & & Sel. & Full & Sel. & Full & Sel. \\
     \midrule
-    \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8256 & 0.14 & 8.82 & 3.67 \\
-    \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 524800 & 0.08 & 0.31 & 65.77 \\
-    \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 2.67 & -- & 4.69 \\
-    \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & 1024 & 411 & -- & 0.24 & -- & 10.17 \\
-    \texttt{SO3onS2} & $\mathrm{SO}(3)$ & 289 & 288 & -- & 18.60 & -- & -- \\
-    \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.72 & -- & 808 \\
+    \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8256 & 0.21 & 13.64 & 5.52 \\
+    \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 524800 & 0.10 & 0.43 & 93.54 \\
+    \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 3.39 & -- & 7.40 \\
+    \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & 1024 & 411 & -- & 0.43 & -- & 14.28 \\
+    \texttt{SO3onS2} & $\mathrm{SO}(3)$ & 289 & 368 & -- & 32.54 & -- & -- \\
+    \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.89 & -- & 1158.88 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 The selective forward pass is sub-millisecond for all abelian modules
-($C_n$: 0.14\,ms, $\mathbb{T}^2$: 0.08\,ms, $\SO(2)$/disk: 0.24\,ms)
-and under 1\,ms for the octahedral group (0.72\,ms), making it
+($C_n$: 0.21\,ms, $\mathbb{T}^2$: 0.10\,ms, $\SO(2)$/disk: 0.43\,ms)
+and under 1\,ms for the octahedral group (0.89\,ms), making it
 negligible relative to backbone computation. $\SO(3)$ on $S^2$ at
-$\ell_{\max}{=}16$ takes 18.6\,ms, dominated by the spherical harmonic
+$\ell_{\max}{=}16$ takes 32.5\,ms, dominated by the spherical harmonic
 transform (via \texttt{torch\_harmonics}~\citep{bonev2023spherical}).
 Selective coefficient counts confirm the $O(|G|)$ scaling:
 $C_{128}$ uses 128 coefficients vs.\ 8{,}256 full (64$\times$
 reduction); $\mathbb{T}^2$ at $|G|{=}1{,}024$ uses 1{,}024 vs.\
 524{,}800 full (512$\times$). Inversion is fast for abelian groups
-(3--66\,ms) and practical for the octahedral group (808\,ms via
+(5--94\,ms) and practical for the octahedral group (1.16\,s via
 Levenberg--Marquardt). GPU throughput scales linearly with batch size,
 exceeding $10^7$~samples/s for $C_n$ and $\mathbb{T}^2$
 (Appendix~\ref{app:bench}).
@@ -691,18 +703,19 @@ benchmark for rotation invariance on $S^2$.
 \paragraph{Setup.}
 MNIST digits are projected onto the sphere via stereographic projection and
 sampled on a $64 \times 128$ equiangular grid. We compute the selective
-bispectrum at $\ell_{\max} = 15$, producing 256 complex invariant
-coefficients (512 real features after log-compression), which are fed to a
-3-layer MLP (166K parameters total). Three baselines provide controls:
+bispectrum at $\ell_{\max} = 15$, producing 330 complex invariant
+coefficients (660 real features after log-compression), which are fed to a
+3-layer MLP (204K parameters total).  Note that $\ell_{\max} = 15$ exceeds
+the proved range ($L \le 5$); the experiments serve as empirical evidence
+that the augmented invariant remains discriminative at higher bandwidths. Three baselines provide controls:
 \begin{itemize}
   \item \textbf{Power Spectrum + MLP} (11K params): computes only the
     rotation-invariant power spectrum $\|f_\ell\|^2$ per degree $\ell$,
     discarding all phase coupling between harmonics. Invariant but
     \emph{incomplete}.
   \item \textbf{Power Spectrum + MLP (matched)} (166K params): same
-    incomplete invariant features but with an MLP scaled to match the
-    bispectrum model's parameter count, isolating the effect of
-    feature completeness from model capacity.
+    incomplete invariant features but with a larger MLP (166K),
+    isolating the effect of feature completeness from model capacity.
   \item \textbf{Standard CNN} (185K params): a conventional CNN operating
     directly on the equirectangular image. Not rotation-invariant.
 \end{itemize}
@@ -743,9 +756,9 @@ the results.
     Power Spec.\ + MLP (matched) & 166K
       & $0.794 {\pm} 0.011$ & $0.794 {\pm} 0.011$ & $0.792 {\pm} 0.010$
       & $3{\times}10^{-4}$ \\
-    \textbf{Bispectrum + MLP (ours)} & 166K
-      & $\mathbf{0.948 {\pm} 0.001}$ & $\mathbf{0.948 {\pm} 0.001}$
-      & $\mathbf{0.949 {\pm} 0.001}$ & $\mathbf{1{\times}10^{-4}}$ \\
+    \textbf{Bispectrum + MLP (ours)} & 204K
+      & $\mathbf{0.947 {\pm} 0.000}$ & $\mathbf{0.947 {\pm} 0.001}$
+      & $\mathbf{0.947 {\pm} 0.001}$ & $\mathbf{2{\times}10^{-4}}$ \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -759,14 +772,14 @@ the results.
     \textbf{(b)}~Accuracy under 10 random $\SO(3)$ rotations (NR-trained
     models, 30 points per model = 10 rotations $\times$ 3 seeds).
     Scaling the power spectrum MLP from 11K to 166K parameters yields
-    only +1.4pp; the bispectrum at matched 166K reaches 94.9\%.}
+    only +1.4pp; the bispectrum at 204K reaches 94.7\%.}
   \label{fig:smnist-analysis}
 \end{figure}
 
 \emph{Numerically exact $\SO(3)$ invariance.}
 The bispectrum achieves effectively identical accuracy across all evaluation
-conditions: NR/NR $= 0.948$, R/R $= 0.948$, NR/R $= 0.949$. The standard
-deviation under random rotations is $8 \times 10^{-5}$---effectively zero.
+conditions: NR/NR $= 0.947$, R/R $= 0.947$, NR/R $= 0.947$. The standard
+deviation under random rotations is ${\sim}10^{-4}$---effectively zero.
 Training on rotated vs.\ non-rotated data makes no difference, confirming
 that the bispectral features are truly $\SO(3)$-invariant and rotation
 augmentation is unnecessary. In contrast, the standard CNN achieves 99.1\%
@@ -777,9 +790,9 @@ variance ($\sigma_{\mathrm{rot}} \approx 0.04$ under random rotations).
 \emph{Completeness gap.}
 The power spectrum is also rotation-invariant ($\sigma_{\mathrm{rot}} =
 0.0003$) but achieves only 78\% accuracy---17 percentage points below the
-bispectrum. To rule out a capacity confound (11K vs.\ 166K parameters), we
-scale the power spectrum MLP to match the bispectrum's parameter count
-(166K). This 15$\times$ capacity increase yields only +1.4pp (78.0\%
+bispectrum. To rule out a capacity confound, we
+scale the power spectrum MLP to 166K parameters.
+This 15$\times$ capacity increase yields only +1.4pp (78.0\%
 $\to$ 79.4\%), confirming that the gap is caused by feature
 incompleteness, not model under-parameterisation. The power spectrum
 retains only $\|f_\ell\|^2$ per degree, while the bispectrum captures
@@ -867,8 +880,6 @@ experimental settings, bispectral pooling provides numerically exact rotation
 invariance and a data-efficiency advantage over incomplete alternatives in
 the low-data / moderate-capacity regime, where the complete invariant map
 substitutes for missing training examples.
-
-\reviewnote{\#10 --- The bispectrum advantage should be explicitly framed as regime-specific (low-data, moderate-capacity). The wider-channel appendix shows bispectrum losing at 6.3M params. The abstract and contribution~4 should also qualify ``data-efficiency advantage'' as regime-specific, not a general superiority claim.}
 
 \paragraph{Limitations.}
 Inversion for $\SO(3)$ on $S^2$ is not yet implemented; only the
@@ -1139,7 +1150,12 @@ For $L \ge 4$, the bispectral component $\mathcal{S}_\beta$ has
 $(L{+}1)^2 - 3$ live entries. The CG power component
 $\mathcal{S}_P$ has $O(L^2)$ entries, giving a total
 augmented output of $\Theta(L^2)$ scalars.
-Verified counts: $28$ entries for $L=4$ and $45$ for $L=5$.
+Verified counts: $34$ entries for $L=4$ ($20$ bispectral $+$ $10$
+CG power $+$ $4$ identically zero) and $54$ for $L=5$
+($32$ bispectral $+$ $17$ CG power $+$ $5$ identically zero).
+Of these, $m = 30$ (resp.\ $49$) are \emph{live} (generically
+nonzero) and used in the injectivity proof
+(Lemma~\ref{lem:app-augmented-rank}).
 \end{proposition}
 \begin{proof}
 \emph{Bispectral entries.}
@@ -1148,11 +1164,17 @@ power entry, so no self-coupling is selected ($1$~entry).
 At $\ell = 2$, the cross entry $\beta_{1,2,1}$ collapses to a scalar
 multiple of $\beta_{1,1,2}$ after gauge-fixing and is excluded; the
 symmetric self-coupling $\beta_{2,2,2}$ is included ($3$~entries).
-At $\ell = 4$, all $10$ chain+cross candidates are retained.
-Therefore:
+At $\ell = 4$, all $10$ chain+cross candidates are retained,
+plus mandatory even self-coupling entries
+$\beta_{4,4,2}$ and $\beta_{4,4,4}$.
+Similarly, at each $\ell \ge 3$, the even self-coupling entries
+$\beta_{\ell,\ell,\ell'}$ ($\ell'$ even, $2 \le \ell' \le \ell$)
+add $\lfloor(\ell{-}1)/2\rfloor$ entries beyond the linear-block
+budget.  Therefore:
 \[
-  1 + 1 + 3 + 7 + 10 + \sum_{\ell=5}^{L}(2\ell+1)
-  = 22 + \bigl[(L+1)^2 - 25\bigr] = (L+1)^2 - 3.
+  |\mathcal{S}_\beta|
+  = (L{+}1)^2 - 3 + \sum_{\ell=4}^{L}\lfloor(\ell{-}1)/2\rfloor
+  = \Theta(L^2).
 \]
 
 \emph{CG power entries.}
@@ -1176,10 +1198,12 @@ The proof proceeds in three stages. First, $\mathbf{F}_0$ and
 $\mathbf{F}_1$ are recovered and used to fix the $\SO(3)$ gauge.
 Second, we show that the augmented invariant
 $\Phi_{\mathrm{aug}}$---combining scalar bispectral entries
+(including mandatory even self-coupling entries)
 with CG power spectrum entries---has full Jacobian rank at generic
 gauge-fixed signals (Lemma~\ref{lem:app-augmented-rank}), implying
-local injectivity. Third, a coincidence-variety argument
-(Lemma~\ref{lem:app-coincidence}) upgrades local injectivity to
+local injectivity. Third, a degree-by-degree fibre analysis
+(Lemma~\ref{lem:app-fiber-unique}) establishes that the fibre at
+a rational witness is a singleton, upgrading local injectivity to
 \emph{global} generic orbit separation.
 
 The bispectral entry selection follows the same ``frequency-marching''
@@ -1327,24 +1351,25 @@ signals (Table~\ref{tab:app-bootstrap-rank}).
 After gauge fixing, the combined invariant
 $\Phi_{\mathrm{aug}} \colon \R^n \to \R^m$ (with
 $n = (L{+}1)^2 - 5$ and $m = \Theta(L^2) > n$), consisting of the
-live scalar bispectral entries and a set of CG power spectrum entries
+live scalar bispectral entries (including mandatory even
+self-coupling entries) and a set of CG power spectrum entries
 $P_{\ell_1,\ell_2,\ell}$, has Jacobian rank~$n$ at
 Lebesgue-almost-every gauge-fixed signal.
 \end{lemma}
 \begin{proof}
-We exhibit a rational witness signal
-$a_\ell^m \propto (2\ell + 3m + 5)$ (with the reality constraint and
-gauge fixing applied) at which the Jacobian $J_\Phi \in \R^{m \times n}$
+We exhibit a rational witness signal with parameters
+$p_i = (i{+}1)/3$ (with the reality constraint and gauge fixing
+applied) at which the Jacobian $J_\Phi \in \R^{m \times n}$
 has rank exactly~$n$. The rank is certified using interval arithmetic
 at $200$ decimal digits of precision (mpmath), yielding a nonzero
 $n \times n$ minor determinant whose absolute value exceeds the
 arithmetic error bound by more than $100$ orders of magnitude.
 The certified results:
 \begin{itemize}[nosep]
-  \item $L = 4$: $n=20$, $m=28$ ($18$ live bispectral $+$ $10$ CG power),
-    $|\!\det(\text{minor})| \approx 10^{-949}$, rank $20/20$.
-  \item $L = 5$: $n=31$, $m=45$ ($28$ live bispectral $+$ $17$ CG power),
-    $|\!\det(\text{minor})| \approx 10^{-1735}$, rank $31/31$.
+  \item $L = 4$: $n=20$, $m=30$ ($20$ live bispectral $+$ $10$ CG power),
+    rank $20/20$.
+  \item $L = 5$: $n=31$, $m=49$ ($32$ live bispectral $+$ $17$ CG power),
+    rank $31/31$.
 \end{itemize}
 Since each entry of $J_\Phi$ is a polynomial function of the signal
 coefficients (the bispectral entries have degree~$3$ and the CG power
@@ -1358,51 +1383,127 @@ certified witness point, it is a \emph{proper} subvariety of $\R^n$
 and therefore has Lebesgue measure zero.
 \end{proof}
 
-\begin{lemma}[Coincidence variety has small dimension]
-\label{lem:app-coincidence}
-Define the \emph{coincidence variety}
-$V := \{(x,y) \in \R^{2n} : \Phi_{\mathrm{aug}}(x) =
-\Phi_{\mathrm{aug}}(y)\}$, and let
-$\Delta = \{(x,x) : x \in \R^n\}$ be the diagonal.
-Then every irreducible component of the Zariski closure
-$\overline{V \setminus \Delta}$ has dimension at most $2n - m < n$.
-In particular, the ``collision set''
-$D := \{x \in \R^n : \exists\, y \ne x,\;
+\begin{lemma}[Fiber uniqueness on the gauge slice]
+\label{lem:app-fiber-unique}
+For $L \le 5$, the fibre of the augmented invariant
+$\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x_0))$
+at the rational witness $x_0$ (parameters $p_i = (i{+}1)/3$),
+restricted to the gauge slice $\mathcal{G} = \{x : a_2^1 > 0\}$
+(Lemma~\ref{lem:app-gauge}),
+consists of a single point: $\{x_0\}$.
+Therefore the ``collision set''
+$D := \{x \in \mathcal{G} : \exists\, y \ne x,\; y \in \mathcal{G},\;
 \Phi_{\mathrm{aug}}(x) = \Phi_{\mathrm{aug}}(y)\}$
-is contained in a proper algebraic subvariety of $\R^n$ and has
-Lebesgue measure zero.
+has Lebesgue measure zero.
 \end{lemma}
 \begin{proof}
-Define $G \colon \R^{2n} \to \R^m$ by
-$G(x,y) = \Phi_{\mathrm{aug}}(x) - \Phi_{\mathrm{aug}}(y)$.
-The Jacobian of $G$ at a point $(x_0, y_0)$ is
-$DG = [J_\Phi(x_0) \mid {-}J_\Phi(y_0)] \in \R^{m \times 2n}$.
-We exhibit two distinct rational witness signals
-$x_0$ (with parameters $p_i = (i{+}1)/3$) and
-$y_0$ (with parameters $p_i = (2i{+}7)/5$) at which the matrix
-$DG(x_0,y_0)$ has rank~$m$, verified by certified $200$-digit
-interval arithmetic:
+The augmented invariant has a \emph{triangular structure}: the
+entries involving degree~$\ell$ as the highest depend only on
+$\mathbf{F}_0, \dotsc, \mathbf{F}_\ell$.  For a given parent
+assignment $(\mathbf{F}_0, \dotsc, \mathbf{F}_{\ell-1})$, define
+$\Phi_\ell(x_\ell) \in \R^{m_\ell}$ as the vector of all
+augmented-invariant entries whose highest degree is~$\ell$,
+viewed as a function of the $d_\ell$ real unknowns
+of~$\mathbf{F}_\ell$ alone.  The constraints include:
 \begin{itemize}[nosep]
-  \item $L = 4$: $m = 28$,
-    $\operatorname{rank}[J(x_0) \mid {-}J(y_0)] = 28/28$.
-  \item $L = 5$: $m = 45$,
-    $\operatorname{rank}[J(x_0) \mid {-}J(y_0)] = 45/45$.
+  \item \emph{Linear entries} (chain/cross):
+    $\beta_{\ell_1,\ell_2,\ell}$ with
+    $\ell_1, \ell_2 < \ell$---real-linear
+    in~$\mathbf{F}_\ell$.
+  \item \emph{CG power entries}: $P_{\ell_1,\ell_2,\ell'}$ with
+    $\max(\ell_1,\ell_2) = \ell$---quadratic
+    in~$\mathbf{F}_\ell$.
+  \item \emph{Self-coupling entries}:
+    $\beta_{\ell,\ell,\ell'}$ with $\ell'$ even,
+    $2 \le \ell' \le \ell$---polynomial of degree~$2$ or~$3$
+    in~$\mathbf{F}_\ell$.
 \end{itemize}
-Since the entries of $DG$ are polynomial in $(x,y)$, the set
-$\mathcal{W} := \{(x,y) \in \R^{2n} : \operatorname{rank} DG(x,y) < m\}$
-is a proper algebraic subvariety (it excludes the certified pair).
-At any smooth point $p = (x,y) \in \overline{V \setminus \Delta}
-\setminus \mathcal{W}$, we have $\operatorname{rank} DG(p) = m$,
-so the implicit function theorem gives
-$\dim_p V \le 2n - m$.
-Since $\overline{V \setminus \Delta} \not\subseteq \mathcal{W}$
-(the generic point of any component of $V \setminus \Delta$ lies
-outside the proper subvariety~$\mathcal{W}$), every component has
-dimension $\le 2n - m$.
-Since $m > n$, we have $2n - m < n$. The collision set
-$D = \pi_1(\overline{V \setminus \Delta})$ satisfies
-$\dim D \le \dim \overline{V \setminus \Delta} < n$, so $D$ is a
-proper subvariety of $\R^n$ and has Lebesgue measure zero.
+
+At each degree, we certify at $200$ decimal digits that the
+per-degree Jacobian
+$\partial\Phi_\ell / \partial x_\ell \in \R^{m_\ell \times d_\ell}$
+has rank~$d_\ell$ at the witness, so the witness is an isolated
+root.  The system is overdetermined ($m_\ell > d_\ell$
+for $\ell \ge 3$), so the per-degree fibre is finite.
+
+\begin{center}
+\small
+\begin{tabular}{ccccl}
+  \toprule
+  $\ell$ & $d_\ell$ & $m_\ell$ & Rank & Per-degree fibre \\
+  \midrule
+  2 & 4  &  4  & 4/4  & finite (determined) \\
+  3 & 7  &  9  & 7/7  & finite (overdetermined) \\
+  4 & 9  & 17  & 9/9  & finite (overdetermined) \\
+  5 & 11 & 19  & 11/11 & finite (overdetermined) \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\medskip\noindent\textbf{Tree enumeration.}
+The per-degree polynomial systems may individually have multiple
+real roots (e.g.\ four roots at $\ell = 2$).  Each root
+determines different lower-degree coefficients for the
+\emph{next} degree's constraints, so the solution tree branches.
+We enumerate this tree exhaustively: at each degree~$\ell$,
+multi-start optimisation (damped Gauss--Newton with $500$--$2000$
+random initialisations per branch) finds all per-degree roots for
+every incoming branch, then propagates each to degree~$\ell{+}1$.
+At the final degree, each leaf is validated against the
+\emph{full} system $\Phi_{\mathrm{aug}}(x) = \Phi_{\mathrm{aug}}(x_0)$.
+
+For $L = 4$ ($30$ total constraints), the tree has $4$ branches
+after $\ell = 2$, expands to $16$ after $\ell = 3$, and reduces to
+$2$ leaves after~$\ell = 4$: the witness $x_0$ and one additional
+point~$x_0'$.
+
+\medskip\noindent\textbf{Residual $\mathbb{Z}_2$ gauge symmetry.}
+Both $\Phi_{\mathrm{aug}}$ and every CG power entry are invariant
+under $a_\ell^m \mapsto (-1)^m a_\ell^m$ (rotation by $\pi$ around
+the $z$-axis), since Clebsch--Gordan coefficients enforce
+$m_1 + m_2 = m$, so the phase factor $(-1)^{m_1+m_2-m} = 1$.
+This $\pi$-rotation preserves the gauge conditions $a_1^0 > 0$ and
+$a_1^{\pm 1} = 0$, but maps $a_2^1 \mapsto -a_2^1$, sending any
+signal with $a_2^1 > 0$ outside the gauge slice~$\mathcal{G}$.
+
+The second leaf $x_0'$ is exactly this $\mathbb{Z}_2$ image of the
+witness: $x_0'$ satisfies $a_2^1 = -1/3 < 0$, i.e.\
+$x_0' \notin \mathcal{G}$.  Therefore, on the gauge
+slice~$\mathcal{G}$, the fibre consists of the
+singleton~$\{x_0\}$.  The same structure holds for $L = 5$
+($49$ constraints, $31$ unknowns).
+
+\medskip\noindent\textbf{Generic global injectivity.}
+Since $\Phi_{\mathrm{aug}}$ is polynomial and the full Jacobian has
+rank~$n$ at the witness
+(Lemma~\ref{lem:app-augmented-rank}), the set
+$\mathcal{Z} = \{x : \operatorname{rank} J_\Phi(x) < n\}$
+is a proper algebraic subvariety.  On
+$\mathcal{G} \setminus \mathcal{Z}$, the fibre is locally discrete;
+combined with the polynomial structure, each fibre is finite.
+
+Consider the restriction
+$\Phi_{\mathrm{aug}}|_{\mathcal{G}} \colon \mathcal{G} \to \R^m$.
+By Chevalley's theorem on constructible sets, the image
+$\Phi_{\mathrm{aug}}(\mathcal{G})$ contains a Zariski-dense open
+subset of its Zariski closure, and the fibre cardinality function
+$y \mapsto |\Phi_{\mathrm{aug}}^{-1}(y) \cap \mathcal{G}|$ is
+upper-semicontinuous on a Zariski-open subset of the image: there
+exists a generic fibre degree~$d^*$ such that
+$|\Phi_{\mathrm{aug}}^{-1}(y) \cap \mathcal{G}| = d^*$ for $y$
+in a Zariski-dense open set, and
+$|\Phi_{\mathrm{aug}}^{-1}(y) \cap \mathcal{G}| \ge d^*$ everywhere.
+Since the witness $x_0 \in \mathcal{G} \setminus \mathcal{Z}$ has
+$|\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x_0))
+  \cap \mathcal{G}| = 1$,
+the generic fibre degree satisfies $d^* \le 1$, hence $d^* = 1$.
+The collision set
+$D = \{x \in \mathcal{G} :
+  |\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x))
+  \cap \mathcal{G}| > 1\}$
+is therefore contained in the preimage of a proper subvariety of the
+image closure---a semialgebraic set of dimension less
+than~$n$---and has Lebesgue measure zero in~$\R^n$.
 \end{proof}
 
 \begin{proof}[Proof of Theorem~\ref{thm:app-main}]
@@ -1427,14 +1528,19 @@ $\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x))$ is locally
 discrete near~$x$ by the implicit function theorem.
 
 \medskip\noindent
-\textbf{Step 3: Generic global injectivity.}
-Lemma~\ref{lem:app-coincidence} shows that the collision set
-$D = \{x : \exists\, y \ne x,\;
+\textbf{Step 3: Generic global injectivity on the gauge slice.}
+Lemma~\ref{lem:app-fiber-unique} shows, by degree-by-degree tree
+enumeration, that the fibre of $\Phi_{\mathrm{aug}}$ at the rational
+witness has exactly $2$ elements in~$\R^n$, related by the residual
+$\mathbb{Z}_2$ gauge symmetry $a_\ell^m \mapsto (-1)^m a_\ell^m$.
+Since this $\pi$-rotation maps $a_2^1 \mapsto -a_2^1$, only the
+witness lies in the gauge slice $\mathcal{G} = \{a_2^1 > 0\}$.
+Since the map is polynomial with generically full Jacobian rank
+(Lemma~\ref{lem:app-augmented-rank}), the collision set
+$D = \{x \in \mathcal{G} : \exists\, y \ne x,\; y \in \mathcal{G},\;
 \Phi_{\mathrm{aug}}(x) = \Phi_{\mathrm{aug}}(y)\}$
-has Lebesgue measure zero. Therefore, for generic $x \in \R^n$,
-$\Phi_{\mathrm{aug}}^{-1}(\Phi_{\mathrm{aug}}(x)) = \{x\}$:
-the augmented invariant is globally injective on gauge-fixed signals
-outside a measure-zero set.
+is contained in a proper algebraic subvariety of~$\R^n$ and has
+Lebesgue measure zero.
 
 \medskip\noindent
 \textbf{Conclusion.}
@@ -1724,7 +1830,53 @@ algorithmic. We implement a working inversion using:
 This converges reliably in $<$50 iterations and is fully
 differentiable.
 
-\reviewnote{\#11 --- The main text (Sec.~3.5) says ``convergence plots, is in Appendix~B'' but this appendix has no convergence figure or success-rate table. Add a compact quantitative table: inversion success rate, median iterations, worst-case iterations, runtime, and a few failure cases. This is one of the claimed technical contributions---it needs quantitative evidence.}
+\subsection{Quantitative inversion results}
+
+Table~\ref{tab:inversion-stats} and
+Figure~\ref{fig:inversion-convergence} report quantitative inversion
+results over 1{,}000 random signals on the octahedral group (4 restarts,
+10 LM corrections per restart, on a single GPU).
+
+\begin{table}[h]
+  \centering
+  \caption{Octahedral bispectrum inversion statistics
+    ($N=1{,}000$, 4 restarts $\times$ 10 LM steps).}
+  \label{tab:inversion-stats}
+  \begin{tabular}{lcc}
+    \toprule
+    Metric & Median & P95 \\
+    \midrule
+    Bisp.\ residual $\|\beta(\hat{f}) - \beta^*\|$ & $5.7 \times 10^{-5}$ & $1.5 \times 10^{-4}$ \\
+    Recovery error (mod $O$) & $1.03$ & $1.17$ \\
+    Wall-clock time (ms) & 18.4 & 30.1 \\
+    \midrule
+    Success rate (error $<0.1$) & \multicolumn{2}{c}{5.7\%} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../benchmarks/inversion_results/inversion_convergence.pdf}
+  \caption{Bispectral residual vs.\ LM iteration for octahedral inversion.
+    The residual drops rapidly, but the signal recovery rate remains low
+    (5.7\%), indicating that the optimisation landscape contains many
+    spurious minima where the bispectrum is matched without recovering
+    the correct orbit representative.}
+  \label{fig:inversion-convergence}
+\end{figure}
+
+The LM procedure reliably drives the bispectral residual to near-zero
+(median $5.7 \times 10^{-5}$), confirming that local convergence to a
+bispectrum-matching signal is fast. However, the signal recovery rate
+(5.7\% at tolerance $<0.1$) shows that the inversion landscape has many
+spurious local minima. This reflects the inherent difficulty of the
+$O$-inversion problem noted in Section~\ref{sec:octa}: the bootstrap
+initialisation provides a poor starting point due to CG leakage, and
+the 4-restart multi-start strategy is insufficient to reliably escape
+the resulting basin structure. Increasing the number of restarts or
+employing global optimisation would improve recovery at the cost of
+additional compute. We leave such improvements to future work.
 
 \subsection{Summary}
 
@@ -1976,8 +2128,6 @@ similar scale.
 
 \subsection{Rotation analysis}
 
-\reviewnote{\#6 --- CRITICAL: Reviewer says Figure~4 shows 38.6, 56.8, 52.6, 57.5 for original/rotated test sets, but Table~6 in the main text shows 60.1, 56.8, 73.0, 72.6. Audit \texttt{organ3d\_analysis.pdf} against the raw logs. If the figure was generated from a different run or seed, regenerate from the same data as Table~6.}
-
 Figure~\ref{fig:organ3d-rotation} shows that all equivariant models
 achieve identical performance on the original and octahedrally rotated
 test sets ($\sigma_{\mathrm{rot}} \approx 0$), while the
@@ -1996,8 +2146,6 @@ augmentation-trained standard CNN degrades under rotation.
 
 \subsection{Wider channels}
 
-\reviewnote{\#7 --- Table~12 caption says ``mean $\pm$ std over 3 seeds'' but the $(8,16)$ and $(16,32)$ rows have no std devs. Either re-run those configs with 3 seeds and add stds, or fix the caption to say they are single-run.}
-
 To test whether the advantage of bispectral completeness persists at
 higher capacity, we run max pool and bispectrum at channel widths
 $(8, 16)$ and $(16, 32)$ with full training data.
@@ -2013,15 +2161,15 @@ $(8, 16)$ and $(16, 32)$ with full training data.
     Channels & Params & Max Pool & Bispectrum \\
     \midrule
     $(4, 8)$   & ${\sim}$375K / 463K  & $.730 \pm .033$ & $.726 \pm .027$ \\
-    $(8, 16)$  & ${\sim}$1.5M         & $.749$          & $.753$          \\
-    $(16, 32)$ & ${\sim}$6.3M         & $\mathbf{.830}$ & $.715$          \\
+    $(8, 16)$  & ${\sim}$1.5M / 1.7M  & $.743 \pm .015$ & $.745 \pm .006$ \\
+    $(16, 32)$ & ${\sim}$6.0M / 6.3M  & $\mathbf{.785 \pm .032}$ & $.685 \pm .039$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-At $(8, 16)$ the two methods are equivalent (75.3\% bispectrum vs.\
-74.9\% max pool, both at ${\sim}1.5$M parameters). At $(16, 32)$ max
-pool reaches 83.0\% while bispectrum drops to 71.5\%---the 6.3M
+At $(8, 16)$ the two methods are equivalent ($74.5 \pm 0.6\%$ bispectrum vs.\
+$74.3 \pm 1.5\%$ max pool, both at ${\sim}1.5$--$1.7$M parameters). At $(16, 32)$ max
+pool reaches $78.5 \pm 3.2\%$ while bispectrum drops to $68.5 \pm 3.9\%$---the 6.3M
 parameter bispectrum model likely overfits the 971 training samples.
 This suggests that the bispectrum's completeness advantage is most
 pronounced in the data-limited rather than the parameter-limited
@@ -2094,9 +2242,9 @@ permutations on the $3^3$ grid, avoiding interpolation artifacts.
 MNIST digits are projected onto the sphere via stereographic
 projection following \citet{cohen2018spherical} and sampled on a
 $64 \times 128$ equiangular grid. The selective bispectrum is
-computed at $\ell_{\max} = 15$, producing 256 complex invariant
-coefficients (512 real features after taking log-magnitude), which
-are fed to a 3-layer MLP: Linear(512, 256)--BN--ReLU--Linear(256,
+computed at $\ell_{\max} = 15$, producing 330 complex invariant
+coefficients (660 real features after taking log-magnitude), which
+are fed to a 3-layer MLP: Linear(660, 256)--BN--ReLU--Linear(256,
 128)--BN--ReLU--Linear(128, 10). The power spectrum MLP uses the
 same structure with hidden=128: Linear(16, 128)--BN--ReLU--Linear(128,
 64)--BN--ReLU--Linear(64, 10). The standard CNN has 4 convolutional

@@ -103,6 +103,8 @@ def load_results(
     for p in sorted(results_path.glob('*/results.json')):
         with open(p) as f:
             r = json.load(f)
+        if r.get('train_fraction', 1.0) != 1.0:
+            continue
         grouped[(r['model'], r['train_mode'])].append(r)
 
     if matched_dir:

@@ -171,8 +171,13 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
     overdetermined and providing a compatibility constraint that
     resolves the seed ambiguity.
 
-    The bispectral output has ``(lmax + 1)² - 3`` entries. The total
-    augmented output (bispectral + CG power) is ``Θ(L²)``; see
+    After the budget-limited selection, **all even self-coupling entries**
+    ``(l_target, l_target, l)`` with ``l`` even, ``2 ≤ l ≤ l_target``,
+    are appended unconditionally (they are needed for global injectivity,
+    as shown by computational fiber analysis at ``L = 4``).  This adds
+    ``O(L)`` entries per degree, preserving the ``Θ(L²)`` total.
+
+    The total augmented output (bispectral + CG power) is ``Θ(L²)``; see
     ``_build_cg_power_index_map`` for the CG power complement.
     """
     index_map: list[tuple[int, int, int]] = []
@@ -253,6 +258,16 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
                 selected.append(entry)
                 if len(selected) == budget:
                     break
+
+        # Mandatory even self-coupling entries β(ℓ,ℓ,l) for global
+        # injectivity.  Odd-l entries vanish by the exchange symmetry
+        # of F_ℓ ⊗ F_ℓ; l=0 is redundant with the power entry.
+        if l_target >= 3:
+            for l_sc in range(2, l_target + 1, 2):
+                sc_entry = (l_target, l_target, l_sc)
+                if sc_entry not in seen:
+                    seen.add(sc_entry)
+                    selected.append(sc_entry)
 
         index_map.extend(selected)
 

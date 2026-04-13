@@ -1,0 +1,56 @@
+Good. Now here are all the tmux commands. Let me put together a comprehensive script.
+
+Here's your full tmux command block. Copy-paste this into a terminal -- it creates a tmux session called experiments with separate windows for each job:
+
+tmux new-session -d -s experiments -n organ3d
+# Window 1: OrganMNIST3D wider channels multi-seed (~8 runs, ~3 GPU-hours)
+tmux send-keys -t experiments:organ3d \
+  'cd /home/johmathe/bispectrum/paper/experiments/organ3d && source /home/johmathe/bispectrum/.venv/bin/activate && export PYTHONPATH="/home/johmathe/bispectrum/src:${PYTHONPATH:-}" && ./run_wider_multiseed.sh 2>&1 | tee wider_multiseed.log' Enter
+
+
+# HERE
+
+
+
+# Window 2: Spherical MNIST data efficiency (~36 runs, ~6 GPU-hours)
+tmux new-window -t experiments -n smnist
+tmux send-keys -t experiments:smnist \
+  'cd /home/johmathe/bispectrum/paper/experiments/spherical_mnist && source /home/johmathe/bispectrum/.venv/bin/activate && export PYTHONPATH="/home/johmathe/bispectrum/src:${PYTHONPATH:-}" && ./run_data_efficiency.sh 2>&1 | tee data_efficiency.log' Enter
+# Window 3: PCam pareto phase-b (~64 runs, ~16-32 GPU-hours)
+tmux new-window -t experiments -n pcam-pareto
+tmux send-keys -t experiments:pcam-pareto \
+  'cd /home/johmathe/bispectrum/paper/experiments/pcam && source /home/johmathe/bispectrum/.venv/bin/activate && export PYTHONPATH="/home/johmathe/bispectrum/src:${PYTHONPATH:-}" && ./run_matched_sweep.sh --phase-b 2>&1 | tee pareto_phaseb.log' Enter
+# Window 4: PCam data-pareto phase-b (~72 runs, ~18-36 GPU-hours)
+tmux new-window -t experiments -n pcam-data
+tmux send-keys -t experiments:pcam-data \
+  'cd /home/johmathe/bispectrum/paper/experiments/pcam && source /home/johmathe/bispectrum/.venv/bin/activate && export PYTHONPATH="/home/johmathe/bispectrum/src:${PYTHONPATH:-}" && ./run_data_pareto_sweep.sh --phase-b 2>&1 | tee data_pareto_phaseb.log' Enter
+# Window 5: Inversion benchmark (~5 min)
+tmux new-window -t experiments -n inversion
+tmux send-keys -t experiments:inversion \
+  'cd /home/johmathe/bispectrum/benchmarks && source /home/johmathe/bispectrum/.venv/bin/activate && export PYTHONPATH="/home/johmathe/bispectrum/src:${PYTHONPATH:-}" && python bench_inversion.py --output_dir ./inversion_results 2>&1 | tee inversion.log' Enter
+tmux attach -t experiments
+Important: PCam windows 3 and 4 both use the GPU. If you only have one GPU, run them sequentially by combining them into one window:
+
+# Alternative: sequential PCam (use instead of windows 3+4 above)
+tmux new-window -t experiments -n pcam
+tmux send-keys -t experiments:pcam \
+  'cd /home/johmathe/bispectrum/paper/experiments/pcam && source /home/johmathe/bispectrum/.venv/bin/activate && export PYTHONPATH="/home/johmathe/bispectrum/src:${PYTHONPATH:-}" && ./run_matched_sweep.sh --phase-b 2>&1 | tee pareto_phaseb.log && ./run_data_pareto_sweep.sh --phase-b 2>&1 | tee data_pareto_phaseb.log' Enter
+After all training is done, run the analysis/figure regeneration:
+
+cd /home/johmathe/bispectrum
+source .venv/bin/activate
+export PYTHONPATH="/home/johmathe/bispectrum/src:${PYTHONPATH:-}"
+# OrganMNIST3D: regenerate figures + audit
+cd paper/experiments/organ3d
+python analyze_results.py --results_dir ./organ3d_results --output_plot ./organ3d_analysis.png
+cd -
+# Spherical MNIST: regenerate figures (includes data efficiency)
+cd paper/experiments/spherical_mnist
+python analyze_results.py --results_dir ./smnist_results --matched_dir ./smnist_results_matched --output ./smnist_analysis.png
+cd -
+# PCam: regenerate Pareto and data-efficiency figures
+cd paper/experiments/pcam
+python analyze_pareto.py
+python analyze_data_pareto.py
+cd -
+echo "All analysis done. Check figures in each experiment directory."
