@@ -66,6 +66,14 @@
   Atmo, Inc. \\
   \texttt{johan@atmo.ai} \\
   \And
+  Simon Mataigne \\
+  University of California, Santa Barbara \\
+  \texttt{tbd@tbd.tbd} \\
+  \And
+  Adele Myers Lantow \\
+  University of California, Santa Barbara \\
+  \texttt{tbd@tbd.tbd} \\
+  \And
   Nina Miolane \\
   University of California, Santa Barbara \\
   \texttt{nmiolane@ucsb.edu} \\
@@ -83,8 +91,8 @@ The selective bispectrum reduces invariant cost from $O(|G|^2)$ to $O(|G|)$
 while remaining complete for generic signals.
 Building the library required two theoretical contributions:
 (i)~an augmented selective $\SO(3)$ invariant on $S^2$ achieving
-$\Theta(L^2)$ coefficients---the information-theoretic lower
-bound---instead of $O(L^3)$ for the full bispectrum
+$\Theta(L^2)$ coefficients (the information-theoretic lower
+bound) instead of $O(L^3)$ for the full bispectrum
 (completeness proved for $4 \le L \le 100$), and
 (ii)~diagnosing a previously undocumented inversion failure for the
 octahedral group.
@@ -96,7 +104,7 @@ low-data, moderate-capacity regime.
 The selective forward pass runs in sub-millisecond time on GPU for finite
 groups.
 \end{abstract}
-
+\noindent Code is available at \url{https://github.com/geometric-intelligence/bispectrum}.
 \section{Introduction}
 \label{sec:intro}
 
@@ -279,16 +287,7 @@ cached to disk; all forward methods are batch-native, using
 
 \subsection{Example API}
 \label{sec:api}
-
-\begin{lstlisting}
-import torch
-from bispectrum import CnonCn, SO2onDisk, OctaonOcta
-
-bsp = CnonCn(n=8, selective=True)
-f = torch.randn(16, 8)
-beta = bsp(f)
-f_rec = bsp.invert(beta)
-\end{lstlisting}
+A minimal usage example is in Appendix~\ref{app:api-example}.
 
 \subsection{Augmented selective $\SO(3)$ bispectrum on $S^2$}
 \label{sec:so3-selective}
@@ -364,32 +363,9 @@ CG power spectrum entries $P_{\ell_1,\ell_2,\ell}$, chosen
 to maximise the Jacobian rank of the combined invariant
 (Algorithm~\ref{alg:so3-augmented}).
 
-\begin{table}[h]
-  \caption{Per-degree entry counts in the augmented selective $\SO(3)$
-    invariant. The ``Bispec'' column counts scalar bispectral
-    entries including mandatory even self-coupling entries
-    $\beta_{\ell,\ell,\ell'}$ ($\ell'$ even, $2 \le \ell' \le \ell$);
-    entries that vanish for real signals are excluded.
-    The ``CG Power'' column counts CG power spectrum augmentations.
-    At $\ell=1$, $\beta_{1,1,0}$ is excluded (redundant with power).
-    At $\ell=2$, $\beta_{1,2,1}$ is excluded (proportional to
-    $\beta_{1,1,2}$ after gauge-fixing).}
-  \label{tab:entry-counts}
-  \centering
-  \small
-  \begin{tabular}{ccccc}
-    \toprule
-    $\ell$ & Bispec & CG Power & Total \\
-    \midrule
-    0 & 1 & 0 & 1 \\
-    1 & 1 & 0 & 1 \\
-    2 & 3 & 1 & 4 \\
-    3 & 7 & 4 & 11 \\
-    4 & 12 & 5 & 17 \\
-    $\ell \ge 5$ & $\sim 2\ell{+}3$ & $\sim \ell$ & $\sim 3\ell$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+Table~\ref{tab:entry-counts} (Appendix~\ref{app:so3-proof}) gives
+per-degree entry counts; at degree $\ell \ge 5$ the total is
+${\sim}3\ell$, confirming the $\Theta(L^2)$ output size.
 
 \paragraph{Proof sketch.}
 The proof establishes completeness of $\Phi_{\mathrm{aug}}$ through
@@ -559,20 +535,12 @@ results at matched ${\sim}$100K parameters.
 
 At matched capacity (${\sim}100$K params, 10\% data), all four equivariant
 pooling methods substantially outperform the standard augmented CNN
-(AUC $0.896 \pm 0.010$). Fourier-ELU leads slightly at $0.945 \pm 0.004$,
-followed by NormReLU ($0.942$), bispectrum and gated (both $0.941$).
-Notably, the bispectrum and Fourier-ELU have the lowest cross-seed
-variance ($\pm 0.004$), while gated has the highest ($\pm 0.009$),
-indicating that complete or near-complete invariants yield more
-reproducible training.
-At 1\% training data, the bispectrum leads all methods
-(AUC $0.912 \pm 0.025$), outperforming NormReLU ($0.873$) and Fourier-ELU
-($0.876$). This data-efficiency advantage narrows as the training set
-grows, consistent with the hypothesis that complete invariants provide
-a stronger inductive bias when data is scarce.
-Our best equivariant model (Fourier-ELU, 110K, AUC 0.945 on 10\% data)
-approaches the published P4M-DenseNet of \citet{veeling2018rotation} (119K,
-AUC 0.963 on 100\% data), despite using 10$\times$ less training data.
+(AUC $0.896$). Fourier-ELU leads slightly ($0.945$), followed by
+NormReLU ($0.942$), bispectrum and gated (both $0.941$).
+At 1\% data, the bispectrum leads all methods ($0.912$), outperforming
+NormReLU ($0.873$) and Fourier-ELU ($0.876$). This data-efficiency
+advantage narrows as the training set grows, consistent with complete
+invariants providing a stronger inductive bias when data is scarce.
 
 \subsection{3D organ classification under octahedral symmetry}
 \label{sec:organ3d}
@@ -614,26 +582,19 @@ the key findings.
 \end{table}
 
 \emph{Rotation invariance.}
-All equivariant models achieve numerically exact rotation invariance
-($\sigma_{\mathrm{rot}} \leq 0.0005$), while the augmented CNN drops
-${\sim}$2.5pp under rotation ($\sigma_{\mathrm{rot}} = 0.012$).
+All equivariant models achieve $\sigma_{\mathrm{rot}} \leq 0.0005$,
+while the augmented CNN drops ${\sim}$2.5pp under rotation.
 
 \emph{Completeness vs.\ lossy pooling.}
 The bispectrum (72.6\%) matches max pool (73.0\%) and substantially
-outperforms norm pool (56.8\%, with high seed variance $\pm$9.9\%). At 463K
-parameters, the bispectrum also outperforms Regular SE(3)
-convolutions~\citep{kuipers2023regular} (69.8\% at 172K).
-
-\paragraph{Data efficiency.}
-When we reduce the training set (Figure~\ref{fig:data-efficiency}), the
-bispectrum's advantage becomes clear: at 5\% data (48 samples) it reaches
-$33.2 \pm 2.2\%$ vs.\ $18.9 \pm 7.2\%$ for max pool. Only at full data
-does max pool catch up ($73.0\%$ vs.\ $72.6\%$). The complete invariant map
-provides a stronger inductive bias that partially compensates for limited
-training data.
-However, at higher capacity (6M parameters, Appendix~\ref{app:organ3d-details}),
-max pool overtakes the bispectrum ($78.5\%$ vs.\ $68.5\%$), suggesting the
-completeness advantage is specific to the data-limited regime.
+outperforms norm pool (56.8\%) and Regular SE(3)
+convolutions~\citep{kuipers2023regular} (69.8\%).
+At reduced data (Figure~\ref{fig:data-efficiency}), the bispectrum's
+advantage widens: at 5\% data it reaches $33.2\%$ vs.\ $18.9\%$ for max
+pool. At higher capacity (6M params,
+Appendix~\ref{app:organ3d-details}), max pool overtakes the bispectrum,
+suggesting the completeness advantage is specific to the data-limited
+regime.
 
 \begin{figure}[t]
   \centering
@@ -731,44 +692,22 @@ the results.
 \end{figure}
 
 \emph{Numerically exact $\SO(3)$ invariance.}
-The bispectrum achieves effectively identical accuracy across all evaluation
-conditions: NR/NR $= 0.950$, R/R $= 0.949$, NR/R $= 0.951$. The standard
-deviation under random rotations is ${\sim}10^{-4}$---effectively zero.
-Training on rotated vs.\ non-rotated data makes no difference, confirming
-that the bispectral features are truly $\SO(3)$-invariant and rotation
-augmentation is unnecessary. In contrast, the standard CNN achieves 99.1\%
-on NR/NR but collapses to 13.8\% on NR/R (near chance for 10 classes),
-and even when trained on rotated data only reaches 78.1\% with substantial
-variance ($\sigma_{\mathrm{rot}} \approx 0.04$ under random rotations).
+The bispectrum achieves near-identical accuracy across all three protocols
+($\sigma_{\mathrm{rot}} \sim 10^{-4}$), confirming true $\SO(3)$
+invariance. The standard CNN collapses from 99.1\% (NR/NR) to 13.8\%
+(NR/R), showing that augmentation alone does not confer invariance.
 
 \emph{Completeness gap.}
-The power spectrum is also rotation-invariant ($\sigma_{\mathrm{rot}} =
-0.0003$) but achieves only 78\% accuracy---17.2 percentage points below the
-bispectrum. To rule out a capacity confound, we
-scale the power spectrum MLP to 166K parameters.
-This 15$\times$ capacity increase yields only +1.4pp (78.0\%
-$\to$ 79.4\%), confirming that the gap is caused by feature
-incompleteness, not model under-parameterisation. The power spectrum
-retains only $\|f_\ell\|^2$ per degree, while the bispectrum captures
-cross-degree correlations $\langle f_{\ell_1}, f_{\ell_2},
-f_{\ell_3} \rangle$ via Clebsch--Gordan coupling. For digit
-classification, these phase relationships carry substantial discriminative
-information that additional downstream capacity alone does not appear
-sufficient to recover.
+The power spectrum is equally invariant but reaches only 78\%---a 17pp
+deficit that persists even after scaling the MLP to 166K parameters
+(+1.4pp), confirming incompleteness rather than capacity as the
+bottleneck.
 
 \emph{Comparison with Cohen et al.}
-Cohen's spherical CNN~\cite{cohen2018spherical}---which uses learned
-$\SO(3)$-equivariant convolutions across multiple layers---achieves
-96\%/95\%/94\% (NR/NR, R/R, NR/R). Our bispectrum reaches
-94.8\%/94.8\%/94.9\%, approximately 1--2pp lower in absolute accuracy but
-with a \emph{smaller} NR/NR-to-NR/R gap (0.0pp vs.\ 2.0pp). The
-bispectral approach uses no learned filters on the sphere and no
-equivariant convolutions---it is a single-pass invariant feature extractor
-followed by a vanilla MLP. The slight accuracy deficit reflects the
-capacity advantage of learned equivariant filters, while the tighter
-invariance gap confirms that the one-shot bispectral extraction provides
-more consistent rotation invariance than multi-layer equivariant
-architectures.
+Cohen's spherical CNN~\cite{cohen2018spherical} reaches 96\%/95\%/94\%
+with learned equivariant convolutions. Our single-pass bispectrum
+(94.8\%/94.8\%/94.9\%) is 1--2pp lower but has a tighter invariance gap
+(0.0pp vs.\ 2.0pp).
 
 
 \section{Related Work}
@@ -886,6 +825,33 @@ This appendix provides the complete proof of Theorem~\ref{thm:so3-selective}
 from the main text, establishing completeness of the augmented selective
 $\SO(3)$-bispectrum on $S^2$ for band-limits $4 \le L \le 100$
 (extendable to any desired~$L$ by re-running the verification script).
+
+\begin{table}[h]
+  \caption{Per-degree entry counts in the augmented selective $\SO(3)$
+    invariant. The ``Bispec'' column counts scalar bispectral
+    entries including mandatory even self-coupling entries
+    $\beta_{\ell,\ell,\ell'}$ ($\ell'$ even, $2 \le \ell' \le \ell$);
+    entries that vanish for real signals are excluded.
+    The ``CG Power'' column counts CG power spectrum augmentations.
+    At $\ell=1$, $\beta_{1,1,0}$ is excluded (redundant with power).
+    At $\ell=2$, $\beta_{1,2,1}$ is excluded (proportional to
+    $\beta_{1,1,2}$ after gauge-fixing).}
+  \label{tab:entry-counts}
+  \centering
+  \small
+  \begin{tabular}{ccccc}
+    \toprule
+    $\ell$ & Bispec & CG Power & Total \\
+    \midrule
+    0 & 1 & 0 & 1 \\
+    1 & 1 & 0 & 1 \\
+    2 & 3 & 1 & 4 \\
+    3 & 7 & 4 & 11 \\
+    4 & 12 & 5 & 17 \\
+    $\ell \ge 5$ & $\sim 2\ell{+}3$ & $\sim \ell$ & $\sim 3\ell$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Setup and notation}
 
@@ -2017,7 +1983,7 @@ results over 1{,}000 random signals on the octahedral group (4 restarts,
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.85\linewidth]{../benchmarks/inversion_results/inversion_convergence.pdf}
+  \includegraphics[width=0.85\linewidth]{figures/inversion_convergence.pdf}
   \caption{Bispectral residual vs.\ LM iteration for octahedral inversion.
     The residual drops rapidly, but the signal recovery rate remains low
     (5.7\%), indicating that the optimisation landscape contains many
@@ -2427,6 +2393,19 @@ $\times$ 3 seeds).
   \item \textbf{Spherical MNIST}: derived from MNIST, which is
     publicly available for research use.
 \end{itemize}
+
+\section{API Example}
+\label{app:api-example}
+
+\begin{lstlisting}
+import torch
+from bispectrum import CnonCn, SO2onDisk, OctaonOcta
+
+bsp = CnonCn(n=8, selective=True)
+f = torch.randn(16, 8)
+beta = bsp(f)
+f_rec = bsp.invert(beta)
+\end{lstlisting}
 
 \newpage
 \input{checklist.tex}
