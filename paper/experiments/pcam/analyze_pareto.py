@@ -25,6 +25,8 @@ MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum']
 
 def load_results(directory: Path) -> list[dict]:
     results = []
+    if not directory.is_dir():
+        return results
     for d in sorted(os.listdir(directory)):
         rpath = directory / d / 'results.json'
         if rpath.is_file():
@@ -34,7 +36,7 @@ def load_results(directory: Path) -> list[dict]:
 
 
 def aggregate_1pct(results: list[dict]) -> dict[str, dict]:
-    """Group 1% results by model, compute mean ± std."""
+    """Group 1% results by model, compute mean +/- std."""
     from collections import defaultdict
     grouped = defaultdict(list)
     for r in results:
@@ -52,11 +54,40 @@ def aggregate_1pct(results: list[dict]) -> dict[str, dict]:
     return agg
 
 
-def load_data_pareto() -> dict[str, dict[float, float]]:
-    """Load data-efficiency results: model -> {fraction: auc}."""
-    result: dict[str, dict[float, float]] = {}
+def aggregate_pareto_multiseed(
+    results: list[dict],
+) -> dict[str, list[dict]]:
+    """Group pareto results by (model, n_params), compute mean +/- std AUC.
+
+    Returns model -> sorted list of {n_params, mean_auc, std_auc, n_seeds}.
+    """
+    from collections import defaultdict
+    grouped: dict[tuple[str, int], list[float]] = defaultdict(list)
+    for r in results:
+        grouped[(r['model'], r['n_params'])].append(r['test']['auc'])
+
+    agg: dict[str, list[dict]] = defaultdict(list)
+    for (model, n_params), aucs in grouped.items():
+        agg[model].append({
+            'n_params': n_params,
+            'mean_auc': float(np.mean(aucs)),
+            'std_auc': float(np.std(aucs, ddof=1)) if len(aucs) > 1 else 0.0,
+            'n_seeds': len(aucs),
+        })
+    for model in agg:
+        agg[model].sort(key=lambda x: x['n_params'])
+    return dict(agg)
+
+
+def load_data_pareto() -> dict[str, dict[float, dict[str, float]]]:
+    """Load data-efficiency results with multi-seed aggregation.
+
+    Returns model -> {fraction: {mean, std, n_seeds}}.
+    """
+    from collections import defaultdict
+    raw: dict[tuple[str, float], list[float]] = defaultdict(list)
     if not DATA_PARETO_DIR.is_dir():
-        return result
+        return {}
     for frac_dir in sorted(DATA_PARETO_DIR.iterdir()):
         if not frac_dir.is_dir() or not frac_dir.name.startswith('frac_'):
             continue
@@ -67,9 +98,16 @@ def load_data_pareto() -> dict[str, dict[float, float]]:
                 continue
             with open(rpath) as f:
                 r = json.load(f)
-            model = r['model']
-            result.setdefault(model, {})[frac] = r['test']['auc']
-    return result
+            raw[(r['model'], frac)].append(r['test']['auc'])
+
+    result: dict[str, dict[float, dict[str, float]]] = defaultdict(dict)
+    for (model, frac), aucs in raw.items():
+        result[model][frac] = {
+            'mean': float(np.mean(aucs)),
+            'std': float(np.std(aucs, ddof=1)) if len(aucs) > 1 else 0.0,
+            'n_seeds': len(aucs),
+        }
+    return dict(result)
 
 
 def _style_ax(ax: plt.Axes) -> None:
@@ -94,26 +132,34 @@ def main() -> None:
     })
 
     pareto = load_results(PARETO_DIR)
+    pareto_agg = aggregate_pareto_multiseed(pareto)
     data_eff = load_data_pareto()
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 3.8))
 
     for model in MODEL_ORDER:
         s = MODEL_STYLE[model]
-        pts = sorted(
-            [(r['n_params'], r['test']['auc']) for r in pareto if r['model'] == model],
-            key=lambda x: x[0],
-        )
+        pts = pareto_agg.get(model, [])
         if not pts:
             continue
-        params, aucs = zip(*pts)
-        ax1.plot(params, aucs, marker=s['marker'], color=s['color'],
-                 label=s['label'], linewidth=2, markersize=7, zorder=3)
+        params = [p['n_params'] for p in pts]
+        means = [p['mean_auc'] for p in pts]
+        stds = [p['std_auc'] for p in pts]
+
+        has_multiseed = any(p['n_seeds'] > 1 for p in pts)
+        if has_multiseed:
+            ax1.errorbar(params, means, yerr=stds,
+                         marker=s['marker'], color=s['color'],
+                         label=s['label'], linewidth=2, markersize=7,
+                         capsize=3, zorder=3)
+        else:
+            ax1.plot(params, means, marker=s['marker'], color=s['color'],
+                     label=s['label'], linewidth=2, markersize=7, zorder=3)
 
     ax1.set_xscale('log')
     ax1.set_xlabel('Parameters')
     ax1.set_ylabel('Test AUC')
-    ax1.set_ylim(0.875, 0.96)
+    ax1.set_ylim(0.75, 0.96)
     ax1.set_title('(a) AUC vs. parameter count (10% data)')
     _style_ax(ax1)
     ax1.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
@@ -122,52 +168,65 @@ def main() -> None:
 
     matched_data = []
     for model in MODEL_ORDER:
-        pts = [(r['n_params'], r['test']['auc'], r.get('growth_rate', 0))
-               for r in pareto if r['model'] == model]
+        pts = pareto_agg.get(model, [])
         if not pts:
             continue
-        best_at_100k = min(pts, key=lambda x: abs(x[0] - 100_000))
-        matched_data.append((model, best_at_100k[0], best_at_100k[1], best_at_100k[2]))
+        best_at_100k = min(pts, key=lambda x: abs(x['n_params'] - 100_000))
+        matched_data.append((model, best_at_100k['n_params'],
+                             best_at_100k['mean_auc'], best_at_100k['std_auc']))
 
     matched_data.sort(key=lambda x: x[2])
     y_pos = np.arange(len(matched_data))
     colors = [MODEL_STYLE[m[0]]['color'] for m in matched_data]
     aucs_matched = [m[2] for m in matched_data]
+    errs_matched = [m[3] for m in matched_data]
     labels_matched = [
         f'{MODEL_STYLE[m[0]]["label"]} ({m[1]//1000}K)'
         for m in matched_data
     ]
 
-    bars = ax2.barh(y_pos, aucs_matched, color=colors, edgecolor='white',
-                    linewidth=0.6, height=0.6, zorder=3)
+    bars = ax2.barh(y_pos, aucs_matched, xerr=errs_matched, color=colors,
+                    edgecolor='white', linewidth=0.6, height=0.6, zorder=3,
+                    capsize=3, error_kw={'linewidth': 0.8, 'capthick': 0.8})
     ax2.set_yticks(y_pos)
     ax2.set_yticklabels(labels_matched)
     ax2.set_xlabel('Test AUC')
-    ax2.set_xlim(0.915, 0.96)
+    ax2.set_xlim(0.75, 0.96)
     ax2.set_title('(b) Ranking at ~100K parameters')
     _style_ax(ax2)
     ax2.xaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
 
-    for bar, auc in zip(bars, aucs_matched):
-        ax2.text(auc + 0.0005, bar.get_y() + bar.get_height() / 2,
-                 f'{auc:.3f}', va='center', fontsize=9, fontweight='medium')
+    for bar, auc, err in zip(bars, aucs_matched, errs_matched):
+        label = f'{auc:.3f}'
+        if err > 0:
+            label += f'\u00b1{err:.3f}'
+        ax2.text(auc + err + 0.001, bar.get_y() + bar.get_height() / 2,
+                 label, va='center', fontsize=8, fontweight='medium')
 
     for model in MODEL_ORDER:
         s = MODEL_STYLE[model]
         if model not in data_eff:
             continue
-        fracs_aucs = sorted(data_eff[model].items())
-        fracs, aucs = zip(*fracs_aucs)
-        ax3.plot(fracs, aucs, marker=s['marker'], color=s['color'],
-                 label=s['label'], linewidth=2, markersize=7, zorder=3)
+        fracs = sorted(data_eff[model].keys())
+        means = [data_eff[model][f]['mean'] for f in fracs]
+        stds = [data_eff[model][f]['std'] for f in fracs]
+        has_multiseed = any(data_eff[model][f]['n_seeds'] > 1 for f in fracs)
+        if has_multiseed:
+            ax3.errorbar(fracs, means, yerr=stds,
+                         marker=s['marker'], color=s['color'],
+                         label=s['label'], linewidth=2, markersize=7,
+                         capsize=3, zorder=3)
+        else:
+            ax3.plot(fracs, means, marker=s['marker'], color=s['color'],
+                     label=s['label'], linewidth=2, markersize=7, zorder=3)
 
     ax3.set_xscale('log')
     ax3.set_xlabel('Training data fraction')
     ax3.set_ylabel('Test AUC')
     ax3.set_title('(c) Data efficiency (~100K params)')
-    ax3.set_xticks([0.01, 0.05, 0.1, 0.25])
-    ax3.set_xticklabels(['1%', '5%', '10%', '25%'])
-    ax3.set_ylim(0.855, 0.96)
+    ax3.set_xticks([0.01, 0.05, 0.1, 0.25, 0.5, 1.0])
+    ax3.set_xticklabels(['1%', '5%', '10%', '25%', '50%', '100%'])
+    ax3.set_ylim(0.75, 0.96)
     _style_ax(ax3)
     ax3.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
     ax3.legend(frameon=True, fancybox=False, edgecolor='#cccccc',
@@ -186,35 +245,37 @@ def main() -> None:
 
     print('\n1. PARETO RANKING (full sweep, 10% data):')
     for model in MODEL_ORDER:
-        pts = sorted(
-            [(r['n_params'], r['test']['auc']) for r in pareto if r['model'] == model],
-            key=lambda x: x[0],
-        )
-        best = max(pts, key=lambda x: x[1])
-        print(f'   {MODEL_STYLE[model]["label"]:25s}  best AUC={best[1]:.4f} at {best[0]:>10,} params')
+        pts = pareto_agg.get(model, [])
+        if not pts:
+            continue
+        best = max(pts, key=lambda x: x['mean_auc'])
+        std_str = f' +/- {best["std_auc"]:.4f}' if best['n_seeds'] > 1 else ''
+        print(f'   {MODEL_STYLE[model]["label"]:25s}  best AUC={best["mean_auc"]:.4f}{std_str} at {best["n_params"]:>10,} params ({best["n_seeds"]} seeds)')
 
     print('\n2. HEAD-TO-HEAD at ~100K params:')
-    for m, params, auc, gr in sorted(matched_data, key=lambda x: x[2], reverse=True):
-        print(f'   {MODEL_STYLE[m]["label"]:25s}  AUC={auc:.4f}  ({params:,} params, gr={gr})')
+    for m, params, auc, std in sorted(matched_data, key=lambda x: x[2], reverse=True):
+        std_str = f' +/- {std:.4f}' if std > 0 else ''
+        print(f'   {MODEL_STYLE[m]["label"]:25s}  AUC={auc:.4f}{std_str}  ({params:,} params)')
 
     print('\n3. SCALING BEHAVIOR:')
     for model in MODEL_ORDER:
-        pts = sorted(
-            [(r['n_params'], r['test']['auc']) for r in pareto if r['model'] == model],
-            key=lambda x: x[0],
-        )
+        pts = pareto_agg.get(model, [])
         if len(pts) >= 2:
-            slope = 'degrades' if pts[-1][1] < pts[0][1] else 'improves'
-            delta = pts[-1][1] - pts[0][1]
-            print(f'   {MODEL_STYLE[model]["label"]:25s}  {pts[0][1]:.4f} → {pts[-1][1]:.4f}  ({slope}, {delta:+.4f})')
+            slope = 'degrades' if pts[-1]['mean_auc'] < pts[0]['mean_auc'] else 'improves'
+            delta = pts[-1]['mean_auc'] - pts[0]['mean_auc']
+            print(f'   {MODEL_STYLE[model]["label"]:25s}  {pts[0]["mean_auc"]:.4f} -> {pts[-1]["mean_auc"]:.4f}  ({slope}, {delta:+.4f})')
 
     print('\n4. DATA EFFICIENCY (matched ~100K params):')
     for m in MODEL_ORDER:
         if m not in data_eff:
             continue
-        fracs_aucs = sorted(data_eff[m].items())
-        vals = '  '.join(f'{f:.0%}={a:.4f}' for f, a in fracs_aucs)
-        print(f'   {MODEL_STYLE[m]["label"]:25s}  {vals}')
+        fracs = sorted(data_eff[m].keys())
+        vals_parts = []
+        for f in fracs:
+            d = data_eff[m][f]
+            std_str = f'+/-{d["std"]:.4f}' if d['n_seeds'] > 1 else ''
+            vals_parts.append(f'{f:.0%}={d["mean"]:.4f}{std_str}')
+        print(f'   {MODEL_STYLE[m]["label"]:25s}  {"  ".join(vals_parts)}')
 
 
 if __name__ == '__main__':

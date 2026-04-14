@@ -103,6 +103,8 @@ def load_results(
     for p in sorted(results_path.glob('*/results.json')):
         with open(p) as f:
             r = json.load(f)
+        if r.get('train_fraction', 1.0) != 1.0:
+            continue
         grouped[(r['model'], r['train_mode'])].append(r)
 
     if matched_dir:
@@ -227,6 +229,127 @@ def print_latex_table(grouped: dict[tuple[str, str], list[dict]]):
             f'& {_latex_fmt(nr_r, bold=is_bisp)} '
             f'& ${rot_val}$ \\\\'
         )
+
+
+def load_data_efficiency_results(
+    results_dir: str,
+) -> dict[tuple[str, str, float], list[dict]]:
+    """Load all results, grouped by (model, train_mode, train_fraction)."""
+    grouped: dict[tuple[str, str, float], list[dict]] = defaultdict(list)
+    results_path = Path(results_dir)
+    if not results_path.exists():
+        return grouped
+
+    for p in sorted(results_path.glob('*/results.json')):
+        with open(p) as f:
+            r = json.load(f)
+        frac = r.get('train_fraction', 1.0)
+        grouped[(r['model'], r['train_mode'], frac)].append(r)
+
+    return grouped
+
+
+def plot_data_efficiency(
+    grouped: dict[tuple[str, str, float], list[dict]],
+    output_path: str,
+):
+    """Two-panel figure: NR/NR and NR/R accuracy vs training fraction."""
+    plt.rcParams.update(NEURIPS_RCPARAMS)
+
+    fracs_to_plot = [0.01, 0.1, 1.0]
+    models_to_plot = ['standard', 'power_spectrum', 'bispectrum']
+    colors = {
+        'standard': '#7f7f7f',
+        'power_spectrum': '#1f77b4',
+        'bispectrum': '#d62728',
+    }
+    markers = {'standard': 's', 'power_spectrum': 'D', 'bispectrum': 'o'}
+    labels = {
+        'standard': 'Standard CNN',
+        'power_spectrum': 'Power Spectrum',
+        'bispectrum': 'Bispectrum',
+    }
+
+    panels = [
+        ('NR', 'test_nr', '(a) NR/NR accuracy vs. data fraction'),
+        ('NR', 'test_r', '(b) NR/R accuracy vs. data fraction'),
+    ]
+
+    fig, axes = plt.subplots(1, 2, figsize=(6.5, 3.0), sharey=True)
+
+    for ax, (train_mode, test_key, title) in zip(axes, panels):
+        for model in models_to_plot:
+            means = []
+            stds = []
+            valid_fracs = []
+            for frac in fracs_to_plot:
+                runs = grouped.get((model, train_mode, frac), [])
+                if not runs:
+                    continue
+                vals = [r[test_key]['accuracy'] for r in runs]
+                means.append(np.mean(vals))
+                stds.append(np.std(vals) if len(vals) > 1 else 0.0)
+                valid_fracs.append(frac)
+
+            if not valid_fracs:
+                continue
+
+            means_arr = np.array(means)
+            stds_arr = np.array(stds)
+
+            ax.errorbar(
+                valid_fracs, means_arr, yerr=stds_arr,
+                marker=markers[model], color=colors[model],
+                label=labels[model], linewidth=1.2, markersize=5,
+                capsize=3, zorder=3,
+            )
+
+        ax.set_xscale('log')
+        ax.set_xlabel('Training data fraction')
+        ax.set_xticks(fracs_to_plot)
+        ax.set_xticklabels(['1%', '10%', '100%'])
+        ax.set_title(title)
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f'{v:.0%}'))
+        _clean_axes(ax)
+
+    axes[0].set_ylabel('Test accuracy')
+    axes[0].legend(
+        frameon=False, fontsize=7, loc='lower right',
+    )
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=300)
+    pdf_path = output_path.replace('.png', '.pdf')
+    fig.savefig(pdf_path)
+    print(f'\nData efficiency figure saved to {output_path} and {pdf_path}')
+    plt.close(fig)
+
+
+def print_data_efficiency_table(
+    grouped: dict[tuple[str, str, float], list[dict]],
+):
+    """Print data efficiency summary table."""
+    fracs = [0.01, 0.1, 1.0]
+    models = ['standard', 'power_spectrum', 'bispectrum']
+
+    print('\n' + '=' * 90)
+    print('DATA EFFICIENCY (Spherical MNIST)')
+    print('=' * 90)
+    print(f'{"Model":<20} {"Mode":<5} {"Frac":>6} {"Test NR ACC":>15} {"Test R ACC":>15} {"Seeds":>6}')
+    print('-' * 75)
+
+    for model in models:
+        for mode in ['NR', 'R']:
+            for frac in fracs:
+                runs = grouped.get((model, mode, frac), [])
+                if not runs:
+                    continue
+                nr_accs = [r['test_nr']['accuracy'] for r in runs]
+                r_accs = [r['test_r']['accuracy'] for r in runs]
+                n = len(runs)
+                nr_str = f'{np.mean(nr_accs):.4f}\u00b1{np.std(nr_accs):.4f}' if n > 1 else f'{nr_accs[0]:.4f}'
+                r_str = f'{np.mean(r_accs):.4f}\u00b1{np.std(r_accs):.4f}' if n > 1 else f'{r_accs[0]:.4f}'
+                print(f'{model:<20} {mode:<5} {frac:>6.0%} {nr_str:>15} {r_str:>15} {n:>6}')
 
 
 def _clean_axes(ax: plt.Axes):
@@ -440,6 +563,14 @@ def main():
     print_cohen_table(grouped)
     print_latex_table(grouped)
     plot_combined_figure(grouped, args.output)
+
+    de_grouped = load_data_efficiency_results(args.results_dir)
+    if de_grouped:
+        print_data_efficiency_table(de_grouped)
+        de_output = args.output.replace('smnist_analysis', 'smnist_data_efficiency')
+        if de_output == args.output:
+            de_output = './smnist_data_efficiency.png'
+        plot_data_efficiency(de_grouped, de_output)
 
 
 if __name__ == '__main__':

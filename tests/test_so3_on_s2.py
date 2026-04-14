@@ -1,7 +1,5 @@
 """Tests for SO3onS2 bispectrum module."""
 
-from collections import Counter
-
 import pytest
 import torch
 
@@ -9,10 +7,96 @@ from bispectrum import SO3onS2, random_rotation_matrix, rotate_spherical_functio
 from bispectrum._cg import load_cg_matrices
 from bispectrum.so3_on_s2 import (
     _bispectrum_entry,
+    _build_cg_power_index_map,
     _build_full_index_map,
     _build_selective_index_map,
     _get_full_sh_coefficients,
 )
+
+
+def _linear_rows_for_target(
+    index_map: list[tuple[int, int, int]], ell: int
+) -> list[tuple[int, int, int]]:
+    rows: list[tuple[int, int, int]] = []
+    for l1, l2, l_val in index_map:
+        if l_val == ell and l1 < ell and l2 < ell:
+            rows.append((l1, l2, l_val))
+        elif l2 == ell and l1 < ell and l_val < ell:
+            rows.append((l1, l2, l_val))
+    return rows
+
+
+def _expected_linear_block(ell: int) -> list[tuple[int, int, int]]:
+    explicit_blocks: dict[int, list[tuple[int, int, int]]] = {
+        4: [
+            (1, 3, 4),
+            (2, 2, 4),
+            (2, 3, 4),
+            (3, 3, 4),
+            (1, 4, 3),
+            (2, 4, 2),
+            (3, 4, 1),
+            (2, 4, 3),
+            (3, 4, 2),
+            (3, 4, 3),
+        ],
+        5: [
+            (1, 4, 5),
+            (2, 3, 5),
+            (2, 4, 5),
+            (3, 4, 5),
+            (1, 5, 4),
+            (2, 5, 3),
+            (3, 5, 2),
+            (4, 5, 1),
+            (2, 5, 4),
+            (3, 5, 4),
+            (4, 5, 4),
+        ],
+        6: [
+            (1, 5, 6),
+            (2, 4, 6),
+            (3, 3, 6),
+            (3, 4, 6),
+            (1, 6, 5),
+            (2, 6, 4),
+            (3, 6, 3),
+            (4, 6, 2),
+            (5, 6, 1),
+            (2, 6, 5),
+            (3, 6, 5),
+            (4, 6, 5),
+            (5, 6, 5),
+        ],
+        7: [
+            (1, 6, 7),
+            (2, 5, 7),
+            (3, 4, 7),
+            (4, 5, 7),
+            (1, 7, 6),
+            (2, 7, 5),
+            (3, 7, 4),
+            (4, 7, 3),
+            (5, 7, 2),
+            (6, 7, 1),
+            (2, 7, 6),
+            (3, 7, 6),
+            (4, 7, 6),
+            (5, 7, 6),
+            (6, 7, 6),
+        ],
+    }
+    if ell in explicit_blocks:
+        return explicit_blocks[ell]
+
+    block: list[tuple[int, int, int]] = []
+    for a in range(1, ell):
+        block.append((a, ell, ell - a))
+    for a in range(2, ell):
+        block.append((a, ell, ell - a + 1))
+    for a in range(1, 5):
+        block.append((a, ell - a, ell))
+    return block
 
 
 class TestSO3onS2:
@@ -210,13 +294,11 @@ class TestSelectiveSO3onS2:
     """Tests for the selective (O(L²)) bispectrum mode."""
 
     def test_output_size_is_quadratic(self):
-        """Selective output size should be approximately (lmax+1)²."""
-        for lmax in [2, 3, 4, 5]:
+        """Augmented selective output: bispec + CG power entries, all O(L²)."""
+        expected_total = {0: 1, 1: 2, 2: 6, 3: 17, 4: 34, 5: 54, 6: 75}
+        for lmax, exp in expected_total.items():
             bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-            expected = (lmax + 1) ** 2
-            # Allow small deficit from low-degree budget shortfall
-            assert bsp.output_size <= expected
-            assert bsp.output_size >= expected - 2
+            assert bsp.output_size == exp, f'lmax={lmax}: got {bsp.output_size}, expected {exp}'
 
     def test_output_smaller_than_full(self):
         bsp_full = SO3onS2(lmax=5, nlat=32, nlon=64, selective=False)
@@ -233,7 +315,7 @@ class TestSelectiveSO3onS2:
                 assert l <= lmax, f'exceeds lmax: {(l1, l2, l)}'
 
     def test_selective_entries_match_full(self):
-        """Every selective entry must match the full bispectrum on the same triple."""
+        """Every selective bispectral entry must match the full bispectrum."""
         full = SO3onS2(lmax=5, nlat=64, nlon=128, selective=False)
         sel = SO3onS2(lmax=5, nlat=64, nlon=128, selective=True)
         f = torch.randn(3, 64, 128)
@@ -242,7 +324,8 @@ class TestSelectiveSO3onS2:
         beta_sel = sel(f)
 
         full_lookup = {triple: i for i, triple in enumerate(full.index_map)}
-        for i, triple in enumerate(sel.index_map):
+        for i in range(sel.n_bispec):
+            triple = sel.index_map[i]
             j = full_lookup[triple]
             torch.testing.assert_close(
                 beta_sel[:, i],
@@ -317,10 +400,45 @@ class TestBuildSelectiveIndexMap:
 
     def test_lmax_one(self):
         idx = _build_selective_index_map(1)
-        assert (0, 0, 0) in idx
-        # Should have entries involving degree 1
-        max_deg = max(max(t) for t in idx)
-        assert max_deg == 1
+        assert idx == [(0, 0, 0), (0, 1, 1)], (
+            f'lmax=1 should have exactly (0,0,0) and (0,1,1), got {idx}'
+        )
+        assert (1, 1, 0) not in idx, 'beta_{1,1,0} is redundant and must be excluded'
+
+    def test_no_beta_110(self):
+        """beta_{1,1,0} = -beta_{0,1,1}/sqrt(3) for real signals, so it must never appear in the
+        selective index set (same pattern as beta_{2,2,0})."""
+        for lmax in range(1, 8):
+            idx = _build_selective_index_map(lmax)
+            assert (1, 1, 0) not in idx, f'(1,1,0) found for lmax={lmax}'
+
+    def test_beta_222_at_l2(self):
+        """beta_{2,2,2} (symmetric self-coupling) replaces the excluded beta_{1,1,0} and must be
+        present for lmax >= 2."""
+        for lmax in range(2, 8):
+            idx = _build_selective_index_map(lmax)
+            assert (2, 2, 2) in idx, f'(2,2,2) missing for lmax={lmax}'
+
+    def test_no_beta_121(self):
+        """beta_{1,2,1} collapses to a scalar multiple of beta_{1,1,2} after gauge-fixing, so it
+        must never appear in the selective set."""
+        for lmax in range(2, 8):
+            idx = _build_selective_index_map(lmax)
+            assert (1, 2, 1) not in idx, f'(1,2,1) found for lmax={lmax}'
+
+    def test_l4_overdetermined(self):
+        """At l=4, all 10 chain+cross candidates are kept plus mandatory self-coupling."""
+        for lmax in range(4, 8):
+            idx = _build_selective_index_map(lmax)
+            l4_entries = [t for t in idx if max(t) == 4]
+            linear_entries = [t for t in l4_entries if not (t[0] == t[1] == 4 and t[2] <= 4)]
+            sc_entries = [t for t in l4_entries if t[0] == t[1] == 4 and t[2] <= 4]
+            assert len(linear_entries) == 10, (
+                f'l=4 linear block should have 10 entries, got {len(linear_entries)}'
+            )
+            assert (4, 4, 2) in sc_entries, f'(4,4,2) missing for lmax={lmax}'
+            assert (4, 4, 4) in sc_entries, f'(4,4,4) missing for lmax={lmax}'
+            assert (3, 4, 3) in idx, f'(3,4,3) missing for lmax={lmax}'
 
     def test_no_duplicates(self):
         for lmax in range(6):
@@ -328,16 +446,90 @@ class TestBuildSelectiveIndexMap:
             assert len(idx) == len(set(idx)), f'duplicates for lmax={lmax}'
 
     def test_budget_respected(self):
-        """No degree should have more than 2l+1 entries."""
-        for lmax in range(6):
+        """The linear block at each degree must not exceed its budget.
+
+        Mandatory even self-coupling entries (added for global injectivity) are allowed to exceed
+        the linear budget.
+        """
+        for lmax in range(8):
             idx = _build_selective_index_map(lmax)
-            counts = Counter()
-            for l1, l2, l in idx:
-                counts[max(l1, l2, l)] += 1
-            for deg, count in counts.items():
-                assert count <= 2 * deg + 1, (
-                    f'degree {deg} has {count} entries > budget {2 * deg + 1}'
+            for deg in range(lmax + 1):
+                deg_entries = [t for t in idx if max(t) == deg]
+                linear = [t for t in deg_entries if not (t[0] == t[1] == deg and t[2] <= deg)]
+                budget = 10 if deg == 4 else 2 * deg + 1
+                assert len(linear) <= budget, (
+                    f'degree {deg} has {len(linear)} linear entries > budget {budget}'
                 )
+
+    def test_mandatory_self_coupling_present(self):
+        """Even self-coupling entries β(ℓ,ℓ,l) must be present for global injectivity."""
+        for lmax in range(4, 8):
+            idx = _build_selective_index_map(lmax)
+            for ell in range(4, lmax + 1):
+                for l_sc in range(2, ell + 1, 2):
+                    assert (ell, ell, l_sc) in idx, (
+                        f'β({ell},{ell},{l_sc}) missing for lmax={lmax}'
+                    )
+
+    def test_linear_blocks_match_proved_family(self):
+        for ell in range(4, 11):
+            idx = _build_selective_index_map(ell)
+            actual = _linear_rows_for_target(idx, ell)
+            expected = _expected_linear_block(ell)
+            assert actual == expected
+
+
+class TestCGPowerIndexMap:
+    """Tests for _build_cg_power_index_map."""
+
+    def test_empty_for_small_lmax(self):
+        assert _build_cg_power_index_map(0) == []
+        assert _build_cg_power_index_map(1) == []
+
+    def test_verified_counts(self):
+        expected_counts = {2: 1, 3: 5, 4: 10, 5: 17, 6: 22, 7: 29}
+        for lmax, exp in expected_counts.items():
+            entries = _build_cg_power_index_map(lmax)
+            assert len(entries) == exp, (
+                f'lmax={lmax}: got {len(entries)} CG power entries, expected {exp}'
+            )
+
+    def test_triangle_inequality(self):
+        for lmax in range(2, 8):
+            for l1, l2, l_out in _build_cg_power_index_map(lmax):
+                assert abs(l1 - l2) <= l_out <= l1 + l2
+                assert l_out <= lmax
+
+    def test_no_duplicates(self):
+        for lmax in range(2, 8):
+            entries = _build_cg_power_index_map(lmax)
+            assert len(entries) == len(set(entries))
+
+    def test_l1_leq_l2(self):
+        for lmax in range(2, 8):
+            for l1, l2, _ in _build_cg_power_index_map(lmax):
+                assert l1 <= l2
+
+    def test_cg_power_rotation_invariant(self):
+        """CG power entries must be rotation-invariant (real, non-negative)."""
+        bsp = SO3onS2(lmax=4, nlat=64, nlon=128, selective=True)
+        f = torch.randn(2, 64, 128, dtype=torch.float64)
+        beta_f = bsp(f.float())
+
+        R = random_rotation_matrix()
+        from bispectrum import rotate_spherical_function
+
+        f_rot = rotate_spherical_function(f, R)
+        beta_rot = bsp(f_rot.float())
+
+        cg_start = bsp.n_bispec
+        torch.testing.assert_close(
+            beta_f[:, cg_start:].real,
+            beta_rot[:, cg_start:].real,
+            atol=0.1,
+            rtol=0.1,
+            msg='CG power entries should be rotation-invariant',
+        )
 
 
 class TestBatchedForwardCorrectness:
@@ -377,7 +569,8 @@ class TestBatchedForwardCorrectness:
         f_coeffs = _get_full_sh_coefficients(coeffs)
         cg_data = load_cg_matrices(lmax)
 
-        for i, (l1, l2, l_val) in enumerate(bsp.index_map):
+        for i in range(bsp.n_bispec):
+            l1, l2, l_val = bsp.index_map[i]
             beta_ref = _bispectrum_entry(f_coeffs, l1, l2, l_val, cg_data[(l1, l2)])
             torch.testing.assert_close(
                 beta_batched[:, i],
@@ -386,6 +579,14 @@ class TestBatchedForwardCorrectness:
                 rtol=1e-5,
                 msg=f'Mismatch at ({l1},{l2},{l_val}) for lmax={lmax} selective',
             )
+
+        for j in range(bsp.n_cg_power):
+            out_idx = bsp.n_bispec + j
+            val = beta_batched[:, out_idx]
+            assert val.imag.abs().max() < 1e-6, (
+                f'CG power entry {j} should be real, got imag={val.imag.abs().max()}'
+            )
+            assert val.real.min() >= -1e-6, f'CG power entry {j} should be non-negative'
 
     def test_output_nonzero(self):
         """Bispectrum of a non-zero signal must be non-zero."""
@@ -466,8 +667,7 @@ class TestCompletenessNumerical:
 
         assert gap > 1e6, f'No clean SVD gap for lmax={lmax}: max ratio={gap:.2e} at rank={rank}'
         assert rank >= lmax + 1, (
-            f'Rank {rank} too low for lmax={lmax} '
-            f'(must exceed power-spectrum contribution of {lmax + 1})'
+            f'Rank {rank} too low for lmax={lmax} (must exceed power-spectrum contribution of {lmax + 1})'
         )
 
 
@@ -536,6 +736,7 @@ class TestForwardEdgeCases:
         """Forward with zero output entries returns empty tensor."""
         bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
         bsp._index_map = []
+        bsp._cg_power_map = []
         bsp._group_data = []
         f = torch.randn(3, 32, 64)
         result = bsp(f)

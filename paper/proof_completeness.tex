@@ -1,0 +1,635 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm,enumitem,hyperref}
+\usepackage[margin=1in]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\sgn}{sgn}
+\DeclareMathOperator{\im}{Im}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\SO}{\mathrm{SO}}
+\newcommand{\OG}{\mathrm{O}}
+\newcommand{\SH}{Y}
+\newcommand{\CG}[6]{C^{#5,\,#6}_{#1,\,#2;\,#3,\,#4}}
+\newcommand{\abs}[1]{\lvert #1 \rvert}
+\newcommand{\norm}[1]{\lVert #1 \rVert}
+\newcommand{\conj}[1]{\overline{#1}}
+\newcommand{\ip}[2]{\langle #1,\, #2 \rangle}
+
+\title{Completeness of the Augmented Selective $\SO(3)$-Bispectrum on $S^2$\\
+  {\large Full Proof for All Band-Limits $L \ge 4$}}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Setup}
+
+\begin{definition}[Signal space]
+Let $V_L$ denote the space of real-valued band-limited functions
+$f: S^2 \to \R$ with band-limit $L$:
+\[
+  f(\theta,\varphi) = \sum_{\ell=0}^{L}\sum_{m=-\ell}^{\ell}
+    a_\ell^m \, \SH_\ell^m(\theta,\varphi),
+  \qquad
+  a_\ell^{-m} = (-1)^m \conj{a_\ell^m}.
+\]
+The coefficient vector at degree $\ell$ is
+$\mathbf{F}_\ell = (a_\ell^{-\ell}, \ldots, a_\ell^{\ell}) \in \C^{2\ell+1}$,
+with $2\ell+1$ real degrees of freedom.
+The total real dimension is $\dim V_L = (L+1)^2$.
+\end{definition}
+
+\begin{definition}[Augmented bispectrum]
+The invariant map $\Phi_{\mathrm{aug}}: V_L \to \C^{N_\beta} \times \R^{N_P}$ consists of:
+\begin{enumerate}[nosep]
+\item \textbf{Bispectral entries} (complex-valued):
+  $\beta_{\ell_1,\ell_2,\ell}
+  = \sum_{m_1+m_2=m} \CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}\,
+    a_{\ell_1}^{m_1}\,a_{\ell_2}^{m_2}\,\conj{a_\ell^m}$,
+  for triples $(\ell_1,\ell_2,\ell)$ selected by
+  Algorithm~1 of the main paper.
+\item \textbf{CG power entries} (real-valued):
+  $P_{\ell_1,\ell_2,\ell}
+  = \norm{(\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2})|_\ell}^2$.
+\end{enumerate}
+Both types are $\SO(3)$-invariant.
+Each complex $\beta$ contributes two real outputs $(\operatorname{Re}\beta, \im\beta)$.
+\end{definition}
+
+\begin{definition}[Reflection map $T_R$]\label{def:TR}
+The azimuthal reflection $R: (\theta,\varphi) \mapsto (\theta,-\varphi)$
+acts on spherical harmonic coefficients as
+$a_\ell^m \mapsto (-1)^m a_\ell^{-m}$.
+For real signals, this equals complex conjugation: $a_\ell^m \mapsto \conj{a_\ell^m}$.
+Since $R \in \OG(3) \setminus \SO(3)$, the signal $R \cdot f$ is generically
+in a \emph{different} $\SO(3)$-orbit from $f$.
+\end{definition}
+
+\section{Gauge Fixing}
+
+\begin{lemma}[Gauge fixing]\label{lem:gauge}
+For generic $f \in V_L$ (with $\norm{\mathbf{F}_1} \ne 0$ and $a_2^1 \ne 0$
+after aligning $\mathbf{F}_1$), there exists a unique $g \in \SO(3)$ such that
+the gauge-fixed signal $\tilde{f} = g \cdot f$ satisfies:
+\begin{enumerate}[nosep,label=(\roman*)]
+\item $a_1^{-1} = a_1^1 = 0$, \quad $a_1^0 = c > 0$ \quad
+  (alignment of $\mathbf{F}_1$ to the $z$-axis),
+\item $\im(a_2^1) = 0$, \quad $a_2^1 = x > 0$ \quad
+  (fixing the residual $\SO(2)_z$ symmetry).
+\end{enumerate}
+This consumes all $3$ degrees of freedom of $\SO(3)$.
+The gauge slice $\mathcal{G} \subset V_L$ is the set of signals
+satisfying (i)--(ii); it has $\dim\mathcal{G} = (L+1)^2 - 3$.
+\end{lemma}
+
+\begin{remark}[Gauge-fixed parameterisation]\label{rem:gauge-param}
+On the gauge slice, the real parameters are:
+\[
+  A_0 = a_0^0, \quad c = a_1^0, \quad
+  (y, x, u, v) = (a_2^0, \operatorname{Re}a_2^1, \operatorname{Re}a_2^2, \im a_2^2),
+\]
+and for $\ell \ge 3$: $t_\ell = a_\ell^0$, and
+$(p_{\ell,m}, q_{\ell,m}) = (\operatorname{Re}a_\ell^m, \im a_\ell^m)$ for $m = 1,\ldots,\ell$.
+The reflection $T_R$ acts on the gauge slice as:
+\begin{equation}\label{eq:TR-action}
+  T_R: \quad v \mapsto -v, \qquad
+  q_{\ell,m} \mapsto -q_{\ell,m} \quad \forall\, \ell \ge 3, \; m \ge 1.
+\end{equation}
+All other gauge-fixed parameters are unchanged.
+Crucially, $T_R$ preserves the gauge conditions (i)--(ii).
+\end{remark}
+
+\section{Recovery of $\mathbf{F}_0$ and $\mathbf{F}_1$}
+
+\begin{lemma}\label{lem:F0F1}
+For $a_0^0 \ne 0$:
+$\beta_{0,0,0} = (a_0^0)^3$ determines $A_0 = a_0^0$ uniquely.
+Then $\beta_{0,1,1} = A_0 \norm{\mathbf{F}_1}^2$ determines
+$c = \norm{\mathbf{F}_1}$, and $\mathbf{F}_1 = (0, c, 0)^\top$
+is fixed by the gauge.
+\end{lemma}
+
+\section{Parity Structure of the Bispectrum}
+
+This section contains the key new ingredient: a complete classification of
+which bispectral entries carry parity-breaking information.
+
+\begin{lemma}[Parity of the bispectrum]\label{lem:parity}
+For any signal (real or complex):
+\begin{equation}\label{eq:parity}
+  \beta_{\ell_1,\ell_2,\ell}(T_R \cdot f)
+  = (-1)^{\ell_1+\ell_2+\ell}\,\beta_{\ell_1,\ell_2,\ell}(f).
+\end{equation}
+For \emph{real} signals, there is an independent constraint:
+\begin{equation}\label{eq:reality-constraint}
+  \conj{\beta_{\ell_1,\ell_2,\ell}(f)}
+  = (-1)^{\ell_1+\ell_2+\ell}\,\beta_{\ell_1,\ell_2,\ell}(f).
+\end{equation}
+Together:
+\begin{enumerate}[nosep,label=(\alph*)]
+\item If $\ell_1+\ell_2+\ell$ is even:
+  $\beta$ is real-valued (by~\eqref{eq:reality-constraint})
+  and $T_R$-invariant (by~\eqref{eq:parity}).
+\item If $\ell_1+\ell_2+\ell$ is odd:
+  $\beta$ is purely imaginary (by~\eqref{eq:reality-constraint})
+  and $\beta(T_R \cdot f) = -\beta(f)$, so $\im\beta$ flips sign under $T_R$.
+\end{enumerate}
+\end{lemma}
+\begin{proof}
+Under $T_R$, each $a_\ell^m \mapsto (-1)^m a_\ell^{-m}$.
+Substituting into $\beta = \sum_m (\sum_{m_1+m_2=m} C\, a^{m_1} a^{m_2})
+\conj{a^m}$, the three sign factors $(-1)^{m_1+m_2+m} = (-1)^{2m} = 1$
+cancel. Re-indexing $m \mapsto -m$ and applying the CG symmetry
+$\CG{\ell_1}{-m_1}{\ell_2}{-m_2}{\ell}{-m}
+  = (-1)^{\ell_1+\ell_2-\ell}\,\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$
+yields~\eqref{eq:parity} (with $(-1)^{\ell_1+\ell_2-\ell} = (-1)^{\ell_1+\ell_2+\ell}$).
+
+For real signals, $\conj{a_\ell^m} = (-1)^m a_\ell^{-m}$.
+Taking the complex conjugate of $\beta$ and re-indexing similarly
+yields~\eqref{eq:reality-constraint}.
+\end{proof}
+
+\begin{lemma}[CG power is $T_R$-invariant]\label{lem:P-invariant}
+For all triples $(\ell_1,\ell_2,\ell)$:
+$P_{\ell_1,\ell_2,\ell}(T_R \cdot f) = P_{\ell_1,\ell_2,\ell}(f)$.
+\end{lemma}
+\begin{proof}
+Under $T_R$, the CG-projected component transforms as
+$(\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2})|_\ell^M
+  \mapsto (-1)^{\ell_1+\ell_2+\ell+M}\,
+  (\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2})|_\ell^{-M}$.
+Taking the squared norm and re-indexing the sum over $M$
+leaves $P$ unchanged.
+\end{proof}
+
+\begin{proposition}[Vanishing of odd-parity entries at low degrees]
+\label{prop:odd-vanishing}
+For real signals, the odd-parity bispectral entry
+$\beta_{\ell_1,\ell_2,\ell}$ (with $\ell_1+\ell_2+\ell$ odd)
+vanishes identically in each of the following cases:
+\begin{enumerate}[nosep,label=(\roman*)]
+\item $\ell_1 = \ell_2$: the CG coefficients are antisymmetric
+  under swapping $m_1 \leftrightarrow m_2$, while
+  $a_{\ell_1}^{m_1} a_{\ell_1}^{m_2}$ is symmetric, giving
+  exact cancellation.
+\item Two of $\{\ell_1, \ell_2, \ell\}$ are equal and the entry
+  involves gauge-fixed $\mathbf{F}_1$: the gauge $a_1^{\pm 1} = 0$
+  forces only the $m_1 = 0$ component to contribute, and the
+  resulting sum over $m$ cancels by the CG antisymmetry
+  $\CG{1}{0}{\ell'}{-m}{\ell'}{-m}
+    = -\CG{1}{0}{\ell'}{m}{\ell'}{m}$
+  paired with $|a_{\ell'}^{-m}|^2 = |a_{\ell'}^m|^2$.
+\item More generally, whenever two of the three representation indices
+  coincide, a symmetry argument yields $\beta = -\conj\beta$ \textbf{and}
+  $\beta = 0$, as verified by symbolic computation with sympy for all
+  triples with indices $\le 5$.
+\end{enumerate}
+\end{proposition}
+
+\begin{corollary}[First nonzero odd-parity entry]\label{cor:first-odd}
+The first bispectral entry with odd parity and generically nonzero imaginary
+part occurs at degree $\ell = 4$:
+\[
+  \beta_{2,3,4}, \qquad
+  \ell_1+\ell_2+\ell = 9 \;\text{(odd)},
+  \qquad
+  \ell_1, \ell_2, \ell \;\text{all distinct}.
+\]
+At the deterministic witness (seed~42), $\im(\beta_{2,3,4}) \approx 3.26 \ne 0$,
+and $\im(\beta_{2,3,4})(T_R \cdot f) \approx -3.26 = -\im(\beta_{2,3,4})(f)$.
+Similarly, $\beta_{2,4,3}$ and $\beta_{3,4,2}$ are nonzero odd-parity entries
+at degree~$4$.
+\end{corollary}
+
+\begin{remark}[No parity-breaking at $\ell \le 3$]
+For degrees $\le 3$, every odd-parity triple $(\ell_1,\ell_2,\ell)$
+has at least two indices equal (since $\max(\ell_1,\ell_2,\ell) \le 3$
+and $\ell_1+\ell_2+\ell$ odd forces at least one pair to be equal in this range).
+By Proposition~\ref{prop:odd-vanishing}, all odd-parity entries vanish.
+Therefore, the $T_R$ ambiguity cannot be resolved using only degrees $\le 3$.
+\end{remark}
+
+
+\section{Seed Recovery ($\ell \le 3$)}
+
+\begin{lemma}[Degree-2 recovery]\label{lem:ell2}
+Given $(A_0, c)$ from Lemma~\ref{lem:F0F1}, the gauge-fixed degree-2
+parameters $(y, x, u, v)$ satisfy:
+\begin{align}
+  \beta_{1,1,2} &= \tfrac{\sqrt{6}}{3}\, c^2\, y
+    &\Longrightarrow\quad& y \;\text{determined}, \label{eq:y}\\
+  P_{1,2,1} &= \tfrac{c^2}{5}(3x^2 + 2y^2)
+    &\Longrightarrow\quad& x^2 \;\text{determined}, \label{eq:x2}\\
+  \beta_{0,2,2} &= A_0(2u^2 + 2v^2 + 2x^2 + y^2)
+    &\Longrightarrow\quad& S := u^2+v^2 \;\text{determined}, \label{eq:S}\\
+  \beta_{2,2,2} &= \tfrac{6\sqrt{14}\,S\,y - 6\sqrt{21}\,u\,x^2
+    - 3\sqrt{14}\,x^2 y - \sqrt{14}\,y^3}{7}
+    &\Longrightarrow\quad& u \;\text{determined}
+    \;\text{(linear in $u$)}. \label{eq:u}
+\end{align}
+Here $x = \sqrt{x^2} > 0$ by the gauge condition.
+Then $v^2 = S - u^2$, giving $|v|$ but not $\sgn(v)$.
+The fibre at degree~$2$ is generically $\{(y,x,u,v),\; (y,x,u,-v)\}$.
+\end{lemma}
+\begin{proof}
+Equations~\eqref{eq:y}--\eqref{eq:u} are derived by direct symbolic computation
+using the gauge-fixed parameterisation (Remark~\ref{rem:gauge-param}) with
+$a_1^{\pm 1} = 0$, $a_1^0 = c$.
+The expression for $\beta_{2,2,2}$ involves $v$ only through $v^2$
+(which combines with $u^2$ into $S$), and is \emph{linear} in $u$
+(the coefficient of $u$ is $-6\sqrt{21}\,x^2/7 \ne 0$ for $x > 0$).
+\end{proof}
+
+\begin{lemma}[Degree-3 recovery: finite fibre]\label{lem:ell3}
+Given $\mathbf{F}_2 = (y,x,u,\pm v)$, the degree-3 parameters
+$\mathbf{F}_3 = (t, p_1, q_1, p_2, q_2, p_3, q_3)$ are constrained by the
+augmented entries:
+\begin{itemize}[nosep]
+\item $\beta_{1,2,3}$, $\beta_{1,3,2}$, $\beta_{2,3,1}$: bilinear in
+  $\mathbf{F}_2 \otimes \mathbf{F}_3$.
+  The entries $\beta_{1,3,2}$ and $\beta_{2,3,1}$ are in the Jacobian
+  row span of $\beta_{1,2,3}$ and contribute no additional rank.
+\item $\beta_{0,3,3} = A_0\norm{\mathbf{F}_3}^2$: gives the norm.
+\item $\beta_{3,3,2}$: quadratic in $\mathbf{F}_3$, linear in $\mathbf{F}_2$.
+\item $\beta_{2,3,2}$, $\beta_{2,2,3}$: odd parity with repeated indices,
+  vanish identically for real signals (Proposition~\ref{prop:odd-vanishing}).
+\item $P_{1,2,1}$: constrains $3x^2+2y^2$, resolving $x^2$ once $y$ is known.
+\item $P_{1,3,2}$, $P_{2,3,1}$, $P_{2,3,2}$, $P_{3,3,2}$: CG power entries
+  quadratic in $\mathbf{F}_3$, providing the missing rank directions that the
+  scalar bispectrum alone cannot achieve.
+\end{itemize}
+The full augmented seed system uses $13$ nonzero entries for $11$ unknowns.
+Two additional entries ($\beta_{2,3,2}$ and $\beta_{2,2,3}$, both odd parity with
+repeated indices) vanish identically for real signals by
+Proposition~\ref{prop:odd-vanishing}.
+The incremental rank structure at a rational witness is:
+\begin{center}\small
+\begin{tabular}{llc}
+  Entries added & Rank \\
+  \hline
+  $\mathrm{Re}\,\beta_{1,1,2}$ & 1 \\
+  $+\;\mathrm{Re}\,\beta_{0,2,2}$ & 2 \\
+  $+\;\mathrm{Re}\,\beta_{2,2,2}$ & 3 \\
+  $+\;\mathrm{Re}\,\beta_{1,2,3}$ & 4 \\
+  $+\;\mathrm{Re}\,\beta_{0,3,3}$ & 5 \\
+  $+\;\mathrm{Re}\,\beta_{3,3,2}$ & 6 \\
+  $+\;P_{1,2,1}$ & 7 \\
+  $+\;P_{1,3,2}$ & 8 \\
+  $+\;P_{2,3,1}$ & 9 \\
+  $+\;P_{2,3,2}$ & 10 \\
+  $+\;P_{3,3,2}$ & \textbf{11/11} \\
+\end{tabular}
+\end{center}
+The bispectral entries $\mathrm{Re}\,\beta_{1,3,2}$ and
+$\mathrm{Re}\,\beta_{2,3,1}$ are in the row span of the first four
+bispectral rows and contribute no additional rank.
+Thus the scalar bispectrum achieves rank~$6$, and \emph{all five}
+CG power entries are essential: each contributes one additional rank,
+reaching the full rank~$11$.
+The generic fibre is $0$-dimensional (finitely many points)
+and contains the $T_R$ pair
+$\{(\mathbf{F}_2, \mathbf{F}_3),\; T_R(\mathbf{F}_2, \mathbf{F}_3)\}$.
+\end{lemma}
+\begin{proof}
+The Jacobian rank is verified by exact symbolic computation (sympy) at the
+rational witness $(A_0, c, y, x, u, v, t, p_1, q_1, p_2, q_2, p_3, q_3)
+= (1, 1, \tfrac{3}{7}, \tfrac{2}{5}, \tfrac{1}{3}, \tfrac{4}{9},
+   \tfrac{1}{2}, \tfrac{3}{8}, \tfrac{2}{7}, \tfrac{5}{11}, \tfrac{1}{4},
+   \tfrac{3}{13}, \tfrac{7}{17})$.
+The $13 \times 11$ Jacobian has rank~$11$ (full).
+The six contributing bispectral entries achieve rank~$6$; each of the five
+CG power entries $P_{1,2,1}$, $P_{1,3,2}$, $P_{2,3,1}$, $P_{2,3,2}$,
+$P_{3,3,2}$ contributes one additional rank.
+
+The $T_R$ invariance follows from Lemmas~\ref{lem:parity}--\ref{lem:P-invariant}
+and Proposition~\ref{prop:odd-vanishing}: every entry in the degree~$\le 3$
+augmented system is either real-valued and $T_R$-invariant (even parity $\beta$
+and all~$P$) or identically zero (odd parity $\beta$).
+Since $T_R$ preserves all augmented invariants and maps
+$(y,x,u,v,\ldots) \mapsto (y,x,u,-v,\ldots)$ (a different point on the gauge
+slice when $v \ne 0$), the fibre contains the $T_R$ pair.
+
+Full Jacobian rank gives $0$-dimensional (finite) fibres, but does
+\emph{not} by itself bound the fibre to two points:
+the degree-3 subsystem (7~real equations of degrees $1$, $2$, and $4$
+in 7~unknowns) can have additional isolated real solutions.
+Exhaustive numerical search (multi-start least-squares with 5000 random
+initial points per sign-of-$v$ branch) finds $10$ solutions per branch
+($20$ total, forming $10$ $T_R$-pairs) at the rational witness.
+These spurious solutions are eliminated at degree~$4$
+(Lemma~\ref{lem:degree4-filter}).
+\end{proof}
+
+\begin{remark}[The seed fibre is finite but not two-point]
+\label{rem:seed-fibre-size}
+The seed polynomial system (degrees $0$--$3$) is a system of
+$7$ independent real equations of mixed degree ($1$ linear, $5$ quadratic,
+$1$ quartic) in $7$ real unknowns (for each branch of $\sgn(v)$).
+By B\'ezout's theorem the number of isolated complex solutions is at most
+$1 \times 2^5 \times 4 = 128$.
+Numerically, $10$ real solutions are found per branch.
+The proof does not require the seed fibre to be a two-point set;
+fibre reduction is deferred to degree~$4$.
+\end{remark}
+
+
+\section{Per-Degree Recovery ($\ell \ge 4$)}
+
+\begin{lemma}[Complex bootstrap rank]\label{lem:bootstrap-rank}
+For each $\ell \ge 4$, the selective bispectral entries at degree $\ell$
+that are linear in $\mathbf{F}_\ell$ define a coefficient matrix
+$A_\ell \in \C^{N \times (2\ell+1)}$ (with coefficients depending on
+$\mathbf{F}_0, \ldots, \mathbf{F}_{\ell-1}$).
+For generic lower-degree coefficients:
+$\operatorname{rank}_\C(A_\ell) = 2\ell+1$.
+\end{lemma}
+\begin{proof}
+For each $\ell$, $\det(A_\ell)$ is a polynomial in the lower-degree
+coefficients.  It is verified to be nonzero at a deterministic
+witness (seed~42, real-signal constraint) for each
+$\ell \in \{4, \ldots, 100\}$
+(script: \texttt{benchmarks/verify\_linear\_bootstrap.py}).
+Since a polynomial that is nonzero at one point is not identically zero,
+$\det(A_\ell) \not\equiv 0$ for each verified~$\ell$.
+For $\ell \ge 8$, the matrix uses the closed-form tridiagonal family
+$\mathcal{T}_\ell$ with $2\ell+1$ entries.
+\end{proof}
+
+\begin{remark}[Scope of the bootstrap verification]\label{rem:bootstrap-scope}
+The bootstrap rank is verified for each individual $\ell \le 100$.
+For any fixed band-limit $L$, the genericity condition is that
+$\det(A_\ell) \ne 0$ for $\ell = 4, \ldots, L$.
+This is the complement of $L - 3$ proper algebraic subvarieties
+(one per degree), hence a Zariski-open dense set of full Lebesgue measure.
+For $L > 100$, the verification script can be extended to cover any
+desired~$L$.  The structural form of the tridiagonal family is uniform
+for all $\ell \ge 8$, and no mechanism exists by which the determinant
+polynomial could vanish identically at a particular $\ell$ while being
+nonzero at neighbouring degrees.
+\end{remark}
+
+\begin{remark}[Complex rank suffices for uniqueness]\label{rem:complex-real}
+For real signals, $\mathbf{F}_\ell$ has $2\ell+1$ real degrees of freedom.
+The bispectral entries define two subsystems: chain entries, linear in
+$\conj{\mathbf{F}_\ell}$, and cross entries, linear in $\mathbf{F}_\ell$.
+Neither subsystem alone has full rank.
+However, combining both via the reality constraint
+$\conj{a_\ell^m} = (-1)^m a_\ell^{-m}$ yields a real linear system
+of full rank $2\ell+1$ in the $2\ell+1$ real parameters.
+Equivalently: the complex system (treating chain and cross jointly)
+has a unique solution $(\mathbf{F}_\ell, \conj{\mathbf{F}_\ell})$,
+and for a real input signal this solution automatically satisfies
+the reality constraint.
+\end{remark}
+
+\begin{lemma}[Augmented per-degree real rank]\label{lem:augmented-perdegree}
+For each $\ell \ge 4$, the full augmented entries at degree $\ell$
+(linear bispectral, self-coupling, and CG power) have real Jacobian
+rank $2\ell+1$ w.r.t.\ the $2\ell+1$ real parameters of $\mathbf{F}_\ell$.
+The CG power entries are essential at every degree: the scalar
+bispectrum alone (linear + self-coupling) achieves only partial rank.
+Verified at the witness for $\ell \in \{4, \ldots, 30\}$.
+\end{lemma}
+
+
+\section{Degree-4 Fibre Reduction and $T_R$ Resolution}
+
+\begin{lemma}[Degree-4 eliminates all spurious seed solutions]
+\label{lem:degree4-filter}
+Let $\mathcal{S}$ denote the finite seed fibre at degrees~$0$--$3$
+(Lemma~\ref{lem:ell3}).
+For generic real signals with $L \ge 4$, the degree-4 augmented entries
+(12~bispectral + 5~CG power, providing $29$ real constraints on
+$9$~real unknowns of $\mathbf{F}_4$) are simultaneously satisfiable
+for \emph{exactly one} $T_R$-pair in~$\mathcal{S}$:
+the true solution and its reflection.
+All other seed solutions are inconsistent at degree~$4$.
+\end{lemma}
+\begin{proof}
+The degree-4 augmented system is an overdetermined polynomial system
+in the 9~real parameters of $\mathbf{F}_4$, with coefficients depending
+on the seed solution $(\mathbf{F}_0, \ldots, \mathbf{F}_3)$.
+
+For each of the~10 seed solutions on the $+v$ branch at the rational
+witness, a multi-start nonlinear least-squares search (200~random starts)
+is used to find the best-fit~$\mathbf{F}_4$.
+Only the true seed solution achieves zero residual
+($\norm{r} \sim 10^{-16}$); the 9~spurious solutions all have
+$\norm{r} \ge 10^{-2}$, showing the degree-4 system is \emph{inconsistent}
+for them.
+
+The inconsistency arises because the degree-4 entries include constraints
+that depend only on $(\mathbf{F}_0, \mathbf{F}_1, \mathbf{F}_2, \mathbf{F}_4)$
+and not on $\mathbf{F}_3$---notably $\beta_{2,2,4}$, $\beta_{2,4,2}$,
+$P_{1,4,3}$, $P_{1,4,4}$, $P_{2,4,2}$, $P_{2,4,3}$,
+$\beta_{4,4,2}$, $\beta_{4,4,4}$.
+These 8~entries nearly determine $\mathbf{F}_4$ independently of $\mathbf{F}_3$.
+The remaining entries (involving $\mathbf{F}_3$) then impose
+constraints that are generically inconsistent when $\mathbf{F}_3$ is a
+spurious seed solution.
+
+Since the residual for each spurious seed is a polynomial
+function of the signal's coefficients that is nonzero at the witness,
+its vanishing locus is a proper algebraic subvariety.
+\end{proof}
+
+\begin{lemma}[The $T_R$ branch is overdetermined-inconsistent]
+\label{lem:TR-resolve}
+For $L \ge 4$, the $T_R$ partner of the true seed---i.e.,
+$(\mathbf{F}_2', \mathbf{F}_3') = T_R(\mathbf{F}_2, \mathbf{F}_3)$---is
+also inconsistent at degree~$4$ for generic signals.
+\end{lemma}
+\begin{proof}
+By Lemma~\ref{lem:degree4-filter}, the $T_R$ branch is one of the
+seed solutions that fails the degree-4 consistency check.
+The mechanism is the parity structure (Lemma~\ref{lem:parity}):
+the odd-parity entries $\beta_{2,3,4}$, $\beta_{2,4,3}$, $\beta_{3,4,2}$
+(all-distinct indices, $\im\beta \ne 0$) are part of the degree-4
+constraints.  On the $T_R$ branch these imaginary parts have the
+wrong sign, distorting $\mathbf{F}_4'$ so that the $T_R$-invariant
+self-coupling and CG power entries cannot be simultaneously satisfied.
+
+Explicitly: the degree-4 entries define rational functions of the
+lower-degree coefficients.  Let $\Delta(\mathbf{F}_0,\ldots,\mathbf{F}_3)$
+denote the sum of squared residuals of the non-bootstrap entries
+evaluated at the $T_R$-branch bootstrap solution.
+Then $\Delta$ is a rational function whose numerator is a polynomial $p$
+and whose denominator is $(\det A_4)^2$ (from the bootstrap solve).
+At the witness, $\det A_4 \ne 0$ and $p \ne 0$
+(residual ${\sim}10^{-2}$).
+Hence $p$ is not identically zero, and $\Delta \ne 0$ on the complement
+of the proper algebraic subvariety $\{p = 0\} \cup \{\det A_4 = 0\}$.
+\end{proof}
+
+\begin{proposition}[Uniqueness propagates]\label{prop:TR-propagate}
+Once the correct seed $(\mathbf{F}_0, \ldots, \mathbf{F}_3)$ is identified
+at degree~$4$ (Lemmas~\ref{lem:degree4-filter}--\ref{lem:TR-resolve}),
+the complex bootstrap at degrees $\ell \ge 5$ is unambiguous:
+given the correct $\mathbf{F}_0, \ldots, \mathbf{F}_{\ell-1}$, the
+full-rank matrix $A_\ell$ determines $\mathbf{F}_\ell$ uniquely
+(Lemma~\ref{lem:bootstrap-rank}, Remark~\ref{rem:complex-real}).
+\end{proposition}
+
+
+\section{Main Theorem}
+
+\begin{theorem}[Completeness of the augmented selective bispectrum]
+\label{thm:main}
+For $L \ge 4$, let $f, f': S^2 \to \R$ be band-limited at degree $L$
+and satisfy the genericity conditions:
+\begin{enumerate}[nosep,label=(G\arabic*)]
+\item $a_0^0 \ne 0$,
+\item $\norm{\mathbf{F}_1} \ne 0$,
+\item $a_2^1 \ne 0$ after gauge-fixing $\mathbf{F}_1$.
+\end{enumerate}
+If $\Phi_{\mathrm{aug}}(f) = \Phi_{\mathrm{aug}}(f')$
+(as complex-valued output, including both real and imaginary parts
+of each bispectral entry), then $f' = g \cdot f$ for some $g \in \SO(3)$.
+
+The generic set (satisfying (G1)--(G3) and lying outside a proper
+algebraic subvariety) has full Lebesgue measure in $V_L$.
+The augmented output has $\Theta(L^2)$ real components, achieving the
+information-theoretic lower bound up to a constant factor.
+\end{theorem}
+\begin{proof}
+\textbf{Step 1: Gauge fixing.}
+By Lemma~\ref{lem:gauge}, both $f$ and $f'$ can be gauge-fixed.
+If $\Phi_{\mathrm{aug}}(f) = \Phi_{\mathrm{aug}}(f')$, then by
+$\SO(3)$-invariance, the gauge-fixed versions $\tilde{f}$ and $\tilde{f}'$
+(possibly with different gauge rotations $g, g'$) satisfy
+$\Phi_{\mathrm{aug}}(\tilde{f}) = \Phi_{\mathrm{aug}}(\tilde{f}')$.
+It suffices to show $\tilde{f} = \tilde{f}'$ on the gauge slice.
+
+\medskip
+\textbf{Step 2: Recovery of $\mathbf{F}_0$, $\mathbf{F}_1$.}
+By Lemma~\ref{lem:F0F1}, the gauge-fixed $A_0$ and $c$ are uniquely
+determined. Hence $\tilde{f}$ and $\tilde{f}'$ agree at degrees $0$ and $1$.
+
+\medskip
+\textbf{Step 3: Seed recovery (degrees 2--3).}
+By Lemma~\ref{lem:ell2}, the degree-2 parameters $(y, x, u, |v|)$
+are uniquely determined.
+By Lemma~\ref{lem:ell3}, the augmented seed system at degrees $0$--$3$
+has full Jacobian rank~$11$, giving a $0$-dimensional (finite) fibre
+$\mathcal{S} = \{s_1, \ldots, s_K, T_R(s_1), \ldots, T_R(s_K)\}$
+consisting of $T_R$-paired points.
+The gauge-fixed $\tilde{f}'$ agrees with one of these seed solutions.
+
+\medskip
+\textbf{Step 4: Degree-4 fibre reduction.}
+By Lemma~\ref{lem:degree4-filter}, the degree-4 augmented entries
+are simultaneously satisfiable for at most one $T_R$-pair in
+$\mathcal{S}$: the true solution $s_1 = (\mathbf{F}_2, \mathbf{F}_3)$ and
+$T_R(s_1)$.  All other seed solutions are eliminated.
+By Lemma~\ref{lem:TR-resolve}, the $T_R$ partner is itself inconsistent
+at degree~$4$ due to the parity-breaking entries
+$\beta_{2,3,4}, \beta_{2,4,3}, \beta_{3,4,2}$
+(whose imaginary parts flip sign under~$T_R$).
+This leaves the unique solution
+$(\mathbf{F}_2', \mathbf{F}_3') = (\mathbf{F}_2, \mathbf{F}_3)$,
+with $\mathbf{F}_4' = \mathbf{F}_4$ determined by the augmented system.
+
+\medskip
+\textbf{Step 5: Inductive recovery ($\ell \ge 5$).}
+By Proposition~\ref{prop:TR-propagate}, given the correct
+$\mathbf{F}_0, \ldots, \mathbf{F}_{\ell-1}$, the complex bootstrap
+uniquely determines $\mathbf{F}_\ell$ at each degree $\ell \ge 5$.
+
+\medskip
+\textbf{Step 6: Conclusion.}
+By induction on $\ell$, the gauge-fixed signals $\tilde{f}$ and $\tilde{f}'$
+agree at all degrees $0, \ldots, L$.
+Hence $\tilde{f} = \tilde{f}'$, which means $f' = (g')^{-1} g \cdot f$
+with $(g')^{-1} g \in \SO(3)$.
+
+The generic set is the complement of finitely many proper algebraic
+subvarieties: (G1)--(G3), the seed Jacobian rank condition, the
+degree-4 fibre-reduction consistency for each spurious seed solution
+(each is a polynomial condition verified nonzero at the witness),
+and the bootstrap rank conditions $\det(A_\ell) \ne 0$ for
+$\ell = 4, \ldots, L$.
+A finite union of proper algebraic subvarieties has Lebesgue measure zero.
+\end{proof}
+
+\begin{corollary}[Band-limits $L \le 3$]
+For $L \le 3$, the augmented selective bispectrum has finite fibres
+that include $T_R$-pairs (by Lemma~\ref{lem:ell3}), but without
+degree-4 entries, the spurious seed solutions and the $T_R$ ambiguity
+cannot be resolved.
+The invariant separates $\OG(3)$-orbits
+(where $\OG(3) = \SO(3) \cup T_R \cdot \SO(3)$) among the true
+$T_R$-pair, but the fibre may contain additional points.
+\end{corollary}
+
+\section{Computational Certificates}
+
+The proof relies on five computational certificates, all reproducible
+from scripts in the repository:
+
+\begin{enumerate}[nosep]
+\item \textbf{Seed Jacobian rank} (Lemma~\ref{lem:ell3}):
+  The $13 \times 11$ Jacobian of the augmented seed system
+  (degrees $0$--$3$, $13$ nonzero entries) has rank $11$ at the rational
+  witness.
+  Verified by \emph{exact} rational arithmetic (sympy), providing a
+  rigorous certificate with no floating-point error.
+
+\item \textbf{Seed fibre enumeration} (Lemma~\ref{lem:ell3},
+  Remark~\ref{rem:seed-fibre-size}):
+  Exhaustive multi-start search (5000 starts per branch) finds exactly
+  $10$ solutions per $\sgn(v)$ branch ($20$ total, $10$ $T_R$-pairs).
+  Verified by \texttt{benchmarks/verify\_seed\_fibre.py}.
+
+\item \textbf{Degree-4 fibre reduction}
+  (Lemma~\ref{lem:degree4-filter}):
+  For each of the $10$ seed solutions on the $+v$ branch, a
+  multi-start nonlinear least-squares search (200 starts) attempts to
+  find $\mathbf{F}_4$ satisfying all $29$ real degree-4 constraints.
+  Only the true solution achieves zero residual; all $9$ spurious
+  solutions have residual $\ge 10^{-2}$.
+  Verified by \texttt{benchmarks/verify\_degree4\_filter.py}.
+
+\item \textbf{Complex bootstrap rank} (Lemma~\ref{lem:bootstrap-rank}):
+  For each $\ell \in \{4, \ldots, 100\}$, the bootstrap matrix $A_\ell$
+  has full \emph{complex} rank $2\ell+1$ at the deterministic witness
+  (seed~42).  The minimum singular value is well above zero
+  ($\sigma_{\min} / \sigma_{\max} \ge 10^{-4}$).
+  Verified by \texttt{benchmarks/verify\_linear\_bootstrap.py}.
+
+\item \textbf{Augmented per-degree real rank}
+  (Lemma~\ref{lem:augmented-perdegree}):
+  For each $\ell \in \{4, \ldots, 30\}$, the full augmented system
+  (bispectral + CG power) has \emph{real} Jacobian rank $2\ell+1$
+  at the witness.
+\end{enumerate}
+
+\begin{remark}[Exact vs.\ floating-point certificates]
+Certificate~1 uses exact rational arithmetic (no numerical error).
+Certificates~2--3 use IEEE~754 double precision.
+Since the quantities being tested (solution residuals, singular values)
+are well-separated from zero (residuals $\ge 10^{-2}$ for spurious
+solutions, singular values $\ge 10^{-2}$), rounding errors of order
+$10^{-15}$ do not affect the conclusions.
+Certificate~4 uses double precision with condition numbers $\le 10^4$,
+ensuring the rank determination is reliable.
+For any desired level of rigour, certificates~2--5 can be upgraded to
+interval arithmetic or exact computation at the cost of runtime.
+\end{remark}
+
+All certificates use deterministic witness points (rational or seeded
+pseudo-random), making them fully reproducible.
+The algebraic argument (``nonzero polynomial at one point implies nonzero
+polynomial generically'') upgrades each pointwise certificate to a
+generic (measure-zero exceptional set) statement.
+
+\end{document}

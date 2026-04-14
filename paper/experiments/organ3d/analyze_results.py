@@ -54,20 +54,33 @@ def load_results(results_dir: str) -> dict[str, list[dict]]:
     return grouped
 
 
+def _baseline_runs(grouped: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Filter to channels=[4,8] and train_fraction=1.0 runs only."""
+    filtered: dict[str, list[dict]] = {}
+    for model, runs in grouped.items():
+        f = [r for r in runs
+             if r.get('channels', [4, 8]) == [4, 8]
+             and abs(r.get('train_fraction', 1.0) - 1.0) < 0.01]
+        if f:
+            filtered[model] = f
+    return filtered
+
+
 def print_our_results(grouped: dict[str, list[dict]]):
-    """Print table of our experimental results."""
+    """Print table of our experimental results (baseline channels only)."""
+    baseline = _baseline_runs(grouped)
     print('\n' + '=' * 90)
     print('OUR RESULTS (controlled ablation — same backbone, different pooling)')
     print('=' * 90)
     header = (
         f'{"Model":<25} {"Params":>8} {"Test ACC":>12} {"Test AUC":>12} '
-        f'{"Rot ACC":>12} {"Rot σ_ACC":>10}'
+        f'{"Rot ACC":>12} {"Rot \u03c3_ACC":>10}'
     )
     print(header)
     print('-' * 90)
 
     for model_name in MODEL_ORDER:
-        runs = grouped.get(model_name, [])
+        runs = baseline.get(model_name, [])
         if not runs:
             continue
 
@@ -86,13 +99,13 @@ def print_our_results(grouped: dict[str, list[dict]]):
                     if r['rotation_robustness'].get('mean_accuracy', 0) > 0]
 
         label = MODEL_LABELS.get(model_name, model_name)
-        rot_str = f'{np.mean(rot_accs):.4f}' if rot_accs else '—'
-        rot_std_str = f'{np.mean(rot_stds):.4f}' if rot_stds else '—'
+        rot_str = f'{np.mean(rot_accs):.4f}' if rot_accs else '\u2014'
+        rot_std_str = f'{np.mean(rot_stds):.4f}' if rot_stds else '\u2014'
 
         print(
             f'{label:<25} {n_params:>8,} '
-            f'{mean_acc:.4f}±{std_acc:.4f} '
-            f'{mean_auc:.4f}±{std_auc:.4f} '
+            f'{mean_acc:.4f}\u00b1{std_acc:.4f} '
+            f'{mean_auc:.4f}\u00b1{std_auc:.4f} '
             f'{rot_str:>12} {rot_std_str:>10}'
         )
 
@@ -113,7 +126,8 @@ def print_published_baselines():
 
 
 def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
-    """Generate bar chart: original vs rotated accuracy per model."""
+    """Generate bar chart: original vs rotated accuracy per model (baseline channels only)."""
+    grouped = _baseline_runs(grouped)
     models_with_data = [m for m in MODEL_ORDER if m in grouped]
     if not models_with_data:
         print('No data to plot.')
@@ -338,10 +352,10 @@ def print_tier1_summary(grouped: dict[str, list[dict]]):
                 )
 
     print('\n' + '=' * 90)
-    print('WIDER CHANNELS (frac=1.0, seed=42)')
+    print('WIDER CHANNELS (frac=1.0)')
     print('=' * 90)
-    print(f'{"Model":<15} {"Channels":>10} {"Params":>10} {"Test ACC":>10} {"Test AUC":>10} {"Rot ACC":>10}')
-    print('-' * 70)
+    print(f'{"Model":<15} {"Channels":>10} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}')
+    print('-' * 85)
 
     for ch in [[4, 8], [8, 16], [16, 32]]:
         for model in ['max_pool', 'bispectrum']:
@@ -349,13 +363,16 @@ def print_tier1_summary(grouped: dict[str, list[dict]]):
                     if r.get('channels', [4, 8]) == ch
                     and abs(r.get('train_fraction', 1.0) - 1.0) < 0.01]
             if runs:
-                r = runs[0]
-                rot = r['rotation_robustness'].get('mean_accuracy', 0)
-                ch_str = '→'.join(map(str, ch))
+                accs = [r['test']['accuracy'] for r in runs]
+                aucs = [r['test']['auc'] for r in runs]
+                rots = [r['rotation_robustness'].get('mean_accuracy', 0) for r in runs]
+                n_seeds = len(runs)
+                ch_str = '\u2192'.join(map(str, ch))
                 print(
-                    f'{model:<15} {ch_str:>10} {r["n_params"]:>10,} '
-                    f'{r["test"]["accuracy"]:>10.4f} {r["test"]["auc"]:>10.4f} '
-                    f'{rot:>10.4f}'
+                    f'{model:<15} {ch_str:>10} {runs[0]["n_params"]:>10,} '
+                    f'{np.mean(accs):>7.4f}\u00b1{np.std(accs):.4f} ({n_seeds}s) '
+                    f'{np.mean(aucs):>7.4f}\u00b1{np.std(aucs):.4f} '
+                    f'{np.mean(rots):>10.4f}'
                 )
 
 

@@ -15,7 +15,10 @@ Usage examples:
     # Data-efficiency experiment: 10% of training data
     python train.py --model bispectrum --group c8 --train_fraction 0.1
 
-    # Run all 5 baselines × 3 seeds (full sweep)
+    # SO2onDisk disk bispectrum baseline (no backbone)
+    python train.py --model so2_disk --bandlimit 30 --data_dir ./pcam_data
+
+    # Run all 6 baselines × 3 seeds (full sweep)
     python train.py --sweep --data_dir ./pcam_data
 """
 
@@ -198,16 +201,22 @@ def train(args: argparse.Namespace) -> dict:
         group=args.group,
         growth_rate=args.growth_rate,
         block_config=tuple(args.block_config),
+        bandlimit=getattr(args, 'bandlimit', None),
     )
     model = model.to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f'Model: {args.model} (group={args.group}, gr={args.growth_rate}), {n_params:,} params')
+    if args.model == 'so2_disk':
+        print(f'Model: {args.model} (bandlimit={args.bandlimit}), {n_params:,} params')
+    else:
+        print(f'Model: {args.model} (group={args.group}, gr={args.growth_rate}), {n_params:,} params')
 
     if args.dry_run:
-        print(json.dumps({
-            'model': args.model, 'group': args.group,
-            'growth_rate': args.growth_rate, 'n_params': n_params,
-        }))
+        info: dict = {'model': args.model, 'n_params': n_params}
+        if args.model == 'so2_disk':
+            info['bandlimit'] = args.bandlimit
+        else:
+            info.update({'group': args.group, 'growth_rate': args.growth_rate})
+        print(json.dumps(info))
         return {'n_params': n_params}
 
     print(f'Device: {device}')
@@ -237,7 +246,10 @@ def train(args: argparse.Namespace) -> dict:
 
     best_auc = 0.0
     patience_counter = 0
-    out_dir = Path(args.output_dir) / f'{args.model}_{args.group}_gr{args.growth_rate}_seed{args.seed}'
+    if args.model == 'so2_disk':
+        out_dir = Path(args.output_dir) / f'{args.model}_bl{args.bandlimit:.0f}_seed{args.seed}'
+    else:
+        out_dir = Path(args.output_dir) / f'{args.model}_{args.group}_gr{args.growth_rate}_seed{args.seed}'
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, args.epochs + 1):
@@ -283,7 +295,7 @@ def train(args: argparse.Namespace) -> dict:
         rot_metrics = {'mean_auc': 0.0, 'std_auc': 0.0}
 
     # Save results.
-    results = {
+    results: dict = {
         'model': args.model,
         'group': args.group,
         'seed': args.seed,
@@ -294,6 +306,8 @@ def train(args: argparse.Namespace) -> dict:
         'test': test_metrics,
         'rotation_robustness': rot_metrics,
     }
+    if args.model == 'so2_disk':
+        results['bandlimit'] = args.bandlimit
     with open(out_dir / 'results.json', 'w') as f:
         json.dump(results, f, indent=2)
 
@@ -302,7 +316,7 @@ def train(args: argparse.Namespace) -> dict:
 
 def run_sweep(args: argparse.Namespace):
     """Run the full experimental sweep."""
-    models = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum']
+    models = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum', 'so2_disk']
     seeds = [42, 123, 456]
     all_results = []
 
@@ -360,7 +374,7 @@ def main():
     )
     parser.add_argument(
         '--model',
-        choices=['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum'],
+        choices=['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum', 'so2_disk'],
         default='bispectrum',
         help='Nonlinearity / model variant.',
     )
@@ -374,6 +388,12 @@ def main():
     parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--growth_rate', type=int, default=12)
+    parser.add_argument(
+        '--bandlimit',
+        type=float,
+        default=30.0,
+        help='Bandlimit for SO2onDisk (only used when --model=so2_disk).',
+    )
     parser.add_argument(
         '--block_config',
         type=int,
@@ -390,7 +410,7 @@ def main():
     parser.add_argument(
         '--sweep',
         action='store_true',
-        help='Run all 5 baselines × 3 seeds.',
+        help='Run all 6 baselines × 3 seeds.',
     )
     parser.add_argument(
         '--dry_run',

@@ -219,7 +219,8 @@ def train(args: argparse.Namespace) -> dict:
 
     best_val_acc = 0.0
     patience_counter = 0
-    out_dir = Path(args.output_dir) / f'{args.model}_{args.train_mode}_seed{args.seed}'
+    frac_tag = f'_frac{args.train_fraction}' if args.train_fraction < 1.0 else ''
+    out_dir = Path(args.output_dir) / f'{args.model}_{args.train_mode}_seed{args.seed}{frac_tag}'
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, args.epochs + 1):

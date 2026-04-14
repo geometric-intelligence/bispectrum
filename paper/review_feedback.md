@@ -1,5 +1,19 @@
 # Review of `paper.tex`
 
+> **Status update (April 2026):** This review was written against the older
+> `paper/paper.tex`. The canonical paper source is now
+> `paper/paper_scaffold_pi_review.tex`. Several findings below are resolved:
+>
+> - **Finding 6 (SO3onS2 selective):** `so3_on_s2.py` now has selective mode
+>   fully implemented (`_build_selective_index_map`, O(L²) output), tested
+>   (Jacobian rank tests in `tests/test_so3_on_s2.py`), and documented
+>   (`docs/selective_so3_on_s2_completeness.md`). The claim on line 136 that
+>   "selective mode is reserved for future use" is **stale**.
+> - **Finding 5 (steerable-to-Fourier bridge):** Dropped from the paper scope.
+> - **Finding 8 (RotMNIST contrastive):** Dropped from the paper scope.
+> - **Experiments:** The scaffold now covers PCam + OrganMNIST3D + Spherical
+>   MNIST (3 experiments, not 1).
+
 This review is intentionally harsh and reviewer-oriented. It focuses on what is currently unsupported, overstated, internally inconsistent, or likely to trigger serious pushback from a careful NeurIPS reviewer. It is based on `paper/paper.tex`, the package code under `src/bispectrum/`, the experiment code and artifacts under `paper/experiments/pcam/`, the benchmark code, and the literature/planning notes under `docs/`.
 
 ## Top-line assessment
@@ -132,7 +146,7 @@ Examples:
 - `src/bispectrum/dn_on_dn.py`: full mode raises `NotImplementedError`
 - `src/bispectrum/octa_on_octa.py`: full mode raises `NotImplementedError`
 - `src/bispectrum/so2_on_disk.py`: full mode raises `NotImplementedError`
-- `src/bispectrum/so3_on_s2.py`: selective mode is reserved for future use; selective SO(3) is explicitly open
+- `src/bispectrum/so3_on_s2.py`: ~~selective mode is reserved for future use; selective SO(3) is explicitly open~~ **RESOLVED:** selective mode is now fully implemented and tested
 
 #### The "uniform API contract" is too strong
 
