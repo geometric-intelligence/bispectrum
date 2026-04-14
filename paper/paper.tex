@@ -116,7 +116,7 @@ gate-based pooling, or max/sum aggregation are
 usable~\citep{weiler2019general}, but they do not preserve all equivariant
 information. The bispectrum offers a mathematically principled alternative,
 since for many groups it yields exact invariants with reconstruction
-guarantees~\citep{kakarala1992triple}.
+guarantees~\citep{kakarala2012bispectrum}.
 
 The obstacle is practical rather than conceptual. Existing bispectral
 constructions are scattered across theory papers, domain-specific derivations,
@@ -227,7 +227,7 @@ intertwining matrix $C_{ij}$, the \emph{bispectrum} is
 \end{equation}
 Each $\beta_{\rho_i,\rho_j}$ is invariant under $f \mapsto f \circ g$ and,
 taken over all pairs $(i,j)$, the bispectrum is a \emph{complete} invariant:
-it separates orbits for generic signals~\citep{kakarala1992triple}. However,
+it separates orbits for generic signals~\citep{kakarala2012bispectrum}. However,
 the full set has $O(|G|^2)$ coefficients.
 
 \emph{Selective bispectra.} \citet{mataigne2024selective} show that for
@@ -752,7 +752,7 @@ translation-invariant representations via iterated modulus operations;
 \citet{esteves2018spherical} extend this to the sphere. Unlike the
 bispectrum, scattering representations are stable but generally
 incomplete---they discard inter-scale phase information.
-The bispectrum's completeness guarantee~\citep{kakarala1992triple} is its
+The bispectrum's completeness guarantee~\citep{kakarala2012bispectrum} is its
 distinguishing theoretical advantage.
 
 \section{Discussion and Conclusion}
@@ -1691,12 +1691,12 @@ generic (measure-zero exceptional set) statement.
     \toprule
     Result & Invariant & Size & Complete? \\
     \midrule
-    Kakarala~\citep{kakarala1992triple}
+    Kakarala~\citep{kakarala2012bispectrum}
       & Full bispec. & $O(L^3)$ & Yes (constr.) \\
-    Edidin \& Satriano~\citep{edidin2023orbit}
+    Edidin \& Satriano~\citep{edidin2024orbit}
       & Full bispec.\ (band-lim.)
       & $O(L^3)$ & Yes (generic) \\
-    Bendory et al.~\citep{bendory2022bispectrum}
+    Bendory et al.~\citep{bendory2025orbit}
       & Freq.\ marching
       & $O(L^2)$/shell & Yes (3~shells) \\
     Mataigne et al.~\citep{mataigne2024selective}
