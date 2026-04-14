@@ -361,7 +361,7 @@ class SO3onS2(nn.Module):
         lmax: int = 5,
         nlat: int = 64,
         nlon: int = 128,
-        selective: bool = False,
+        selective: bool = True,
     ) -> None:
         super().__init__()
         self.lmax = lmax
