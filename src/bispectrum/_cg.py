@@ -480,6 +480,146 @@ def compute_cg_matrices(lmax: int) -> dict[tuple[int, int], torch.Tensor]:
     return matrices
 
 
+def compute_sparse_cg_entry(
+    l1: int, l2: int, l_val: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute sparse CG coefficients for a single (l1, l2, l_val) triple.
+
+    Exploits the selection rule m1 + m2 = m to store only nonzero entries.
+
+    Returns:
+        m1_indices: int32 array of m1 offsets (m1 + l1) into f_coeffs[l1].
+        m_indices: int32 array of m offsets (m + l_val) indicating which
+            coupled-basis column this coefficient belongs to.
+        cg_values: float64 array of CG coefficient values.
+        All three arrays have the same length (number of nonzero CG entries).
+    """
+    max_n = 2 * (l1 + l2) + 2
+    _ensure_log_fact(max_n)
+    lf = np.array(_LOG_FACT[: max_n + 1])
+
+    2 * l2 + 1
+    sqrt_2l1 = math.sqrt(2 * l_val + 1)
+    log_tri = (
+        lf[l1 + l2 - l_val] + lf[l1 - l2 + l_val] + lf[-l1 + l2 + l_val] - lf[l1 + l2 + l_val + 1]
+    )
+
+    all_m1_idx: list[int] = []
+    all_m_idx: list[int] = []
+    all_cg: list[float] = []
+
+    for m in range(-l_val, l_val + 1):
+        neg_m = -m
+        m1_lo = max(-l1, m - l2)
+        m1_hi = min(l1, m + l2)
+        if m1_hi < m1_lo:
+            continue
+
+        m1_arr = np.arange(m1_lo, m1_hi + 1)
+        m2_arr = m - m1_arr
+
+        log_pre = 0.5 * log_tri + 0.5 * (
+            lf[l1 + m1_arr]
+            + lf[l1 - m1_arr]
+            + lf[l2 + m2_arr]
+            + lf[l2 - m2_arr]
+            + lf[l_val + neg_m]
+            + lf[l_val - neg_m]
+        )
+
+        t_min = np.maximum(0, np.maximum(l2 - l_val - m1_arr, l1 - l_val + m2_arr))
+        t_max = np.minimum(l1 + l2 - l_val, np.minimum(l1 - m1_arr, l2 + m2_arr))
+
+        max_t_val = int(t_max.max()) if t_max.size > 0 else 0
+        min_t_val = int(t_min.min()) if t_min.size > 0 else 0
+        total = np.zeros(len(m1_arr))
+
+        for t in range(min_t_val, max_t_val + 1):
+            mask = (t >= t_min) & (t <= t_max)
+            if not np.any(mask):
+                continue
+            m1_t = m1_arr[mask]
+            m2_t = m2_arr[mask]
+            lp = log_pre[mask]
+            log_denom = (
+                lf[t]
+                + lf[l1 + l2 - l_val - t]
+                + lf[l1 - m1_t - t]
+                + lf[l2 + m2_t - t]
+                + lf[l_val - l2 + m1_t + t]
+                + lf[l_val - l1 - m2_t + t]
+            )
+            vals = np.exp(lp - log_denom)
+            if t & 1:
+                total[mask] -= vals
+            else:
+                total[mask] += vals
+
+        phase_3j = (-1.0) ** (l1 - l2 - neg_m)
+        phase_cg = (-1.0) ** (l1 - l2 + m)
+        cg_vals = phase_cg * sqrt_2l1 * phase_3j * total
+
+        nonzero = np.abs(cg_vals) > 0
+        if not np.any(nonzero):
+            continue
+
+        m1_nz = m1_arr[nonzero]
+        cg_nz = cg_vals[nonzero]
+
+        all_m1_idx.extend((m1_nz + l1).tolist())
+        all_m_idx.extend([m + l_val] * int(nonzero.sum()))
+        all_cg.extend(cg_nz.tolist())
+
+    return (
+        np.array(all_m1_idx, dtype=np.int32),
+        np.array(all_m_idx, dtype=np.int32),
+        np.array(all_cg, dtype=np.float64),
+    )
+
+
+def compute_sparse_cg_parallel(
+    entries: list[tuple[int, int, int, int, bool]],
+    max_workers: int | None = None,
+) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Compute sparse CG for multiple entries in parallel.
+
+    Args:
+        entries: List of (out_idx, l1, l2, l_val, is_power) tuples.
+        max_workers: Max parallel threads.
+
+    Returns:
+        List of (m1_indices, m_indices, cg_values) per entry, same order as input.
+    """
+    if not entries:
+        return []
+
+    max_l = max(l1 + l2 for _, l1, l2, _, _ in entries)
+    _ensure_log_fact(2 * max_l + 2)
+
+    if max_workers is None:
+        max_workers = min(os.cpu_count() or 1, 16, len(entries))
+
+    def _compute(
+        entry: tuple[int, int, int, int, bool],
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        _, l1, l2, l_val, _ = entry
+        return compute_sparse_cg_entry(l1, l2, l_val)
+
+    if max_workers <= 1 or len(entries) <= 1:
+        return [_compute(e) for e in entries]
+
+    entries_with_idx = list(enumerate(entries))
+    entries_with_idx.sort(key=lambda x: (2 * x[1][1] + 1) * (2 * x[1][2] + 1), reverse=True)
+
+    results: list[tuple[np.ndarray, np.ndarray, np.ndarray] | None] = [None] * len(entries)
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_compute, e): idx for idx, e in entries_with_idx}
+        for fut in futures:
+            results[futures[fut]] = fut.result()
+
+    return results  # type: ignore[return-value]
+
+
 def compute_reduced_cg_parallel(
     groups: list[tuple[int, int, int, list[int]]],
     max_workers: int | None = None,
