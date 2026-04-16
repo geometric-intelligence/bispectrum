@@ -693,10 +693,11 @@ class SO3onS2(nn.Module):
                 return graph_result
 
         coeffs = self._sht(f)
-        f_coeffs = _get_full_sh_coefficients(coeffs)
 
         if self._has_sparse:
-            return self._forward_sparse(f_coeffs, coeffs.dtype, f.device, batch_size, num_entries)
+            return self._forward_sparse_fast(coeffs, batch_size, num_entries)
+
+        f_coeffs = _get_full_sh_coefficients(coeffs)
         return self._forward_python(f_coeffs, coeffs.dtype, f.device, batch_size, num_entries)
 
     def _forward_cuda_graph(
@@ -722,22 +723,30 @@ class SO3onS2(nn.Module):
             static_input = torch.empty_like(f)
             static_input.copy_(f)
 
-            fwd = self._forward_sparse if self._has_sparse else self._forward_python
+            if self._has_sparse:
+
+                def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
+                    coeffs = self._sht(inp)
+                    return self._forward_sparse_fast(coeffs, batch_size, num_entries)
+            else:
+
+                def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
+                    coeffs = self._sht(inp)
+                    f_coeffs = _get_full_sh_coefficients(coeffs)
+                    return self._forward_python(
+                        f_coeffs, coeffs.dtype, inp.device, batch_size, num_entries
+                    )
 
             # Warmup run (required before capture to initialize cuDNN/cuBLAS plans)
             s = torch.cuda.Stream()
             s.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(s):
-                coeffs = self._sht(static_input)
-                f_coeffs = _get_full_sh_coefficients(coeffs)
-                _ = fwd(f_coeffs, coeffs.dtype, f.device, batch_size, num_entries)
+                _ = _run_fwd(static_input)
             torch.cuda.current_stream().wait_stream(s)
 
             g = torch.cuda.CUDAGraph()
             with torch.cuda.graph(g):
-                coeffs = self._sht(static_input)
-                f_coeffs = _get_full_sh_coefficients(coeffs)
-                static_output = fwd(f_coeffs, coeffs.dtype, f.device, batch_size, num_entries)
+                static_output = _run_fwd(static_input)
 
             self._cuda_graph_cache = {
                 'graph': g,
@@ -789,8 +798,12 @@ class SO3onS2(nn.Module):
     def _build_sparse_global_indices(self) -> None:
         """Convert per-entry (l, m) indices to global flat-array indices.
 
-        Packs all SH coefficients into a single flat array per batch element, then precomputes
-        absolute indices for vectorized gather-multiply-sum.
+        Packs all SH coefficients into a single flat array per batch element,
+        then precomputes absolute indices for vectorized gather-multiply-sum.
+
+        Also precomputes:
+        - Bispec-only element indices (avoids recomputing mask every call)
+        - SHT→flat coefficient mapping (avoids _get_full_sh_coefficients)
         """
         lmax = self.lmax
         coeff_offsets: dict[int, int] = {}
@@ -834,6 +847,53 @@ class SO3onS2(nn.Module):
         self.register_buffer('_sparse_entry_ids', entry_ids)
         self.register_buffer('_sparse_is_power', is_power_mask)
 
+        bispec_elem_mask = ~is_power_mask[entry_ids]
+        self.register_buffer('_sparse_bispec_idx', torch.where(bispec_elem_mask)[0])
+
+        self._build_sht_to_flat_map(lmax, off)
+
+    def _build_sht_to_flat_map(self, lmax: int, total_coeffs: int) -> None:
+        """Precompute index/sign arrays to go from SHT half-spectrum to flat complex coefficients.
+
+        SHT output shape: (batch, lmax+1, mmax+1) with m >= 0 only.
+        Flat target shape: (batch, total_coeffs) with m in [-l..l] for each l.
+
+        For each flat position, stores (l_idx_in_sht, m_abs_idx_in_sht) and a sign
+        for the (-1)^m conjugation on negative-m entries.
+        """
+        src_l = []
+        src_m = []
+        conj_sign = []
+
+        for l_val in range(lmax + 1):
+            for m in range(-l_val, l_val + 1):
+                src_l.append(l_val)
+                src_m.append(abs(m))
+                if m < 0:
+                    conj_sign.append((-1.0) ** (-m))
+                else:
+                    conj_sign.append(0.0)
+
+        self.register_buffer('_flat_src_l', torch.tensor(src_l, dtype=torch.long))
+        self.register_buffer('_flat_src_m', torch.tensor(src_m, dtype=torch.long))
+        self.register_buffer('_flat_conj_sign', torch.tensor(conj_sign, dtype=torch.float64))
+
+    def _sht_to_flat(self, coeffs: torch.Tensor) -> torch.Tensor:
+        """Convert SHT half-spectrum to flat complex coefficients using precomputed maps.
+
+        Replaces _get_full_sh_coefficients + torch.cat with a single gather + in-place conjugation.
+        """
+        if not hasattr(self, '_flat_src_l'):
+            self._build_sparse_global_indices()
+        src_l = self._flat_src_l
+        src_m = self._flat_src_m
+        conj_sign = self._flat_conj_sign.to(dtype=coeffs.dtype, device=coeffs.device)
+
+        flat = coeffs[:, src_l, src_m]
+        neg_mask = conj_sign != 0
+        flat[:, neg_mask] = conj_sign[neg_mask].unsqueeze(0) * torch.conj(flat[:, neg_mask])
+        return flat
+
     def _forward_sparse(
         self,
         f_coeffs: dict[int, torch.Tensor],
@@ -842,63 +902,123 @@ class SO3onS2(nn.Module):
         batch_size: int,
         num_entries: int,
     ) -> torch.Tensor:
-        """Sparse-CG forward pass — fully vectorized with global gather.
-
-        Packs SH coefficients flat, then computes all entries in one batched gather-multiply-
-        scatter without a Python loop.
-        """
+        """Sparse-CG forward pass — fully vectorized with global gather."""
         if not hasattr(self, '_sparse_fl1_abs'):
             self._build_sparse_global_indices()
 
         flat = torch.cat([f_coeffs[l] for l in range(self.lmax + 1)], dim=1).to(
             dtype=dtype, device=device
         )
+        return self._forward_sparse_from_flat(flat, dtype, device, batch_size, num_entries)
 
-        cg = self._sparse_cg_vals.to(dtype=dtype, device=device)
-        fl1_i = self._sparse_fl1_abs.to(device=device)
-        fl2_i = self._sparse_fl2_abs.to(device=device)
-        fl_i = self._sparse_fl_abs.to(device=device)
-        eid = self._sparse_entry_ids.to(device=device)
+    def _forward_sparse_fast(
+        self,
+        coeffs: torch.Tensor,
+        batch_size: int,
+        num_entries: int,
+    ) -> torch.Tensor:
+        """Fast sparse forward: SHT coefficients → bispectrum, no dict intermediary."""
+        if not hasattr(self, '_sparse_fl1_abs'):
+            self._build_sparse_global_indices()
 
-        is_power = self._sparse_is_power.to(device=device)
-        offsets = self._sparse_entry_offsets.to(device=device)
+        flat = self._sht_to_flat(coeffs)
+        return self._forward_sparse_from_flat(
+            flat, coeffs.dtype, coeffs.device, batch_size, num_entries
+        )
 
-        bispec_elem_mask = ~is_power[eid]
-        result = torch.zeros(batch_size, num_entries, dtype=dtype, device=device)
+    def _ensure_precomputed_on_device(self, device: torch.device, dtype: torch.dtype) -> None:
+        """Lazily cache precomputed bispec and power index arrays in working dtype."""
+        if not hasattr(self, '_sparse_fl1_abs'):
+            self._build_sparse_global_indices()
 
-        # Bispectral entries: β_i = Σ_k cg[k] * fl1[m1_k] * fl2[m2_k] * conj(fl[m_k])
-        if bispec_elem_mask.any():
-            bi = torch.where(bispec_elem_mask)[0]
-            prods = (
-                flat[:, fl1_i[bi]]
-                * flat[:, fl2_i[bi]]
-                * cg[bi].unsqueeze(0)
-                * torch.conj(flat[:, fl_i[bi]])
-            )
-            result.scatter_add_(1, eid[bi].unsqueeze(0).expand(batch_size, -1), prods)
+        cache_key = (device, dtype)
+        if getattr(self, '_sparse_device_cache_key', None) == cache_key:
+            return
 
-        # Power entries: P_i = ||coupled_vector||²  (need scatter into coupled then norm)
-        power_entry_indices = torch.where(is_power)[0]
-        if power_entry_indices.numel() > 0:
-            m_idx = self._sparse_m_idx.to(device=device)
-            for pe in power_entry_indices:
-                eidx = pe.item()
-                l_val = self._sparse_entry_meta[eidx][2]
+        bi = self._sparse_bispec_idx
+        fl1_i = self._sparse_fl1_abs
+        fl2_i = self._sparse_fl2_abs
+        fl_i = self._sparse_fl_abs
+        eid = self._sparse_entry_ids
+
+        perm = torch.randperm(bi.numel())
+        bi_perm = bi[perm]
+        self._sc_bi_fl1 = fl1_i[bi_perm].to(device=device)
+        self._sc_bi_fl2 = fl2_i[bi_perm].to(device=device)
+        self._sc_bi_fl = fl_i[bi_perm].to(device=device)
+        self._sc_bi_eid = eid[bi_perm].to(device=device)
+        self._sc_bi_cg = self._sparse_cg_vals[bi_perm].to(dtype=dtype, device=device)
+
+        is_power = self._sparse_is_power
+        offsets = self._sparse_entry_offsets
+        power_indices = torch.where(is_power)[0].tolist()
+        self._sc_pw_n_rows = 0
+        if power_indices:
+            max_coupled = max(2 * self._sparse_entry_meta[i][2] + 1 for i in power_indices)
+            pw_fl1_parts: list[torch.Tensor] = []
+            pw_fl2_parts: list[torch.Tensor] = []
+            pw_cg_parts: list[torch.Tensor] = []
+            pw_cidx_parts: list[torch.Tensor] = []
+            pw_eids: list[int] = []
+            row = 0
+            for eidx in power_indices:
                 start = int(offsets[eidx].item())
                 end = int(offsets[eidx + 1].item())
                 if start == end:
                     continue
+                pw_fl1_parts.append(fl1_i[start:end])
+                pw_fl2_parts.append(fl2_i[start:end])
+                pw_cg_parts.append(self._sparse_cg_vals[start:end])
+                pw_cidx_parts.append(row * max_coupled + self._sparse_m_idx[start:end].long())
+                pw_eids.append(eidx)
+                row += 1
 
-                prods_slice = (
-                    flat[:, fl1_i[start:end]]
-                    * flat[:, fl2_i[start:end]]
-                    * cg[start:end].unsqueeze(0)
-                )
-                e_m = m_idx[start:end].long()
-                size_l = 2 * l_val + 1
-                coupled = torch.zeros(batch_size, size_l, dtype=dtype, device=device)
-                coupled.scatter_add_(1, e_m.unsqueeze(0).expand(batch_size, -1), prods_slice)
-                result[:, eidx] = torch.sum(coupled.real**2 + coupled.imag**2, dim=-1).to(dtype)
+            if pw_fl1_parts:
+                self._sc_pw_fl1 = torch.cat(pw_fl1_parts).to(device=device)
+                self._sc_pw_fl2 = torch.cat(pw_fl2_parts).to(device=device)
+                self._sc_pw_cg = torch.cat(pw_cg_parts).to(dtype=dtype, device=device)
+                self._sc_pw_cidx = torch.cat(pw_cidx_parts).to(device=device)
+                self._sc_pw_eids = torch.tensor(pw_eids, dtype=torch.long, device=device)
+                self._sc_pw_n_rows = row
+                self._sc_pw_max_coupled = max_coupled
+
+        self._sparse_device_cache_key = cache_key
+
+    def _forward_sparse_from_flat(
+        self,
+        flat: torch.Tensor,
+        dtype: torch.dtype,
+        device: torch.device,
+        batch_size: int,
+        num_entries: int,
+    ) -> torch.Tensor:
+        """Core sparse computation from flat coefficient array."""
+        self._ensure_precomputed_on_device(device, dtype)
+
+        result = torch.zeros(batch_size, num_entries, dtype=dtype, device=device)
+        bi_fl1 = self._sc_bi_fl1
+        if bi_fl1.numel() > 0:
+            prods = (
+                flat[:, bi_fl1]
+                * flat[:, self._sc_bi_fl2]
+                * self._sc_bi_cg.unsqueeze(0)
+                * torch.conj(flat[:, self._sc_bi_fl])
+            )
+            result.scatter_add_(1, self._sc_bi_eid.unsqueeze(0).expand(batch_size, -1), prods)
+
+        if self._sc_pw_n_rows > 0:
+            n_pw = self._sc_pw_n_rows
+            mc = self._sc_pw_max_coupled
+            pw_prods = (
+                flat[:, self._sc_pw_fl1] * flat[:, self._sc_pw_fl2] * self._sc_pw_cg.unsqueeze(0)
+            )
+            coupled_flat = torch.zeros(batch_size, n_pw * mc, dtype=dtype, device=device)
+            coupled_flat.scatter_add_(
+                1, self._sc_pw_cidx.unsqueeze(0).expand(batch_size, -1), pw_prods
+            )
+            coupled_2d = coupled_flat.reshape(batch_size, n_pw, mc)
+            norms = torch.sum(coupled_2d.real**2 + coupled_2d.imag**2, dim=-1).to(dtype)
+            result[:, self._sc_pw_eids] = norms
 
         return result
 

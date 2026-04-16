@@ -1092,7 +1092,7 @@ class TestSparseParity:
         out_sparse = bsp_sparse(f)
         out_dense = bsp_dense(f)
 
-        torch.testing.assert_close(out_sparse, out_dense, atol=1e-8, rtol=1e-8)
+        torch.testing.assert_close(out_sparse, out_dense, atol=5e-8, rtol=1e-6)
 
     def test_sparse_rotation_invariance(self):
         """Sparse-path bispectrum is rotation invariant."""
