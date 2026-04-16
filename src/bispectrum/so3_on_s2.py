@@ -44,17 +44,6 @@ from bispectrum._cg import (
 
 logger = logging.getLogger(__name__)
 
-try:
-    from bispectrum._triton_so3 import (
-        build_fused_buffers,
-        flatten_cg_matrices,
-        triton_bispectrum_forward,
-    )
-
-    _HAS_TRITON = True
-except ImportError:
-    _HAS_TRITON = False
-
 
 def _build_full_index_map(
     lmax: int, cg_data: dict[tuple[int, int], torch.Tensor]
@@ -407,14 +396,10 @@ class SO3onS2(nn.Module):
         self._has_dense = False
         self._has_sparse = False
 
-        if selective and lmax > self._SPARSE_LMAX_THRESHOLD:
+        if selective:
             self._build_sparse_tables(all_triples)
         else:
-            self._build_group_tables(cg_data if not selective else None, all_triples)
-            self._build_fused_buffers()
-
-    _TRITON_MAX_CG_BYTES = 512 * 1024 * 1024  # 512 MB threshold
-    _SPARSE_LMAX_THRESHOLD = 32
+            self._build_group_tables(cg_data, all_triples)
 
     def _build_sparse_tables(self, all_triples: list[tuple[int, int, int]]) -> None:
         """Build sparse CG representation for the forward pass.
@@ -523,35 +508,6 @@ class SO3onS2(nn.Module):
         except (OSError, RuntimeError, KeyError):
             return None
 
-    def _build_fused_buffers(self) -> None:
-        """Pack CG matrices and metadata into flat buffers for the Triton path.
-
-        Skips buffer creation when the total CG matrix size exceeds _TRITON_MAX_CG_BYTES, since the
-        flattened representation becomes impractical for very large lmax.
-        """
-        if not _HAS_TRITON:
-            return
-
-        total_cg_elems = sum((2 * l1 + 1) * (2 * l2 + 1) * c for l1, l2, c, _ in self._group_data)
-        estimated_bytes = total_cg_elems * 8  # 2 floats per complex element
-        if estimated_bytes > self._TRITON_MAX_CG_BYTES:
-            logger.info(
-                'Skipping Triton buffers: CG flat would be %.0f MB (limit %.0f MB)',
-                estimated_bytes / 1e6,
-                self._TRITON_MAX_CG_BYTES / 1e6,
-            )
-            return
-
-        entry_desc, coeff_offsets, max_block_size = build_fused_buffers(
-            self._group_data, self.lmax
-        )
-        cg_flat = flatten_cg_matrices(self, self._group_data)
-
-        self.register_buffer('_fused_entry_desc', entry_desc)
-        self.register_buffer('_fused_coeff_offsets', coeff_offsets)
-        self.register_buffer('_fused_cg_flat', cg_flat)
-        self._fused_max_block_size = max_block_size
-
     def _build_group_tables(
         self,
         cg_data: dict[tuple[int, int], torch.Tensor] | None,
@@ -659,13 +615,13 @@ class SO3onS2(nn.Module):
         """Compute the augmented SO(3)-bispectrum of a signal on S^2.
 
         Dispatch priority (inference on CUDA, i.e. ``torch.no_grad()``):
-          1. **Triton kernel** — fused per-entry kernel; fastest up to ~lmax 35
-             but requires flattened CG buffers that don't fit at high lmax.
-          2. **CUDA Graph** — replays a captured graph of the Python-loop
-             computation, eliminating kernel-launch overhead. Works at any
-             lmax and for a fixed batch size.
-          3. **Python loop** — always-available fallback, also used when
-             gradients are required (training).
+          1. **CUDA Graph** — replays a captured graph of the sparse or
+             Python-loop computation, eliminating kernel-launch overhead.
+             Works at any lmax and for a fixed batch size.
+          2. **Sparse** — vectorized gather-multiply-scatter using
+             precomputed sparse CG indices. Default for selective=True.
+          3. **Python loop** — always-available fallback for selective=False,
+             also used when gradients are required (training).
 
         Args:
             f: Real-valued signal on S^2. Shape: (batch, nlat, nlon).
@@ -683,11 +639,6 @@ class SO3onS2(nn.Module):
             return torch.zeros(batch_size, 0, dtype=coeffs.dtype, device=f.device)
 
         if f.is_cuda and not torch.is_grad_enabled():
-            if _HAS_TRITON and hasattr(self, '_fused_entry_desc'):
-                coeffs = self._sht(f)
-                f_coeffs = _get_full_sh_coefficients(coeffs)
-                return triton_bispectrum_forward(f_coeffs, self, num_entries)
-
             graph_result = self._forward_cuda_graph(f, batch_size, num_entries)
             if graph_result is not None:
                 return graph_result
@@ -885,13 +836,21 @@ class SO3onS2(nn.Module):
         """
         if not hasattr(self, '_flat_src_l'):
             self._build_sparse_global_indices()
-        src_l = self._flat_src_l
-        src_m = self._flat_src_m
-        conj_sign = self._flat_conj_sign.to(dtype=coeffs.dtype, device=coeffs.device)
 
-        flat = coeffs[:, src_l, src_m]
-        neg_mask = conj_sign != 0
-        flat[:, neg_mask] = conj_sign[neg_mask].unsqueeze(0) * torch.conj(flat[:, neg_mask])
+        dev = coeffs.device
+        cache_key = (coeffs.dtype, dev)
+        if getattr(self, '_sht_flat_cache_key', None) != cache_key:
+            self._sht_src_l = self._flat_src_l.to(device=dev)
+            self._sht_src_m = self._flat_src_m.to(device=dev)
+            conj = self._flat_conj_sign.to(dtype=coeffs.dtype, device=dev)
+            neg_idx = torch.where(conj != 0)[0]
+            self._sht_neg_idx = neg_idx
+            self._sht_conj_vals = conj[neg_idx]
+            self._sht_flat_cache_key = cache_key
+
+        flat = coeffs[:, self._sht_src_l, self._sht_src_m]
+        idx = self._sht_neg_idx
+        flat[:, idx] = self._sht_conj_vals.unsqueeze(0) * torch.conj(flat[:, idx])
         return flat
 
     def _forward_sparse(

@@ -134,7 +134,7 @@ class TestSO3onS2:
         assert bsp.output_size == len(bsp.index_map)
 
     def test_reduced_cg_buffers_registered(self):
-        bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
+        bsp = SO3onS2(lmax=2, nlat=32, nlon=64, selective=False)
         # Each group gets a _cg_red_{gid} buffer with d rows and c ≤ d columns.
         assert len(bsp._group_data) > 0
         for gid, (l1, l2, c, _) in enumerate(bsp._group_data):
@@ -162,9 +162,9 @@ class TestSO3onS2:
 
     def test_device_movement(self):
         bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
-        assert bsp._cg_red_0.device.type == 'cpu'
+        assert bsp._sparse_cg_vals.device.type == 'cpu'
         bsp_cpu = bsp.to('cpu')
-        assert bsp_cpu._cg_red_0.device.type == 'cpu'
+        assert bsp_cpu._sparse_cg_vals.device.type == 'cpu'
 
     def test_no_trainable_parameters(self):
         bsp = SO3onS2(lmax=2, nlat=32, nlon=64)
@@ -330,8 +330,8 @@ class TestSelectiveSO3onS2:
             torch.testing.assert_close(
                 beta_sel[:, i],
                 beta_full[:, j],
-                atol=1e-10,
-                rtol=0,
+                atol=5e-8,
+                rtol=1e-6,
             )
 
     def test_forward_shape(self):
@@ -781,57 +781,35 @@ class TestForwardEdgeCases:
             assert group_result.abs().max() > 0, f'Group ({l1},{l2}) produced all zeros'
 
 
-_has_triton = False
-try:
-    import triton  # noqa: F401
-
-    _has_triton = True
-except ImportError:
-    pass
-
-requires_triton = pytest.mark.skipif(not _has_triton, reason='triton not installed')
 requires_cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA not available')
 
 
-@requires_triton
 @requires_cuda
-class TestTritonFusedForward:
-    """Compare the Triton-fused forward pass against the Python fallback."""
+class TestCUDAForward:
+    """Test CUDA forward paths (sparse, CUDA graph) against the Python fallback."""
 
-    @pytest.mark.parametrize('lmax', [2, 5, 10])
-    @pytest.mark.parametrize('selective', [True, False])
-    def test_value_parity(self, lmax, selective):
-        """Triton and Python paths produce the same output."""
-        bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=selective).cuda()
-        f = torch.randn(2, 32, 64, device='cuda')
+    @pytest.fixture(autouse=True)
+    def _clear_cuda(self):
+        import gc
 
-        from bispectrum.so3_on_s2 import _get_full_sh_coefficients
-
-        coeffs = bsp._sht(f)
-        f_coeffs = _get_full_sh_coefficients(coeffs)
-
-        out_python = bsp._forward_python(
-            f_coeffs, coeffs.dtype, f.device, f.shape[0], bsp.output_size
-        )
-
-        from bispectrum._triton_so3 import triton_bispectrum_forward
-
-        out_triton = triton_bispectrum_forward(f_coeffs, bsp, bsp.output_size)
-
-        torch.testing.assert_close(out_triton, out_python, atol=1e-4, rtol=1e-4)
+        gc.collect()
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+        yield
+        gc.collect()
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
 
     @pytest.mark.parametrize('lmax', [3, 5])
     def test_full_forward_parity(self, lmax):
-        """Full forward() on CUDA (no_grad) matches CPU Python within FP tolerance."""
+        """Full forward() on CUDA matches CPU Python within FP tolerance."""
         bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True).cuda()
         f = torch.randn(2, 32, 64, device='cuda')
 
-        with torch.no_grad():
-            out_cuda = bsp(f)
+        out_cuda = bsp(f)
 
         bsp_cpu = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-        with torch.no_grad():
-            out_cpu = bsp_cpu(f.cpu())
+        out_cpu = bsp_cpu(f.cpu())
 
         torch.testing.assert_close(
             out_cuda.cpu(),
@@ -852,84 +830,30 @@ class TestTritonFusedForward:
         assert grad.shape == f.shape
         assert not torch.isnan(grad).any()
 
-    @pytest.mark.parametrize('lmax', [3, 5])
-    def test_no_grad_matches_python(self, lmax):
-        """In no_grad context on CUDA, output matches direct Python path."""
-        bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True).cuda()
-        f = torch.randn(2, 32, 64, device='cuda')
-
-        with torch.no_grad():
-            out_no_grad = bsp(f)
-            out_python = _run_python_path(bsp, f)
-
-        torch.testing.assert_close(out_no_grad, out_python, atol=1e-5, rtol=1e-5)
-
     def test_batch_sizes(self):
-        """Triton path handles various batch sizes."""
+        """Forward handles various batch sizes."""
         bsp = SO3onS2(lmax=4, nlat=32, nlon=64, selective=True).cuda()
         for batch in [1, 4, 16]:
             f = torch.randn(batch, 32, 64, device='cuda')
-            with torch.no_grad():
-                out = bsp(f)
+            out = bsp(f)
             assert out.shape == (batch, bsp.output_size)
             assert not torch.isnan(out).any()
 
-    def test_larger_lmax(self):
-        """Triton path works at lmax=15 (the paper's spherical MNIST setting)."""
-        bsp = SO3onS2(lmax=15, nlat=32, nlon=64, selective=True).cuda()
-        f = torch.randn(1, 32, 64, device='cuda')
-
-        from bispectrum._triton_so3 import triton_bispectrum_forward
-        from bispectrum.so3_on_s2 import _get_full_sh_coefficients
-
-        coeffs = bsp._sht(f)
-        f_coeffs = _get_full_sh_coefficients(coeffs)
-
-        out_python = bsp._forward_python(f_coeffs, coeffs.dtype, f.device, 1, bsp.output_size)
-        out_triton = triton_bispectrum_forward(f_coeffs, bsp, bsp.output_size)
-
-        torch.testing.assert_close(out_triton, out_python, atol=1e-3, rtol=1e-3)
-
-
-class TestTritonFallback:
-    """Verify the Python fallback works when Triton is not available."""
-
-    def test_fallback_without_triton(self):
-        """Module works even when triton import fails."""
-        import bispectrum.so3_on_s2 as mod
-
-        original = mod._HAS_TRITON
-        try:
-            mod._HAS_TRITON = False
-            bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True)
-            f = torch.randn(2, 32, 64)
-            out = bsp(f)
-            assert out.shape == (2, bsp.output_size)
-            assert not torch.isnan(out).any()
-        finally:
-            mod._HAS_TRITON = original
-
 
 def _run_python_path(bsp, f):
-    """Force the Python loop path."""
+    """Force the non-CUDA-graph forward path."""
     coeffs = bsp._sht(f)
+    if bsp._has_sparse:
+        return bsp._forward_sparse_fast(coeffs, f.shape[0], bsp.output_size)
     f_coeffs = _get_full_sh_coefficients(coeffs)
     return bsp._forward_python(f_coeffs, coeffs.dtype, f.device, f.shape[0], bsp.output_size)
-
-
-def _run_triton_path(bsp, f):
-    """Force the Triton kernel path."""
-    from bispectrum._triton_so3 import triton_bispectrum_forward
-
-    coeffs = bsp._sht(f)
-    f_coeffs = _get_full_sh_coefficients(coeffs)
-    return triton_bispectrum_forward(f_coeffs, bsp, bsp.output_size)
 
 
 def _run_cuda_graph_path(bsp, f):
     """Force the CUDA graph path."""
     bsp.reset_cuda_graph_cache()
-    result = bsp._forward_cuda_graph(f, f.shape[0], bsp.output_size)
+    with torch.no_grad():
+        result = bsp._forward_cuda_graph(f, f.shape[0], bsp.output_size)
     assert result is not None, 'CUDA graph capture failed'
     return result
 
@@ -942,13 +866,25 @@ def _run_sparse_path(bsp, f):
 
 
 @requires_cuda
-class TestThreeWayParity:
-    """Compare all three forward backends: Python loop, Triton kernel, CUDA Graph."""
+class TestCUDAGraphParity:
+    """Compare CUDA Graph and Python loop forward backends."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_cuda(self):
+        import gc
+
+        gc.collect()
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+        yield
+        gc.collect()
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
 
     @pytest.mark.parametrize('lmax', [3, 5, 10])
     @pytest.mark.parametrize('selective', [True, False])
     def test_value_parity_all_backends(self, lmax, selective):
-        """All three backends produce the same output for the same input."""
+        """CUDA Graph and Python paths produce the same output for the same input."""
         bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=selective).cuda()
         f = torch.randn(2, 32, 64, device='cuda')
 
@@ -956,10 +892,6 @@ class TestThreeWayParity:
         out_graph = _run_cuda_graph_path(bsp, f)
 
         torch.testing.assert_close(out_graph, out_python, atol=1e-5, rtol=1e-5)
-
-        if _has_triton and hasattr(bsp, '_fused_entry_desc'):
-            out_triton = _run_triton_path(bsp, f)
-            torch.testing.assert_close(out_triton, out_python, atol=1e-4, rtol=1e-4)
 
     @pytest.mark.parametrize('lmax', [3, 5])
     def test_cuda_graph_replays_correctly(self, lmax):
@@ -1007,7 +939,7 @@ class TestThreeWayParity:
         assert out.shape == (4, bsp.output_size)
         assert not torch.isnan(out).any()
 
-    def test_grad_enabled_skips_graph_and_triton(self):
+    def test_grad_enabled_skips_graph(self):
         """With grad enabled, forward() uses the Python path (supports autograd)."""
         bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True).cuda()
         f = torch.randn(2, 32, 64, device='cuda', requires_grad=True)
@@ -1047,60 +979,48 @@ class TestThreeWayParity:
 
 
 class TestSparseParity:
-    """Compare sparse CG forward pass against the dense Python path."""
+    """Validate sparse CG forward pass consistency and correctness."""
 
     @pytest.mark.parametrize('lmax', [3, 5, 10, 15])
-    def test_sparse_vs_dense_cpu(self, lmax):
-        """Sparse and dense paths produce the same output on CPU."""
-        original = SO3onS2._SPARSE_LMAX_THRESHOLD
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = 0
-        bsp_sparse = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-        assert bsp_sparse._has_sparse
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = 999
-        bsp_dense = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-        assert bsp_dense._has_dense
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = original
+    def test_sparse_fast_vs_dict_cpu(self, lmax):
+        """Fast sparse (flat) and dict-based sparse paths produce the same output on CPU."""
+        bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
+        assert bsp._has_sparse
 
         f = torch.randn(2, 32, 64)
-        coeffs = bsp_sparse._sht(f)
+        coeffs = bsp._sht(f)
         fc = _get_full_sh_coefficients(coeffs)
 
-        out_sparse = bsp_sparse._forward_sparse(
-            fc, coeffs.dtype, f.device, 2, bsp_sparse.output_size
-        )
-        out_dense = bsp_dense._forward_python(fc, coeffs.dtype, f.device, 2, bsp_dense.output_size)
+        out_fast = bsp._forward_sparse_fast(coeffs, 2, bsp.output_size)
+        out_dict = bsp._forward_sparse(fc, coeffs.dtype, f.device, 2, bsp.output_size)
 
-        torch.testing.assert_close(out_sparse, out_dense, atol=5e-8, rtol=1e-6)
+        torch.testing.assert_close(out_fast, out_dict, atol=5e-8, rtol=1e-6)
 
     @pytest.mark.parametrize('lmax', [3, 5, 10])
-    def test_sparse_full_pipeline_matches_dense(self, lmax):
-        """Full forward (SHT + sparse CG) matches full forward (SHT + dense CG)."""
-        original = SO3onS2._SPARSE_LMAX_THRESHOLD
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = 0
-        bsp_sparse = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = 999
-        bsp_dense = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = original
+    def test_sparse_matches_full_bispectrum(self, lmax):
+        """Selective sparse entries match the corresponding full bispectrum entries."""
+        sel = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
+        full = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=False)
 
         f = torch.randn(2, 32, 64)
-        out_sparse = bsp_sparse(f)
-        out_dense = bsp_dense(f)
+        out_sel = sel(f)
+        out_full = full(f)
 
-        torch.testing.assert_close(out_sparse, out_dense, atol=5e-8, rtol=1e-6)
+        full_lookup = {triple: i for i, triple in enumerate(full.index_map)}
+        for i in range(sel.n_bispec):
+            triple = sel.index_map[i]
+            j = full_lookup[triple]
+            torch.testing.assert_close(
+                out_sel[:, i],
+                out_full[:, j],
+                atol=5e-8,
+                rtol=1e-6,
+            )
 
     def test_sparse_rotation_invariance(self):
         """Sparse-path bispectrum is rotation invariant."""
-        original = SO3onS2._SPARSE_LMAX_THRESHOLD
-        SO3onS2._SPARSE_LMAX_THRESHOLD = 0
         lmax = 5
         bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-        SO3onS2._SPARSE_LMAX_THRESHOLD = original
 
         f = torch.randn(1, 32, 64)
         R = random_rotation_matrix()
@@ -1111,27 +1031,9 @@ class TestSparseParity:
 
         torch.testing.assert_close(out.abs(), out_rot.abs(), atol=0.1, rtol=0.1)
 
-    def test_sparse_output_size_matches_dense(self):
-        """Sparse and dense paths produce outputs of the same size."""
-        original = SO3onS2._SPARSE_LMAX_THRESHOLD
-        for lmax in [3, 5, 10, 15]:
-            SO3onS2._SPARSE_LMAX_THRESHOLD = 0
-            bsp_sparse = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-
-            SO3onS2._SPARSE_LMAX_THRESHOLD = 999
-            bsp_dense = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
-
-            assert bsp_sparse.output_size == bsp_dense.output_size, (
-                f'lmax={lmax}: sparse={bsp_sparse.output_size} != dense={bsp_dense.output_size}'
-            )
-        SO3onS2._SPARSE_LMAX_THRESHOLD = original
-
     def test_sparse_high_lmax_init(self):
-        """Sparse path can initialize at lmax=35 where dense would be large."""
-        original = SO3onS2._SPARSE_LMAX_THRESHOLD
-        SO3onS2._SPARSE_LMAX_THRESHOLD = 0
+        """Sparse path can initialize at lmax=35."""
         bsp = SO3onS2(lmax=35, nlat=72, nlon=144, selective=True)
-        SO3onS2._SPARSE_LMAX_THRESHOLD = original
 
         assert bsp._has_sparse
         assert bsp.output_size > 0
@@ -1143,25 +1045,15 @@ class TestSparseParity:
 
     @requires_cuda
     @pytest.mark.parametrize('lmax', [3, 5, 10])
-    def test_sparse_vs_dense_cuda(self, lmax):
-        """Sparse and dense match on CUDA."""
-        original = SO3onS2._SPARSE_LMAX_THRESHOLD
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = 0
-        bsp_sparse = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True).cuda()
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = 999
-        bsp_dense = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True).cuda()
-
-        SO3onS2._SPARSE_LMAX_THRESHOLD = original
+    def test_sparse_fast_vs_dict_cuda(self, lmax):
+        """Fast sparse and dict-based sparse match on CUDA."""
+        bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True).cuda()
 
         f = torch.randn(2, 32, 64, device='cuda')
-        coeffs = bsp_sparse._sht(f)
+        coeffs = bsp._sht(f)
         fc = _get_full_sh_coefficients(coeffs)
 
-        out_sparse = bsp_sparse._forward_sparse(
-            fc, coeffs.dtype, f.device, 2, bsp_sparse.output_size
-        )
-        out_dense = bsp_dense._forward_python(fc, coeffs.dtype, f.device, 2, bsp_dense.output_size)
+        out_fast = bsp._forward_sparse_fast(coeffs, 2, bsp.output_size)
+        out_dict = bsp._forward_sparse(fc, coeffs.dtype, f.device, 2, bsp.output_size)
 
-        torch.testing.assert_close(out_sparse, out_dense, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(out_fast, out_dict, atol=1e-5, rtol=1e-5)
