@@ -18,15 +18,17 @@
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{enumitem}
-\usepackage[textsize=tiny, textwidth=2.6cm]{todonotes}
-\setlength{\marginparwidth}{2.6cm}
 \usepackage{listings}
 
 \newtheorem{theorem}{Theorem}
 \newtheorem{proposition}[theorem]{Proposition}
 \newtheorem{lemma}[theorem]{Lemma}
 \newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
 \newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
 \newtheorem{remark}[theorem]{Remark}
 
 \DeclareMathOperator{\tr}{tr}
@@ -43,17 +45,16 @@
 \newcommand{\conj}[1]{\overline{#1}}
 \newcommand{\ip}[2]{\langle #1,\, #2 \rangle}
 
+\theoremstyle{definition}
 \newtheorem{assumption}[theorem]{Assumption}
 
-\newcommand{\papertodo}[1]{\todo[inline,color=orange!12]{TODO: #1}}
-\newcommand{\reviewnote}[1]{\todo[inline,color=red!25]{\textbf{REVIEW:} #1}}
 
 \lstset{
   language=Python,
   basicstyle=\ttfamily\small,
-  keywordstyle=\color{blue},
+  keywordstyle=\bfseries,
   commentstyle=\color{gray},
-  stringstyle=\color{red},
+  stringstyle=\color{black!60},
   frame=single,
   breaklines=true,
   columns=fullflexible,
@@ -67,12 +68,12 @@
   \texttt{johan@atmo.ai} \\
   \And
   Simon Mataigne \\
-  University of California, Santa Barbara \\
-  \texttt{tbd@tbd.tbd} \\
+  UCLouvain \\
+  \texttt{simon.mataigne@uclouvain.be} \\
   \And
   Adele Myers Lantow \\
   University of California, Santa Barbara \\
-  \texttt{tbd@tbd.tbd} \\
+  \texttt{adele@ucsb.edu} \\
   \And
   Nina Miolane \\
   University of California, Santa Barbara \\
@@ -97,14 +98,13 @@ bound) instead of $O(L^3)$ for the full bispectrum
 (ii)~diagnosing a previously undocumented inversion failure for the
 octahedral group.
 Across three benchmarks ($C_8$, octahedral, $\SO(3)$), the library
-delivers numerically exact rotation invariance
+delivers near-exact rotation invariance
 ($\sigma_{\mathrm{rot}} < 10^{-3}$) and a data-efficiency advantage of
 complete bispectral invariants over incomplete alternatives in the
 low-data, moderate-capacity regime.
 The selective forward pass runs in sub-millisecond time on GPU for finite
-groups.
+groups. Code is available at \url{https://github.com/geometric-intelligence/bispectrum}.
 \end{abstract}
-\noindent Code is available at \url{https://github.com/geometric-intelligence/bispectrum}.
 \section{Introduction}
 \label{sec:intro}
 
@@ -116,7 +116,7 @@ gate-based pooling, or max/sum aggregation are
 usable~\citep{weiler2019general}, but they do not preserve all equivariant
 information. The bispectrum offers a mathematically principled alternative,
 since for many groups it yields exact invariants with reconstruction
-guarantees~\citep{kakarala1992triple}.
+guarantees~\citep{kakarala2012bispectrum}.
 
 The obstacle is practical rather than conceptual. Existing bispectral
 constructions are scattered across theory papers, domain-specific derivations,
@@ -194,13 +194,16 @@ detection---must eventually map equivariant features to \emph{invariant} ones.
     \midrule
     Norm          & Yes & No  & $O(|G|)$      & Discards phase \\
     Gate          & Yes & No  & $O(2|G|)$     & Scalar bottleneck \\
-    Fourier pointwise & No & Yes & $O(|G| \log |G|)$ & Aliasing \\
+    Fourier pointwise & No & Yes$^\ddagger$ & $O(|G| \log |G|)$ & Aliasing \\
     Full bispectrum & Yes & Yes & $O(|G|^2)$  & Quadratic cost \\
     \midrule
-    \textbf{Sel.\ bispectrum} & \textbf{Yes} & \textbf{Yes}
+    \textbf{Selective bispectrum} & \textbf{Yes} & \textbf{Yes}
       & $\mathbf{O(|G|)}$ & Genericity assumption \\
     \bottomrule
   \end{tabular}
+
+  \vspace{0.3em}
+  {\small $^\ddagger$Complete pre-aliasing; the pointwise nonlinearity in the forward pass introduces aliasing that may break completeness in practice.}
 \end{table}
 
 Table~\ref{tab:nonlinearity-comparison} summarises the trade-offs. Norm
@@ -227,12 +230,13 @@ intertwining matrix $C_{ij}$, the \emph{bispectrum} is
 \end{equation}
 Each $\beta_{\rho_i,\rho_j}$ is invariant under $f \mapsto f \circ g$ and,
 taken over all pairs $(i,j)$, the bispectrum is a \emph{complete} invariant:
-it separates orbits for generic signals~\citep{kakarala1992triple}. However,
+it separates orbits for generic signals~\citep{kakarala2012bispectrum}. However,
 the full set has $O(|G|^2)$ coefficients.
 
 \emph{Selective bispectra.} \citet{mataigne2024selective} show that for
 finite groups, a BFS traversal of the Kronecker product table of $\hat{G}$
-selects $O(|G|)$ bispectral coefficients that remain complete. This
+selects $O(|G|)$ bispectral coefficients that remain complete;
+\citet{myers2025selective} extend this to the disk. This
 reduction from quadratic to linear is the key to practical deployment:
 for example, the octahedral group drops from $576$ to $172$ coefficients.
 
@@ -261,12 +265,15 @@ For $\SO(3)$ on $S^2$, reduced CG matrices are built in parallel and
 cached to disk; all forward methods are batch-native, using
 \texttt{torch.einsum}/\texttt{torch.bmm} for non-abelian modules and
 \texttt{torch.fft} for abelian ones.
+The test suite covers 96.8\% of lines across all modules.
 
 \subsection{Supported modules}
 \label{sec:supported-modules}
 
-\begin{table}[h]
-  \caption{Current scope of the \texttt{bispectrum} library.}
+\begin{table}[t]
+  \caption{Current scope of the \texttt{bispectrum} library.
+    \texttt{SO2onS1} is the continuous-$n$ limit of \texttt{CnonCn}
+    and shares its implementation.}
   \label{tab:supported-groups}
   \centering
   \small
@@ -285,7 +292,7 @@ cached to disk; all forward methods are batch-native, using
   \end{tabular}
 \end{table}
 
-\subsection{Example API}
+\paragraph{Example API.}
 \label{sec:api}
 A minimal usage example is in Appendix~\ref{app:api-example}.
 
@@ -434,14 +441,16 @@ batch\,=\,16 for forward, 4 for inversion, median wall-clock via
   \label{fig:coeff-scaling}
 \end{figure}
 
-\begin{table}[h]
+\begin{table}[t]
   \centering
   \caption{Library benchmark summary. Timings are median wall-clock on a
     single NVIDIA H100 80\,GB GPU. ``--'' = not implemented.
     For continuous groups, $|G| = \infty$; coefficient counts refer to the
-    band-limited representation at the tested resolution.}
+    band-limited representation at the tested resolution.
+    $^*$\texttt{SO3onS2} benchmarked at $\ell_{\max}{=}16$.}
   \label{tab:benchmarks}
   \small
+  \setlength{\tabcolsep}{3.5pt}
   \begin{tabular}{llrrrrrr}
     \toprule
     Module & $G$ & $|G|$ & \multicolumn{2}{c}{Coefs} & \multicolumn{2}{c}{Fwd (ms)} & Inv (ms) \\
@@ -452,16 +461,16 @@ batch\,=\,16 for forward, 4 for inversion, median wall-clock via
     \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 524800 & 0.08 & 0.71 & 68.02 \\
     \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 2.52 & -- & 42.33 \\
     \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & $\infty$ & 411 & -- & 1.94 & -- & 17.69 \\
-    \texttt{SO3onS2} & $\mathrm{SO}(3)$ & $\infty$ & 430 & -- & 26.54 & -- & -- \\
+    \texttt{SO3onS2}\rlap{$^*$} & $\mathrm{SO}(3)$ & $\infty$ & 430 & -- & 26.54 & -- & -- \\
     \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.70 & -- & 2172.76 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-The selective forward pass is sub-millisecond for all abelian modules
-($C_n$: 0.15\,ms, $\mathbb{T}^2$: 0.08\,ms, $\SO(2)$/disk: 1.94\,ms)
-and under 1\,ms for the octahedral group (0.70\,ms), making it
-negligible relative to backbone computation. $\SO(3)$ on $S^2$ at
+The selective forward pass is sub-millisecond for finite abelian modules
+($C_n$: 0.15\,ms, $\mathbb{T}^2$: 0.08\,ms), under 2\,ms for
+$\SO(2)$/disk (1.94\,ms), and under 1\,ms for the octahedral group
+(0.70\,ms), making it negligible relative to backbone computation. $\SO(3)$ on $S^2$ at
 $\ell_{\max}{=}16$ takes 26.5\,ms, dominated by the spherical harmonic
 transform (via \texttt{torch\_harmonics}~\citep{bonev2023spherical}).
 Selective coefficient counts confirm the $O(|G|)$ scaling:
@@ -526,9 +535,9 @@ results at matched ${\sim}$100K parameters.
     \midrule
     Standard (augmented)          & 102K & $.896 \pm .010$ & $.826 \pm .012$ \\
     Gated                         & 136K & $.941 \pm .009$ & $.870 \pm .004$ \\
-    Bispectrum (\texttt{CnonCn})  & 128K & $.941 \pm .004$ & $.872 \pm .006$ \\
+    Bispectrum (\texttt{CnonCn})  & 128K & $.941 \pm .004$ & $\mathbf{.872 \pm .006}$ \\
     Fourier-ELU                   & 110K & $\mathbf{.945 \pm .004}$ & $.855 \pm .006$ \\
-    NormReLU                      & 110K & $.942 \pm .004$ & $\mathbf{.858 \pm .007}$ \\
+    NormReLU                      & 110K & $.942 \pm .004$ & $.858 \pm .007$ \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -576,16 +585,19 @@ the key findings.
     Standard 3D CNN          & 16K  & $.601 \pm .017$ & $.951 \pm .002$ & .598 & .0115 \\
     $O$-Equiv + Norm Pool    & 375K & $.568 \pm .099$ & $.940 \pm .021$ & .568 & .0000 \\
     $O$-Equiv + Max Pool     & 374K & $.730 \pm .033$ & $.972 \pm .005$ & .730 & .0000 \\
-    $O$-Equiv + Bispectrum   & 463K & $.726 \pm .027$ & $.972 \pm .004$ & .726 & .0005 \\
+    $O$-Equiv + Bispectrum   & 463K & $.726 \pm .027$ & $.972 \pm .004$ & .726 & .0005$^\dagger$ \\
     \bottomrule
   \end{tabular}
+
+  \vspace{0.3em}
+  {\small $^\dagger$Nonzero $\sigma_{\mathrm{rot}}$ due to floating-point precision in CG contractions, not a theoretical invariance failure.}
 \end{table}
 
-\emph{Rotation invariance.}
+\paragraph{Rotation invariance.}
 All equivariant models achieve $\sigma_{\mathrm{rot}} \leq 0.0005$,
 while the augmented CNN drops ${\sim}$2.5pp under rotation.
 
-\emph{Completeness vs.\ lossy pooling.}
+\paragraph{Completeness vs.\ lossy pooling.}
 The bispectrum (72.6\%) matches max pool (73.0\%) and substantially
 outperforms norm pool (56.8\%) and Regular SE(3)
 convolutions~\citep{kuipers2023regular} (69.8\%).
@@ -605,21 +617,20 @@ regime.
   \label{fig:data-efficiency}
 \end{figure}
 
-
 \subsection{Spherical MNIST: SO(3) invariance on the sphere}
 \label{sec:smnist}
 
 The preceding experiments validate bispectral pooling for finite groups
 ($C_8$ and the octahedral group $O$). To evaluate the library's continuous
 group support, we test \texttt{SO3onS2}---the $\SO(3)$ bispectrum on the
-2-sphere---on Spherical MNIST~\cite{cohen2018spherical}, the standard
+2-sphere---on Spherical MNIST~\citep{cohen2018spherical}, the standard
 benchmark for rotation invariance on $S^2$.
 
 \paragraph{Setup.}
 MNIST digits are projected onto the sphere via stereographic projection and
 sampled on a $64 \times 128$ equiangular grid. We compute the selective
 bispectrum at $\ell_{\max} = 15$, producing 384 complex invariant
-coefficients (768 real features after log-compression), which are fed to a
+coefficients (768 real features after taking log-magnitude), which are fed to a
 3-layer MLP (232K parameters total).  The completeness proof
 (Appendix~\ref{app:so3-proof}) covers $4 \le L \le 100$, so
 $\ell_{\max} = 15$ is within the verified range. Three baselines provide controls:
@@ -634,7 +645,7 @@ $\ell_{\max} = 15$ is within the verified range. Three baselines provide control
   \item \textbf{Standard CNN} (185K params): a conventional CNN operating
     directly on the equirectangular image. Not rotation-invariant.
 \end{itemize}
-Following Cohen et al.~\cite{cohen2018spherical}, we evaluate under three
+Following \citet{cohen2018spherical}, we evaluate under three
 protocols: train on non-rotated / test on non-rotated (NR/NR), train on
 rotated / test on rotated (R/R), and the most challenging train on
 non-rotated / test on rotated (NR/R). Each configuration is run with three
@@ -646,8 +657,8 @@ Table~\ref{tab:smnist-results} and Figure~\ref{fig:smnist-analysis} report
 the results.
 
 \begin{table}[t]
-  \caption{Spherical MNIST results (mean $\pm$ std over 3 seeds). Cohen
-    et al.\ reference numbers are from \cite{cohen2018spherical}.
+  \caption{Spherical MNIST results (mean $\pm$ std over 3 seeds).
+    Reference numbers are from \citet{cohen2018spherical}.
     $\sigma_{\mathrm{rot}}$: standard deviation of accuracy under 10
     random $\SO(3)$ rotations (NR-trained models).}
   \label{tab:smnist-results}
@@ -691,23 +702,23 @@ the results.
   \label{fig:smnist-analysis}
 \end{figure}
 
-\emph{Numerically exact $\SO(3)$ invariance.}
+\paragraph{Numerically exact $\SO(3)$ invariance.}
 The bispectrum achieves near-identical accuracy across all three protocols
 ($\sigma_{\mathrm{rot}} \sim 10^{-4}$), confirming true $\SO(3)$
 invariance. The standard CNN collapses from 99.1\% (NR/NR) to 13.8\%
 (NR/R), showing that augmentation alone does not confer invariance.
 
-\emph{Completeness gap.}
+\paragraph{Completeness gap.}
 The power spectrum is equally invariant but reaches only 78\%---a 17pp
 deficit that persists even after scaling the MLP to 166K parameters
 (+1.4pp), confirming incompleteness rather than capacity as the
 bottleneck.
 
-\emph{Comparison with Cohen et al.}
-Cohen's spherical CNN~\cite{cohen2018spherical} reaches 96\%/95\%/94\%
+\paragraph{Comparison with Cohen et al.}
+Cohen's spherical CNN~\citep{cohen2018spherical} reaches 96\%/95\%/94\%
 with learned equivariant convolutions. Our single-pass bispectrum
-(94.8\%/94.8\%/94.9\%) is 1--2pp lower but has a tighter invariance gap
-(0.0pp vs.\ 2.0pp).
+(95.0\%/94.9\%/95.1\%) is 1--2pp lower but has a tighter invariance gap
+(0.1pp vs.\ 2.0pp).
 
 
 \section{Related Work}
@@ -736,10 +747,10 @@ pooling primitives.
 
 \paragraph{CG product nonlinearities and tensor products.}
 Tensor field networks~\citep{thomas2018tensor} and
-MACE~\citep{batatia2024design} use iterated Clebsch--Gordan products
+MACE~\citep{batatia2022mace} use iterated Clebsch--Gordan products
 to build equivariant interactions. These products are exact and complete
 in principle, but each layer incurs $O(L^3)$ cost per CG contraction.
-\citet{price2025freedom} analyse the \emph{price of freedom} in tensor
+\citet{xie2025price} analyse the \emph{price of freedom} in tensor
 product architectures, showing that maintaining full expressivity through
 CG products becomes expensive at high angular momenta.
 The augmented selective bispectrum achieves completeness in a single $O(L^2)$
@@ -752,7 +763,7 @@ translation-invariant representations via iterated modulus operations;
 \citet{esteves2018spherical} extend this to the sphere. Unlike the
 bispectrum, scattering representations are stable but generally
 incomplete---they discard inter-scale phase information.
-The bispectrum's completeness guarantee~\citep{kakarala1992triple} is its
+The bispectrum's completeness guarantee~\citep{kakarala2012bispectrum} is its
 distinguishing theoretical advantage.
 
 \section{Discussion and Conclusion}
@@ -839,7 +850,7 @@ $\SO(3)$-bispectrum on $S^2$ for band-limits $4 \le L \le 100$
   \label{tab:entry-counts}
   \centering
   \small
-  \begin{tabular}{ccccc}
+  \begin{tabular}{cccc}
     \toprule
     $\ell$ & Bispec & CG Power & Total \\
     \midrule
@@ -895,8 +906,16 @@ the \emph{bispectral coefficient} is
 where $\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$ denotes the
 Clebsch--Gordan coefficient
 $\langle \ell_1, m_1;\, \ell_2, m_2 \mid \ell, m \rangle$.
-Each $\beta_{\ell_1,\ell_2,\ell}$ is a scalar (real for real~$f$).
+Each $\beta_{\ell_1,\ell_2,\ell}$ is a scalar; for real~$f$ it is
+real when $\ell_1{+}\ell_2{+}\ell$ is even and purely imaginary when
+$\ell_1{+}\ell_2{+}\ell$ is odd (Lemma~\ref{lem:app-parity}).
 \end{definition}
+
+Definition~\ref{def:app-bispectrum} is the specialization of the
+general $G$-bispectrum (eq.~\eqref{eq:bispectrum-def}) to the case
+$G = \SO(3)$ acting on~$S^2$, where the irreps are Wigner-$D$
+matrices and the Fourier coefficients are spherical harmonic
+coefficients~$a_\ell^m$.
 
 \begin{definition}[CG power spectrum]\label{def:app-cg-power}
 For a triple $(\ell_1, \ell_2, \ell)$ satisfying the triangle
@@ -1151,7 +1170,7 @@ The lower bound $\Omega(L^2)$ follows from $|\mathcal{S}_\beta|$ alone.
 
 \subsection{Completeness proof}
 
-The proof proceeds in five stages: (1)~recovery of $\mathbf{F}_0$,
+The proof proceeds in four stages: (1)~recovery of $\mathbf{F}_0$,
 $\mathbf{F}_1$ and $\SO(3)$ gauge fixing; (2)~seed recovery at degrees
 $2$--$3$ with a parity analysis of the bispectrum; (3)~fibre reduction
 at degree~$4$ via parity-breaking entries; (4)~per-degree linear
@@ -1368,8 +1387,9 @@ augmented entries:
 \item $\beta_{3,3,2}$: quadratic in $\mathbf{F}_3$, linear in $\mathbf{F}_2$.
 \item $\beta_{2,3,2}$, $\beta_{2,2,3}$: odd parity with repeated indices,
   vanish identically for real signals (Proposition~\ref{prop:app-odd-vanishing}).
-\item $P_{1,3,2}$, $P_{2,3,1}$, $P_{2,3,2}$, $P_{3,3,2}$: CG power entries
-  quadratic in $\mathbf{F}_3$.
+\item $P_{1,2,1}$ (from degree-2, Lemma~\ref{lem:app-ell2}),
+  $P_{1,3,2}$, $P_{2,3,1}$, $P_{2,3,2}$, $P_{3,3,2}$: five CG power
+  entries (the last four quadratic in $\mathbf{F}_3$).
 \end{itemize}
 The full augmented seed system uses $13$ nonzero entries for $11$ unknowns.
 The bispectral entries achieve rank~$6$; each of the five
@@ -1691,12 +1711,12 @@ generic (measure-zero exceptional set) statement.
     \toprule
     Result & Invariant & Size & Complete? \\
     \midrule
-    Kakarala~\citep{kakarala1992triple}
+    Kakarala~\citep{kakarala2012bispectrum}
       & Full bispec. & $O(L^3)$ & Yes (constr.) \\
-    Edidin \& Satriano~\citep{edidin2023orbit}
+    Edidin \& Satriano~\citep{edidin2024orbit}
       & Full bispec.\ (band-lim.)
       & $O(L^3)$ & Yes (generic) \\
-    Bendory et al.~\citep{bendory2022bispectrum}
+    Bendory et al.~\citep{bendory2025orbit}
       & Freq.\ marching
       & $O(L^2)$/shell & Yes (3~shells) \\
     Mataigne et al.~\citep{mataigne2024selective}
@@ -2028,9 +2048,9 @@ The following code demonstrates the cross-block leakage:
 
 \begin{lstlisting}
 import torch
-from bispectrum.o_on_r3 import OonR3
+from bispectrum.octa_on_octa import OctaonOcta
 
-bsp = OonR3()
+bsp = OctaonOcta()
 C11 = bsp._cg_11.to(torch.float64)
 
 # Generic SO(3) rotation (not in O)
@@ -2374,7 +2394,7 @@ All results in Table~\ref{tab:organ3d-results} report mean $\pm$ std
 over 3 seeds (42, 123, 456). Rotation robustness
 ($\sigma_{\mathrm{rot}}$) is the standard deviation of test accuracy
 across all 24 octahedral rotations of the test set. The data
-efficiency analysis (Table~5 in main text) uses 3 seeds per data
+efficiency analysis (Figure~\ref{fig:data-efficiency} in the main text) uses 3 seeds per data
 fraction.
 
 \paragraph{Spherical MNIST.}

@@ -27,13 +27,33 @@ Reference: Kakarala (1992), Cohen et al.
 """
 
 import hashlib
+import logging
 from collections import OrderedDict
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 from torch_harmonics import RealSHT
 
-from bispectrum._cg import _CACHE_DIR, compute_reduced_cg_parallel, load_cg_matrices
+from bispectrum._cg import (
+    _CACHE_DIR,
+    compute_reduced_cg_parallel,
+    compute_sparse_cg_parallel,
+    load_cg_matrices,
+)
+
+logger = logging.getLogger(__name__)
+
+try:
+    from bispectrum._triton_so3 import (
+        build_fused_buffers,
+        flatten_cg_matrices,
+        triton_bispectrum_forward,
+    )
+
+    _HAS_TRITON = True
+except ImportError:
+    _HAS_TRITON = False
 
 
 def _build_full_index_map(
@@ -361,7 +381,7 @@ class SO3onS2(nn.Module):
         lmax: int = 5,
         nlat: int = 64,
         nlon: int = 128,
-        selective: bool = False,
+        selective: bool = True,
     ) -> None:
         super().__init__()
         self.lmax = lmax
@@ -383,7 +403,154 @@ class SO3onS2(nn.Module):
             self._cg_power_map = []
 
         all_triples = list(self._index_map) + list(self._cg_power_map)
-        self._build_group_tables(cg_data if not selective else None, all_triples)
+
+        self._has_dense = False
+        self._has_sparse = False
+
+        if selective and lmax > self._SPARSE_LMAX_THRESHOLD:
+            self._build_sparse_tables(all_triples)
+        else:
+            self._build_group_tables(cg_data if not selective else None, all_triples)
+            self._build_fused_buffers()
+
+    _TRITON_MAX_CG_BYTES = 512 * 1024 * 1024  # 512 MB threshold
+    _SPARSE_LMAX_THRESHOLD = 32
+
+    def _build_sparse_tables(self, all_triples: list[tuple[int, int, int]]) -> None:
+        """Build sparse CG representation for the forward pass.
+
+        Instead of dense (2l1+1)(2l2+1) × cg_cols matrices per (l1,l2) group,
+        stores only the nonzero CG coefficients per entry, exploiting the
+        selection rule m1 + m2 = m. This reduces storage from O(L^5) to O(L^3)
+        and makes init feasible at high lmax.
+
+        Packs everything into contiguous buffers:
+        - _sparse_cg_vals: float64 flat array of all nonzero CG values
+        - _sparse_m1_idx: int32 flat array of m1 offsets into f_coeffs[l1]
+        - _sparse_m_idx: int32 flat array of coupled m offsets
+        - _sparse_entry_offsets: int64 [n_entries+1] CSR-style offsets
+        - _sparse_entry_meta: int32 [n_entries, 4] — (l1, l2, l_val, is_power)
+        """
+        n_bispec = len(self._index_map)
+        entries_for_cg: list[tuple[int, int, int, int, bool]] = []
+        for out_idx, (l1, l2, l_val) in enumerate(all_triples):
+            is_power = out_idx >= n_bispec
+            entries_for_cg.append((out_idx, l1, l2, l_val, is_power))
+
+        cache_path = _CACHE_DIR / f'sparse_cg_lmax{self.lmax}_selective.pt'
+        cached = self._load_sparse_cache(cache_path, entries_for_cg)
+        if cached is not None:
+            cg_vals_t, m1_idx_t, m_idx_t, offsets_t, entry_meta = cached
+        else:
+            sparse_results = compute_sparse_cg_parallel(entries_for_cg)
+
+            all_m1: list[int] = []
+            all_m: list[int] = []
+            all_cg: list[float] = []
+            offsets = [0]
+            entry_meta: list[list[int]] = []
+
+            for (_out_idx, l1, l2, l_val, is_power), (m1_idx, m_idx, cg_vals) in zip(
+                entries_for_cg, sparse_results, strict=False
+            ):
+                all_m1.extend(m1_idx.tolist())
+                all_m.extend(m_idx.tolist())
+                all_cg.extend(cg_vals.tolist())
+                offsets.append(len(all_cg))
+                entry_meta.append([l1, l2, l_val, int(is_power)])
+
+            cg_vals_t = torch.tensor(all_cg, dtype=torch.float64)
+            m1_idx_t = torch.tensor(all_m1, dtype=torch.int32)
+            m_idx_t = torch.tensor(all_m, dtype=torch.int32)
+            offsets_t = torch.tensor(offsets, dtype=torch.int64)
+
+            self._save_sparse_cache(
+                cache_path, cg_vals_t, m1_idx_t, m_idx_t, offsets_t, entry_meta
+            )
+
+        self.register_buffer('_sparse_cg_vals', cg_vals_t)
+        self.register_buffer('_sparse_m1_idx', m1_idx_t)
+        self.register_buffer('_sparse_m_idx', m_idx_t)
+        self.register_buffer('_sparse_entry_offsets', offsets_t)
+        self._sparse_entry_meta = entry_meta
+        self._has_sparse = True
+
+        logger.info(
+            'Built sparse CG: %d entries, %d nonzero coeffs (%.1f MB)',
+            len(entry_meta),
+            cg_vals_t.numel(),
+            cg_vals_t.numel() * 8 / 1e6,
+        )
+
+    @staticmethod
+    def _save_sparse_cache(
+        path: Path,
+        cg_vals: torch.Tensor,
+        m1_idx: torch.Tensor,
+        m_idx: torch.Tensor,
+        offsets: torch.Tensor,
+        entry_meta: list[list[int]],
+    ) -> None:
+        try:
+            _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            torch.save(
+                {
+                    'cg_vals': cg_vals,
+                    'm1_idx': m1_idx,
+                    'm_idx': m_idx,
+                    'offsets': offsets,
+                    'entry_meta': entry_meta,
+                },
+                path,
+            )
+            logger.info('Saved sparse CG cache to %s', path)
+        except OSError:
+            pass
+
+    @staticmethod
+    def _load_sparse_cache(
+        path: Path,
+        entries_for_cg: list[tuple[int, int, int, int, bool]],
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[list[int]]] | None:
+        if not path.exists():
+            return None
+        try:
+            data = torch.load(path, weights_only=True)
+            cached_meta = data['entry_meta']
+            if len(cached_meta) != len(entries_for_cg):
+                return None
+            return data['cg_vals'], data['m1_idx'], data['m_idx'], data['offsets'], cached_meta
+        except (OSError, RuntimeError, KeyError):
+            return None
+
+    def _build_fused_buffers(self) -> None:
+        """Pack CG matrices and metadata into flat buffers for the Triton path.
+
+        Skips buffer creation when the total CG matrix size exceeds _TRITON_MAX_CG_BYTES, since the
+        flattened representation becomes impractical for very large lmax.
+        """
+        if not _HAS_TRITON:
+            return
+
+        total_cg_elems = sum((2 * l1 + 1) * (2 * l2 + 1) * c for l1, l2, c, _ in self._group_data)
+        estimated_bytes = total_cg_elems * 8  # 2 floats per complex element
+        if estimated_bytes > self._TRITON_MAX_CG_BYTES:
+            logger.info(
+                'Skipping Triton buffers: CG flat would be %.0f MB (limit %.0f MB)',
+                estimated_bytes / 1e6,
+                self._TRITON_MAX_CG_BYTES / 1e6,
+            )
+            return
+
+        entry_desc, coeff_offsets, max_block_size = build_fused_buffers(
+            self._group_data, self.lmax
+        )
+        cg_flat = flatten_cg_matrices(self, self._group_data)
+
+        self.register_buffer('_fused_entry_desc', entry_desc)
+        self.register_buffer('_fused_coeff_offsets', coeff_offsets)
+        self.register_buffer('_fused_cg_flat', cg_flat)
+        self._fused_max_block_size = max_block_size
 
     def _build_group_tables(
         self,
@@ -452,6 +619,7 @@ class SO3onS2(nn.Module):
             c = cg_red.shape[1]
             self.register_buffer(f'_cg_red_{gid}', cg_red)
             self._group_data.append((l1, l2, c, extract_entries))
+        self._has_dense = True
 
     @staticmethod
     def _load_or_compute_reduced_cg(
@@ -490,10 +658,14 @@ class SO3onS2(nn.Module):
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the augmented SO(3)-bispectrum of a signal on S^2.
 
-        Uses block-sparse computation with reduced CG matrices. For each
-        (l1, l2) group, computes the CG-transformed tensor product, then:
-        - bispectral entries: contract with conj(F_l)
-        - CG power entries: take squared norm of the projected block
+        Dispatch priority (inference on CUDA, i.e. ``torch.no_grad()``):
+          1. **Triton kernel** — fused per-entry kernel; fastest up to ~lmax 35
+             but requires flattened CG buffers that don't fit at high lmax.
+          2. **CUDA Graph** — replays a captured graph of the Python-loop
+             computation, eliminating kernel-launch overhead. Works at any
+             lmax and for a fixed batch size.
+          3. **Python loop** — always-available fallback, also used when
+             gradients are required (training).
 
         Args:
             f: Real-valued signal on S^2. Shape: (batch, nlat, nlon).
@@ -503,15 +675,105 @@ class SO3onS2(nn.Module):
             entries are complex, CG power entries are real (stored with
             zero imaginary part).
         """
-        coeffs = self._sht(f)
-        f_coeffs = _get_full_sh_coefficients(coeffs)
-
         batch_size = f.shape[0]
         num_entries = self.output_size
+
         if num_entries == 0:
+            coeffs = self._sht(f)
             return torch.zeros(batch_size, 0, dtype=coeffs.dtype, device=f.device)
 
-        result = torch.zeros(batch_size, num_entries, dtype=coeffs.dtype, device=f.device)
+        if f.is_cuda and not torch.is_grad_enabled():
+            if _HAS_TRITON and hasattr(self, '_fused_entry_desc'):
+                coeffs = self._sht(f)
+                f_coeffs = _get_full_sh_coefficients(coeffs)
+                return triton_bispectrum_forward(f_coeffs, self, num_entries)
+
+            graph_result = self._forward_cuda_graph(f, batch_size, num_entries)
+            if graph_result is not None:
+                return graph_result
+
+        coeffs = self._sht(f)
+
+        if self._has_sparse:
+            return self._forward_sparse_fast(coeffs, batch_size, num_entries)
+
+        f_coeffs = _get_full_sh_coefficients(coeffs)
+        return self._forward_python(f_coeffs, coeffs.dtype, f.device, batch_size, num_entries)
+
+    def _forward_cuda_graph(
+        self,
+        f: torch.Tensor,
+        batch_size: int,
+        num_entries: int,
+    ) -> torch.Tensor | None:
+        """Try the CUDA-graph path.
+
+        Returns None if capture fails or is skipped.
+        """
+        cache = getattr(self, '_cuda_graph_cache', None)
+        if cache is not None and cache['batch_size'] == batch_size:
+            cache['static_input'].copy_(f)
+            cache['graph'].replay()
+            return cache['static_output'].clone()
+
+        if cache is not None and cache['batch_size'] != batch_size:
+            return None
+
+        try:
+            static_input = torch.empty_like(f)
+            static_input.copy_(f)
+
+            if self._has_sparse:
+
+                def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
+                    coeffs = self._sht(inp)
+                    return self._forward_sparse_fast(coeffs, batch_size, num_entries)
+            else:
+
+                def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
+                    coeffs = self._sht(inp)
+                    f_coeffs = _get_full_sh_coefficients(coeffs)
+                    return self._forward_python(
+                        f_coeffs, coeffs.dtype, inp.device, batch_size, num_entries
+                    )
+
+            # Warmup run (required before capture to initialize cuDNN/cuBLAS plans)
+            s = torch.cuda.Stream()
+            s.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(s):
+                _ = _run_fwd(static_input)
+            torch.cuda.current_stream().wait_stream(s)
+
+            g = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(g):
+                static_output = _run_fwd(static_input)
+
+            self._cuda_graph_cache = {
+                'graph': g,
+                'static_input': static_input,
+                'static_output': static_output,
+                'batch_size': batch_size,
+            }
+
+            static_input.copy_(f)
+            g.replay()
+            return static_output.clone()
+
+        except Exception:
+            logger.debug('CUDA graph capture failed, disabling for this module', exc_info=True)
+            self._cuda_graph_cache = {'batch_size': -1}
+            return None
+
+    def _forward_python(
+        self,
+        f_coeffs: dict[int, torch.Tensor],
+        dtype: torch.dtype,
+        device: torch.device,
+        batch_size: int,
+        num_entries: int,
+    ) -> torch.Tensor:
+        """Python-loop fallback for the bispectrum forward pass."""
+        result = torch.zeros(batch_size, num_entries, dtype=dtype, device=device)
 
         for gid, (l1, l2, _c, extract_entries) in enumerate(self._group_data):
             fl1 = f_coeffs[l1]
@@ -532,6 +794,238 @@ class SO3onS2(nn.Module):
                     result[:, out_idx] = torch.sum(block * torch.conj(f_coeffs[l_val]), dim=-1)
 
         return result
+
+    def _build_sparse_global_indices(self) -> None:
+        """Convert per-entry (l, m) indices to global flat-array indices.
+
+        Packs all SH coefficients into a single flat array per batch element,
+        then precomputes absolute indices for vectorized gather-multiply-sum.
+
+        Also precomputes:
+        - Bispec-only element indices (avoids recomputing mask every call)
+        - SHT→flat coefficient mapping (avoids _get_full_sh_coefficients)
+        """
+        lmax = self.lmax
+        coeff_offsets: dict[int, int] = {}
+        off = 0
+        for l_val in range(lmax + 1):
+            coeff_offsets[l_val] = off
+            off += 2 * l_val + 1
+        self._sparse_total_coeffs = off
+
+        offsets = self._sparse_entry_offsets
+        meta = self._sparse_entry_meta
+        m1_idx = self._sparse_m1_idx
+        m_idx = self._sparse_m_idx
+        N = int(offsets[-1].item())
+
+        fl1_abs = torch.zeros(N, dtype=torch.int64)
+        fl2_abs = torch.zeros(N, dtype=torch.int64)
+        fl_abs = torch.zeros(N, dtype=torch.int64)
+        entry_ids = torch.zeros(N, dtype=torch.int64)
+        is_power_mask = torch.zeros(len(meta), dtype=torch.bool)
+
+        for eidx, (l1, l2, l_val, is_power) in enumerate(meta):
+            start = int(offsets[eidx].item())
+            end = int(offsets[eidx + 1].item())
+            if start == end:
+                continue
+
+            e_m1 = m1_idx[start:end].long()
+            e_m = m_idx[start:end].long()
+
+            fl1_abs[start:end] = coeff_offsets[l1] + e_m1
+            m2 = e_m - l_val - e_m1 + l1 + l2
+            fl2_abs[start:end] = coeff_offsets[l2] + m2
+            fl_abs[start:end] = coeff_offsets[l_val] + e_m
+            entry_ids[start:end] = eidx
+            is_power_mask[eidx] = bool(is_power)
+
+        self.register_buffer('_sparse_fl1_abs', fl1_abs)
+        self.register_buffer('_sparse_fl2_abs', fl2_abs)
+        self.register_buffer('_sparse_fl_abs', fl_abs)
+        self.register_buffer('_sparse_entry_ids', entry_ids)
+        self.register_buffer('_sparse_is_power', is_power_mask)
+
+        bispec_elem_mask = ~is_power_mask[entry_ids]
+        self.register_buffer('_sparse_bispec_idx', torch.where(bispec_elem_mask)[0])
+
+        self._build_sht_to_flat_map(lmax, off)
+
+    def _build_sht_to_flat_map(self, lmax: int, total_coeffs: int) -> None:
+        """Precompute index/sign arrays to go from SHT half-spectrum to flat complex coefficients.
+
+        SHT output shape: (batch, lmax+1, mmax+1) with m >= 0 only.
+        Flat target shape: (batch, total_coeffs) with m in [-l..l] for each l.
+
+        For each flat position, stores (l_idx_in_sht, m_abs_idx_in_sht) and a sign
+        for the (-1)^m conjugation on negative-m entries.
+        """
+        src_l = []
+        src_m = []
+        conj_sign = []
+
+        for l_val in range(lmax + 1):
+            for m in range(-l_val, l_val + 1):
+                src_l.append(l_val)
+                src_m.append(abs(m))
+                if m < 0:
+                    conj_sign.append((-1.0) ** (-m))
+                else:
+                    conj_sign.append(0.0)
+
+        self.register_buffer('_flat_src_l', torch.tensor(src_l, dtype=torch.long))
+        self.register_buffer('_flat_src_m', torch.tensor(src_m, dtype=torch.long))
+        self.register_buffer('_flat_conj_sign', torch.tensor(conj_sign, dtype=torch.float64))
+
+    def _sht_to_flat(self, coeffs: torch.Tensor) -> torch.Tensor:
+        """Convert SHT half-spectrum to flat complex coefficients using precomputed maps.
+
+        Replaces _get_full_sh_coefficients + torch.cat with a single gather + in-place conjugation.
+        """
+        if not hasattr(self, '_flat_src_l'):
+            self._build_sparse_global_indices()
+        src_l = self._flat_src_l
+        src_m = self._flat_src_m
+        conj_sign = self._flat_conj_sign.to(dtype=coeffs.dtype, device=coeffs.device)
+
+        flat = coeffs[:, src_l, src_m]
+        neg_mask = conj_sign != 0
+        flat[:, neg_mask] = conj_sign[neg_mask].unsqueeze(0) * torch.conj(flat[:, neg_mask])
+        return flat
+
+    def _forward_sparse(
+        self,
+        f_coeffs: dict[int, torch.Tensor],
+        dtype: torch.dtype,
+        device: torch.device,
+        batch_size: int,
+        num_entries: int,
+    ) -> torch.Tensor:
+        """Sparse-CG forward pass — fully vectorized with global gather."""
+        if not hasattr(self, '_sparse_fl1_abs'):
+            self._build_sparse_global_indices()
+
+        flat = torch.cat([f_coeffs[l] for l in range(self.lmax + 1)], dim=1).to(
+            dtype=dtype, device=device
+        )
+        return self._forward_sparse_from_flat(flat, dtype, device, batch_size, num_entries)
+
+    def _forward_sparse_fast(
+        self,
+        coeffs: torch.Tensor,
+        batch_size: int,
+        num_entries: int,
+    ) -> torch.Tensor:
+        """Fast sparse forward: SHT coefficients → bispectrum, no dict intermediary."""
+        if not hasattr(self, '_sparse_fl1_abs'):
+            self._build_sparse_global_indices()
+
+        flat = self._sht_to_flat(coeffs)
+        return self._forward_sparse_from_flat(
+            flat, coeffs.dtype, coeffs.device, batch_size, num_entries
+        )
+
+    def _ensure_precomputed_on_device(self, device: torch.device, dtype: torch.dtype) -> None:
+        """Lazily cache precomputed bispec and power index arrays in working dtype."""
+        if not hasattr(self, '_sparse_fl1_abs'):
+            self._build_sparse_global_indices()
+
+        cache_key = (device, dtype)
+        if getattr(self, '_sparse_device_cache_key', None) == cache_key:
+            return
+
+        bi = self._sparse_bispec_idx
+        fl1_i = self._sparse_fl1_abs
+        fl2_i = self._sparse_fl2_abs
+        fl_i = self._sparse_fl_abs
+        eid = self._sparse_entry_ids
+
+        perm = torch.randperm(bi.numel())
+        bi_perm = bi[perm]
+        self._sc_bi_fl1 = fl1_i[bi_perm].to(device=device)
+        self._sc_bi_fl2 = fl2_i[bi_perm].to(device=device)
+        self._sc_bi_fl = fl_i[bi_perm].to(device=device)
+        self._sc_bi_eid = eid[bi_perm].to(device=device)
+        self._sc_bi_cg = self._sparse_cg_vals[bi_perm].to(dtype=dtype, device=device)
+
+        is_power = self._sparse_is_power
+        offsets = self._sparse_entry_offsets
+        power_indices = torch.where(is_power)[0].tolist()
+        self._sc_pw_n_rows = 0
+        if power_indices:
+            max_coupled = max(2 * self._sparse_entry_meta[i][2] + 1 for i in power_indices)
+            pw_fl1_parts: list[torch.Tensor] = []
+            pw_fl2_parts: list[torch.Tensor] = []
+            pw_cg_parts: list[torch.Tensor] = []
+            pw_cidx_parts: list[torch.Tensor] = []
+            pw_eids: list[int] = []
+            row = 0
+            for eidx in power_indices:
+                start = int(offsets[eidx].item())
+                end = int(offsets[eidx + 1].item())
+                if start == end:
+                    continue
+                pw_fl1_parts.append(fl1_i[start:end])
+                pw_fl2_parts.append(fl2_i[start:end])
+                pw_cg_parts.append(self._sparse_cg_vals[start:end])
+                pw_cidx_parts.append(row * max_coupled + self._sparse_m_idx[start:end].long())
+                pw_eids.append(eidx)
+                row += 1
+
+            if pw_fl1_parts:
+                self._sc_pw_fl1 = torch.cat(pw_fl1_parts).to(device=device)
+                self._sc_pw_fl2 = torch.cat(pw_fl2_parts).to(device=device)
+                self._sc_pw_cg = torch.cat(pw_cg_parts).to(dtype=dtype, device=device)
+                self._sc_pw_cidx = torch.cat(pw_cidx_parts).to(device=device)
+                self._sc_pw_eids = torch.tensor(pw_eids, dtype=torch.long, device=device)
+                self._sc_pw_n_rows = row
+                self._sc_pw_max_coupled = max_coupled
+
+        self._sparse_device_cache_key = cache_key
+
+    def _forward_sparse_from_flat(
+        self,
+        flat: torch.Tensor,
+        dtype: torch.dtype,
+        device: torch.device,
+        batch_size: int,
+        num_entries: int,
+    ) -> torch.Tensor:
+        """Core sparse computation from flat coefficient array."""
+        self._ensure_precomputed_on_device(device, dtype)
+
+        result = torch.zeros(batch_size, num_entries, dtype=dtype, device=device)
+        bi_fl1 = self._sc_bi_fl1
+        if bi_fl1.numel() > 0:
+            prods = (
+                flat[:, bi_fl1]
+                * flat[:, self._sc_bi_fl2]
+                * self._sc_bi_cg.unsqueeze(0)
+                * torch.conj(flat[:, self._sc_bi_fl])
+            )
+            result.scatter_add_(1, self._sc_bi_eid.unsqueeze(0).expand(batch_size, -1), prods)
+
+        if self._sc_pw_n_rows > 0:
+            n_pw = self._sc_pw_n_rows
+            mc = self._sc_pw_max_coupled
+            pw_prods = (
+                flat[:, self._sc_pw_fl1] * flat[:, self._sc_pw_fl2] * self._sc_pw_cg.unsqueeze(0)
+            )
+            coupled_flat = torch.zeros(batch_size, n_pw * mc, dtype=dtype, device=device)
+            coupled_flat.scatter_add_(
+                1, self._sc_pw_cidx.unsqueeze(0).expand(batch_size, -1), pw_prods
+            )
+            coupled_2d = coupled_flat.reshape(batch_size, n_pw, mc)
+            norms = torch.sum(coupled_2d.real**2 + coupled_2d.imag**2, dim=-1).to(dtype)
+            result[:, self._sc_pw_eids] = norms
+
+        return result
+
+    def reset_cuda_graph_cache(self) -> None:
+        """Invalidate the cached CUDA graph (e.g. after changing batch size)."""
+        if hasattr(self, '_cuda_graph_cache'):
+            del self._cuda_graph_cache
 
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
         """Inversion is an open problem for SO(3) on S^2.
