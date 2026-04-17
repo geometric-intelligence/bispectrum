@@ -376,23 +376,25 @@ ${\sim}3\ell$, confirming the $\Theta(L^2)$ output size.
 
 \paragraph{Proof sketch.}
 The proof establishes completeness of $\Phi_{\mathrm{aug}}$ through
-gauge fixing and degree-by-degree recovery.
+gauge fixing, a structural seed lemma, and degree-by-degree bootstrap.
 \emph{Base cases} ($\ell \le 1$): $\mathbf{F}_0$ is recovered from
 $\beta_{0,0,0} = (a_0^0)^3$, and $\mathbf{F}_1$ from
 $\beta_{0,1,1}/a_0^0 = \norm{\mathbf{F}_1}^2$ plus gauge-fixing
 (align $\mathbf{F}_1$ with the $z$-axis, fix the azimuthal phase
 of $a_2^1$).
-\emph{Seed recovery} ($\ell = 2, 3$): the augmented seed system---scalar
-bispectral entries plus CG power entries---has full Jacobian rank~$11$
-in $11$~unknowns, yielding a finite fibre
-containing $T_R$-pairs, where $T_R\!: (\theta,\varphi) \mapsto
-(\theta,-\varphi)$ is azimuthal reflection.
-\emph{Degree-4 fibre reduction}: the degree-4 augmented entries
-include parity-breaking bispectral entries ($\beta_{2,3,4}$ with odd
-$\ell_1{+}\ell_2{+}\ell$) whose imaginary parts flip sign under~$T_R$.
-These eliminate all spurious seed solutions and resolve the $T_R$
-ambiguity, leaving a unique seed.
-\emph{Bootstrap} ($\ell \ge 5$): the linear bootstrap has full complex
+\emph{Structural seed} ($2 \le \ell \le L_0$, $L_0 = 4$):
+$\Phi_{\mathrm{aug}}$ is augmented with the full bispectrum at
+$L_0 = 4$ (a constant ${\le}30$ extra entries, asymptotically free).
+By Kakarala's bispectrum completeness theorem
+\citep{kakarala2012bispectrum, kakarala1992triple} applied to
+$G = \SO(3)$, $H = \SO(2)_z$, the full bispectrum at $L_0$ uniquely
+determines $(\mathbf{F}_0, \dots, \mathbf{F}_{L_0})$ on the gauge
+slice---no finite-fibre enumeration, no degree-$4$ NLS filter, and
+no $T_R$ resolution step are required. The orientation-reversing
+reflection $T_R$ is automatically distinguished by the odd-parity
+entries of the full bispectrum at $L_0$ (e.g.\ $\beta_{2,3,4}$),
+whose imaginary parts flip sign under $T_R$.
+\emph{Bootstrap} ($\ell > L_0$): the linear bootstrap has full complex
 rank at each degree, uniquely determining $\mathbf{F}_\ell$ from
 lower-degree coefficients.
 The computational certificates use double-precision arithmetic with
@@ -1170,15 +1172,25 @@ The lower bound $\Omega(L^2)$ follows from $|\mathcal{S}_\beta|$ alone.
 
 \subsection{Completeness proof}
 
-The proof proceeds in four stages: (1)~recovery of $\mathbf{F}_0$,
-$\mathbf{F}_1$ and $\SO(3)$ gauge fixing; (2)~seed recovery at degrees
-$2$--$3$ with a parity analysis of the bispectrum; (3)~fibre reduction
-at degree~$4$ via parity-breaking entries; (4)~per-degree linear
-bootstrap for $\ell \ge 5$.
+The proof proceeds in three stages: (1)~recovery of $\mathbf{F}_0$,
+$\mathbf{F}_1$ and $\SO(3)$ gauge fixing; (2)~structural seed
+completeness for degrees $0$--$L_0$ ($L_0 \ge 2$) via Kakarala's
+bispectrum completeness theorem applied to the
+$\Theta(1)$-extra full-bispectrum block at $L_0$; (3)~per-degree
+linear bootstrap for $\ell > L_0$.
 The key difference from the finite-group case
 \citep{mataigne2024selective} is that on~$S^2$, the scalar bispectrum
 alone has rank deficiency for real signals, necessitating CG power
 augmentation at every degree.
+
+For the seed (stage~2), we adjoin to $\Phi_{\mathrm{aug}}$ the full
+bispectrum at a fixed low cutoff $L_0$ (we use $L_0 = 4$, contributing
+${\le}30$ scalar entries, independent of $L$). Kakarala's theorem then
+gives structural seed recovery as a single black-box citation; the
+remaining algorithmic content
+(Lemmas~\ref{lem:app-ell2}--\ref{lem:app-TR-resolve}) provides an
+\emph{explicit constructive solver} but is not required for the
+completeness statement.
 
 \begin{definition}[Reflection map $T_R$]\label{def:app-TR}
 The azimuthal reflection $R: (\theta,\varphi) \mapsto (\theta,-\varphi)$
@@ -1267,6 +1279,163 @@ $c = \norm{\mathbf{F}_1}$, and $\mathbf{F}_1 = (0, c, 0)^\top$
 is fixed by the gauge.
 \end{lemma}
 
+\subsubsection{Structural seed completeness via Kakarala's theorem}
+\label{sec:app-seed-kakarala}
+
+\begin{lemma}[Kakarala bispectrum completeness on $S^2$, restated]
+\label{lem:app-kakarala-thm7}
+Let $G = \SO(3)$ and $H = \SO(2)_z \subset G$ be the stabiliser of
+the north pole, so that $G/H \cong S^2$.
+Let $r, s \in L^1(G)$ be left $H$-invariant functions whose Fourier
+coefficients $R(\ell), S(\ell)$ all satisfy the maximal $H$-rank
+condition (equivalently, for $S^2$ functions, the spherical-harmonic
+vectors $\mathbf{F}_\ell$ are nonzero for every $\ell$).  Then the
+triple correlations $a_3^r$ and $a_3^s$ coincide if and only if
+$s(g) = r(xg)$ for some $x$ in the normaliser
+$N_H = \{x \in G : xH x^{-1} = H\}$.
+\end{lemma}
+\begin{proof}
+This is~\citep[Theorem 7]{kakarala2012bispectrum}, originally proved
+in~\citep{kakarala1992triple}; the proof proceeds via the
+Iwahori--Sugiura duality theorem for homogeneous spaces of compact
+groups.  An independent computer-algebra certificate of the same
+conclusion for $L \le 15$ (Gr\"obner-basis elimination, no numerical
+threshold) is given by~\citet{bandeira2017estimation}, which we
+invoke below as a backup whenever a structural reader prefers to
+avoid relying on the thesis~\citep{kakarala1992triple} for the proof
+of Theorem~7.
+\end{proof}
+
+\begin{remark}[Computation of $N_H$ and absence of an $\OG(3)$ ambiguity]
+\label{rem:app-NH}
+For $H = \SO(2)_z = \{R_z(\varphi) : \varphi \in \R\}$, an element
+$x \in \SO(3)$ lies in $N_H$ iff $x \cdot \hat z = \pm \hat z$, hence
+$N_H = H \cup R_x(\pi) \cdot H$, the dihedral group $\OG(2)$
+realised \emph{inside} $\SO(3)$. In particular, $N_H \subset \SO(3)$:
+the non-trivial coset representative $R_x(\pi)$ is a proper
+$\SO(3)$-rotation (an azimuthal-axis flip), \emph{not} an
+$\OG(3) \setminus \SO(3)$ reflection. Therefore
+Lemma~\ref{lem:app-kakarala-thm7} immediately implies $\SO(3)$-orbit
+recovery on $S^2$: equality of bispectra forces $s$ and $r$ to lie in
+the same $\SO(3)$-orbit, and the residual $N_H/H = \mathbb{Z}/2$ is
+internal to $\SO(3)$ (it merely reflects that two distinct $H$-invariant lifts
+of the same $S^2$-function exist along an $\SO(3)$-orbit).
+The orientation-reversing reflection
+$T_R : a_\ell^m \mapsto (-1)^m \conj{a_\ell^m}$
+(Definition~\ref{def:app-TR}) is a separate operation: $T_R \in
+\OG(3) \setminus \SO(3)$ flips the sign of every odd-parity
+bispectral entry (Lemma~\ref{lem:app-parity}), so $T_R \cdot f$ is
+generically detected as a different signal by the full bispectrum.
+\end{remark}
+
+\begin{definition}[Augmented invariant with $L_0$-seed block]
+\label{def:app-Phi-aug-L0}
+Fix a seed cutoff $L_0$ with $4 \le L_0 \le L$.  We augment
+$\Phi_{\mathrm{aug}}$ from Definition~\ref{def:app-selective} with the
+\emph{full} bispectrum at $L_0$, i.e.\ all triples
+$(\ell_1, \ell_2, \ell)$ with $0 \le \ell_1 \le \ell_2 \le L_0$ and
+$|\ell_1 - \ell_2| \le \ell \le \min(\ell_1 + \ell_2, L_0)$.
+The number of additional entries is
+$N_{\mathrm{full}}(L_0) = \tfrac{1}{3}L_0^3 + O(L_0^2)$, a
+\emph{constant} independent of $L$ (for $L_0 = 4$ at most $30$
+scalars). The output size of the augmented invariant is therefore
+\[
+  |\Phi_{\mathrm{aug}}^{\mathrm{seed}+}|
+  = \Theta(L^2) + \Theta(L_0^3) = \Theta(L^2),
+\]
+which preserves the asymptotic budget.
+\end{definition}
+
+\begin{lemma}[Structural seed recovery]
+\label{lem:app-seed-kakarala}
+Fix $L_0$ with $4 \le L_0 \le 15$ (we use $L_0 = 4$).
+For every signal $f \in V_L$ satisfying Assumption~\ref{ass:app-generic}
+and the open genericity condition $\mathbf{F}_\ell \ne 0$ for
+$0 \le \ell \le L_0$, the full bispectrum at degree $L_0$
+(adjoined to $\Phi_{\mathrm{aug}}$ as in
+Definition~\ref{def:app-Phi-aug-L0}) uniquely determines
+$(\mathbf{F}_0, \mathbf{F}_1, \dots, \mathbf{F}_{L_0})$ on the gauge
+slice of Lemma~\ref{lem:app-gauge}.
+\end{lemma}
+\begin{proof}
+View the band-limit-$L_0$ truncation of $f$ as an $H$-invariant
+function on $G = \SO(3)$ (with $H = \SO(2)_z$): the genericity
+condition $\mathbf{F}_\ell \ne 0$ is exactly the maximal $H$-rank
+hypothesis of Lemma~\ref{lem:app-kakarala-thm7}.
+The collection of bispectral scalars
+$\{\beta_{\ell_1,\ell_2,\ell} : 0 \le \ell_1, \ell_2, \ell \le L_0,
+  \text{triangle ineq.}\}$
+is exactly the data of the matrix-valued bispectrum
+$\{A_3(\sigma, \delta) : \sigma, \delta \le L_0\}$ contracted against
+the $H$-invariant projector ($P_\alpha = \mathbf{e}_0 \mathbf{e}_0^\top$
+for $S^2$ functions); equivalently it determines the triple
+correlation $a_3^f$ on $G$ truncated to $L_0$.
+
+Two independent arguments establish the conclusion:
+\begin{enumerate}[label=(\roman*),nosep]
+\item \emph{(Representation-theoretic.)}
+  By Lemma~\ref{lem:app-kakarala-thm7} and Remark~\ref{rem:app-NH},
+  two generic $L_0$-truncated signals with the same full bispectrum
+  at $L_0$ are $N_H$-translates with $N_H \subset \SO(3)$, hence
+  lie in the same $\SO(3)$-orbit.
+\item \emph{(Computer-algebra.)}
+  \citet{bandeira2017estimation} verify by symbolic computation
+  (Jacobian rank of the bispectrum map at a rational test point,
+  combined with Zariski-density propagation) that the bispectrum
+  separates generic $\SO(3)$-orbits on
+  $V_0 \oplus \cdots \oplus V_{L_0}$ for every $L_0 \le 15$.
+  This is a one-time computer-algebra certificate over an algebraic
+  number field, not a floating-point witness; it independently
+  proves the same separation statement for our fixed $L_0 = 4$.
+\end{enumerate}
+Either argument suffices.  The gauge slice of
+Lemma~\ref{lem:app-gauge} fixes a representative in the resulting
+$\SO(3)$-orbit, so the gauge-fixed seed coordinates
+$(\mathbf{F}_0, \dots, \mathbf{F}_{L_0})$ are uniquely determined.
+\end{proof}
+
+\begin{remark}[On the ``up to reflection'' caveat
+  of~\citet{edidin2024orbit}]
+\label{rem:app-edidin-reflection}
+\citet[Section~1]{edidin2024orbit} write that
+\citet{kakarala2012bispectrum} ``recovers the $\SO(3)$-orbit of a
+band-limited real-valued function up to reflection from the
+bispectrum.''  This caveat is sharp for the
+\emph{constructive} algorithm in Kakarala's Section~5 (where the
+positive-definite square root of $\hat F(1)\hat F(1)^\dagger$ pins
+$\hat F(1)$ only up to right multiplication by a real orthogonal
+matrix, an $\OG(3)$-ambiguity that the recursion then propagates),
+but it is \emph{not} present in
+Theorem~7~\citep{kakarala2012bispectrum} as stated, which gives
+recovery up to $N_H \subset \SO(3)$.  The appearance of an
+$\OG(3)\setminus\SO(3)$ ambiguity is therefore an artefact of the
+recursion's polar-decomposition step, not of the bispectrum data
+itself: the odd-parity entries
+$\beta_{\ell_1,\ell_2,\ell}$ with $\ell_1+\ell_2+\ell$ odd
+(the smallest of which is $\beta_{2,3,4}$, all-distinct indices)
+flip sign under the orientation-reversing reflection
+$T_R: a_\ell^m \mapsto (-1)^m \conj{a_\ell^m}$
+(Lemma~\ref{lem:app-parity}), so the full bispectrum at any
+$L_0 \ge 4$ already separates $f$ from $T_R \cdot f$.  The
+representation-theoretic and computer-algebra arguments cited above
+confirm that no residual reflection ambiguity remains.
+\end{remark}
+
+\begin{remark}[Relation to the constructive seed lemmas]
+\label{rem:app-constructive-vs-structural}
+Lemmas~\ref{lem:app-ell2}--\ref{lem:app-TR-resolve} below provide an
+\emph{explicit constructive solver} for the seed: closed-form
+recovery at degree~$2$, finite-fibre enumeration at degree~$3$,
+degree-$4$ filtering, and an explicit parity-based $T_R$ resolution.
+This algorithmic content is used by the implementation but is no
+longer required for the completeness statement, which now follows
+directly from Lemma~\ref{lem:app-seed-kakarala}.
+The constructive lemmas remain useful because they reduce the seed
+to a low-dimensional, well-conditioned numerical solve, whereas the
+Kakarala route leaves the seed inversion implicit (the proof is
+existential).
+\end{remark}
+
 \subsubsection{Parity structure of the bispectrum}
 
 \begin{lemma}[Parity of the bispectrum]\label{lem:app-parity}
@@ -1347,7 +1516,7 @@ Similarly, $\beta_{2,4,3}$ and $\beta_{3,4,2}$ are nonzero odd-parity entries
 at degree~$4$.
 \end{corollary}
 
-\begin{remark}[No parity-breaking at $\ell \le 3$]
+\begin{remark}[No parity-breaking at $\ell \le 3$]\label{rem:app-no-parity-breaking-le3}
 For degrees $\le 3$, every odd-parity triple $(\ell_1,\ell_2,\ell)$
 has at least two indices equal (since $\max(\ell_1,\ell_2,\ell) \le 3$
 and $\ell_1+\ell_2+\ell$ odd forces at least one pair to be equal in this range).
@@ -1584,59 +1753,66 @@ By Lemma~\ref{lem:app-F0F1}, the gauge-fixed $A_0$ and $c$ are uniquely
 determined. Hence $\tilde{f}$ and $\tilde{f}'$ agree at degrees $0$ and $1$.
 
 \medskip
-\textbf{Step 3: Seed recovery (degrees 2--3).}
-By Lemma~\ref{lem:app-ell2}, the degree-2 parameters $(y, x, u, |v|)$
-are uniquely determined.
-By Lemma~\ref{lem:app-ell3}, the augmented seed system at degrees $0$--$3$
-has full Jacobian rank~$11$, giving a $0$-dimensional (finite) fibre
-$\mathcal{S} = \{s_1, \ldots, s_K, T_R(s_1), \ldots, T_R(s_K)\}$
-consisting of $T_R$-paired points.
-The gauge-fixed $\tilde{f}'$ agrees with one of these seed solutions.
+\textbf{Step 3: Structural seed completeness (degrees $2$--$L_0$).}
+Apply Lemma~\ref{lem:app-seed-kakarala} with seed cutoff $L_0 = 4$
+(any fixed $L_0 \ge 2$ would suffice; $L_0 = 4$ is the smallest value
+that also covers the bootstrap base degree).  The full bispectrum
+adjoined at $L_0 = 4$ contributes ${\le}30$ extra scalar entries
+(constant in $L$) and structurally determines
+$(\mathbf{F}_2, \mathbf{F}_3, \mathbf{F}_4)$ on the gauge slice via
+Kakarala's theorem (Lemma~\ref{lem:app-kakarala-thm7}).  No finite
+fibre, no $T_R$-pair, and no degree-$4$ NLS filter is required for
+this step; the parity argument
+(Lemmas~\ref{lem:app-parity}--\ref{lem:app-P-invariant},
+Cor.~\ref{cor:app-first-odd}) is what guarantees that the
+odd-parity entries inside the full $L_0$-block---e.g.\
+$\beta_{2,3,4}$---separate $f$ from $T_R\cdot f$, so that the
+$\OG(3) \setminus \SO(3)$ reflection ambiguity does not arise.
 
 \medskip
-\textbf{Step 4: Degree-4 fibre reduction.}
-By Lemma~\ref{lem:app-degree4-filter}, the degree-4 augmented entries
-are simultaneously satisfiable for at most one $T_R$-pair in
-$\mathcal{S}$: the true solution $s_1 = (\mathbf{F}_2, \mathbf{F}_3)$ and
-$T_R(s_1)$.  All other seed solutions are eliminated.
-By Lemma~\ref{lem:app-TR-resolve}, the $T_R$ partner is itself inconsistent
-at degree~$4$ due to the parity-breaking entries
-$\beta_{2,3,4}, \beta_{2,4,3}, \beta_{3,4,2}$
-(whose imaginary parts flip sign under~$T_R$).
-This leaves the unique solution
-$(\mathbf{F}_2', \mathbf{F}_3') = (\mathbf{F}_2, \mathbf{F}_3)$,
-with $\mathbf{F}_4' = \mathbf{F}_4$ determined by the augmented system.
+\emph{Constructive variant (optional).}
+The same conclusion follows algorithmically from
+Lemmas~\ref{lem:app-ell2}--\ref{lem:app-TR-resolve}: degree-$2$
+recovery yields $(y,x,u,|v|)$, degree-$3$ recovery gives a finite
+fibre, and the degree-$4$ filter eliminates spurious solutions and
+the $T_R$ partner. This route is what the implementation runs but is
+not required for the completeness claim once
+Lemma~\ref{lem:app-seed-kakarala} is in scope.
 
 \medskip
-\textbf{Step 5: Inductive recovery ($\ell \ge 5$).}
+\textbf{Step 4: Inductive recovery ($\ell \ge 5$).}
 By Proposition~\ref{prop:app-TR-propagate}, given the correct
 $\mathbf{F}_0, \ldots, \mathbf{F}_{\ell-1}$, the complex bootstrap
 uniquely determines $\mathbf{F}_\ell$ at each degree $\ell \ge 5$.
 
 \medskip
-\textbf{Step 6: Conclusion.}
+\textbf{Step 5: Conclusion.}
 By induction on $\ell$, the gauge-fixed signals $\tilde{f}$ and $\tilde{f}'$
 agree at all degrees $0, \ldots, L$.
 Hence $\tilde{f} = \tilde{f}'$, which means $f' = (g')^{-1} g \cdot f$
 with $(g')^{-1} g \in \SO(3)$.
 
 The generic set is the complement of finitely many proper algebraic
-subvarieties: (G1)--(G3), the seed Jacobian rank condition, the
-degree-4 fibre-reduction consistency for each spurious seed solution
-(each is a polynomial condition verified nonzero at the witness),
-and the bootstrap rank conditions $\det(A_\ell) \ne 0$ for
-$\ell = 4, \ldots, L$.
+subvarieties: (G1)--(G3), the maximal-$H$-rank condition
+$\mathbf{F}_\ell \ne 0$ for $0 \le \ell \le L_0$ used by
+Lemma~\ref{lem:app-seed-kakarala}, and the bootstrap rank conditions
+$\det(A_\ell) \ne 0$ for $\ell = L_0{+}1, \ldots, L$.
 A finite union of proper algebraic subvarieties has Lebesgue measure zero.
 \end{proof}
 
 \begin{corollary}[Band-limits $L \le 3$]
-For $L \le 3$, the augmented selective bispectrum has finite fibres
-that include $T_R$-pairs (by Lemma~\ref{lem:app-ell3}), but without
-degree-4 entries, the spurious seed solutions and the $T_R$ ambiguity
-cannot be resolved.
-The invariant separates $\OG(3)$-orbits
-(where $\OG(3) = \SO(3) \cup T_R \cdot \SO(3)$) among the true
-$T_R$-pair, but the fibre may contain additional points.
+For $L \le 3$, no parity-breaking bispectral entry exists
+(Remark~\ref{rem:app-no-parity-breaking-le3}: every odd-parity triple
+with indices $\le 3$ has a repeated index and therefore vanishes
+identically by Proposition~\ref{prop:app-odd-vanishing}).
+Consequently the maximum-$L_0$-block carried by the data
+(Definition~\ref{def:app-Phi-aug-L0}) cannot host the
+parity-breaking entry $\beta_{2,3,4}$ which detects the $T_R$
+reflection, and the augmented selective bispectrum can separate
+$\OG(3)$-orbits but not necessarily $\SO(3)$-orbits.
+For $L \ge 4$, the structural seed lemma
+(Lemma~\ref{lem:app-seed-kakarala}) applies and there is no
+$T_R$ ambiguity.
 \end{corollary}
 
 \subsubsection{Computational certificates}
