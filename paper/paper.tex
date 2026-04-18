@@ -94,7 +94,7 @@ Building the library required one theoretical contribution:
 an augmented selective $\SO(3)$ invariant on $S^2$ achieving
 $\Theta(L^2)$ coefficients (the information-theoretic lower
 bound) instead of $O(L^3)$ for the full bispectrum
-(completeness proved for $4 \le L \le 100$).
+(computer-assisted completeness proof for $4 \le L \le 100$).
 Across three benchmarks ($C_8$, octahedral, $\SO(3)$), the library
 delivers near-exact rotation invariance
 ($\sigma_{\mathrm{rot}} < 10^{-3}$) and a data-efficiency advantage of
@@ -149,10 +149,13 @@ bispectrum on $S^2$ with $O(L^2)$ coefficients
     matching the orbit-space lower bound up to a constant factor.
     The invariant combines scalar bispectral entries with
     Clebsch--Gordan power spectrum entries (a degree-$4$ complement
-    needed for real signals).  Completeness is proved for $4 \le L \le 100$
-    via a combination of exact rational certificates and a
-    closed-form linear bootstrap family (Appendix~\ref{app:so3-proof});
-    the verification extends to any desired~$L$ by re-running a single script.
+    needed for real signals).  We give a computer-assisted completeness
+    proof for $4 \le L \le 100$ that combines a structural seed step
+    (Kakarala 1992/2012) with a uniform per-degree linear bootstrap
+    whose rank conditions are verified by exact rational certificates
+    (Appendix~\ref{app:so3-proof}); the verification procedure is
+    uniform in~$\ell$ and extendable to larger~$L$ by re-running the
+    same script.
   \item \textbf{Empirical validation.} A task-driven evaluation of the
     library as an invariant pooling primitive across three group/domain
     settings, showing that complete bispectral invariants provide a
@@ -356,7 +359,7 @@ for real signals (CG antisymmetry of the symmetric square) and
 are excluded.  All \emph{even} self-coupling entries
 $\beta_{\ell,\ell,\ell'}$ with $2 \le \ell' \le \ell$ are
 included unconditionally; they are needed for full Jacobian rank
-in the seed system (Lemma~\ref{lem:app-ell3}).
+in the seed system (Appendix~\ref{app:constructive-solver}).
 The invariant is further augmented with
 CG power spectrum entries $P_{\ell_1,\ell_2,\ell}$, chosen
 to maximise the Jacobian rank of the combined invariant
@@ -771,9 +774,11 @@ to simpler pooling strategies.
 \paragraph{Limitations.}
 Inversion for $\SO(3)$ on $S^2$ is not yet implemented; only the
 selective forward map is available. The selective $\SO(3)$ completeness
-proof relies on a genericity assumption (the signal must avoid a
-measure-zero algebraic variety) and the bootstrap rank verification
-covers $L \le 100$; a structural all-$L$ proof and a full
+result is a \emph{computer-assisted} theorem: it relies on a
+genericity assumption (the signal must avoid a measure-zero algebraic
+variety) and on per-degree linear-bootstrap rank certificates verified
+in exact rational arithmetic for $4 \le L \le 100$. A structural,
+all-$L$ proof (i.e.\ a uniform-in-$\ell$ rank argument) and a full
 characterisation of the degenerate set remain open.
 Our experimental comparisons do not include tensor-product
 architectures (e3nn, MACE) or wavelet scattering, which target
@@ -1152,11 +1157,10 @@ augmentation at every degree.
 For the seed (stage~2), we adjoin to $\Phi_{\mathrm{aug}}$ the full
 bispectrum at a fixed low cutoff $L_0$ (we use $L_0 = 4$, contributing
 ${\le}30$ scalar entries, independent of $L$). Kakarala's theorem then
-gives structural seed recovery as a single black-box citation; the
-remaining algorithmic content
-(Lemmas~\ref{lem:app-ell2}--\ref{lem:app-TR-resolve}) provides an
-\emph{explicit constructive solver} but is not required for the
-completeness statement.
+gives structural seed recovery as a single black-box citation;
+Appendix~\ref{app:constructive-solver} contains an
+\emph{explicit constructive solver} for the same seed step but is
+not required for the completeness statement.
 
 \begin{definition}[Reflection map $T_R$]\label{def:app-TR}
 The azimuthal reflection $R: (\theta,\varphi) \mapsto (\theta,-\varphi)$
@@ -1185,7 +1189,7 @@ bootstrap rank, and degree-4 consistency---but each is \emph{proved}
 to hold outside a proper algebraic subvariety (not assumed).
 \end{remark}
 
-\begin{theorem}[Completeness of the augmented selective $\SO(3)$ invariant on $S^2$]
+\begin{theorem}[Augmented selective $\SO(3)$ invariant on $S^2$: computer-assisted completeness for $4 \le L \le 100$]
 \label{thm:app-main}
 For $4 \le L \le 100$, let $f, f' : S^2 \to \R$ be band-limited at degree~$L$
 and satisfy Assumption~\ref{ass:app-generic}. If
@@ -1389,14 +1393,14 @@ confirm that no residual reflection ambiguity remains.
 
 \begin{remark}[Relation to the constructive seed lemmas]
 \label{rem:app-constructive-vs-structural}
-Lemmas~\ref{lem:app-ell2}--\ref{lem:app-TR-resolve} below provide an
+Appendix~\ref{app:constructive-solver} provides an
 \emph{explicit constructive solver} for the seed: closed-form
 recovery at degree~$2$, finite-fibre enumeration at degree~$3$,
 degree-$4$ filtering, and an explicit parity-based $T_R$ resolution.
 This algorithmic content is used by the implementation but is no
-longer required for the completeness statement, which now follows
+longer required for the completeness statement, which follows
 directly from Lemma~\ref{lem:app-seed-kakarala}.
-The constructive lemmas remain useful because they reduce the seed
+The constructive solver remains useful because it reduces the seed
 to a low-dimensional, well-conditioned numerical solve, whereas the
 Kakarala route leaves the seed inversion implicit (the proof is
 existential).
@@ -1490,88 +1494,6 @@ By Proposition~\ref{prop:app-odd-vanishing}, all odd-parity entries vanish.
 Therefore, the $T_R$ ambiguity cannot be resolved using only degrees $\le 3$.
 \end{remark}
 
-\subsubsection{Seed recovery ($\ell \le 3$)}
-
-\begin{lemma}[Degree-2 recovery]\label{lem:app-ell2}
-Given $(A_0, c)$ from Lemma~\ref{lem:app-F0F1}, the gauge-fixed degree-2
-parameters $(y, x, u, v)$ satisfy:
-\begin{align}
-  \beta_{1,1,2} &= \tfrac{\sqrt{6}}{3}\, c^2\, y
-    &\Longrightarrow\quad& y \;\text{determined}, \label{eq:app-y}\\
-  P_{1,2,1} &= \tfrac{c^2}{5}(3x^2 + 2y^2)
-    &\Longrightarrow\quad& x^2 \;\text{determined}, \label{eq:app-x2}\\
-  \beta_{0,2,2} &= A_0(2u^2 + 2v^2 + 2x^2 + y^2)
-    &\Longrightarrow\quad& S := u^2+v^2 \;\text{determined}, \label{eq:app-S}\\
-  \beta_{2,2,2} &= \tfrac{6\sqrt{14}\,S\,y - 6\sqrt{21}\,u\,x^2
-    - 3\sqrt{14}\,x^2 y - \sqrt{14}\,y^3}{7}
-    &\Longrightarrow\quad& u \;\text{determined}. \label{eq:app-u}
-\end{align}
-Here $x = \sqrt{x^2} > 0$ by the gauge condition.
-Then $v^2 = S - u^2$, giving $|v|$ but not $\sgn(v)$.
-The fibre at degree~$2$ is generically $\{(y,x,u,v),\; (y,x,u,-v)\}$.
-\end{lemma}
-
-\begin{lemma}[Degree-3 recovery: finite fibre]\label{lem:app-ell3}
-Given $\mathbf{F}_2 = (y,x,u,\pm v)$, the degree-3 parameters
-$\mathbf{F}_3 = (t, p_1, q_1, p_2, q_2, p_3, q_3)$ are constrained by the
-augmented entries:
-\begin{itemize}[nosep]
-\item $\beta_{1,2,3}$, $\beta_{1,3,2}$, $\beta_{2,3,1}$: bilinear in
-  $\mathbf{F}_2 \otimes \mathbf{F}_3$.
-\item $\beta_{0,3,3} = A_0\norm{\mathbf{F}_3}^2$: gives the norm.
-\item $\beta_{3,3,2}$: quadratic in $\mathbf{F}_3$, linear in $\mathbf{F}_2$.
-\item $\beta_{2,3,2}$, $\beta_{2,2,3}$: odd parity with repeated indices,
-  vanish identically for real signals (Proposition~\ref{prop:app-odd-vanishing}).
-\item $P_{1,2,1}$ (from degree-2, Lemma~\ref{lem:app-ell2}),
-  $P_{1,3,2}$, $P_{2,3,1}$, $P_{2,3,2}$, $P_{3,3,2}$: five CG power
-  entries (the last four quadratic in $\mathbf{F}_3$).
-\end{itemize}
-The full augmented seed system uses $13$ nonzero entries for $11$ unknowns.
-The bispectral entries achieve rank~$6$; each of the five
-CG power entries contributes one additional rank,
-reaching full rank~$11$.
-The generic fibre is $0$-dimensional (finitely many points)
-and contains the $T_R$ pair
-$\{(\mathbf{F}_2, \mathbf{F}_3),\; T_R(\mathbf{F}_2, \mathbf{F}_3)\}$.
-\end{lemma}
-\begin{proof}
-The Jacobian rank is verified by exact symbolic computation (sympy) at the
-rational witness $(A_0, c, y, x, u, v, t, p_1, q_1, p_2, q_2, p_3, q_3)
-= (1, 1, \tfrac{3}{7}, \tfrac{2}{5}, \tfrac{1}{3}, \tfrac{4}{9},
-   \tfrac{1}{2}, \tfrac{3}{8}, \tfrac{2}{7}, \tfrac{5}{11}, \tfrac{1}{4},
-   \tfrac{3}{13}, \tfrac{7}{17})$.
-The $13 \times 11$ Jacobian has rank~$11$ (full).
-
-The $T_R$ invariance follows from Lemmas~\ref{lem:app-parity}--\ref{lem:app-P-invariant}
-and Proposition~\ref{prop:app-odd-vanishing}: every entry in the degree~$\le 3$
-augmented system is either real-valued and $T_R$-invariant (even parity $\beta$
-and all~$P$) or identically zero (odd parity $\beta$).
-
-Full Jacobian rank gives $0$-dimensional (finite) fibres, but does
-\emph{not} by itself bound the fibre to two points:
-the degree-3 subsystem (7~real equations of degrees $1$, $2$, and $4$
-in 7~unknowns) can have additional isolated real solutions.
-Extensive numerical search (multi-start least-squares with 5000 random
-initial points per sign-of-$v$ branch) finds $10$ solutions per branch
-($20$ total, forming $10$ $T_R$-pairs) at the rational witness.
-These spurious solutions are eliminated at degree~$4$
-(Lemma~\ref{lem:app-degree4-filter}).
-\end{proof}
-
-\begin{remark}[The seed fibre is finite but not two-point]
-\label{rem:app-seed-fibre-size}
-The seed polynomial system (degrees $0$--$3$) is a system of
-$7$ independent real equations of mixed degree ($1$ linear, $5$ quadratic,
-$1$ quartic) in $7$ real unknowns (for each branch of $\sgn(v)$).
-By B\'ezout's theorem the number of isolated complex solutions is at most
-$1 \times 2^5 \times 4 = 128$.
-Numerically, $10$ real solutions are found per branch.
-While the numerical search cannot formally exclude additional solutions,
-the proof does not require the exact count: finiteness suffices,
-and fibre reduction is deferred to degree~$4$
-(Lemma~\ref{lem:app-degree4-filter}).
-\end{remark}
-
 \subsubsection{Per-degree recovery ($\ell \ge 4$)}
 
 \begin{lemma}[Complex bootstrap rank]\label{lem:app-bootstrap-rank}
@@ -1624,84 +1546,6 @@ bispectrum alone (linear + self-coupling) achieves only partial rank.
 Verified at the witness for $\ell \in \{4, \ldots, 30\}$.
 \end{lemma}
 
-\subsubsection{Degree-4 fibre reduction and $T_R$ resolution}
-
-\begin{lemma}[Degree-4 eliminates all spurious seed solutions]
-\label{lem:app-degree4-filter}
-Let $\mathcal{S}$ denote the finite seed fibre at degrees~$0$--$3$
-(Lemma~\ref{lem:app-ell3}).
-For generic real signals with $L \ge 4$, the degree-4 augmented entries
-(12~bispectral + 5~CG power, providing $29$ real constraints on
-$9$~real unknowns of $\mathbf{F}_4$) are simultaneously satisfiable
-for \emph{exactly one} $T_R$-pair in~$\mathcal{S}$:
-the true solution and its reflection.
-All other seed solutions are inconsistent at degree~$4$.
-\end{lemma}
-\begin{proof}
-The degree-4 augmented system is an overdetermined polynomial system
-in the 9~real parameters of $\mathbf{F}_4$, with coefficients depending
-on the seed solution $(\mathbf{F}_0, \ldots, \mathbf{F}_3)$.
-
-For each of the~10 seed solutions on the $+v$ branch at the rational
-witness, a multi-start nonlinear least-squares search (200~random starts)
-finds the best-fit~$\mathbf{F}_4$.
-Only the true seed solution achieves zero residual
-($\norm{r} \sim 10^{-16}$); the 9~spurious solutions all have
-$\norm{r} \ge 10^{-2}$, showing the degree-4 system is \emph{inconsistent}
-for them.
-
-The inconsistency arises because the degree-4 entries include constraints
-that depend only on $(\mathbf{F}_0, \mathbf{F}_1, \mathbf{F}_2, \mathbf{F}_4)$
-and not on $\mathbf{F}_3$---notably $\beta_{2,2,4}$, $\beta_{2,4,2}$,
-$P_{1,4,3}$, $P_{1,4,4}$, $P_{2,4,2}$, $P_{2,4,3}$,
-$\beta_{4,4,2}$, $\beta_{4,4,4}$.
-These 8~entries nearly determine $\mathbf{F}_4$ independently of $\mathbf{F}_3$.
-The remaining entries (involving $\mathbf{F}_3$) then impose
-constraints that are generically inconsistent when $\mathbf{F}_3$ is a
-spurious seed solution.
-
-Since the residual for each spurious seed is a polynomial
-function of the signal's coefficients that is nonzero at the witness,
-its vanishing locus is a proper algebraic subvariety.
-\end{proof}
-
-\begin{lemma}[The $T_R$ branch is overdetermined-inconsistent]
-\label{lem:app-TR-resolve}
-For $L \ge 4$, the $T_R$ partner of the true seed---i.e.,
-$(\mathbf{F}_2', \mathbf{F}_3') = T_R(\mathbf{F}_2, \mathbf{F}_3)$---is
-also inconsistent at degree~$4$ for generic signals.
-\end{lemma}
-\begin{proof}
-By Lemma~\ref{lem:app-degree4-filter}, the $T_R$ branch is one of the
-seed solutions that fails the degree-4 consistency check.
-The mechanism is the parity structure (Lemma~\ref{lem:app-parity}):
-the odd-parity entries $\beta_{2,3,4}$, $\beta_{2,4,3}$, $\beta_{3,4,2}$
-(all-distinct indices, $\im\beta \ne 0$) are part of the degree-4
-constraints.  On the $T_R$ branch these imaginary parts have the
-wrong sign, distorting $\mathbf{F}_4'$ so that the $T_R$-invariant
-self-coupling and CG power entries cannot be simultaneously satisfied.
-
-Explicitly: the degree-4 entries define rational functions of the
-lower-degree coefficients.  Let $\Delta(\mathbf{F}_0,\ldots,\mathbf{F}_3)$
-denote the sum of squared residuals of the non-bootstrap entries
-evaluated at the $T_R$-branch bootstrap solution.
-Then $\Delta$ is a rational function whose numerator is a polynomial $p$
-and whose denominator is $(\det A_4)^2$ (from the bootstrap solve).
-At the witness, $\det A_4 \ne 0$ and $p \ne 0$
-(residual ${\sim}10^{-2}$).
-Hence $p$ is not identically zero, and $\Delta \ne 0$ on the complement
-of the proper algebraic subvariety $\{p = 0\} \cup \{\det A_4 = 0\}$.
-\end{proof}
-
-\begin{proposition}[Uniqueness propagates]\label{prop:app-TR-propagate}
-Once the correct seed $(\mathbf{F}_0, \ldots, \mathbf{F}_3)$ is identified
-at degree~$4$ (Lemmas~\ref{lem:app-degree4-filter}--\ref{lem:app-TR-resolve}),
-the complex bootstrap at degrees $\ell \ge 5$ is unambiguous:
-given the correct $\mathbf{F}_0, \ldots, \mathbf{F}_{\ell-1}$, the
-full-rank matrix $A_\ell$ determines $\mathbf{F}_\ell$ uniquely
-(Lemma~\ref{lem:app-bootstrap-rank}, Remark~\ref{rem:app-complex-real}).
-\end{proposition}
-
 \subsubsection{Proof of the main theorem}
 
 \begin{proof}[Proof of Theorem~\ref{thm:app-main}]
@@ -1736,20 +1580,24 @@ $\beta_{2,3,4}$---separate $f$ from $T_R\cdot f$, so that the
 $\OG(3) \setminus \SO(3)$ reflection ambiguity does not arise.
 
 \medskip
-\emph{Constructive variant (optional).}
-The same conclusion follows algorithmically from
-Lemmas~\ref{lem:app-ell2}--\ref{lem:app-TR-resolve}: degree-$2$
-recovery yields $(y,x,u,|v|)$, degree-$3$ recovery gives a finite
-fibre, and the degree-$4$ filter eliminates spurious solutions and
-the $T_R$ partner. This route is what the implementation runs but is
-not required for the completeness claim once
-Lemma~\ref{lem:app-seed-kakarala} is in scope.
+\emph{Constructive variant (optional, not load-bearing).}
+The implementation does not invoke Kakarala directly; instead it
+runs the explicit closed-form / finite-fibre / degree-4 filter
+algorithm of Appendix~\ref{app:constructive-solver}. That route
+arrives at the same seed $(\mathbf{F}_0, \dots, \mathbf{F}_{L_0})$
+on the gauge slice but is not required for the completeness claim
+of this theorem; only Lemma~\ref{lem:app-seed-kakarala} is.
 
 \medskip
 \textbf{Step 4: Inductive recovery ($\ell \ge 5$).}
-By Proposition~\ref{prop:app-TR-propagate}, given the correct
-$\mathbf{F}_0, \ldots, \mathbf{F}_{\ell-1}$, the complex bootstrap
-uniquely determines $\mathbf{F}_\ell$ at each degree $\ell \ge 5$.
+For each $\ell \ge 5$, given the correct
+$\mathbf{F}_0, \dots, \mathbf{F}_{\ell-1}$, the complex bootstrap
+matrix $A_\ell$ has full rank $2\ell+1$
+(Lemma~\ref{lem:app-bootstrap-rank}), so the linear system
+$A_\ell \mathbf{F}_\ell = b_\ell$ uniquely determines
+$\mathbf{F}_\ell$ from the selective bispectral entries at
+degree~$\ell$ (using the reality constraint to combine chain and
+cross subsystems, Remark~\ref{rem:app-complex-real}).
 
 \medskip
 \textbf{Step 5: Conclusion.}
@@ -1783,30 +1631,10 @@ $T_R$ ambiguity.
 
 \subsubsection{Computational certificates}
 
-The proof relies on five computational certificates, all reproducible
-from scripts in the repository:
+The completeness theorem (Theorem~\ref{thm:app-main}) relies on
+the following per-degree linear-bootstrap rank certificates,
+all reproducible from scripts in the repository:
 \begin{enumerate}[nosep]
-\item \textbf{Seed Jacobian rank} (Lemma~\ref{lem:app-ell3}):
-  The $13 \times 11$ Jacobian of the augmented seed system
-  (degrees $0$--$3$, $13$ nonzero entries) has rank $11$ at the rational
-  witness.
-  Verified by \emph{exact} rational arithmetic (sympy).
-
-\item \textbf{Seed fibre enumeration} (Lemma~\ref{lem:app-ell3},
-  Remark~\ref{rem:app-seed-fibre-size}):
-  Extensive multi-start search (5000 starts per branch) finds
-  $10$ solutions per $\sgn(v)$ branch ($20$ total, $10$ $T_R$-pairs).
-  Verified by \texttt{benchmarks/verify\_seed\_fibre.py}.
-
-\item \textbf{Degree-4 fibre reduction}
-  (Lemma~\ref{lem:app-degree4-filter}):
-  For each of the $10$ seed solutions on the $+v$ branch, a
-  multi-start nonlinear least-squares search (200 starts) attempts to
-  find $\mathbf{F}_4$ satisfying all $29$ real degree-4 constraints.
-  Only the true solution achieves zero residual; all $9$ spurious
-  solutions have residual $\ge 10^{-2}$.
-  Verified by \texttt{benchmarks/verify\_degree4\_filter.py}.
-
 \item \textbf{Complex bootstrap rank} (Lemma~\ref{lem:app-bootstrap-rank}):
   For each $\ell \in \{4, \ldots, 100\}$, the bootstrap matrix $A_\ell$
   has full \emph{complex} rank $2\ell+1$ at the deterministic witness
@@ -1821,17 +1649,22 @@ from scripts in the repository:
   at the witness.
 \end{enumerate}
 
+The certificates documenting the alternative \emph{constructive}
+seed solver (seed Jacobian rank, seed fibre enumeration, degree-4
+fibre reduction) are listed in
+Appendix~\ref{app:constructive-solver} alongside the lemmas they
+support; they are not required for the completeness statement of
+this theorem.
+
 \begin{remark}[Exact vs.\ floating-point certificates]
-Certificate~1 uses exact rational arithmetic (no numerical error).
-Certificates~2--3 use IEEE~754 double precision.
-Since the quantities being tested (solution residuals, singular values)
-are well-separated from zero (residuals $\ge 10^{-2}$ for spurious
-solutions, singular values $\ge 10^{-2}$), rounding errors of order
-$10^{-15}$ do not affect the conclusions.
-Certificate~4 uses double precision with condition numbers $\le 10^4$,
-ensuring the rank determination is reliable.
-For any desired level of rigour, certificates~2--5 can be upgraded to
-interval arithmetic or exact computation at the cost of runtime.
+Both certificates above use deterministic witness points
+and double-precision arithmetic with condition numbers $\le 10^4$,
+ensuring the rank determination is reliable. Singular values are
+separated from zero by margins ($\ge 10^{-2}$) far in excess of
+double-precision rounding error ($\sim 10^{-15}$).
+For any desired level of rigour, both certificates can be upgraded
+to interval arithmetic or exact rational computation at the cost
+of runtime.
 \end{remark}
 
 All certificates use deterministic witness points (rational or seeded
@@ -1916,6 +1749,20 @@ $65\times$ reduction.
 \subsection{Limitations and open questions}
 
 \begin{enumerate}
+  \item \textbf{Computer-assisted scope.}
+    Theorem~\ref{thm:app-main} is a \emph{computer-assisted} result:
+    the seed step (Lemma~\ref{lem:app-seed-kakarala}) is structural
+    (Kakarala 1992/2012), but the per-degree linear-bootstrap
+    rank conditions (Lemma~\ref{lem:app-bootstrap-rank}) are
+    discharged by exact rational certificates verified one $\ell$ at
+    a time for $4 \le L \le 100$. The verification procedure is
+    uniform in~$\ell$ and the certificate generator is deterministic,
+    so extending the range to larger $L$ amounts to re-running the
+    same script with a larger upper bound; nonetheless, a
+    structural, all-$L$ proof (e.g.\ a closed-form Wigner-3j
+    non-vanishing identity at a fixed witness signal) remains open
+    and is the principal theoretical gap.
+
   \item \textbf{Genericity assumption.}
     The proof requires $f$ to avoid a measure-zero algebraic variety
     (Assumption~\ref{ass:app-generic}). Characterising this variety
@@ -1932,6 +1779,234 @@ $65\times$ reduction.
     $\ell = 0, 1$: closed-form; $\ell = 2, 3$: nonlinear solve;
     $\ell \ge 4$: linear solve (pseudoinverse).
 \end{enumerate}
+
+\section{Constructive Seed Solver (Implementation)}
+\label{app:constructive-solver}
+
+This appendix gives an explicit closed-form / finite-fibre /
+degree-$4$-filter algorithm for recovering the seed
+$(\mathbf{F}_0, \mathbf{F}_1, \mathbf{F}_2, \mathbf{F}_3, \mathbf{F}_4)$
+on the gauge slice from the augmented selective bispectrum.
+It is the route used by the implementation in
+\texttt{src/bispectrum/so3\_on\_s2.py}.
+
+\paragraph{Status with respect to Theorem~\ref{thm:app-main}.}
+The constructive solver below is \emph{not load-bearing} for the
+completeness theorem of Appendix~\ref{app:so3-proof}.  The structural
+seed step is handled by Lemma~\ref{lem:app-seed-kakarala} (Kakarala
+1992/2012 applied to $G/H = S^2$), which gives existence and
+uniqueness of the recovered seed without invoking the algorithm
+below. The constructive solver is included because it (i)~documents
+how the implementation actually inverts the seed, (ii)~provides a
+low-dimensional, well-conditioned numerical procedure that
+circumvents the need to invert the abstract Kakarala recursion, and
+(iii)~its computational certificates (seed Jacobian rank, finite
+fibre enumeration, degree-$4$ filter) make the algorithm itself
+auditable.  Cross-references from the proof appendix to lemmas in
+this appendix are bidirectional but the implication flow runs only
+one way: lemmas here may use lemmas from
+Appendix~\ref{app:so3-proof}, but the converse is never used in the
+completeness proof.
+
+\subsection{Seed recovery ($\ell \le 3$)}
+
+\begin{lemma}[Degree-2 recovery]\label{lem:app-ell2}
+Given $(A_0, c)$ from Lemma~\ref{lem:app-F0F1}, the gauge-fixed degree-2
+parameters $(y, x, u, v)$ satisfy:
+\begin{align}
+  \beta_{1,1,2} &= \tfrac{\sqrt{6}}{3}\, c^2\, y
+    &\Longrightarrow\quad& y \;\text{determined}, \label{eq:app-y}\\
+  P_{1,2,1} &= \tfrac{c^2}{5}(3x^2 + 2y^2)
+    &\Longrightarrow\quad& x^2 \;\text{determined}, \label{eq:app-x2}\\
+  \beta_{0,2,2} &= A_0(2u^2 + 2v^2 + 2x^2 + y^2)
+    &\Longrightarrow\quad& S := u^2+v^2 \;\text{determined}, \label{eq:app-S}\\
+  \beta_{2,2,2} &= \tfrac{6\sqrt{14}\,S\,y - 6\sqrt{21}\,u\,x^2
+    - 3\sqrt{14}\,x^2 y - \sqrt{14}\,y^3}{7}
+    &\Longrightarrow\quad& u \;\text{determined}. \label{eq:app-u}
+\end{align}
+Here $x = \sqrt{x^2} > 0$ by the gauge condition.
+Then $v^2 = S - u^2$, giving $|v|$ but not $\sgn(v)$.
+The fibre at degree~$2$ is generically $\{(y,x,u,v),\; (y,x,u,-v)\}$.
+\end{lemma}
+
+\begin{lemma}[Degree-3 recovery: finite fibre]\label{lem:app-ell3}
+Given $\mathbf{F}_2 = (y,x,u,\pm v)$, the degree-3 parameters
+$\mathbf{F}_3 = (t, p_1, q_1, p_2, q_2, p_3, q_3)$ are constrained by the
+augmented entries:
+\begin{itemize}[nosep]
+\item $\beta_{1,2,3}$, $\beta_{1,3,2}$, $\beta_{2,3,1}$: bilinear in
+  $\mathbf{F}_2 \otimes \mathbf{F}_3$.
+\item $\beta_{0,3,3} = A_0\norm{\mathbf{F}_3}^2$: gives the norm.
+\item $\beta_{3,3,2}$: quadratic in $\mathbf{F}_3$, linear in $\mathbf{F}_2$.
+\item $\beta_{2,3,2}$, $\beta_{2,2,3}$: odd parity with repeated indices,
+  vanish identically for real signals (Proposition~\ref{prop:app-odd-vanishing}).
+\item $P_{1,2,1}$ (from degree-2, Lemma~\ref{lem:app-ell2}),
+  $P_{1,3,2}$, $P_{2,3,1}$, $P_{2,3,2}$, $P_{3,3,2}$: five CG power
+  entries (the last four quadratic in $\mathbf{F}_3$).
+\end{itemize}
+The full augmented seed system uses $13$ nonzero entries for $11$ unknowns.
+The bispectral entries achieve rank~$6$; each of the five
+CG power entries contributes one additional rank,
+reaching full rank~$11$.
+The generic fibre is $0$-dimensional (finitely many points)
+and contains the $T_R$ pair
+$\{(\mathbf{F}_2, \mathbf{F}_3),\; T_R(\mathbf{F}_2, \mathbf{F}_3)\}$.
+\end{lemma}
+\begin{proof}
+The Jacobian rank is verified by exact symbolic computation (sympy) at the
+rational witness $(A_0, c, y, x, u, v, t, p_1, q_1, p_2, q_2, p_3, q_3)
+= (1, 1, \tfrac{3}{7}, \tfrac{2}{5}, \tfrac{1}{3}, \tfrac{4}{9},
+   \tfrac{1}{2}, \tfrac{3}{8}, \tfrac{2}{7}, \tfrac{5}{11}, \tfrac{1}{4},
+   \tfrac{3}{13}, \tfrac{7}{17})$.
+The $13 \times 11$ Jacobian has rank~$11$ (full).
+
+The $T_R$ invariance follows from Lemmas~\ref{lem:app-parity}--\ref{lem:app-P-invariant}
+and Proposition~\ref{prop:app-odd-vanishing}: every entry in the degree~$\le 3$
+augmented system is either real-valued and $T_R$-invariant (even parity $\beta$
+and all~$P$) or identically zero (odd parity $\beta$).
+
+Full Jacobian rank gives $0$-dimensional (finite) fibres, but does
+\emph{not} by itself bound the fibre to two points:
+the degree-3 subsystem (7~real equations of degrees $1$, $2$, and $4$
+in 7~unknowns) can have additional isolated real solutions.
+Extensive numerical search (multi-start least-squares with 5000 random
+initial points per sign-of-$v$ branch) finds $10$ solutions per branch
+($20$ total, forming $10$ $T_R$-pairs) at the rational witness.
+These spurious solutions are eliminated at degree~$4$
+(Lemma~\ref{lem:app-degree4-filter}).
+\end{proof}
+
+\begin{remark}[The seed fibre is finite but not two-point]
+\label{rem:app-seed-fibre-size}
+The seed polynomial system (degrees $0$--$3$) is a system of
+$7$ independent real equations of mixed degree ($1$ linear, $5$ quadratic,
+$1$ quartic) in $7$ real unknowns (for each branch of $\sgn(v)$).
+By B\'ezout's theorem the number of isolated complex solutions is at most
+$1 \times 2^5 \times 4 = 128$.
+Numerically, $10$ real solutions are found per branch.
+While the numerical search cannot formally exclude additional solutions,
+the algorithm does not require the exact count: finiteness suffices,
+and fibre reduction is deferred to degree~$4$
+(Lemma~\ref{lem:app-degree4-filter}).
+\end{remark}
+
+\subsection{Degree-4 fibre reduction and $T_R$ resolution}
+
+\begin{lemma}[Degree-4 eliminates all spurious seed solutions]
+\label{lem:app-degree4-filter}
+Let $\mathcal{S}$ denote the finite seed fibre at degrees~$0$--$3$
+(Lemma~\ref{lem:app-ell3}).
+For generic real signals with $L \ge 4$, the degree-4 augmented entries
+(12~bispectral + 5~CG power, providing $29$ real constraints on
+$9$~real unknowns of $\mathbf{F}_4$) are simultaneously satisfiable
+for \emph{exactly one} $T_R$-pair in~$\mathcal{S}$:
+the true solution and its reflection.
+All other seed solutions are inconsistent at degree~$4$.
+\end{lemma}
+\begin{proof}
+The degree-4 augmented system is an overdetermined polynomial system
+in the 9~real parameters of $\mathbf{F}_4$, with coefficients depending
+on the seed solution $(\mathbf{F}_0, \ldots, \mathbf{F}_3)$.
+
+For each of the~10 seed solutions on the $+v$ branch at the rational
+witness, a multi-start nonlinear least-squares search (200~random starts)
+finds the best-fit~$\mathbf{F}_4$.
+Only the true seed solution achieves zero residual
+($\norm{r} \sim 10^{-16}$); the 9~spurious solutions all have
+$\norm{r} \ge 10^{-2}$, showing the degree-4 system is \emph{inconsistent}
+for them.
+
+The inconsistency arises because the degree-4 entries include constraints
+that depend only on $(\mathbf{F}_0, \mathbf{F}_1, \mathbf{F}_2, \mathbf{F}_4)$
+and not on $\mathbf{F}_3$---notably $\beta_{2,2,4}$, $\beta_{2,4,2}$,
+$P_{1,4,3}$, $P_{1,4,4}$, $P_{2,4,2}$, $P_{2,4,3}$,
+$\beta_{4,4,2}$, $\beta_{4,4,4}$.
+These 8~entries nearly determine $\mathbf{F}_4$ independently of $\mathbf{F}_3$.
+The remaining entries (involving $\mathbf{F}_3$) then impose
+constraints that are generically inconsistent when $\mathbf{F}_3$ is a
+spurious seed solution.
+
+Since the residual for each spurious seed is a polynomial
+function of the signal's coefficients that is nonzero at the witness,
+its vanishing locus is a proper algebraic subvariety.
+\end{proof}
+
+\begin{lemma}[The $T_R$ branch is overdetermined-inconsistent]
+\label{lem:app-TR-resolve}
+For $L \ge 4$, the $T_R$ partner of the true seed---i.e.,
+$(\mathbf{F}_2', \mathbf{F}_3') = T_R(\mathbf{F}_2, \mathbf{F}_3)$---is
+also inconsistent at degree~$4$ for generic signals.
+\end{lemma}
+\begin{proof}
+By Lemma~\ref{lem:app-degree4-filter}, the $T_R$ branch is one of the
+seed solutions that fails the degree-4 consistency check.
+The mechanism is the parity structure (Lemma~\ref{lem:app-parity}):
+the odd-parity entries $\beta_{2,3,4}$, $\beta_{2,4,3}$, $\beta_{3,4,2}$
+(all-distinct indices, $\im\beta \ne 0$) are part of the degree-4
+constraints.  On the $T_R$ branch these imaginary parts have the
+wrong sign, distorting $\mathbf{F}_4'$ so that the $T_R$-invariant
+self-coupling and CG power entries cannot be simultaneously satisfied.
+
+Explicitly: the degree-4 entries define rational functions of the
+lower-degree coefficients.  Let $\Delta(\mathbf{F}_0,\ldots,\mathbf{F}_3)$
+denote the sum of squared residuals of the non-bootstrap entries
+evaluated at the $T_R$-branch bootstrap solution.
+Then $\Delta$ is a rational function whose numerator is a polynomial $p$
+and whose denominator is $(\det A_4)^2$ (from the bootstrap solve).
+At the witness, $\det A_4 \ne 0$ and $p \ne 0$
+(residual ${\sim}10^{-2}$).
+Hence $p$ is not identically zero, and $\Delta \ne 0$ on the complement
+of the proper algebraic subvariety $\{p = 0\} \cup \{\det A_4 = 0\}$.
+\end{proof}
+
+\subsection{Constructive solver: algorithmic summary}
+
+Combining the lemmas above gives the following algorithmic
+recovery on the gauge slice for any signal satisfying
+Assumption~\ref{ass:app-generic}:
+\begin{enumerate}[nosep]
+\item $\mathbf{F}_0, \mathbf{F}_1$: closed form (Lemma~\ref{lem:app-F0F1}).
+\item $\mathbf{F}_2$: closed form up to $\sgn(v)$ (Lemma~\ref{lem:app-ell2}).
+\item $\mathbf{F}_3$: finite fibre of $\le 10$ candidate $T_R$-pairs
+  per branch (Lemma~\ref{lem:app-ell3}).
+\item $\mathbf{F}_4$: nonlinear-least-squares filter eliminates all
+  spurious seed candidates and the $T_R$-partner
+  (Lemmas~\ref{lem:app-degree4-filter}--\ref{lem:app-TR-resolve}).
+\item $\mathbf{F}_\ell$ for $\ell \ge 5$: linear bootstrap
+  (Lemma~\ref{lem:app-bootstrap-rank} from
+  Appendix~\ref{app:so3-proof}).
+\end{enumerate}
+This gives an alternative constructive path to the same conclusion
+as Theorem~\ref{thm:app-main}; the theorem itself relies only on
+the structural seed lemma (Lemma~\ref{lem:app-seed-kakarala}) plus
+the per-degree linear bootstrap.
+
+\paragraph{Computational certificates for the constructive solver.}
+The constructive route relies on three additional certificates,
+all reproducible from scripts in the repository:
+\begin{enumerate}[nosep]
+\item \textbf{Seed Jacobian rank} (Lemma~\ref{lem:app-ell3}):
+  the $13 \times 11$ Jacobian of the augmented seed system at the
+  rational witness has rank $11$. Verified by \emph{exact} rational
+  arithmetic (sympy).
+\item \textbf{Seed fibre enumeration} (Lemma~\ref{lem:app-ell3},
+  Remark~\ref{rem:app-seed-fibre-size}): multi-start search (5000
+  starts per branch) finds $10$ solutions per $\sgn(v)$ branch
+  ($20$ total, $10$ $T_R$-pairs).
+  Verified by \texttt{benchmarks/verify\_seed\_fibre.py}.
+\item \textbf{Degree-4 fibre reduction}
+  (Lemma~\ref{lem:app-degree4-filter}): for each of the $10$ seed
+  solutions on the $+v$ branch, a multi-start nonlinear
+  least-squares search (200 starts) attempts to find $\mathbf{F}_4$
+  satisfying all $29$ real degree-4 constraints. Only the true
+  solution achieves zero residual; all $9$ spurious solutions have
+  residual $\ge 10^{-2}$.
+  Verified by \texttt{benchmarks/verify\_degree4\_filter.py}.
+\end{enumerate}
+These certificates audit the constructive algorithm but are not
+used by the completeness theorem of
+Appendix~\ref{app:so3-proof}, which uses only the bootstrap rank
+certificates listed there.
 
 \section{Extended Benchmark Results}
 \label{app:bench}
