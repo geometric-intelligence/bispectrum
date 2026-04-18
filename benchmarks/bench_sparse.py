@@ -47,7 +47,7 @@ def bench_forward_paths() -> None:
 
     batch = 4
 
-    for lmax in [5, 10, 15, 20, 25, 30, 40, 50, 64, 128]:
+    for lmax in [5, 10, 15, 20, 25, 30, 40, 50, 64]:
         p = _so3_params(lmax)
         f_cpu = torch.randn(batch, p['nlat'], p['nlon'])
 
@@ -73,6 +73,10 @@ def bench_forward_paths() -> None:
             f'{lmax:>5d}  {entries:>7d}  {t_sparse:>10.3f}  {t_graph:>10s}  '
             f'{t_init:>10.2f}  {sp_mb:>8.1f}'
         )
+
+        del bsp, f
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
 
 
 if __name__ == '__main__':
