@@ -8,10 +8,6 @@ tmux send-keys -t experiments:organ3d \
   'cd /home/johmathe/bispectrum/paper/experiments/organ3d && source /home/johmathe/bispectrum/.venv/bin/activate && export PYTHONPATH="/home/johmathe/bispectrum/src:${PYTHONPATH:-}" && ./run_wider_multiseed.sh 2>&1 | tee wider_multiseed.log' Enter
 
 
-# HERE
-
-
-
 # Window 2: Spherical MNIST data efficiency (~36 runs, ~6 GPU-hours)
 tmux new-window -t experiments -n smnist
 tmux send-keys -t experiments:smnist \
