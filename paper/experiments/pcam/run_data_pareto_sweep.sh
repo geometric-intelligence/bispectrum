@@ -34,11 +34,30 @@ MODEL_GR[fourier_elu]=4
 MODEL_GR[bispectrum]=4
 
 MODELS=(standard norm gate fourier_elu bispectrum)
-FRACTIONS=(0.01 0.05 0.1 0.25 0.5 1.0)
+# Absolute training-set sizes; "full" maps to PCam's 262144 examples.
+SIZES=(100 500 2500 12500 full)
 SO2_DISK_BL=10
 
 BASE_OUTPUT_DIR="./pcam_results_data_pareto"
 COMMON="--patience 10 --epochs 50"
+
+size_args() {
+    local size=$1
+    if [[ "$size" == "full" ]]; then
+        echo ""
+    else
+        echo "--train_size $size"
+    fi
+}
+
+size_tag() {
+    local size=$1
+    if [[ "$size" == "full" ]]; then
+        echo "n_full"
+    else
+        echo "n_${size}"
+    fi
+}
 
 batch_size_for() {
     local model=$1 gr=$2
@@ -53,59 +72,75 @@ batch_size_for() {
 }
 
 run_single() {
-    local model=$1 frac=$2 seed=$3 extra=${4:-}
+    local model=$1 size=$2 seed=$3 extra=${4:-}
     local gr=${MODEL_GR[$model]}
-    local output_dir="${BASE_OUTPUT_DIR}/frac_${frac}"
-    local out_dir="${output_dir}/${model}_c8_gr${gr}_seed${seed}"
+    local tag
+    tag=$(size_tag "$size")
+    local output_dir="${BASE_OUTPUT_DIR}/${tag}"
+    local suffix=""
+    if [[ "$size" != "full" ]]; then
+        suffix="_n${size}"
+    fi
+    local out_dir="${output_dir}/${model}_c8_gr${gr}_seed${seed}${suffix}"
     if [[ -f "${out_dir}/results.json" ]]; then
-        echo "SKIP (already done): model=$model frac=$frac seed=$seed"
+        echo "SKIP (already done): model=$model size=$size seed=$seed"
         return 0
     fi
     local bs
     bs=$(batch_size_for "$model" "$gr")
+    local size_arg
+    size_arg=$(size_args "$size")
     echo ""
     echo "============================================================"
-    echo "  model=$model  gr=$gr  frac=$frac  seed=$seed  bs=$bs  $(date)"
+    echo "  model=$model  gr=$gr  size=$size  seed=$seed  bs=$bs  $(date)"
     echo "============================================================"
     python train.py --model "$model" --growth_rate "$gr" \
         --output_dir "$output_dir" --seed "$seed" --batch_size "$bs" \
-        --train_fraction "$frac" $COMMON $extra
+        $size_arg $COMMON $extra
 }
 
 run_so2_disk() {
-    local frac=$1 seed=$2 extra=${3:-}
-    local output_dir="${BASE_OUTPUT_DIR}/frac_${frac}"
-    local out_dir="${output_dir}/so2_disk_bl${SO2_DISK_BL}_seed${seed}"
+    local size=$1 seed=$2 extra=${3:-}
+    local tag
+    tag=$(size_tag "$size")
+    local output_dir="${BASE_OUTPUT_DIR}/${tag}"
+    local suffix=""
+    if [[ "$size" != "full" ]]; then
+        suffix="_n${size}"
+    fi
+    local out_dir="${output_dir}/so2_disk_bl${SO2_DISK_BL}_seed${seed}${suffix}"
     if [[ -f "${out_dir}/results.json" ]]; then
-        echo "SKIP (already done): model=so2_disk frac=$frac seed=$seed"
+        echo "SKIP (already done): model=so2_disk size=$size seed=$seed"
         return 0
     fi
+    local size_arg
+    size_arg=$(size_args "$size")
     echo ""
     echo "============================================================"
-    echo "  model=so2_disk  bl=$SO2_DISK_BL  frac=$frac  seed=$seed  $(date)"
+    echo "  model=so2_disk  bl=$SO2_DISK_BL  size=$size  seed=$seed  $(date)"
     echo "============================================================"
     python train.py --model so2_disk --bandlimit "$SO2_DISK_BL" \
         --output_dir "$output_dir" --seed "$seed" --batch_size 256 \
-        --train_fraction "$frac" $COMMON $extra
+        $size_arg $COMMON $extra
 }
 
 if [[ "${1:-}" == "--phase-b" ]]; then
     echo "=== PHASE B: remaining seeds (123, 456) with rotation eval ==="
-    for frac in "${FRACTIONS[@]}"; do
+    for size in "${SIZES[@]}"; do
         for seed in 123 456; do
             for model in "${MODELS[@]}"; do
-                run_single "$model" "$frac" "$seed"
+                run_single "$model" "$size" "$seed"
             done
-            run_so2_disk "$frac" "$seed"
+            run_so2_disk "$size" "$seed"
         done
     done
 else
     echo "=== PHASE A: single seed (42), skip rotation ==="
-    for frac in "${FRACTIONS[@]}"; do
+    for size in "${SIZES[@]}"; do
         for model in "${MODELS[@]}"; do
-            run_single "$model" "$frac" 42 "--skip_rotation"
+            run_single "$model" "$size" 42 "--skip_rotation"
         done
-        run_so2_disk "$frac" 42 "--skip_rotation"
+        run_so2_disk "$size" 42 "--skip_rotation"
     done
 fi
 

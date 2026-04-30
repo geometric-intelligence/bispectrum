@@ -617,3 +617,185 @@ completeness statement of Theorem 7.
 
 Bibtex `bandeira2017estimation` added to references.bib.
 Compilation clean (tectonic, no undefined references/citations).
+
+## Update: deep rewrite to a CONDITIONAL completeness theorem (`proof_clean.tex`)
+
+Outcome: the proof in `paper/proof_clean.tex` is now defensible as a
+conditional theorem on two explicitly named hypotheses, with no
+remaining "Kakarala-proves-the-seed" overclaim and no "local Jacobian
+rank ⇒ global uniqueness" inference.
+
+### Why the previous "rescue" was still too strong
+
+After re-reading Kakarala 2012 Theorem 7 carefully against a strict
+reviewer pass, the rescue strategy above (apply Kakarala to the
+finite L₀=4 block) is NOT a valid proof:
+
+- Theorem 7 requires the Fourier coefficients to have maximal H-rank
+  for ALL irreducible representations α of G, equivalently at least
+  one nonzero coefficient at every degree.
+- A band-limited truncation has a_α = 0 for every α > L_seed by
+  construction, so the maximal-H-rank hypothesis fails immediately.
+- Kakarala 1992/2012 therefore cannot be invoked as an unconditional
+  proof of finite-band seed injectivity. The 30-entry block buys
+  inspiration only.
+
+The Bandeira et al. 2017 symbolic Jacobian is computer-algebra
+EVIDENCE for the seed map, not a published theorem about scalar
+S² bispectrum injectivity at L_seed ≤ 7. It cannot stand in for the
+seed proof either, only support it.
+
+### What the rewritten proof actually proves
+
+`thm:main` in `proof_clean.tex` is now stated as
+
+  Conditional on
+    Hyp 1 (finite seed injectivity for L_seed ≤ 7) and
+    Hyp 2 (Δ_ℓ ≢ 0 for every ℓ ≥ 8),
+  Φ_aug separates SO(3)-orbits of generic real-valued band-limited
+  signals, with |Φ_aug| = Θ(L²).
+
+The two hypotheses are isolated, named, and explicitly listed as open
+problems. The proof itself is unconditional given the hypotheses.
+
+### Per-degree bootstrap is now a SQUARE COMPLEX LINEAR system
+
+For ℓ ≥ 8, the selected block T_ℓ has 2ℓ+1 entries:
+
+  T_ℓ = {(a,ℓ,ℓ-a) : 1 ≤ a ≤ ℓ-1}                 (chain rows, conj F_ℓ)
+      ∪ {(a,ℓ,ℓ-a+1) : 2 ≤ a ≤ ℓ-1}               (cross rows, F_ℓ)
+      ∪ {(a,ℓ-a,ℓ) : 1 ≤ a ≤ 4}                   (chain rows, conj F_ℓ)
+
+After conjugating the chain equations, all rows are linear in F_ℓ
+(over C), giving a square system A_ℓ(F_<ℓ) F_ℓ = b_ℓ in
+C^{(2ℓ+1)×(2ℓ+1)}. Inductive uniqueness needs only
+
+  Δ_ℓ := det A_ℓ ≢ 0 as a polynomial in real coords of F_<ℓ.
+
+That is Hypothesis 2. No more nonlinear CG-power systems, no more
+"real Jacobian rank ≥ 2ℓ+1 implies F_ℓ = F'_ℓ" overclaim. The
+induction step is now literally:
+
+  Φ_aug(f)=Φ_aug(f') ⇒ F_<ℓ = F'_<ℓ
+                     ⇒ A_ℓ(F_<ℓ) F_ℓ = A_ℓ(F_<ℓ) F'_ℓ
+                     ⇒ F_ℓ = F'_ℓ.
+
+### CG-power is no longer load-bearing in the proof
+
+Definition `def:Phi-aug` sets S_P = ∅ in the formal theorem.
+CG-power entries are kept ONLY as optional implementation diagnostics
+(`rem:cg-optional`). Section `sec:cgpower` was rewritten:
+"Why CG power augmentation is necessary" → "CG-power diagnostics".
+The earlier real-Jacobian-rank deficit table (rank-4 vs target 9 etc.)
+is now attributed to "an earlier real-valued implementation" of the
+selected bispectrum, not to the proof.
+
+The corrected logic: invertibility of A_ℓ over C already forces
+uniqueness of F_ℓ on the real-signal slice. There is no real-rank gap
+inside the proof itself, so CG-power need not close any gap. Adding
+extra invariants cannot destroy completeness, so CG-power is harmless
+to ship in the implementation.
+
+### Numerical "L ≤ 100 certificate" downgraded to "evidence"
+
+Floating-point checks of det A_ℓ ≠ 0 for ℓ = 8…100 (singular-value
+ratio ≥ 10⁻⁴) are NOT a mathematical certificate. The text now says:
+
+- C2 "Bootstrap determinant evidence":  strong numerical evidence,
+  not a certificate.
+- "Verified band-limits" corollary removed; replaced by
+  `rem:numerical-evidence` saying rigorous proof requires exact
+  arithmetic, interval arithmetic, or a perturbation bound certifying
+  distance from singularity.
+
+This is honest about what `verify_linear_bootstrap.py` actually
+proves: per-(ℓ, fixed witness) numerical full rank. It does NOT
+prove Δ_ℓ ≢ 0 as a polynomial — that requires symbolic / interval
+work that we have not done.
+
+### Kakarala's role in the document
+
+Demoted from "proves the seed" to "motivates the structural
+template". Body text now explicitly says Theorem 7 is invoked as
+inspiration for "constant-size full low-degree block + per-degree
+recurrence", not as a proof of `hyp:seed`. The bandeira2017estimation
+remark is kept as "possible symbolic certificate" — open.
+
+### β_{2,3,4} parity corollary made symbolic and exact
+
+Old draft used a NumPy seed witness (β_{2,3,4} ≈ -0.9149i at seed 42)
+and incorrectly cited CG(2,2; 3,2 | 4,4) = 2√(2/5).
+
+Corrected:
+- CG(2,2; 3,2 | 4,4) = √(2/5) exactly (verified, every CG ≤ 1).
+- Closed-form witness:  a_2^2 = a_3^2 = 1, a_4^4 = i, all other
+  degree-2/3/4 coefficients zero, negative-m fixed by reality.
+  Only (m_1,m_2,m) ∈ {(2,2,4),(-2,-2,-4)} contribute.
+  β_{2,3,4} = √(2/5)·1·1·(-i) + (-√(2/5))·1·1·(+i) = -2i√(2/5) ≠ 0.
+  Verified numerically: -1.2649i = -2·0.6325·i. ✓
+
+### Repeated-index vanishing generalised via the symmetric tensor
+
+Old "self-coupling CG symmetry" argument only handled (a, a, ℓ).
+Replaced with the full symmetric tensor
+
+  T_{ℓ_1,ℓ_2,ℓ_3} := Σ (3j-symbol)·a_{ℓ_1}^{m_1} a_{ℓ_2}^{m_2} a_{ℓ_3}^{m_3}.
+
+Conversion 3j → CG plus reality identity gives
+
+  β_{ℓ_1,ℓ_2,ℓ} = (-1)^{ℓ_1+ℓ_2}·√(2ℓ+1)·T_{ℓ_1,ℓ_2,ℓ}.
+
+3j is invariant under even column permutations, picks up
+(-1)^{ℓ_1+ℓ_2+ℓ_3} under odd ones. Two columns with equal degree
+insert the SAME signal coefficients, so swap → T = ±T → T = 0 when
+parity is odd. This handles (a,a,ℓ), (a,ℓ,a), (ℓ,a,a) uniformly.
+
+### Genericity phrased on the gauge slice
+
+(G1)–(G5) are polynomial inequalities in gauge-fixed real coords, so
+they cut out a Zariski-open V ⊂ G in the gauge slice G of `lem:gauge`.
+The generic set in V_L is the SO(3)-saturation SO(3)·V. The previous
+phrasing "Zariski-open subset of V_L" was sloppy because aligning F_1
+with ẑ is not a global polynomial map on V_L.
+
+### Index-set deduplication
+
+Old `def:Phi-aug` had S_β AND a separate "full low-degree seed block"
+in the concatenation, while the Index-sets paragraph said S_β already
+contained the seed block — a formal duplicate. Fixed by introducing
+S_seed and defining S_β := S_seed ∪ ⋃_{ℓ≥8} T_ℓ. Φ_aug is now a
+single concatenation indexed by S_β.
+
+### Title / naming honesty
+
+Old: "Completeness of the Augmented Selective SO(3)-Bispectrum on S²".
+New: "Completeness of a Selective SO(3)-Bispectrum on S²
+(with optional Clebsch–Gordan power diagnostics)".
+
+The body and abstract clarify: the proof is for S_P = ∅; "augmented"
+refers to the implementation variant that ships the optional CG-power
+block.
+
+### What is OPEN after this round
+
+1. Hyp 1: Finite seed injectivity for L_seed ≤ 7. Needs a real
+   theorem (e.g. closed-form Gröbner / resultant non-vanishing on the
+   gauge slice). Bandeira 2017 is supportive evidence only.
+
+2. Hyp 2: Δ_ℓ ≢ 0 uniformly for all ℓ ≥ 8. Needs an exact closed-form
+   identity, or interval-arithmetic checks per ℓ. Floating-point
+   passes for ℓ ≤ 100 do not constitute proof.
+
+3. The proof is correct CONDITIONAL on (1) and (2). No further gaps
+   identified by the latest reviewer pass:
+   "Yes — as a conditional proof, this version is basically correct."
+
+### Files
+
+- `paper/proof_clean.tex` — current canonical proof (152 KB PDF, builds
+  cleanly under tectonic, no undefined refs, no overfull hboxes).
+- `benchmarks/verify_linear_bootstrap.py` — produces ℓ=4..12 numerical
+  full-rank evidence for Hyp 2 at fixed seeds. NOT a certificate.
+- `paper/exact_certificates.py` — mpmath-based Jacobian rank checks
+  for L ∈ {4,5}. Provides triangular local uniqueness only; does NOT
+  prove Hyp 1 globally.

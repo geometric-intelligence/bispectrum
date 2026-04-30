@@ -116,8 +116,8 @@ uv run train.py --model bispectrum --group c8 --data_dir ./pcam_data
 # Norm nonlinearity with D4 group
 uv run train.py --model norm --group d4 --data_dir ./pcam_data
 
-# Data-efficiency experiment (10% of training data)
-uv run train.py --model bispectrum --group c8 --train_fraction 0.1 --data_dir ./pcam_data
+# Data-efficiency experiment (12,500 training examples)
+uv run train.py --model bispectrum --group c8 --train_size 12500 --data_dir ./pcam_data
 ```
 
 ### Full sweep (all 5 baselines x 3 seeds)
@@ -141,7 +141,7 @@ This produces a summary table and saves all results to
 | `--patience`       | `15`         | Early stopping patience (on validation AUC)                            |
 | `--growth_rate`    | `12`         | DenseNet growth rate k                                                 |
 | `--block_config`   | `4 4 4`      | Layers per dense block                                                 |
-| `--train_fraction` | `1.0`        | Fraction of training data (for data-efficiency curves)                 |
+| `--train_size`     | unset        | Absolute training subset size in examples (omit for full set)          |
 
 Data is auto-downloaded from Zenodo on first run (~7 GB total).
 

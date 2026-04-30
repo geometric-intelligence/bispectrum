@@ -11,6 +11,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -82,7 +83,7 @@ def gpu_augment_3d(
 
     Args:
         images: (B, 1, D, H, W) float tensors in [0, 1].
-        augment_geometry: apply random octahedral rotations (for standard CNN only).
+        augment_geometry: apply random octahedral rotations.
     """
     B = images.shape[0]
     dev = images.device
@@ -122,16 +123,48 @@ def gpu_augment_3d(
     return (images - DATASET_MEAN) / DATASET_STD
 
 
+def apply_octahedral_element(images: torch.Tensor, element_idx: int) -> torch.Tensor:
+    """Apply one deterministic octahedral group element to a normalized batch."""
+    if element_idx == 23:
+        return images
+
+    dev = images.device
+    rots = _get_octahedral_rotations().to(dev)
+    R = rots[element_idx].long()
+    half = 13.5
+    coords = torch.stack(
+        torch.meshgrid(
+            torch.arange(28, device=dev) - half,
+            torch.arange(28, device=dev) - half,
+            torch.arange(28, device=dev) - half,
+            indexing='ij',
+        ),
+        dim=-1,
+    ).reshape(-1, 3).float()
+    new_coords = (R.float() @ coords.T).T
+    ni = (new_coords[:, 0] + half).long().clamp(0, 27)
+    nj = (new_coords[:, 1] + half).long().clamp(0, 27)
+    nk = (new_coords[:, 2] + half).long().clamp(0, 27)
+    B = images.shape[0]
+    rotated = images[:, 0].reshape(B, -1)[:, ni * 28 * 28 + nj * 28 + nk]
+    return rotated.reshape(B, 1, 28, 28, 28)
+
+
 def get_dataloaders(
     data_dir: str,
     batch_size: int = 32,
     augment_geometry: bool = True,
-    train_fraction: float = 1.0,
+    train_size: int | None = None,
     seed: int = 42,
+    subset_dir: str | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Build train / val / test data loaders.
 
     Data is fully loaded into RAM. Augmentation runs on GPU via ``gpu_augment_3d``.
+
+    Args:
+        train_size: Absolute number of training examples to use. ``None`` or
+            a value >= the full training set means use everything.
     """
     data_dir = str(Path(data_dir).resolve())
 
@@ -139,17 +172,21 @@ def get_dataloaders(
     val_ds = OrganMNIST3DDataset('val', data_dir, normalize=True)
     test_ds = OrganMNIST3DDataset('test', data_dir, normalize=True)
 
-    if train_fraction < 1.0:
-        n = len(train_ds)
-        k = max(1, int(n * train_fraction))
+    n_full = len(train_ds)
+    if train_size is not None and 0 < train_size < n_full:
         rng = torch.Generator().manual_seed(seed)
-        indices = torch.randperm(n, generator=rng)[:k].tolist()
+        indices = torch.randperm(n_full, generator=rng)[:train_size].tolist()
+        if subset_dir is not None:
+            out_dir = Path(subset_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f'organ3d_train_n{train_size}_seed{seed}.json'
+            out_path.write_text(json.dumps({'indices': indices}, indent=2))
         train_ds = Subset(train_ds, indices)
 
-    drop = len(train_ds) > batch_size
+    loader_rng = torch.Generator().manual_seed(seed)
     train_loader = DataLoader(
         train_ds, batch_size=min(batch_size, len(train_ds)), shuffle=True,
-        num_workers=0, pin_memory=True, drop_last=drop,
+        generator=loader_rng, num_workers=0, pin_memory=True, drop_last=False,
     )
     val_loader = DataLoader(
         val_ds, batch_size=batch_size, shuffle=False,

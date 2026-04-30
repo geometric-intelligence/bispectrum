@@ -1,0 +1,44 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "standard",
+  "base_model": "standard",
+  "train_mode": "C",
+  "test_rotation_seed": 777,
+  "seed": 42,
+  "lmax": 15,
+  "n_params": 184778,
+  "invariant_dim": null,
+  "train_size": null,
+  "train_examples": 50000,
+  "best_val_accuracy": 0.9926,
+  "test_c": {
+    "loss": 0.026480266892910005,
+    "accuracy": 0.9912
+  },
+  "test": {
+    "loss": 0.026480266892910005,
+    "accuracy": 0.9912
+  },
+  "test_nr": {
+    "loss": 0.026480266892910005,
+    "accuracy": 0.9912
+  },
+  "test_r": {
+    "loss": 10.298682788085937,
+    "accuracy": 0.1357
+  },
+  "rotation_robustness": {
+    "rot_00": 0.1348,
+    "rot_01": 0.1104,
+    "rot_02": 0.0383,
+    "rot_03": 0.1592,
+    "rot_04": 0.049,
+    "rot_05": 0.091,
+    "rot_06": 0.0978,
+    "rot_07": 0.2174,
+    "rot_08": 0.0888,
+    "rot_09": 0.1421,
+    "mean_accuracy": 0.11288000000000001,
+    "std_accuracy": 0.05033809293169538
+  }
+}

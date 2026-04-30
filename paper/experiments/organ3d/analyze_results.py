@@ -28,6 +28,28 @@ MODEL_LABELS = {
     'bispectrum': 'O-Equiv + Bispectrum',
 }
 
+DEFAULT_TRAIN_MODE = 'C'
+
+
+def _canonical_train_mode(mode: str) -> str:
+    if mode in {'C', 'NR'}:
+        return 'C'
+    if mode == 'R':
+        return 'R'
+    return DEFAULT_TRAIN_MODE
+
+
+def _result_train_mode(record: dict) -> str:
+    return _canonical_train_mode(record.get('train_mode', DEFAULT_TRAIN_MODE))
+
+
+def _test_c(record: dict) -> dict:
+    return record.get('test_c') or record.get('test') or {}
+
+
+def _test_r(record: dict) -> dict:
+    return record.get('test_r') or {}
+
 PUBLISHED_BASELINES = [
     {'method': 'ResNet-18 + 3D', 'venue': 'Yang et al. 2023', 'params': '33M', 'acc': 0.907, 'auc': 0.996},
     {'method': 'ResNet-18 + ACS', 'venue': 'Yang et al. 2023', 'params': '11M', 'acc': 0.900, 'auc': 0.994},
@@ -54,23 +76,50 @@ def load_results(results_dir: str) -> dict[str, list[dict]]:
     return grouped
 
 
-def _baseline_runs(grouped: dict[str, list[dict]]) -> dict[str, list[dict]]:
-    """Filter to channels=[4,8] and train_fraction=1.0 runs only."""
+def _is_full_train(record: dict) -> bool:
+    """A run trained on the entire dataset has no positive train_size."""
+    raw = record.get('train_size')
+    if raw is None:
+        return True
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return True
+    return n <= 0
+
+
+def _train_size_value(record: dict) -> int | None:
+    raw = record.get('train_size')
+    if raw is None:
+        return None
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
+def _baseline_runs(
+    grouped: dict[str, list[dict]],
+    train_mode: str = 'C',
+) -> dict[str, list[dict]]:
+    """Filter to channels=[4,8], full-set runs, and *train_mode* runs."""
     filtered: dict[str, list[dict]] = {}
     for model, runs in grouped.items():
         f = [r for r in runs
              if r.get('channels', [4, 8]) == [4, 8]
-             and abs(r.get('train_fraction', 1.0) - 1.0) < 0.01]
+             and _is_full_train(r)
+             and _result_train_mode(r) == train_mode]
         if f:
             filtered[model] = f
     return filtered
 
 
 def print_our_results(grouped: dict[str, list[dict]]):
-    """Print table of our experimental results (baseline channels only)."""
-    baseline = _baseline_runs(grouped)
+    """Print table of our experimental results (baseline channels, C-trained)."""
+    baseline = _baseline_runs(grouped, train_mode='C')
     print('\n' + '=' * 90)
-    print('OUR RESULTS (controlled ablation — same backbone, different pooling)')
+    print('OUR RESULTS (controlled ablation — same backbone, different pooling, C-trained)')
     print('=' * 90)
     header = (
         f'{"Model":<25} {"Params":>8} {"Test ACC":>12} {"Test AUC":>12} '
@@ -84,8 +133,8 @@ def print_our_results(grouped: dict[str, list[dict]]):
         if not runs:
             continue
 
-        accs = [r['test']['accuracy'] for r in runs]
-        aucs = [r['test']['auc'] for r in runs]
+        accs = [_test_c(r).get('accuracy', 0.0) for r in runs]
+        aucs = [_test_c(r).get('auc', 0.0) for r in runs]
         n_params = runs[0]['n_params']
 
         mean_acc = np.mean(accs)
@@ -94,9 +143,9 @@ def print_our_results(grouped: dict[str, list[dict]]):
         std_auc = np.std(aucs)
 
         rot_accs = [r['rotation_robustness']['mean_accuracy'] for r in runs
-                    if r['rotation_robustness'].get('mean_accuracy', 0) > 0]
+                    if r.get('rotation_robustness', {}).get('mean_accuracy', 0) > 0]
         rot_stds = [r['rotation_robustness']['std_accuracy'] for r in runs
-                    if r['rotation_robustness'].get('mean_accuracy', 0) > 0]
+                    if r.get('rotation_robustness', {}).get('mean_accuracy', 0) > 0]
 
         label = MODEL_LABELS.get(model_name, model_name)
         rot_str = f'{np.mean(rot_accs):.4f}' if rot_accs else '\u2014'
@@ -126,8 +175,8 @@ def print_published_baselines():
 
 
 def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
-    """Generate bar chart: original vs rotated accuracy per model (baseline channels only)."""
-    grouped = _baseline_runs(grouped)
+    """Generate bar chart: C-trained accuracy on canonical vs octahedrally rotated test."""
+    grouped = _baseline_runs(grouped, train_mode='C')
     models_with_data = [m for m in MODEL_ORDER if m in grouped]
     if not models_with_data:
         print('No data to plot.')
@@ -163,11 +212,11 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
 
     for m in models_with_data:
         runs = grouped[m]
-        accs = [r['test']['accuracy'] for r in runs]
+        accs = [_test_c(r).get('accuracy', 0.0) for r in runs]
         orig_accs.append(np.mean(accs))
         orig_stds.append(np.std(accs))
         rot_vals = [r['rotation_robustness']['mean_accuracy'] for r in runs
-                    if r['rotation_robustness'].get('mean_accuracy', 0) > 0]
+                    if r.get('rotation_robustness', {}).get('mean_accuracy', 0) > 0]
         rot_accs.append(np.mean(rot_vals) if rot_vals else 0)
         rot_stds.append(np.std(rot_vals) if rot_vals else 0)
 
@@ -256,7 +305,8 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
         'figure.dpi': 300,
     })
 
-    fracs = [0.05, 0.10, 0.25, 0.50, 1.0]
+    organ_full = 971
+    sizes = [100, 500, organ_full]
     models_to_plot = ['standard', 'max_pool', 'bispectrum']
     colors = {'standard': '#888888', 'max_pool': '#2D6A9F', 'bispectrum': '#C44E52'}
     markers = {'standard': 's', 'max_pool': 'D', 'bispectrum': 'o'}
@@ -267,12 +317,14 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
     for model in models_to_plot:
         means = []
         stds = []
-        for frac in fracs:
+        for size in sizes:
+            target = None if size >= organ_full else size
             runs = [r for r in grouped.get(model, [])
-                    if abs(r.get('train_fraction', 1.0) - frac) < 0.01
-                    and r.get('channels', [4, 8]) == [4, 8]]
+                    if _train_size_value(r) == target
+                    and r.get('channels', [4, 8]) == [4, 8]
+                    and _result_train_mode(r) == 'C']
             if runs:
-                vals = [r['test']['accuracy'] for r in runs]
+                vals = [_test_c(r).get('accuracy', 0.0) for r in runs]
                 means.append(np.mean(vals))
                 stds.append(np.std(vals))
             else:
@@ -283,21 +335,21 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
         stds = np.array(stds)
 
         ax.plot(
-            fracs, means,
+            sizes, means,
             color=colors[model], marker=markers[model],
             markersize=7, linewidth=2, label=labels[model],
             zorder=3,
         )
         ax.fill_between(
-            fracs, means - stds, means + stds,
+            sizes, means - stds, means + stds,
             color=colors[model], alpha=0.15, zorder=2,
         )
 
-    ax.set_xlabel('Training data fraction')
+    ax.set_xlabel('Training examples (N)')
     ax.set_ylabel('Test accuracy')
     ax.set_xscale('log')
-    ax.set_xticks(fracs)
-    ax.set_xticklabels(['5%', '10%', '25%', '50%', '100%'])
+    ax.set_xticks(sizes)
+    ax.set_xticklabels([str(s) for s in sizes])
     ax.set_ylim(0, 0.9)
 
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
@@ -325,34 +377,37 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
 
 def print_tier1_summary(grouped: dict[str, list[dict]]):
     """Print summary tables for tier 1 experiments."""
-    fracs = [0.05, 0.10, 0.25, 0.50, 1.0]
+    organ_full = 971
+    sizes = [100, 500, organ_full]
     models = ['standard', 'max_pool', 'bispectrum']
 
     print('\n' + '=' * 90)
-    print('DATA EFFICIENCY (channels [4,8], 3 seeds)')
+    print('DATA EFFICIENCY (channels [4,8], C-trained)')
     print('=' * 90)
-    print(f'{"Model":<15} {"Frac":>6} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}')
+    print(f'{"Model":<15} {"N":>6} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}')
     print('-' * 85)
 
     for model in models:
-        for frac in fracs:
+        for size in sizes:
+            target = None if size >= organ_full else size
             runs = [r for r in grouped.get(model, [])
-                    if abs(r.get('train_fraction', 1.0) - frac) < 0.01
-                    and r.get('channels', [4, 8]) == [4, 8]]
+                    if _train_size_value(r) == target
+                    and r.get('channels', [4, 8]) == [4, 8]
+                    and _result_train_mode(r) == 'C']
             if runs:
-                accs = [r['test']['accuracy'] for r in runs]
-                aucs = [r['test']['auc'] for r in runs]
-                rots = [r['rotation_robustness'].get('mean_accuracy', 0) for r in runs]
+                accs = [_test_c(r).get('accuracy', 0.0) for r in runs]
+                aucs = [_test_c(r).get('auc', 0.0) for r in runs]
+                rots = [r.get('rotation_robustness', {}).get('mean_accuracy', 0) for r in runs]
                 n_seeds = len(runs)
                 print(
-                    f'{model:<15} {frac:>6.0%} {runs[0]["n_params"]:>10,} '
+                    f'{model:<15} {size:>6d} {runs[0]["n_params"]:>10,} '
                     f'{np.mean(accs):>7.4f}±{np.std(accs):.4f} ({n_seeds}s) '
                     f'{np.mean(aucs):>7.4f}±{np.std(aucs):.4f} '
                     f'{np.mean(rots):>10.4f}'
                 )
 
     print('\n' + '=' * 90)
-    print('WIDER CHANNELS (frac=1.0)')
+    print('WIDER CHANNELS (full training set)')
     print('=' * 90)
     print(f'{"Model":<15} {"Channels":>10} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}')
     print('-' * 85)
@@ -361,11 +416,12 @@ def print_tier1_summary(grouped: dict[str, list[dict]]):
         for model in ['max_pool', 'bispectrum']:
             runs = [r for r in grouped.get(model, [])
                     if r.get('channels', [4, 8]) == ch
-                    and abs(r.get('train_fraction', 1.0) - 1.0) < 0.01]
+                    and _is_full_train(r)
+                    and _result_train_mode(r) == 'C']
             if runs:
-                accs = [r['test']['accuracy'] for r in runs]
-                aucs = [r['test']['auc'] for r in runs]
-                rots = [r['rotation_robustness'].get('mean_accuracy', 0) for r in runs]
+                accs = [_test_c(r).get('accuracy', 0.0) for r in runs]
+                aucs = [_test_c(r).get('auc', 0.0) for r in runs]
+                rots = [r.get('rotation_robustness', {}).get('mean_accuracy', 0) for r in runs]
                 n_seeds = len(runs)
                 ch_str = '\u2192'.join(map(str, ch))
                 print(

@@ -31,7 +31,7 @@ EQUIVARIANT_GRS=(3 4 6 8 12)
 SO2_DISK_BLS=(10 15 20 25 30 40 50)
 
 OUTPUT_DIR="./pcam_results_pareto"
-COMMON="--train_fraction 0.1 --patience 10 --epochs 50"
+COMMON="--train_size 12500 --patience 10 --epochs 50"
 
 batch_size_for() {
     local model=$1 gr=$2

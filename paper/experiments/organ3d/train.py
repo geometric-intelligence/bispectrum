@@ -26,8 +26,8 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from data import get_dataloaders, gpu_augment_3d
-from model import build_model, _make_octahedral_group
+from data import apply_octahedral_element, get_dataloaders, gpu_augment_3d
+from model import build_model
 
 NUM_CLASSES = 11
 
@@ -110,39 +110,16 @@ def evaluate_rotation_robustness(
     For each rotation, rotate all test volumes and measure AUC.
     An equivariant model should produce consistent AUC regardless of rotation.
     """
-    elements, _, _ = _make_octahedral_group()
-    elements = elements.to(device)
-
-    half = 13.5
-    coords = torch.stack(
-        torch.meshgrid(
-            torch.arange(28, device=device, dtype=torch.float32) - half,
-            torch.arange(28, device=device, dtype=torch.float32) - half,
-            torch.arange(28, device=device, dtype=torch.float32) - half,
-            indexing='ij',
-        ),
-        dim=-1,
-    ).reshape(-1, 3)
-
     model.eval()
     results = {}
 
     for g_idx in range(24):
-        R = elements[g_idx]
-        new_coords = (R @ coords.T).T
-        ni = (new_coords[:, 0] + half).round().long().clamp(0, 27)
-        nj = (new_coords[:, 1] + half).round().long().clamp(0, 27)
-        nk = (new_coords[:, 2] + half).round().long().clamp(0, 27)
-
         all_probs = []
         all_labels = []
         with torch.no_grad(), torch.amp.autocast('cuda'):
             for images, labels in loader:
                 images = images.to(device, non_blocking=True)
-                B = images.shape[0]
-                if g_idx != 23:  # g23 is identity
-                    rotated = images[:, 0].reshape(B, -1)[:, ni * 28 * 28 + nj * 28 + nk]
-                    images = rotated.reshape(B, 1, 28, 28, 28)
+                images = apply_octahedral_element(images, g_idx)
 
                 logits = model(images)
                 all_probs.append(torch.softmax(logits, dim=-1).cpu())
@@ -163,6 +140,147 @@ def evaluate_rotation_robustness(
     results['std_accuracy'] = (sum((a - results['mean_accuracy']) ** 2 for a in accs) / len(accs)) ** 0.5
 
     return results
+
+
+def _mean_group_metrics(rotation_metrics: dict) -> dict[str, float]:
+    return {
+        'loss': 0.0,
+        'accuracy': float(rotation_metrics.get('mean_accuracy', 0.0)),
+        'auc': float(rotation_metrics.get('mean_auc', 0.0)),
+    }
+
+
+def _invariant_dim_info(model: torch.nn.Module) -> dict[str, int | None]:
+    """Return raw and projected invariant feature widths feeding the head.
+
+    For BispectrumPool3d, ``proj.in_channels = num_channels * features_per_channel``
+    is the raw bispectrum width and ``proj.out_channels = head_dim`` is what
+    the linear classifier sees. For non-bispectrum pools the head input
+    equals the raw width.
+    """
+    pool = getattr(model, 'invariant_pool', None)
+    proj = getattr(pool, 'proj', None)
+    raw: int | None = None
+    projected: int | None = None
+    if proj is not None:
+        in_ch = getattr(proj, 'in_channels', None)
+        out_ch = getattr(proj, 'out_channels', None)
+        if isinstance(in_ch, int):
+            raw = int(in_ch)
+        if isinstance(out_ch, int):
+            projected = int(out_ch)
+    fc_in = getattr(model, '_fc_in', None)
+    if isinstance(fc_in, int):
+        if projected is None:
+            projected = int(fc_in)
+        if raw is None:
+            raw = int(fc_in)
+    return {'raw_invariant_dim': raw, 'projected_dim': projected}
+
+
+def _invariant_dim(model: torch.nn.Module) -> int | None:
+    info = _invariant_dim_info(model)
+    return info.get('projected_dim') or info.get('raw_invariant_dim')
+
+
+def memory_check(args: argparse.Namespace) -> dict:
+    """Run a one-batch forward/backward pass and record peak CUDA memory."""
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    channels = tuple(args.channels)
+    model = build_model(
+        nonlin_type=args.model,
+        channels=channels,
+        head_dim=args.head_dim,
+    ).to(device)
+    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    dim_info = _invariant_dim_info(model)
+    invariant_dim = dim_info.get('projected_dim') or dim_info.get('raw_invariant_dim')
+    n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
+    output_dir = (
+        Path(args.output_dir)
+        / f'{args.model}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
+    )
+    train_loader, _, _ = get_dataloaders(
+        data_dir=args.data_dir,
+        batch_size=args.batch_size,
+        augment_geometry=args.train_mode == 'R',
+        train_size=args.train_size,
+        seed=args.seed,
+        subset_dir=args.subset_dir,
+    )
+
+    status = 'ok'
+    error = ''
+    allocated = 0
+    reserved = 0
+    total = 0
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats(device)
+        total = torch.cuda.get_device_properties(device).total_memory
+
+    try:
+        model.train()
+        images, labels = next(iter(train_loader))
+        images = gpu_augment_3d(
+            images.to(device, non_blocking=True),
+            args.train_mode == 'R',
+        )
+        labels = labels.to(device, non_blocking=True)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        optimizer.zero_grad()
+        with torch.amp.autocast('cuda'):
+            logits = model(images)
+            loss = F.cross_entropy(logits, labels)
+        loss.backward()
+        optimizer.step()
+        if torch.cuda.is_available():
+            allocated = torch.cuda.max_memory_allocated(device)
+            reserved = torch.cuda.max_memory_reserved(device)
+            if total and reserved / total > args.memory_headroom:
+                status = 'fail'
+                error = f'reserved memory exceeds {args.memory_headroom:.0%} headroom'
+    except RuntimeError as exc:
+        status = 'fail'
+        error = str(exc)
+
+    record = {
+        'dataset': 'organ3d',
+        'model': args.model,
+        'train_mode': args.train_mode,
+        'train_size': args.train_size,
+        'train_examples': len(train_loader.dataset),
+        'seed': args.seed,
+        'batch_size': args.batch_size,
+        'effective_batch_size': args.batch_size,
+        'channels': list(channels),
+        'head_dim': args.head_dim,
+        'output_dir': str(output_dir),
+        'n_params': n_params,
+        'invariant_dim': invariant_dim,
+        'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
+        'projected_dim': dim_info.get('projected_dim'),
+        'cuda_available': torch.cuda.is_available(),
+        'gpu_name': torch.cuda.get_device_name(device) if torch.cuda.is_available() else None,
+        'total_memory_bytes': total,
+        'max_memory_allocated_bytes': allocated,
+        'max_memory_reserved_bytes': reserved,
+        'memory_headroom': args.memory_headroom,
+        'status': status,
+        'error': error,
+    }
+    print(json.dumps(record))
+    if args.memory_manifest:
+        manifest = Path(args.memory_manifest)
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        with manifest.open('a') as f:
+            f.write(json.dumps(record) + '\n')
+    if status != 'ok':
+        raise SystemExit(1)
+    return record
 
 
 def train_one_epoch(
@@ -228,25 +346,32 @@ def train(args: argparse.Namespace) -> dict:
     )
     model = model.to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    dim_info = _invariant_dim_info(model)
+    invariant_dim = dim_info.get('projected_dim') or dim_info.get('raw_invariant_dim')
     print(f'Model: {args.model} (channels={channels}), {n_params:,} params')
 
     if args.dry_run:
         print(json.dumps({
             'model': args.model,
+            'train_mode': args.train_mode,
             'channels': list(channels),
             'n_params': n_params,
+            'invariant_dim': invariant_dim,
+            'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
+            'projected_dim': dim_info.get('projected_dim'),
         }))
         return {'n_params': n_params}
 
     print(f'Device: {device}')
 
-    augment_geo = args.model == 'standard'
+    augment_geo = args.train_mode == 'R'
     train_loader, val_loader, test_loader = get_dataloaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,
         augment_geometry=augment_geo,
-        train_fraction=args.train_fraction,
+        train_size=args.train_size,
         seed=args.seed,
+        subset_dir=args.subset_dir,
     )
     print(
         f'Data: train={len(train_loader.dataset)}, '
@@ -269,8 +394,11 @@ def train(args: argparse.Namespace) -> dict:
 
     best_auc = 0.0
     patience_counter = 0
-    frac_tag = f'_frac{args.train_fraction:.2f}' if args.train_fraction < 1.0 else ''
-    out_dir = Path(args.output_dir) / f'{args.model}_ch{"_".join(map(str, channels))}_seed{args.seed}{frac_tag}'
+    n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
+    out_dir = (
+        Path(args.output_dir)
+        / f'{args.model}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, args.epochs + 1):
@@ -303,8 +431,8 @@ def train(args: argparse.Namespace) -> dict:
             break
 
     model.load_state_dict(torch.load(out_dir / 'best_model.pt', weights_only=True))
-    test_metrics = compute_metrics(model, test_loader, device)
-    print(f'\nTest results: {test_metrics}')
+    test_c = compute_metrics(model, test_loader, device)
+    print(f'\nTest C results: {test_c}')
 
     if not args.skip_rotation:
         rot_metrics = evaluate_rotation_robustness(model, test_loader, device)
@@ -314,18 +442,28 @@ def train(args: argparse.Namespace) -> dict:
             f'mean_acc={rot_metrics["mean_accuracy"]:.4f}, '
             f'std_acc={rot_metrics["std_accuracy"]:.4f}'
         )
+        test_r = _mean_group_metrics(rot_metrics)
     else:
-        rot_metrics = {'mean_auc': 0.0, 'std_auc': 0.0, 'mean_accuracy': 0.0, 'std_accuracy': 0.0}
+        rot_metrics = {}
+        test_r = {}
 
     results = {
+        'dataset': 'organ3d',
         'model': args.model,
+        'train_mode': args.train_mode,
         'seed': args.seed,
         'channels': list(channels),
         'head_dim': args.head_dim,
         'n_params': n_params,
-        'train_fraction': args.train_fraction,
+        'invariant_dim': invariant_dim,
+        'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
+        'projected_dim': dim_info.get('projected_dim'),
+        'train_size': args.train_size,
+        'train_examples': len(train_loader.dataset),
         'best_val_auc': best_auc,
-        'test': test_metrics,
+        'test': test_c,
+        'test_c': test_c,
+        'test_r': test_r,
         'rotation_robustness': rot_metrics,
     }
     with open(out_dir / 'results.json', 'w') as f:
@@ -337,18 +475,21 @@ def train(args: argparse.Namespace) -> dict:
 def run_sweep(args: argparse.Namespace):
     """Run the full experimental sweep."""
     models = ['standard', 'max_pool', 'norm_pool', 'bispectrum']
+    train_modes = ['C', 'R']
     seeds = [42, 123, 456]
     all_results = []
 
     for model_name in models:
-        for seed in seeds:
-            args.model = model_name
-            args.seed = seed
-            print(f'\n{"=" * 60}')
-            print(f'Running: model={model_name}, seed={seed}')
-            print(f'{"=" * 60}')
-            results = train(args)
-            all_results.append(results)
+        for train_mode in train_modes:
+            for seed in seeds:
+                args.model = model_name
+                args.train_mode = train_mode
+                args.seed = seed
+                print(f'\n{"=" * 60}')
+                print(f'Running: model={model_name}, train_mode={train_mode}, seed={seed}')
+                print(f'{"=" * 60}')
+                results = train(args)
+                all_results.append(results)
 
     print(f'\n{"=" * 60}')
     print('SUMMARY')
@@ -358,26 +499,31 @@ def run_sweep(args: argparse.Namespace):
 
     grouped = defaultdict(list)
     for r in all_results:
-        grouped[r['model']].append(r)
+        grouped[(r['model'], r['train_mode'])].append(r)
 
     for model_name in models:
-        runs = grouped[model_name]
-        aucs = [r['test']['auc'] for r in runs]
-        accs = [r['test']['accuracy'] for r in runs]
-        rot_stds = [r['rotation_robustness']['std_auc'] for r in runs]
-        n_params = runs[0]['n_params']
+        for train_mode in train_modes:
+            runs = grouped[(model_name, train_mode)]
+            aucs = [r['test_c']['auc'] for r in runs]
+            accs = [r['test_c']['accuracy'] for r in runs]
+            rot_stds = [
+                r['rotation_robustness'].get('std_auc', 0.0)
+                for r in runs
+                if r.get('rotation_robustness')
+            ]
+            n_params = runs[0]['n_params']
 
-        mean_auc = sum(aucs) / len(aucs)
-        std_auc = (sum((a - mean_auc) ** 2 for a in aucs) / len(aucs)) ** 0.5
-        mean_acc = sum(accs) / len(accs)
-        mean_rot = sum(rot_stds) / len(rot_stds)
+            mean_auc = sum(aucs) / len(aucs)
+            std_auc = (sum((a - mean_auc) ** 2 for a in aucs) / len(aucs)) ** 0.5
+            mean_acc = sum(accs) / len(accs)
+            mean_rot = sum(rot_stds) / max(len(rot_stds), 1)
 
-        print(
-            f'{model_name:<15} {n_params:>10,} '
-            f'{mean_auc:.4f}±{std_auc:.4f} '
-            f'{mean_acc:.4f}       '
-            f'{mean_rot:.6f}'
-        )
+            print(
+                f'{model_name + "/" + train_mode:<15} {n_params:>10,} '
+                f'{mean_auc:.4f}±{std_auc:.4f} '
+                f'{mean_acc:.4f}       '
+                f'{mean_rot:.6f}'
+            )
 
     out_path = Path(args.output_dir) / 'sweep_results.json'
     with open(out_path, 'w') as f:
@@ -410,8 +556,21 @@ def main():
     )
     parser.add_argument('--head_dim', type=int, default=64)
     parser.add_argument(
-        '--train_fraction', type=float, default=1.0,
-        help='Fraction of training data to use.',
+        '--train_size', type=int, default=None,
+        help='Subset training data to N examples for data-efficiency experiments. '
+             'Omit (or pass <=0) to use the full training set.',
+    )
+    parser.add_argument(
+        '--train_mode',
+        choices=['C', 'R'],
+        default='C',
+        help='Training protocol: C=canonical, R=random octahedral augmentation.',
+    )
+    parser.add_argument(
+        '--subset_dir',
+        type=str,
+        default=None,
+        help='Directory where train-subset index manifests are written.',
     )
     parser.add_argument(
         '--sweep', action='store_true',
@@ -420,6 +579,18 @@ def main():
     parser.add_argument(
         '--dry_run', action='store_true',
         help='Build model, print param count, exit.',
+    )
+    parser.add_argument(
+        '--memory_check', action='store_true',
+        help='Run a one-batch forward/backward memory check and exit.',
+    )
+    parser.add_argument(
+        '--memory_manifest', type=str, default=None,
+        help='Optional JSONL path for memory_check records.',
+    )
+    parser.add_argument(
+        '--memory_headroom', type=float, default=0.85,
+        help='Fail memory_check when reserved CUDA memory exceeds this fraction.',
     )
     parser.add_argument(
         '--skip_rotation', action='store_true',
@@ -432,7 +603,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.sweep:
+    if args.memory_check:
+        memory_check(args)
+    elif args.sweep:
         run_sweep(args)
     else:
         train(args)

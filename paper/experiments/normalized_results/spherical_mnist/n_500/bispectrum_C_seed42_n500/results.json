@@ -1,0 +1,44 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "bispectrum",
+  "base_model": "bispectrum",
+  "train_mode": "C",
+  "test_rotation_seed": 777,
+  "seed": 42,
+  "lmax": 15,
+  "n_params": 231818,
+  "invariant_dim": 768,
+  "train_size": 500,
+  "train_examples": 500,
+  "best_val_accuracy": 0.1428,
+  "test_c": {
+    "loss": 2.308973046875,
+    "accuracy": 0.1535
+  },
+  "test": {
+    "loss": 2.308973046875,
+    "accuracy": 0.1535
+  },
+  "test_nr": {
+    "loss": 2.308973046875,
+    "accuracy": 0.1535
+  },
+  "test_r": {
+    "loss": 2.309052734375,
+    "accuracy": 0.1528
+  },
+  "rotation_robustness": {
+    "rot_00": 0.1528,
+    "rot_01": 0.1529,
+    "rot_02": 0.1528,
+    "rot_03": 0.1529,
+    "rot_04": 0.153,
+    "rot_05": 0.1528,
+    "rot_06": 0.1529,
+    "rot_07": 0.1528,
+    "rot_08": 0.1527,
+    "rot_09": 0.1529,
+    "mean_accuracy": 0.15284999999999999,
+    "std_accuracy": 8.062257748298866e-05
+  }
+}
