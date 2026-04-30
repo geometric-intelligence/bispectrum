@@ -462,204 +462,7 @@ cached to disk; all forward methods are batch-native, using
 \texttt{torch.einsum}/\texttt{torch.bmm} for non-abelian modules and
 \texttt{torch.fft} for abelian ones.
 The test suite covers 96.8\% of lines across all modules.
-
-\subsection{Supported modules}
-\label{sec:supported-modules}
-
-\begin{table}[t]
-  \caption{Current scope of the \texttt{bispectrum} library.
-    \texttt{SO2onS1} is the continuous-$n$ limit of \texttt{CnonCn}
-    and shares its implementation. The Reference column points to the
-    underlying mathematical construction that each module implements.}
-  \label{tab:supported-groups}
-  \centering
-  \small
-  \begin{tabular}{llll}
-    \toprule
-    Module & Group / Domain & Output mode & Reference \\
-    \midrule
-    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full & \citep{sanborn2023bispectral} \\
-    \texttt{SO2onS1} & $\SO(2)$ on $S^1$ & selective + full & \citep{mataigne2024selective} \\
-    \texttt{TorusOnTorus} & product cyclic groups on torus & selective + full & \citep{mataigne2024selective} \\
-    \texttt{DnonDn} & $D_n$ on $D_n$ & selective & \citep{mataigne2024selective} \\
-    \texttt{SO2onDisk} & $\SO(2)$ on disk & selective & \citep{myers2025selective} \\
-    \texttt{SO3onS2} & $\SO(3)$ on $S^2$ & selective + full & \citep{kakarala2012bispectrum}, this paper \\
-    \texttt{OctaonOcta} & octahedral group & selective & \citep{mataigne2024selective} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\paragraph{Example API.}
-\label{sec:api}
 A minimal usage example is in Appendix~\ref{app:api-example}.
-
-\subsection{Augmented selective $\SO(3)$ bispectrum on $S^2$}
-\label{sec:so3-selective}
-
-A real-valued signal on the sphere $f : S^2 \to \R$ that is
-\emph{band-limited at degree~$L$} expands in spherical harmonics as
-$f(\theta, \varphi) = \sum_{\ell=0}^{L}\sum_{m=-\ell}^{\ell}
-a_\ell^m \SH_\ell^m(\theta, \varphi)$ (Eq.~\ref{eq:app-sh-expansion}),
-so it is parameterised by $(L{+}1)^2$ real scalars (one per
-$(\ell, m)$ pair, after the reality constraint
-$a_\ell^{-m} = (-1)^m \conj{a_\ell^m}$). The full bispectrum on $S^2$
-at band-limit~$L$ has $\Theta(L^3)$ scalar entries
-$\beta_{\ell_1,\ell_2,\ell}$ ($0 \le \ell_1 \le \ell_2 \le L$,
-$|\ell_1{-}\ell_2| \le \ell \le \min(\ell_1{+}\ell_2, L)$), the
-specialisation of Eq.~\ref{eq:bispectrum-def} to the $\SO(3)$-on-$S^2$
-case (Definition~\ref{def:app-bispectrum}).
-
-For finite groups, the selective construction
-of~\citet{mataigne2024selective} reduces $O(|G|^2)$ to $O(|G|)$ by a
-breadth-first traversal of the irrep graph. On $S^2$ the analogous
-chain $\beta_{1,0,1}, \beta_{1,1,2}, \beta_{1,2,3}, \dots,
-\beta_{1,L-1,L}$ provides only $L$ complex coefficients
-($\sim 3L$ real scalars after accounting for parity), e.g.\ $\sim 15$
-for $L=5$ vs.\ $(L{+}1)^2 = 36$ unknowns. Indeed, the orbit space
-$\R^{(L+1)^2}/\SO(3)$ has dimension $(L{+}1)^2 - \dim \SO(3) =
-(L{+}1)^2 - 3$, so any complete invariant requires $\Omega(L^2)$
-independent components. We achieve this lower bound.
-
-\begin{theorem}[Augmented selective $\SO(3)$ invariant on $S^2$]
-\label{thm:so3-selective}
-For $f : S^2 \to \R$ band-limited at degree $4 \le L \le 100$, there exists an augmented
-invariant $\widetilde{\beta}_{\mathrm{aug}}(f)$ consisting of
-$\Theta(L^2)$ scalars---a subset $\mathcal{S}_\beta$ of scalar
-bispectral entries $\beta_{\ell_1,\ell_2,\ell}$ together with a
-subset $\mathcal{S}_P$ of CG power spectrum entries
-$P_{\ell_1,\ell_2,\ell} := \lVert (\mathbf{F}_{\ell_1} \otimes
-\mathbf{F}_{\ell_2})|_\ell \rVert^2$---that is a complete
-$\SO(3)$-invariant for \emph{Lebesgue-almost-every} signal (i.e.\ for
-every signal outside a measure-zero algebraic subvariety of the
-$(L{+}1)^2$-dimensional signal space).
-The output size $\Theta(L^2)$ matches the dimension
-$(L{+}1)^2 - 3$ of the orbit space $\R^{(L+1)^2}/\SO(3)$
-up to a constant factor.
-\end{theorem}
-
-\noindent
-Here \emph{augmented} refers to supplementing the scalar bispectral
-entries with extra $\SO(3)$-invariants (the CG power spectrum entries
-$P_{\ell_1,\ell_2,\ell}$) computed from $f$ alone---\emph{not} with the
-signal itself. The resulting map
-$\widetilde{\beta}_{\mathrm{aug}}(f)$ is a function purely of the input,
-so completeness here means the same thing as in the standard
-$G$-bispectral setting: the map separates $\SO(3)$-orbits.
-
-\begin{remark}\label{rem:verified-L}
-The proof (Appendix~\ref{app:so3-proof}) is \emph{algorithmic}:
-it shows completeness of $\widetilde{\beta}_{\mathrm{aug}}$ by
-reconstructing the spherical-harmonic coefficients
-$(\mathbf{F}_0, \dotsc, \mathbf{F}_L)$ of $f$ from the invariant, in
-four steps: (i)~\emph{gauge-fixing}, choosing a unique representative
-in the $\SO(3)$-orbit of $f$ by aligning $\mathbf{F}_1$ with the
-$z$-axis and fixing the residual azimuthal phase
-(Lemma~\ref{lem:app-gauge}); (ii)~\emph{seed recovery} at low degrees
-$\ell \le L_0 = 4$, where adjoining a constant-size block of full
-bispectral entries lets us invoke
-Kakarala's~\citep{kakarala1992triple, kakarala2012bispectrum}
-completeness theorem to determine $\mathbf{F}_0, \dotsc, \mathbf{F}_4$
-(Lemma~\ref{lem:app-seed-kakarala}); (iii)~\emph{per-degree
-linear-system inversion} for $\ell \ge 5$, where each
-$\mathbf{F}_\ell$ is recovered by solving an
-$O(\ell)$-dimensional linear system $A_\ell\mathbf{F}_\ell = b_\ell$
-whose coefficients depend on already-recovered lower degrees; and
-(iv)~\emph{computer-algebra rank certificates} that verify
-$\det(A_\ell) \ne 0$ at deterministic witness points (seed~42) for
-each $\ell \le 100$, which propagates to a generic non-vanishing
-statement (the complement of a Lebesgue-null algebraic subvariety) by
-standard algebraic-variety arguments. The structural form of the
-linear system is uniform for $\ell \ge 8$; extending the verification
-beyond $L = 100$ requires only re-running a single script.
-\end{remark}
-
-\paragraph{Why augmentation is necessary.}
-The reality constraint $a_\ell^{-m} = (-1)^m \conj{a_\ell^m}$ on the
-spherical-harmonic coefficients of a real signal is \emph{not} a
-generic constraint --- it cuts the complex parameter space along a
-measure-zero linear subvariety. Generic statements proved on the
-complex parameter space therefore need not transfer to the real
-subspace, and indeed they do not: at every degree $\ell \ge 4$, the
-per-degree linear system of \emph{scalar} bispectral entries has full
-\emph{complex} rank $2\ell{+}1$ on the complex parameter space
-(Lemma~\ref{lem:app-bootstrap-rank}, verified at explicit witnesses
-up to $\ell = 100$), but its restriction to the real-signal slice
-has only partial \emph{real Jacobian} rank $\sim \ell$. At
-$\ell = 4$, for example, the linear bispectral real Jacobian has
-rank $4$ instead of $9 = 2\ell{+}1$, and this rank deficiency is
-intrinsic --- it persists even when all triples of the \emph{full}
-bispectrum are used and when the self-coupling entries
-$\beta_{\ell,\ell,\ell'}$ are added, so it cannot be resolved by
-choosing a different scalar subset. The CG power spectrum entries
-$P_{\ell_1,\ell_2,\ell}$ capture the complementary \emph{magnitude}
-information that the phase-sensitive scalar bispectral entries miss
-on the real subspace, and together they achieve full real Jacobian
-rank $2\ell{+}1$ at every degree
-(Lemma~\ref{lem:app-augmented-perdegree}).
-
-\paragraph{The selective index set.}
-The bispectral component $\mathcal{S}_\beta$ selects up to
-$2\ell{+}1$ triples per degree from four categories:
-\textbf{(1)~Chain} $(\ell_1, \ell_2, \ell)$ with
-$\ell_1 \leq \ell_2 < \ell$;
-\textbf{(2)~Cross} $(\ell_1, \ell, \ell')$ with
-$\ell_1, \ell' < \ell$;
-\textbf{(3)~Power} $(0, \ell, \ell)$;
-\textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$ with $\ell'$ even.
-Entries with $\ell_1 = \ell_2$ and odd~$\ell$ vanish identically for
-real signals: the CG coefficients
-$\langle \ell, m_1; \ell, m_2 \mid \ell, m \rangle$ are antisymmetric
-under $m_1 \leftrightarrow m_2$ when the total parity
-$2\ell + \ell$ is odd, while the polynomial
-$a_\ell^{m_1} a_\ell^{m_2}$ is symmetric, so the contraction sums to
-zero (Proposition~\ref{prop:app-odd-vanishing}). Such entries are
-excluded.  All \emph{even} self-coupling entries
-$\beta_{\ell,\ell,\ell'}$ with $2 \le \ell' \le \ell$ are included
-unconditionally; they are needed for full Jacobian rank in the seed
-system (Appendix~\ref{app:constructive-solver}).
-The invariant is further augmented with CG power spectrum entries
-$P_{\ell_1,\ell_2,\ell}$, chosen to maximise the Jacobian rank of the
-combined invariant (Algorithm~\ref{alg:so3-augmented}).
-
-Table~\ref{tab:entry-counts} (Appendix~\ref{app:so3-proof}) gives the
-per-degree entry counts of $\widetilde{\beta}_{\mathrm{aug}}$ (scalar
-bispectral entries plus CG power scalars); at degree $\ell \ge 5$ the
-total is ${\sim}3\ell$, confirming the $\Theta(L^2)$ output size.
-
-\paragraph{Proof sketch.}
-At a high level, we prove that $\widetilde{\beta}_{\mathrm{aug}}$ is
-complete by reconstructing the spherical-harmonic expansion of $f$
-from the invariant; once the coefficient vectors
-$(\mathbf{F}_0, \dotsc, \mathbf{F}_L)$ are recovered, $f$ itself
-follows by inverse spherical-harmonic transform. The reconstruction
-proceeds in two stages: a constant-size \emph{seed} that recovers
-$\mathbf{F}_0, \dotsc, \mathbf{F}_4$ from a $\Theta(1)$-block of
-adjoined full bispectral entries, then a degree-by-degree
-\emph{linear-system inversion} that recovers each
-$\mathbf{F}_\ell$ ($\ell \ge 5$) from a per-degree linear system whose
-coefficients depend on the already-known lower degrees.
-
-In more detail: after gauge-fixing
-($\mathbf{F}_0$ from $\beta_{0,0,0} = (a_0^0)^3$, $\mathbf{F}_1$ from
-$\beta_{0,1,1}/a_0^0 = \norm{\mathbf{F}_1}^2$ together with the
-$z$-axis alignment of Lemma~\ref{lem:app-gauge}), we adjoin the full
-bispectrum at $L_0 = 4$ (${\le}30$ extra scalars, constant in $L$ and
-asymptotically free) and apply Kakarala's
-theorem~\citep{kakarala2012bispectrum, kakarala1992triple} to recover
-$\mathbf{F}_0, \dotsc, \mathbf{F}_4$ on the gauge slice; the
-orientation-reversing reflection $T_R : a_\ell^m \mapsto (-1)^m
-\conj{a_\ell^m}$ is automatically distinguished by odd-parity entries
-in this block (e.g.\ $\beta_{2,3,4}$, whose imaginary part flips sign
-under $T_R$), so no separate $T_R$-resolution step is required.
-For $\ell \ge 5$, the linear bispectral entries at degree $\ell$
-define a system $A_\ell \mathbf{F}_\ell = b_\ell$ with full complex
-rank $2\ell{+}1$, and the augmented system (linear bispectral $+$ CG
-power) has full \emph{real} Jacobian rank, so $\mathbf{F}_\ell$ is
-uniquely determined. The rank certificates use double-precision
-arithmetic with well-separated thresholds (residual gaps of
-$\ge 10^{13}$ relative to machine epsilon) and can be upgraded to
-interval arithmetic if desired. The full proof is in
-Appendix~\ref{app:so3-proof}.
 
 \subsection{Profiling}
 \label{sec:benchmarks}
@@ -974,6 +777,175 @@ Cohen's spherical CNN~\citep{cohen2018spherical} reaches 96\%/95\%/94\%
 with learned equivariant convolutions. Our single-pass bispectrum
 (95.0\%/94.9\%/95.1\%) is 1--2pp lower but has a tighter invariance gap
 (0.1pp vs.\ 2.0pp).
+
+
+\section{Augmented selective $\SO(3)$ bispectrum on $S^2$}
+\label{sec:so3-selective}
+
+A real-valued signal on the sphere $f : S^2 \to \R$ that is
+\emph{band-limited at degree~$L$} expands in spherical harmonics as
+$f(\theta, \varphi) = \sum_{\ell=0}^{L}\sum_{m=-\ell}^{\ell}
+a_\ell^m \SH_\ell^m(\theta, \varphi)$ (Eq.~\ref{eq:app-sh-expansion}),
+so it is parameterised by $(L{+}1)^2$ real scalars (one per
+$(\ell, m)$ pair, after the reality constraint
+$a_\ell^{-m} = (-1)^m \conj{a_\ell^m}$). The full bispectrum on $S^2$
+at band-limit~$L$ has $\Theta(L^3)$ scalar entries
+$\beta_{\ell_1,\ell_2,\ell}$ ($0 \le \ell_1 \le \ell_2 \le L$,
+$|\ell_1{-}\ell_2| \le \ell \le \min(\ell_1{+}\ell_2, L)$), the
+specialisation of Eq.~\ref{eq:bispectrum-def} to the $\SO(3)$-on-$S^2$
+case (Definition~\ref{def:app-bispectrum}).
+
+For finite groups, the selective construction
+of~\citet{mataigne2024selective} reduces $O(|G|^2)$ to $O(|G|)$ by a
+breadth-first traversal of the irrep graph. On $S^2$ the analogous
+chain $\beta_{1,0,1}, \beta_{1,1,2}, \beta_{1,2,3}, \dots,
+\beta_{1,L-1,L}$ provides only $L$ complex coefficients
+($\sim 3L$ real scalars after accounting for parity), e.g.\ $\sim 15$
+for $L=5$ vs.\ $(L{+}1)^2 = 36$ unknowns. Indeed, the orbit space
+$\R^{(L+1)^2}/\SO(3)$ has dimension $(L{+}1)^2 - \dim \SO(3) =
+(L{+}1)^2 - 3$, so any complete invariant requires $\Omega(L^2)$
+independent components. We achieve this lower bound.
+
+\begin{theorem}[Augmented selective $\SO(3)$ invariant on $S^2$]
+\label{thm:so3-selective}
+For $f : S^2 \to \R$ band-limited at degree $4 \le L \le 100$, there exists an augmented
+invariant $\widetilde{\beta}_{\mathrm{aug}}(f)$ consisting of
+$\Theta(L^2)$ scalars---a subset $\mathcal{S}_\beta$ of scalar
+bispectral entries $\beta_{\ell_1,\ell_2,\ell}$ together with a
+subset $\mathcal{S}_P$ of CG power spectrum entries
+$P_{\ell_1,\ell_2,\ell} := \lVert (\mathbf{F}_{\ell_1} \otimes
+\mathbf{F}_{\ell_2})|_\ell \rVert^2$---that is a complete
+$\SO(3)$-invariant for \emph{Lebesgue-almost-every} signal (i.e.\ for
+every signal outside a measure-zero algebraic subvariety of the
+$(L{+}1)^2$-dimensional signal space).
+The output size $\Theta(L^2)$ matches the dimension
+$(L{+}1)^2 - 3$ of the orbit space $\R^{(L+1)^2}/\SO(3)$
+up to a constant factor.
+\end{theorem}
+
+\noindent
+Here \emph{augmented} refers to supplementing the scalar bispectral
+entries with extra $\SO(3)$-invariants (the CG power spectrum entries
+$P_{\ell_1,\ell_2,\ell}$) computed from $f$ alone---\emph{not} with the
+signal itself. The resulting map
+$\widetilde{\beta}_{\mathrm{aug}}(f)$ is a function purely of the input,
+so completeness here means the same thing as in the standard
+$G$-bispectral setting: the map separates $\SO(3)$-orbits.
+
+\begin{remark}\label{rem:verified-L}
+The proof (Appendix~\ref{app:so3-proof}) is \emph{algorithmic}:
+it shows completeness of $\widetilde{\beta}_{\mathrm{aug}}$ by
+reconstructing the spherical-harmonic coefficients
+$(\mathbf{F}_0, \dotsc, \mathbf{F}_L)$ of $f$ from the invariant, in
+four steps: (i)~\emph{gauge-fixing}, choosing a unique representative
+in the $\SO(3)$-orbit of $f$ by aligning $\mathbf{F}_1$ with the
+$z$-axis and fixing the residual azimuthal phase
+(Lemma~\ref{lem:app-gauge}); (ii)~\emph{seed recovery} at low degrees
+$\ell \le L_0 = 4$, where adjoining a constant-size block of full
+bispectral entries lets us invoke
+Kakarala's~\citep{kakarala1992triple, kakarala2012bispectrum}
+completeness theorem to determine $\mathbf{F}_0, \dotsc, \mathbf{F}_4$
+(Lemma~\ref{lem:app-seed-kakarala}); (iii)~\emph{per-degree
+linear-system inversion} for $\ell \ge 5$, where each
+$\mathbf{F}_\ell$ is recovered by solving an
+$O(\ell)$-dimensional linear system $A_\ell\mathbf{F}_\ell = b_\ell$
+whose coefficients depend on already-recovered lower degrees; and
+(iv)~\emph{computer-algebra rank certificates} that verify
+$\det(A_\ell) \ne 0$ at deterministic witness points (seed~42) for
+each $\ell \le 100$, which propagates to a generic non-vanishing
+statement (the complement of a Lebesgue-null algebraic subvariety) by
+standard algebraic-variety arguments. The structural form of the
+linear system is uniform for $\ell \ge 8$; extending the verification
+beyond $L = 100$ requires only re-running a single script.
+\end{remark}
+
+\paragraph{Why augmentation is necessary.}
+The reality constraint $a_\ell^{-m} = (-1)^m \conj{a_\ell^m}$ on the
+spherical-harmonic coefficients of a real signal is \emph{not} a
+generic constraint --- it cuts the complex parameter space along a
+measure-zero linear subvariety. Generic statements proved on the
+complex parameter space therefore need not transfer to the real
+subspace, and indeed they do not: at every degree $\ell \ge 4$, the
+per-degree linear system of \emph{scalar} bispectral entries has full
+\emph{complex} rank $2\ell{+}1$ on the complex parameter space
+(Lemma~\ref{lem:app-bootstrap-rank}, verified at explicit witnesses
+up to $\ell = 100$), but its restriction to the real-signal slice
+has only partial \emph{real Jacobian} rank $\sim \ell$. At
+$\ell = 4$, for example, the linear bispectral real Jacobian has
+rank $4$ instead of $9 = 2\ell{+}1$, and this rank deficiency is
+intrinsic --- it persists even when all triples of the \emph{full}
+bispectrum are used and when the self-coupling entries
+$\beta_{\ell,\ell,\ell'}$ are added, so it cannot be resolved by
+choosing a different scalar subset. The CG power spectrum entries
+$P_{\ell_1,\ell_2,\ell}$ capture the complementary \emph{magnitude}
+information that the phase-sensitive scalar bispectral entries miss
+on the real subspace, and together they achieve full real Jacobian
+rank $2\ell{+}1$ at every degree
+(Lemma~\ref{lem:app-augmented-perdegree}).
+
+\paragraph{The selective index set.}
+The bispectral component $\mathcal{S}_\beta$ selects up to
+$2\ell{+}1$ triples per degree from four categories:
+\textbf{(1)~Chain} $(\ell_1, \ell_2, \ell)$ with
+$\ell_1 \leq \ell_2 < \ell$;
+\textbf{(2)~Cross} $(\ell_1, \ell, \ell')$ with
+$\ell_1, \ell' < \ell$;
+\textbf{(3)~Power} $(0, \ell, \ell)$;
+\textbf{(4)~Self-coupling} $(\ell, \ell, \ell')$ with $\ell'$ even.
+Entries with $\ell_1 = \ell_2$ and odd~$\ell$ vanish identically for
+real signals: the CG coefficients
+$\langle \ell, m_1; \ell, m_2 \mid \ell, m \rangle$ are antisymmetric
+under $m_1 \leftrightarrow m_2$ when the total parity
+$2\ell + \ell$ is odd, while the polynomial
+$a_\ell^{m_1} a_\ell^{m_2}$ is symmetric, so the contraction sums to
+zero (Proposition~\ref{prop:app-odd-vanishing}). Such entries are
+excluded.  All \emph{even} self-coupling entries
+$\beta_{\ell,\ell,\ell'}$ with $2 \le \ell' \le \ell$ are included
+unconditionally; they are needed for full Jacobian rank in the seed
+system (Appendix~\ref{app:constructive-solver}).
+The invariant is further augmented with CG power spectrum entries
+$P_{\ell_1,\ell_2,\ell}$, chosen to maximise the Jacobian rank of the
+combined invariant (Algorithm~\ref{alg:so3-augmented}).
+
+Table~\ref{tab:entry-counts} (Appendix~\ref{app:so3-proof}) gives the
+per-degree entry counts of $\widetilde{\beta}_{\mathrm{aug}}$ (scalar
+bispectral entries plus CG power scalars); at degree $\ell \ge 5$ the
+total is ${\sim}3\ell$, confirming the $\Theta(L^2)$ output size.
+
+\paragraph{Proof sketch.}
+At a high level, we prove that $\widetilde{\beta}_{\mathrm{aug}}$ is
+complete by reconstructing the spherical-harmonic expansion of $f$
+from the invariant; once the coefficient vectors
+$(\mathbf{F}_0, \dotsc, \mathbf{F}_L)$ are recovered, $f$ itself
+follows by inverse spherical-harmonic transform. The reconstruction
+proceeds in two stages: a constant-size \emph{seed} that recovers
+$\mathbf{F}_0, \dotsc, \mathbf{F}_4$ from a $\Theta(1)$-block of
+adjoined full bispectral entries, then a degree-by-degree
+\emph{linear-system inversion} that recovers each
+$\mathbf{F}_\ell$ ($\ell \ge 5$) from a per-degree linear system whose
+coefficients depend on the already-known lower degrees.
+
+In more detail: after gauge-fixing
+($\mathbf{F}_0$ from $\beta_{0,0,0} = (a_0^0)^3$, $\mathbf{F}_1$ from
+$\beta_{0,1,1}/a_0^0 = \norm{\mathbf{F}_1}^2$ together with the
+$z$-axis alignment of Lemma~\ref{lem:app-gauge}), we adjoin the full
+bispectrum at $L_0 = 4$ (${\le}30$ extra scalars, constant in $L$ and
+asymptotically free) and apply Kakarala's
+theorem~\citep{kakarala2012bispectrum, kakarala1992triple} to recover
+$\mathbf{F}_0, \dotsc, \mathbf{F}_4$ on the gauge slice; the
+orientation-reversing reflection $T_R : a_\ell^m \mapsto (-1)^m
+\conj{a_\ell^m}$ is automatically distinguished by odd-parity entries
+in this block (e.g.\ $\beta_{2,3,4}$, whose imaginary part flips sign
+under $T_R$), so no separate $T_R$-resolution step is required.
+For $\ell \ge 5$, the linear bispectral entries at degree $\ell$
+define a system $A_\ell \mathbf{F}_\ell = b_\ell$ with full complex
+rank $2\ell{+}1$, and the augmented system (linear bispectral $+$ CG
+power) has full \emph{real} Jacobian rank, so $\mathbf{F}_\ell$ is
+uniquely determined. The rank certificates use double-precision
+arithmetic with well-separated thresholds (residual gaps of
+$\ge 10^{13}$ relative to machine epsilon) and can be upgraded to
+interval arithmetic if desired. The full proof is in
+Appendix~\ref{app:so3-proof}.
 
 
 \section{Discussion and Conclusion}
