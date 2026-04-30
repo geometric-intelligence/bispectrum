@@ -378,6 +378,75 @@ reduction from quadratic to linear is the key to practical deployment:
 for example, the bispectrum of the octahedral group drops from $576$ to
 $172$ coefficients.
 
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Equivariant network libraries.}
+\texttt{escnn}~\citep{cesa2022program} and \texttt{e3nn}~\citep{geiger2022e3nn}
+provide general-purpose equivariant convolution layers for 2D and 3D
+groups respectively, and \texttt{lie-nn}~\citep{batatia2023general}
+provides general Lie-group representation primitives (irreducible
+representations, Clebsch--Gordan decompositions, tensor products) on
+top of which custom equivariant layers can be built.  These libraries
+implement equivariant \emph{feature maps} but leave the choice of
+invariant pooling to the user (typically norm or gate). Our library is
+complementary: it provides the invariant map as a drop-in
+\texttt{nn.Module} that plugs into architectures built with any of these
+frameworks.
+
+\paragraph{Bispectral approaches in neural networks.}
+\citet{sanborn2023bispectral} introduced bispectral neural networks (BNNs),
+using the full $G$-bispectrum as an invariant nonlinearity for $C_n$ and $D_n$.
+\citet{oreiller2022bispectral} applied bispectral CNNs to medical imaging
+with a fixed set of hand-selected triples. Both use the full (quadratic-cost)
+bispectrum and provide implementations tied to specific architectures.
+Our library generalizes to seven group/domain pairs, defaults to the
+$O(|G|)$ selective reduction~\citep{mataigne2024selective}, and exposes
+a framework-agnostic API.
+\citet{chevalley2024bispectral} explore bispectral signatures for data
+characterisation, using bispectra as descriptors rather than learnable
+pooling primitives.
+Outside the equivariant-network setting,
+\texttt{PyBispectra}~\citep{binns2025pybispectra} computes bispectrum
+and bicoherence statistics of one-dimensional time-series signals for
+electrophysiology applications such as phase-amplitude coupling and
+time-delay estimation; the underlying 1D bispectrum is translation-invariant
+by construction, but the toolbox is not designed as a neural-network
+pooling layer.
+
+\paragraph{Bispectra on homogeneous and non-homogeneous spaces.}
+The selective $G$-bispectrum
+construction~\citep{mataigne2024selective} reduces the cost of the
+$G$-bispectrum from $O(|G|^2)$ to $O(|G|)$ scalars on finite groups.
+\citet{myers2025selective} extend the selective construction to the
+disk, where $\SO(2)$ acts on a non-homogeneous space.
+\citet{kakarala2012bispectrum} treats the $\SO(3)$-on-$\SO(3)$
+bispectrum and the closely related sphere case via Wigner-$D$ irreps.
+The matrix (vector) bispectrum on $S^2$ is the homogeneous-space form
+on which our scalar contractions and CG power augmentation are built.
+
+\paragraph{CG product nonlinearities and tensor products.}
+Tensor field networks~\citep{thomas2018tensor} and
+MACE~\citep{batatia2022mace} use iterated Clebsch--Gordan products
+to build equivariant interactions. These products are exact and complete
+in principle, but each layer incurs $O(L^3)$ cost per CG contraction.
+\citet{xie2025price} analyse the \emph{price of freedom} in tensor
+product architectures, showing that maintaining full expressivity through
+CG products becomes expensive at high angular momenta.
+The augmented selective bispectrum achieves completeness in a single $O(L^2)$
+pass (for $\SO(3)$) or $O(|G|)$ pass (for finite groups), avoiding
+iterated contractions.
+
+\paragraph{Invariant theory and scattering.}
+The wavelet scattering transform~\citep{mallat2012scattering} provides
+translation-invariant representations via iterated modulus operations;
+\citet{esteves2018spherical} extend this to the sphere. Unlike the
+$G$-bispectrum, scattering representations are stable but generally
+incomplete---they discard inter-scale phase information.
+The $G$-bispectrum's completeness
+guarantee~\citep{giannakis1989bispectrum, kakarala2012bispectrum} is
+its distinguishing theoretical advantage.
+
 \section{The \texttt{bispectrum} Library}
 \label{sec:library}
 
@@ -425,7 +494,7 @@ The test suite covers 96.8\% of lines across all modules.
     \toprule
     Module & Group / Domain & Output mode & Reference \\
     \midrule
-    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full & \citep{mataigne2024selective} \\
+    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full & \citep{sanborn2023bispectral} \\
     \texttt{SO2onS1} & $\SO(2)$ on $S^1$ & selective + full & \citep{mataigne2024selective} \\
     \texttt{TorusOnTorus} & product cyclic groups on torus & selective + full & \citep{mataigne2024selective} \\
     \texttt{DnonDn} & $D_n$ on $D_n$ & selective & \citep{mataigne2024selective} \\
@@ -940,77 +1009,6 @@ with learned equivariant convolutions. Our single-pass bispectrum
 (95.0\%/94.9\%/95.1\%) is 1--2pp lower but has a tighter invariance gap
 (0.1pp vs.\ 2.0pp).
 
-
-\section{Related Work}
-\label{sec:related}
-
-\paragraph{Equivariant network libraries.}
-\texttt{escnn}~\citep{cesa2022program} and \texttt{e3nn}~\citep{geiger2022e3nn}
-provide general-purpose equivariant convolution layers for 2D and 3D
-groups respectively, and \texttt{lie-nn}~\citep{batatia2023general}
-provides general Lie-group representation primitives (irreducible
-representations, Clebsch--Gordan decompositions, tensor products) on
-top of which custom equivariant layers can be built.  These libraries
-implement equivariant \emph{feature maps} but leave the choice of
-invariant pooling to the user (typically norm or gate). Our library is
-complementary: it provides the invariant map as a drop-in
-\texttt{nn.Module} that plugs into architectures built with any of these
-frameworks.
-
-\paragraph{Bispectral approaches in neural networks.}
-\citet{sanborn2023bispectral} introduced bispectral neural networks (BNNs),
-using the full $G$-bispectrum as an invariant nonlinearity for $C_n$ and $D_n$.
-\citet{oreiller2022bispectral} applied bispectral CNNs to medical imaging
-with a fixed set of hand-selected triples. Both use the full (quadratic-cost)
-bispectrum and provide implementations tied to specific architectures.
-Our library generalizes to seven group/domain pairs, defaults to the
-$O(|G|)$ selective reduction~\citep{mataigne2024selective}, and exposes
-a framework-agnostic API.
-\citet{chevalley2024bispectral} explore bispectral signatures for data
-characterisation, using bispectra as descriptors rather than learnable
-pooling primitives.
-Outside the equivariant-network setting,
-\texttt{PyBispectra}~\citep{binns2025pybispectra} computes bispectrum
-and bicoherence statistics of one-dimensional time-series signals for
-electrophysiology applications such as phase-amplitude coupling and
-time-delay estimation; the underlying 1D bispectrum is translation-invariant
-by construction, but the toolbox is not designed as a neural-network
-pooling layer.
-
-\paragraph{Bispectra on homogeneous and non-homogeneous spaces.}
-The selective $G$-bispectrum
-construction~\citep{mataigne2024selective} reduces the cost of the
-$G$-bispectrum from $O(|G|^2)$ to $O(|G|)$ scalars on finite groups.
-\citet{myers2025selective} extend the selective construction to the
-disk, where $\SO(2)$ acts on a non-homogeneous space.
-\citet{kakarala2012bispectrum} treats the $\SO(3)$-on-$\SO(3)$
-bispectrum and the closely related sphere case via Wigner-$D$ irreps.
-The matrix (vector) bispectrum on $S^2$ is the homogeneous-space form
-on which our scalar contractions and CG power augmentation are built.
-\todobox{Add the canonical vector-bispectrum-on-$S^2$ reference here
-once confirmed at the meeting (\#42, \#35/\#36/\#49 cluster).}
-
-\paragraph{CG product nonlinearities and tensor products.}
-Tensor field networks~\citep{thomas2018tensor} and
-MACE~\citep{batatia2022mace} use iterated Clebsch--Gordan products
-to build equivariant interactions. These products are exact and complete
-in principle, but each layer incurs $O(L^3)$ cost per CG contraction.
-\citet{xie2025price} analyse the \emph{price of freedom} in tensor
-product architectures, showing that maintaining full expressivity through
-CG products becomes expensive at high angular momenta.
-The augmented selective bispectrum achieves completeness in a single $O(L^2)$
-pass (for $\SO(3)$) or $O(|G|)$ pass (for finite groups), avoiding
-iterated contractions.
-
-\paragraph{Invariant theory and scattering.}
-The wavelet scattering transform~\citep{mallat2012scattering} provides
-translation-invariant representations via iterated modulus operations;
-\citet{esteves2018spherical} extend this to the sphere. Unlike the
-$G$-bispectrum, scattering representations are stable but generally
-incomplete---they discard inter-scale phase information.
-The $G$-bispectrum's completeness
-guarantee~\citep{giannakis1989bispectrum, kakarala2012bispectrum} is
-its distinguishing theoretical advantage.
 
 \section{Discussion and Conclusion}
 \label{sec:discussion}
