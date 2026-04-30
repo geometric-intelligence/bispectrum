@@ -44,22 +44,30 @@ Default settings (`lmax=12`, `n_steps=8000`, `n_recon_restarts=4`,
 For a faster sanity check use `--n_digits 3 --n_recon_restarts 1
 --n_steps 3000 --align_n_restarts 4`.
 
-To regenerate **only the compact 2x2 paper figure** (~5 min), skip the
-comprehensive sweep:
+To regenerate **only the compact paper figure** (`2 x len(--paper_digits)`,
+full-width on a NeurIPS column), skip the comprehensive sweep:
 
 ```bash
-python reconstruct.py --paper_only --paper_digits 0 1
+python reconstruct.py --paper_only --paper_digits 0 1 2 3 4 5
+```
+
+This caches all the recon tensors to `figures/state.pt`. Iterate on the
+figure layout *without* re-running the optimization:
+
+```bash
+python reconstruct.py --paper_only --paper_digits 0 1 2 3 4 5 --replot
 ```
 
 Outputs land in `figures/`:
 
-| File                            | Description                                                          |
-|---------------------------------|----------------------------------------------------------------------|
-| `orbits.{pdf,png}`              | `(n_digits x 3(1+K))` grid: target / raw recon / aligned recon spheres |
-| `paper_orbits.{pdf,png}`        | Compact `(len(--paper_digits) x 2)` figure for the NeurIPS paper     |
-| `convergence.{pdf,png}`         | Median + IQR of relative bispectrum residual vs. step                |
-| `invariance_vs_recon.{pdf,png}` | Per-pair scatter of invariance vs. recon residual                    |
-| `results.json`                  | All scalar metrics + per-step traces                                 |
+| File                            | Description                                                                          |
+|---------------------------------|--------------------------------------------------------------------------------------|
+| `orbits.{pdf,png}`              | `(n_digits x 3(1+K))` grid: target / raw recon / aligned recon spheres               |
+| `paper_orbits.{pdf,png}`        | Compact `(2 rows x len(--paper_digits) cols)` figure for the NeurIPS paper           |
+| `state.pt`                      | Cached `ReconResult` tensors for fast `--replot` iteration                           |
+| `convergence.{pdf,png}`         | Median + IQR of relative bispectrum residual vs. step                                |
+| `invariance_vs_recon.{pdf,png}` | Per-pair scatter of invariance vs. recon residual                                    |
+| `results.json`                  | All scalar metrics + per-step traces                                                 |
 
 ## Key CLI arguments
 
@@ -79,9 +87,10 @@ Outputs land in `figures/`:
 | `--view_size`              | `128`   | Orthographic view resolution                                            |
 | `--elev_deg / --azim_deg`  | `25/30` | Fallback / fixed-view camera direction (degrees)                        |
 | `--fixed_view`             | off     | Disable per-panel auto-centering on the signal centroid (use a single shared camera direction instead) |
-| `--paper_digits`           | `0 1`   | `digit_idx` values to use for the compact `paper_orbits.pdf` figure    |
+| `--paper_digits`           | `0 1 2 3 4 5` | `digit_idx` values to use as columns of the compact `paper_orbits.pdf` figure |
 | `--paper_figure_path`      | auto    | Override output path; defaults to `<output_dir>/paper_orbits.pdf`       |
 | `--paper_only`             | off     | Run only the digits in `--paper_digits` and emit only the paper figure (fast regeneration path) |
+| `--replot`                 | off     | Skip recon + alignment, rebuild figures from `<output_dir>/state.pt` (~3 s) |
 | `--full_bispectrum`        | off     | `O(L^3)` full bispectrum instead of selective `O(L^2)`                  |
 | `--no_bandlimit_project`   | off     | Disable the per-step `IRealSHT(RealSHT(.))` projection                  |
 | `--seed`                   | `0`     | Controls digit selection, rotations, Gaussian init, and alignment seeds |
