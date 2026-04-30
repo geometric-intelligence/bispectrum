@@ -960,46 +960,46 @@ below, and leave a closed-form proof for future work.
 
 To test whether $\beta_{\mathrm{sel}}$ retains enough information to
 recover signals up to rotation, we run a direct inversion experiment.
-For each of $8$ source signals $f:S^2\to\R$ band-limited at
-$L=15$, we form three rotated copies $f_k = R_k\cdot f$
-($k\in\{0,1,2\}$) under random $R_k\in\SO(3)$, compute
-$\beta_{\mathrm{sel}}(f_k)$, and reconstruct each $f_k$ by gradient
-descent on the spherical-harmonic coefficients
-$\hat a^m_\ell$, minimising
-$\lVert \beta_{\mathrm{sel}}(\hat f_k) -
-\beta_{\mathrm{sel}}(f_k)\rVert^2$ from a random initialisation.
-After convergence, $\hat f_k$ is aligned to $f_k$ by the optimal
-$R\in\SO(3)$ (degree-1 alignment + Wigner-$D$ refinement).
+We take two band-limited signals $f:S^2\to\R$ at $L=15$ (one from
+each of the first two Spherical~MNIST classes), compute
+$\beta_{\mathrm{sel}}(f)$, and reconstruct $f$ by gradient descent on
+the spherical-harmonic coefficients $\hat a_\ell^m$, minimising
+$\lVert \beta_{\mathrm{sel}}(\hat f) - \beta_{\mathrm{sel}}(f)
+\rVert^2$ from a random initialisation. After convergence, $\hat f$
+is aligned to $f$ by the optimal $\hat R\in\SO(3)$ (degree-1
+alignment plus Wigner-$D$ refinement).
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{figures/so3_reconstruction.png}
+  \includegraphics[width=0.55\linewidth]{figures/so3_reconstruction.pdf}
   \caption{$\SO(3)$ bispectrum reconstruction (proof of concept).
-    For each of $8$ source signals (rows), three rotations
-    $f_k = R_k\cdot f$ ($k\in\{0,1,2\}$) of the same target are
-    inverted by gradient descent from $\beta_{\mathrm{sel}}(f_k)$ at
-    band-limit $L=15$. Each triplet shows: target $f_k$ (left),
-    reconstruction $\hat f_k$ (middle, with $\beta$-residual), and
-    $\hat f_k$ aligned to $f_k$ by the optimal $R\in\SO(3)$ (right,
-    with image-residual). All spheres are auto-centred on the
-    signal's positive-mass centroid; aligned and target panels share
-    the same view because they are the same signal.}
+    For each of two source signals (rows: Spherical~MNIST class~$0$
+    and class~$1$, $L=15$), the column \emph{Target $f$} shows the
+    original band-limited signal and the column
+    \emph{Recon $\hat R \cdot \hat f$} shows the gradient-descent
+    reconstruction $\hat f$ (recovered from $\beta_{\mathrm{sel}}(f)$
+    only) after alignment to $f$ by the optimal $\hat R\in\SO(3)$.
+    The relative image residual
+    $\lVert \hat R\cdot \hat f - f\rVert / \lVert f\rVert$ is shown
+    beneath each row.}
   \label{fig:so3-reconstruction}
 \end{figure}
 
 \paragraph{Takeaways.}
-Bispectrum residuals reach
-$\lVert\Delta\beta\rVert/\lVert\beta\rVert\sim 10^{-4}$--$10^{-3}$
-(machine-precision relative error), and the aligned image residuals
-$\lVert R\cdot\hat f_k - f_k\rVert/\lVert f_k\rVert\sim
-10^{-1}$--$5\cdot 10^{-1}$ are dominated by residual local optima of
-the gradient-descent solver, not by missing invariant information --
-the recovered $\hat f_k$ visually matches $f_k$ up to rotation across
-all $8\times 3 = 24$ test cases (Figure~\ref{fig:so3-reconstruction}).
-We read this as proof-of-concept evidence that the selective
-coefficients carry enough information to recover band-limited signals
-up to $\SO(3)$; a formal proof of completeness for $\beta_{\mathrm{sel}}$
-remains an open question.
+On both signals the bispectrum residual reaches
+$\lVert\Delta\beta\rVert/\lVert\beta\rVert\sim 10^{-3}$ at
+convergence, and the aligned image residual
+$\lVert \hat R\cdot\hat f - f\rVert / \lVert f\rVert$ is $0.23$
+(class~$0$) and $0.11$ (class~$1$); the recovered $\hat f$ visually
+matches $f$ up to rotation in both cases
+(Figure~\ref{fig:so3-reconstruction}). Residual image error is
+dominated by gradient-descent local optima rather than by missing
+invariant information: each reconstruction is initialised from a
+single random point and run with no restarts. We read this as
+proof-of-concept evidence that the selective coefficients carry
+enough information to recover band-limited signals up to $\SO(3)$; a
+formal proof of completeness for $\beta_{\mathrm{sel}}$ remains an
+open question.
 
 
 \section{Discussion and Conclusion}
