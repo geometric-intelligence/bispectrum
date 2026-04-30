@@ -42,18 +42,19 @@ def _cg_matrix_dense(l1: int, l2: int, l: int) -> np.ndarray:
 
 
 def _witness_coefficients_np(lmax: int) -> dict[int, np.ndarray]:
-    """Deterministic witness using a fixed RNG seed for reproducibility.
+    """Deterministic real-signal witness using a fixed RNG seed.
 
-    Uses np.random with seed 42 to generate generic coefficients with unit-scale entries, then
-    enforces the real-signal constraint.
+    Uses np.random with seed 42 to generate generic coefficients with
+    unit-scale entries, then enforces the real-signal constraint
+    a_l^{-m} = (-1)^m conj(a_l^m). The m=0 entry must be real.
     """
     rng = np.random.RandomState(42)
     coeffs: dict[int, np.ndarray] = {}
     for j in range(lmax + 1):
         c = np.zeros(2 * j + 1, dtype=np.complex128)
-        for m in range(0, j + 1):
-            c[m + j] = complex(rng.randn(), rng.randn())
+        c[j] = float(rng.randn())
         for m in range(1, j + 1):
+            c[m + j] = complex(rng.randn(), rng.randn())
             c[-m + j] = ((-1) ** m) * c[m + j].conjugate()
         coeffs[j] = c
     return coeffs

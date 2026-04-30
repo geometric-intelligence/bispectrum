@@ -92,10 +92,15 @@ def _expected_linear_block(ell: int) -> list[tuple[int, int, int]]:
     block: list[tuple[int, int, int]] = []
     for a in range(1, ell):
         block.append((a, ell, ell - a))
+    skip_a = (ell + 1) // 2 if ell % 2 == 1 else None
     for a in range(2, ell):
+        if a == skip_a:
+            continue
         block.append((a, ell, ell - a + 1))
     for a in range(1, 5):
         block.append((a, ell - a, ell))
+    if ell % 2 == 1:
+        block.append((2, ell - 1, ell))
     return block
 
 
