@@ -45,18 +45,6 @@
 \newcommand{\conj}[1]{\overline{#1}}
 \newcommand{\ip}[2]{\langle #1,\, #2 \rangle}
 
-% Reviewer-facing TODO blocks: render in red so they are impossible to
-% miss in the rendered PDF. Search for "\todobox" before camera-ready
-% submission to remove all reviewer-facing TODOs.
-\newcommand{\todobox}[1]{%
-  \par\smallskip\noindent
-  \fcolorbox{red!70!black}{red!8}{%
-    \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{%
-      \color{red!70!black}\textbf{TODO:}\ #1%
-    }%
-  }\par\smallskip
-}
-
 \theoremstyle{definition}
 \newtheorem{assumption}[theorem]{Assumption}
 
@@ -364,10 +352,6 @@ $(C_{ij}^k)^\dagger (\hat f(\rho_i) \otimes \hat f(\rho_j))$ before
 pairing it with $\hat f(\rho_k)$. The two are related by a single
 trace/inner-product step; the scalar form is what the library outputs
 and what we analyse for $\SO(3)$ on $S^2$.
-\todobox{Add canonical citation for the ``vector bispectrum on the
-sphere'' Adele wants here (\#35/\#36/\#49). Candidates: Kakarala \&
-Mao~2010, Kondor~2007/2010, or Adele's own paper. Confirm at the
-meeting.}
 
 \emph{Selective bispectra.} \citet{mataigne2024selective} show that for
 finite groups, a breadth-first search (BFS) over the Kronecker product
@@ -685,9 +669,6 @@ We profile the library on a single NVIDIA H100 80\,GB GPU
 median wall-clock via \texttt{torch.utils.benchmark}); results are in
 Table~\ref{tab:benchmarks} and Figure~\ref{fig:coeff-scaling}.
 
-\todobox{Regenerate \texttt{experiments/benchmarks/paper\_fig1.pdf}
-  to also include $D_n$-full and disk-full curves once those backends
-  are implemented (currently missing in Figure~\ref{fig:coeff-scaling}).}
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{experiments/benchmarks/paper_fig1.pdf}
@@ -701,9 +682,6 @@ Table~\ref{tab:benchmarks} and Figure~\ref{fig:coeff-scaling}.
   \label{fig:coeff-scaling}
 \end{figure}
 
-\todobox{Consider spelling out abbreviated column headers in the table
-  itself (Coefs $\to$ Coefficients, Fwd $\to$ Forward (ms), Inv $\to$
-  Inversion (ms), Sel.\ $\to$ Selective, Full $\to$ Full bispectrum).}
 \begin{table}[t]
   \centering
   \caption{Library profiling summary. Timings are median wall-clock on a
@@ -782,11 +760,6 @@ Appendix~\ref{app:pcam-details}.
 Table~\ref{tab:pcam-results} and Figure~\ref{fig:pcam-pareto} present the
 results at matched ${\sim}$100K parameters.
 
-\todobox{Regenerate \texttt{experiments/pcam/pareto\_analysis.pdf}
-  with body-text-matched fonts, add an ``Ours'' annotation to the
-  bispectrum bar/curve, and rename panel~(c) to ``AUC vs.\ data
-  fraction (${\sim}100$K params)'' so its title pattern matches
-  panel~(a).}
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{experiments/pcam/pareto_analysis.pdf}
@@ -888,13 +861,6 @@ Appendix~\ref{app:organ3d-details}), max pool overtakes the bispectrum,
 suggesting the completeness advantage is specific to the data-limited
 regime.
 
-\todobox{Regenerate
-  \texttt{experiments/organ3d/data\_efficiency.pdf} to mirror Figure~2
-  (PCam): add a panel~(a) ``ACC vs.\ params'' and a panel~(b)
-  ``Ranking at matched ${\sim}100$K params''; draw a chance line at
-  $1/11 \approx 9.1\%$; and either include the norm-pool curve
-  (currently missing) or drop the ``norm pool'' mention from the prose
-  to match the figure.}
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.75\linewidth]{experiments/organ3d/data_efficiency.pdf}
@@ -1539,11 +1505,6 @@ $\SO(2)_z$ stabiliser leaves a one-parameter family of equivalent
 solutions, and any further $C_n \subset \SO(2)_z$ subgroup symmetry
 would discretise this family to $n$ representatives.
 \end{proof}
-
-\todobox{Simon's \#52 (``unique in $[0, 2\pi/n)$, otherwise $n$
-solutions'') may target a different step (for instance the $\mathbf{F}_3$
-azimuthal recovery in Lemma~\ref{lem:app-ell3}). Confirm exact location
-at the meeting and propagate the same qualifier there if needed.}
 
 \begin{remark}[Gauge-fixed parameterisation]\label{rem:app-gauge-param}
 On the gauge slice, the real parameters are:
@@ -2293,14 +2254,6 @@ Since the residual for each spurious seed is a polynomial
 function of the signal's coefficients that is nonzero at the witness,
 its vanishing locus is a proper algebraic subvariety.
 \end{proof}
-
-\todobox{Simon agrees with the conclusion of
-Lemma~\ref{lem:app-degree4-filter} but is not certain of the proof
-argument (\#54). Discuss in tomorrow's meeting; possibly tighten the
-multi-start NLS argument with an explicit separation threshold and
-formalize the residual-gap statement (currently
-$\norm{r}_{\text{true}} \sim 10^{-16}$ vs.\ $\norm{r}_{\text{spurious}} \ge 10^{-2}$
-at the rational witness).}
 
 \begin{lemma}[The $T_R$ branch is overdetermined-inconsistent]
 \label{lem:app-TR-resolve}
