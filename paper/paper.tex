@@ -106,7 +106,7 @@ bound $(L{+}1)^2 - 3$ instead of the $O(L^3)$ of the full bispectrum.
 We give a Kakarala-style conditional completeness theorem reducing
 the question to two cleanly named hypotheses (finite-band seed
 injectivity and uniform bootstrap-determinant nonvanishing), both
-supported by per-degree numerical certificates up to $\ell = 100$.
+supported by per-degree numerical witnesses up to $\ell = 100$.
 We benchmark the library on three datasets across three group/domain
 pairs --- PCam under $C_8$, OrganMNIST3D under the octahedral group,
 and Spherical~MNIST under $\SO(3)$ --- comparing against norm pooling,
@@ -196,8 +196,9 @@ $\Theta(L^2)$ coefficients (Section~\ref{sec:so3-selective}).
     motivated by~\citet{kakarala1992triple, kakarala2012bispectrum}
     and~\citet{bandeira2017estimation}) and uniform
     bootstrap-determinant nonvanishing (H2) --- both supported by
-    per-degree numerical certificates at a deterministic witness for
-    every $\ell \le 100$; the verification script is uniform in $L$
+    per-degree numerical witnesses at a deterministic seed-42
+    real-signal point for every $\ell \le 100$; the verification
+    script is uniform in $L$
     and extends to larger band-limits without changes to the
     structural argument (Section~\ref{sec:so3-selective},
     Appendix~\ref{app:so3-proof}).
@@ -691,12 +692,23 @@ benchmark for rotation invariance on $S^2$.
 MNIST digits are projected onto the sphere via stereographic projection and
 sampled on a $64 \times 128$ equiangular grid. We compute the selective
 bispectrum at $\ell_{\max} = 15$, producing 384 complex invariant
-coefficients (768 real features after taking log-magnitude), which are fed to a
-3-layer MLP (232K parameters total).  The conditional completeness
-theorem (Appendix~\ref{app:so3-proof}) is supported by per-degree
-numerical certificates for every $\ell \le 100$, so
-$\ell_{\max} = 15$ is well within the verified range. Three baselines
-provide controls:
+coefficients. To form the network input we apply a sign-preserving
+$\operatorname{sign}(x)\log(1+|x|)$ transform separately to the real
+and imaginary parts of each coefficient, yielding 768 real features.
+By Lemma~\ref{lem:app-parity} exactly one of the two log1p features
+per coefficient is structurally zero on real signals (real for even
+parity, imaginary for odd parity), so the effective feature count is
+$\approx 384$ reals; we keep both channels because (i) the transform
+is sign-preserving and per-channel injective, so the sign of
+$\im(\beta_{2,3,4})$ that resolves the $T_R$ ambiguity
+(Cor.~\ref{cor:app-first-odd}) is preserved, and (ii) the $\log1p$
+non-linearity is part of the empirical model and is not used in the
+formal completeness theorem (Theorem~\ref{thm:so3-selective}). The
+features are fed to a 3-layer MLP (232K parameters total). The
+conditional completeness theorem
+(Appendix~\ref{app:so3-proof}) is supported by per-degree numerical
+witnesses for every $\ell \le 100$, so $\ell_{\max} = 15$ is well
+within the verified range. Three baselines provide controls:
 \begin{itemize}
   \item \textbf{Power Spectrum + MLP} (11K params): computes only the
     rotation-invariant power spectrum $\|f_\ell\|^2$ per degree $\ell$,
@@ -824,7 +836,7 @@ $\sim 3L$ scalars and cannot achieve this bound.
 
 \subsection{Selective construction and algorithm}
 
-Let $L_{\mathrm{seed}} := \min(L, 7)$. The \emph{seed index set}
+Let $L_{\mathrm{seed}} := \min(L, 4)$. The \emph{seed index set}
 collects all admissible bispectral triples up to $L_{\mathrm{seed}}$,
 \[
   \mathcal{S}_{\mathrm{seed}} :=
@@ -833,21 +845,28 @@ collects all admissible bispectral triples up to $L_{\mathrm{seed}}$,
       \abs{\ell_1{-}\ell_2}\le \ell
         \le \min(\ell_1{+}\ell_2, L_{\mathrm{seed}})\},
 \]
-of constant size $\le 512$ once $L\ge 7$. For each high-degree
-target $\ell\ge 8$, we use the size-$(2\ell{+}1)$ \emph{bootstrap
-block} $\mathcal{T}_\ell$ of eq.~\eqref{eq:app-Tell}
-(Definition~\ref{def:app-selective}), comprising the entries linear
-in $\mathbf{F}_\ell$ with coefficients depending only on
-already-recovered lower degrees. The \emph{selective $\SO(3)$
+of constant size $\le 50$ once $L\ge 4$, matching the implementation
+seed (Algorithm~\ref{alg:so3-augmented}). For each high-degree
+target $\ell\ge 5$, we use a size-$(2\ell{+}1)$ \emph{bootstrap
+block} $\mathcal{T}_\ell$, which for $\ell\ge 8$ is the closed-form
+family of eq.~\eqref{eq:app-Tell}
+(Definition~\ref{def:app-selective}) and for $5\le\ell\le 7$ is the
+explicit small block $\mathcal{T}_\ell^{\mathrm{small}}$ tabulated
+in Algorithm~\ref{alg:so3-augmented}. Both versions consist of
+entries linear in $\mathbf{F}_\ell$ with coefficients depending only
+on already-recovered lower degrees. The \emph{selective $\SO(3)$
 bispectrum on $S^2$} is then the concatenation
 \begin{equation}\label{eq:s6-betasel}
   \beta_{\mathrm{sel}}(f) := \bigl\{\beta_{\ell_1,\ell_2,\ell}\bigr\}_{
     (\ell_1,\ell_2,\ell)\in
       \mathcal{S}_\beta},\qquad
   \mathcal{S}_\beta := \mathcal{S}_{\mathrm{seed}}\,\cup\,
-    \bigcup_{\ell=8}^{L} \mathcal{T}_\ell,
+    \bigcup_{\ell=5}^{L} \mathcal{T}_\ell.
 \end{equation}
-storing each entry's full complex value (real and imaginary parts).
+By Lemma~\ref{lem:app-parity}, each scalar entry contributes
+exactly one real degree of freedom on the real-signal slice (real
+for even parity, purely imaginary for odd parity); we record that
+single real number per entry.
 Algorithm~\ref{alg:selective-bsp-so3} writes this as a Mataigne-style
 BFS over selected triples; the implementation-grade index set
 (Algorithm~\ref{alg:so3-augmented} in Appendix~\ref{app:so3-proof})
@@ -862,13 +881,15 @@ superset of $\beta_{\mathrm{sel}}$.
 \small
 \begin{algorithmic}[1]
 \STATE \textbf{Input:} band-limit $L$,
-  seed cutoff $L_{\mathrm{seed}} = \min(L,7)$
+  seed cutoff $L_{\mathrm{seed}} = \min(L,4)$
 \STATE $\mathcal{L}_\beta \leftarrow$ all admissible triples
   $(\ell_1,\ell_2,\ell)$ with $\ell\le L_{\mathrm{seed}}$
   \COMMENT{seed block $\mathcal{S}_{\mathrm{seed}}$}
 \FOR{$\ell = L_{\mathrm{seed}}{+}1, \dotsc, L$}
   \STATE append the bootstrap block $\mathcal{T}_\ell$ to $\mathcal{L}_\beta$
-    \COMMENT{$2\ell{+}1$ entries linear in $\mathbf{F}_\ell$}
+    \COMMENT{$2\ell{+}1$ entries linear in $\mathbf{F}_\ell$;
+      $\mathcal{T}_\ell^{\mathrm{small}}$ for $\ell\le 7$,
+      eq.~\eqref{eq:app-Tell} for $\ell\ge 8$}
 \ENDFOR
 \RETURN $\beta_{\mathrm{sel}}(f) = \{\beta_{\ell_1,\ell_2,\ell}(f) :
   (\ell_1,\ell_2,\ell)\in\mathcal{L}_\beta\}$
@@ -878,24 +899,74 @@ superset of $\beta_{\mathrm{sel}}$.
 \noindent
 The output size is
 $|\beta_{\mathrm{sel}}|
- = |\mathcal{S}_{\mathrm{seed}}| + \sum_{\ell=8}^{L}(2\ell{+}1)
+ = |\mathcal{S}_{\mathrm{seed}}| + \sum_{\ell=5}^{L}(2\ell{+}1)
  = \Theta(L^2)$,
 matching the orbit-space lower bound up to a constant
 (Proposition~\ref{prop:app-output-size}).
 
-\begin{remark}[CG power: optional implementation diagnostic]
-The library appends the optional CG power spectrum
+\begin{remark}[CG power: needed in implementation, optional in formal
+  statement]
+The library appends the CG power spectrum
 $P_{\ell_1,\ell_2,\ell} := \lVert(\mathbf{F}_{\ell_1}\otimes
 \mathbf{F}_{\ell_2})|_\ell\rVert^2$
-(Definition~\ref{def:app-cg-power}) at $O(L^2)$ extra cost; under the
-hypotheses below the CG-power augmentation is unnecessary for
-completeness, and we set $\mathcal{S}_P=\varnothing$ in the formal
-theorem. The implementation includes it because (i) it provides a
-per-degree numerical robustness diagnostic, and (ii) it costs
-$O(L^2)$ extra scalars without changing the asymptotic budget.
+(Definition~\ref{def:app-cg-power}) at $O(L^2)$ extra cost. In the
+formal theorem we set $\mathcal{S}_P=\varnothing$ for the
+\emph{stated} bispectral invariant $\beta_{\mathrm{sel}}$; the
+proof of completeness then routes through Hypothesis~H2, which is
+phrased over the augmented per-degree block (linear $\mathcal{T}_\ell$
+plus quadratic/cubic self-couplings plus CG-power scalars). H2 is
+needed precisely because the pure $\mathcal{T}_\ell$ submatrix is
+rank-deficient on the real-signal slice (see
+Remark~\ref{rem:app-Tell-rank-deficit}). The implementation includes
+the CG power scalars unconditionally for this reason and as a
+per-degree numerical robustness diagnostic.
 \end{remark}
 
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{6pt}
+\caption{Theorem--implementation consistency at $L=15$ and $L=16$.
+Formal $|\beta_{\mathrm{sel}}|$ counts one real component per scalar
+entry (Lemma~\ref{lem:app-parity}); the implementation
+\texttt{output\_size} from
+\texttt{\_build\_selective\_index\_map}~$\cup$
+\texttt{\_build\_cg\_power\_index\_map} is a strict superset, adding
+mandatory even self-couplings and CG-power scalars for numerical
+robustness; the Spherical MNIST feature vector applies a
+sign-preserving $\log 1p$ separately to the real and imaginary parts
+of each implementation scalar (Section~\ref{sec:so3-selective}).}
+\label{tab:counts-consistency}
+\begin{tabular}{lccc}
+\toprule
+$L$ & Formal $|\beta_{\mathrm{sel}}|$ & Impl.\ \texttt{output\_size}
+    & SMNIST features \\
+\midrule
+$15$ & $273$ & $384$ & $768$ \\
+$16$ & $306$ & $430$ & $860$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Conditional completeness theorem}
+
+\paragraph{Status of the theory.}
+What is \emph{proved unconditionally} in
+Appendix~\ref{app:so3-proof}: the gauge-fixing reduction
+(Lemma~\ref{lem:app-gauge}); the closed-form recovery of
+$\mathbf{F}_0,\mathbf{F}_1$ from $\beta_{0,0,0}$ and
+$\beta_{0,1,1}$ (Lemma~\ref{lem:app-F0F1}); the parity structure
+(Lemma~\ref{lem:app-parity},
+Cor.~\ref{cor:app-first-odd}, Prop.~\ref{prop:app-odd-vanishing});
+and the bootstrap row count $|\mathcal{T}_\ell| = 2\ell{+}1$
+(Prop.~\ref{prop:app-entry-counts}). What is \emph{assumed}: H1
+(finite seed injectivity at $L_{\mathrm{seed}}=4$ for the scalar
+bispectrum) and H2 (uniform per-degree augmented Jacobian
+nonvanishing for $\ell\ge 5$). What is \emph{numerical-witness only}:
+the H2 evidence at the deterministic seed-42 real-signal point for
+every $\ell\le 100$, plus the empirical sub-claims of the
+constructive seed solver of Appendix~\ref{app:constructive-solver}
+(degree-4 NLLS filter, $T_R$-branch inconsistency).
 
 Theorem~\ref{thm:so3-selective} reduces completeness of
 $\beta_{\mathrm{sel}}$ to two named hypotheses; both are stated
@@ -903,26 +974,37 @@ formally in Appendix~\ref{app:so3-proof}.
 \begin{description}[nosep,leftmargin=1.6em]
 \item[\textbf{H1} (finite seed injectivity,
   Hypothesis~\ref{lem:app-seed-kakarala}).]
-  The full scalar bispectrum at $L_{\mathrm{seed}}\le 7$ is injective
-  on a Zariski-open gauge-fixed stratum of
+  The full \emph{scalar} bispectrum at $L_{\mathrm{seed}}=4$ is
+  injective on a Zariski-open gauge-fixed stratum of
   $V_{L_{\mathrm{seed}}}$, with $T_R$ resolved by the odd-parity entry
-  $\im(\beta_{2,3,4})$. Structural support: Kakarala
-  Theorem~7~\citep{kakarala1992triple,kakarala2012bispectrum} for
-  $L^1(\SO(3))$, plus the exact-arithmetic Gr\"obner-basis
-  certificates of \citet{bandeira2017estimation} for $L_0\le 15$;
-  neither alone is a band-limited proof.
+  $\im(\beta_{2,3,4})$. Structural motivation: Kakarala's
+  Theorem~7~\citep{kakarala1992triple,kakarala2012bispectrum}
+  establishes injectivity for the \emph{matrix} bispectrum on
+  $L^1(\SO(3))$; H1 is the corresponding statement for the
+  CG-contracted scalar map and is therefore a hypothesis, not a
+  corollary of Theorem~7 (see
+  Paragraph~\ref{par:app-scalar-vs-matrix} for the precise gap).
+  Independent exact-arithmetic Gr\"obner-basis certificates of
+  \citet{bandeira2017estimation} verify the scalar statement at
+  $L_0\le 15$; no closed-form proof is known beyond their finite-degree
+  range.
 \item[\textbf{H2} (uniform bootstrap-determinant nonvanishing,
   Hypothesis~\ref{lem:app-bootstrap-rank}).]
-  For every $\ell\ge 8$, $\Delta_\ell := \det A_\ell$ is not
-  identically zero as a polynomial on the lower-degree real
-  coordinates, where $A_\ell\in\R^{(2\ell+1)\times(2\ell+1)}$ is the
-  bootstrap coefficient matrix assembled from $\mathcal{T}_\ell$ on
-  the real-signal slice.
+  For every $\ell\ge 5$, the per-degree linear map from
+  $\mathbf{F}_\ell$ to the augmented selective entries
+  (the bootstrap rows $\mathcal{T}_\ell$ together with the mandatory
+  even self-couplings and CG-power scalars at degree~$\ell$) is
+  injective on a Zariski-open subset of the real-signal lower-degree
+  space. The pure linear-bootstrap submatrix $A_\ell\in\R^{(2\ell+1)
+  \times(2\ell+1)}$ assembled from $\mathcal{T}_\ell$ alone is
+  rank-deficient on the real-signal slice; full per-degree rank is
+  obtained only after appending the additional augmenting entries
+  generated by Algorithm~\ref{alg:so3-augmented}.
 \end{description}
 
 \begin{theorem}[Conditional completeness of $\beta_{\mathrm{sel}}$]
 \label{thm:so3-selective}
-Let $L\ge 4$ and assume H1 and, if $L\ge 8$, H2. For
+Let $L\ge 4$ and assume H1 and, if $L\ge 5$, H2. For
 $f, f' : S^2 \to \R$ band-limited at degree~$L$ and lying outside a
 proper algebraic subvariety of $V_L$
 (Assumption~\ref{ass:app-generic}), if
@@ -939,29 +1021,41 @@ DOFs (Lemma~\ref{lem:app-gauge}). (ii)~\emph{Closed form for
 $\mathbf{F}_0,\mathbf{F}_1$}: $\beta_{0,0,0} = (a_0^0)^3$ pins $A_0$,
 then $\beta_{0,1,1} = A_0\norm{\mathbf{F}_1}^2$ pins
 $\mathbf{F}_1 = (0, c, 0)^\top$ (Lemma~\ref{lem:app-F0F1}).
-(iii)~\emph{Seed solve at $\ell\le L_{\mathrm{seed}}$}: under H1, the
-seed block $\mathcal{S}_{\mathrm{seed}}$ uniquely determines
-$(\mathbf{F}_2,\dots,\mathbf{F}_{L_{\mathrm{seed}}})$ on the gauge
-slice; the parity entry $\im(\beta_{2,3,4})$ separates $f$ from
-$T_R\cdot f$ (Corollary~\ref{cor:app-first-odd}; on the
-``up-to-reflection'' caveat of~\citet{edidin2024orbit} see
+(iii)~\emph{Seed solve at $\ell\le L_{\mathrm{seed}}=4$}: under H1,
+the seed block $\mathcal{S}_{\mathrm{seed}}$ uniquely determines
+$(\mathbf{F}_2,\mathbf{F}_3,\mathbf{F}_4)$ on the gauge slice; the
+parity entry $\im(\beta_{2,3,4})$ separates $f$ from $T_R\cdot f$
+(Corollary~\ref{cor:app-first-odd}; on the ``up-to-reflection''
+caveat of~\citet{edidin2024orbit} see
 Remark~\ref{rem:app-edidin-reflection}).
-(iv)~\emph{Linear bootstrap for $\ell\ge 8$}: under H2, the system
-$A_\ell\,\mathbf{F}_\ell = b_\ell$ is invertible on a Zariski-open
-set of lower-degree coordinates, and induction recovers
-$\mathbf{F}_8,\dots,\mathbf{F}_L$.
+(iv)~\emph{Augmented per-degree solve for $\ell\ge 5$}: under H2, the
+augmented per-degree block (bootstrap rows $\mathcal{T}_\ell$ plus
+the mandatory even self-couplings and CG-power scalars at
+degree~$\ell$) determines $\mathbf{F}_\ell$ from
+$\mathbf{F}_{<\ell}$ on a Zariski-open subset of the lower-degree
+real-signal coordinates, and induction recovers
+$\mathbf{F}_5,\dots,\mathbf{F}_L$.
 
 \subsection{Computational evidence and scope}
 
-Hypothesis~H2 is verified per degree at the deterministic seed-42
-witness in IEEE 754 double precision: for every
-$\ell\in\{8,\dots,100\}$, the singular-value ratio
-$\sigma_{\min}(A_\ell)/\sigma_{\max}(A_\ell)$ exceeds $10^{-4}$ — a
-margin of more than $10^{11}$ above double-precision rounding error.
+Hypothesis~H2 is checked numerically per degree at the
+deterministic seed-42 real-signal witness in IEEE 754 double
+precision: for every $\ell\in\{5,\dots,100\}$, the smallest singular
+value of the augmented per-degree block (bootstrap rows
+$\mathcal{T}_\ell$ together with the mandatory even self-couplings
+and CG-power scalars at degree~$\ell$) is well above the SVD
+numerical noise floor, with relative ratio
+$\sigma_{\min}/\sigma_{\max}\ge 10^{-4}$. The pure linear-bootstrap
+submatrix $A_\ell$ alone is rank-deficient on the real-signal
+slice; the augmenting entries are essential for the per-degree solve.
 Scripts: \texttt{paper/exact\_certificates.py} and
-\texttt{benchmarks/verify\_linear\_bootstrap.py}. The structural form
-of $\mathcal{T}_\ell$ is uniform in $\ell\ge 8$, so extending the
-verified range beyond $L=100$ requires only re-running the script
+\texttt{benchmarks/verify\_linear\_bootstrap.py}. This is a numerical
+\emph{witness} at one rational floating-point point per degree, not
+a closed-form proof of H2 (interval arithmetic, an exact rational
+witness, or a closed-form Wigner-3j identity would upgrade H2 to
+unconditional). The structural form of $\mathcal{T}_\ell$ is uniform
+in $\ell\ge 8$, so extending the verified range beyond $L=100$
+requires only re-running the script
 with a larger upper bound. Hypothesis~H1 is supported by Kakarala
 Theorem~7~\citep{kakarala2012bispectrum,kakarala1992triple} as
 structural motivation and by the exact-arithmetic certificates of
@@ -985,11 +1079,15 @@ $\Theta(L^2)$ coefficient count
 (Theorem~\ref{thm:so3-selective}). Table~\ref{tab:benchmarks} confirms that the
 selective forward pass adds negligible overhead to training pipelines
 ($<$1\,ms for all finite-group modules on a single GPU). Across three
-experimental settings, bispectral pooling provides numerically exact rotation
-invariance and a data-efficiency advantage over incomplete alternatives in
-the low-data / moderate-capacity regime, where the complete invariant map
-provides a stronger inductive bias that partially compensates for
-limited training data.
+experimental settings, bispectral pooling provides numerically exact
+rotation invariance (note that other pooling strategies, such as norm
+or max pooling, also yield exact invariance; the bispectrum's
+distinguishing property is conditional completeness, not invariance
+per se) and a data-efficiency advantage over incomplete alternatives
+in the low-data / moderate-capacity regime, where the conditionally
+complete invariant map (Theorem~\ref{thm:so3-selective} under
+Hypotheses~H1 and H2) provides a stronger inductive bias that
+partially compensates for limited training data.
 
 \paragraph{When not to use the bispectrum.}
 The data-efficiency advantage of complete invariants is most pronounced
@@ -1018,17 +1116,20 @@ Inversion for $\SO(3)$ on $S^2$ is not yet implemented; only the
 selective forward map is available. The selective $\SO(3)$
 completeness statement is \emph{conditional}: it depends on
 Hypothesis~H1 (finite-band seed injectivity, motivated by Kakarala
-Theorem~7~\citep{kakarala1992triple,kakarala2012bispectrum} and the
-Gr\"obner-basis evidence of~\citet{bandeira2017estimation} for
-$L_0\le 15$) and Hypothesis~H2 (uniform bootstrap-determinant
-nonvanishing). H2 is supported per $\ell$ at the deterministic
-seed-42 witness with
-$\sigma_{\min}/\sigma_{\max}\ge 10^{-4}$ in double precision (margin
-${>}10^{11}$ above rounding error) for every $\ell\le 100$; the
-constant-size seed Jacobian rank
+Theorem~7~\citep{kakarala1992triple,kakarala2012bispectrum} for the
+matrix bispectrum and the exact-arithmetic Gr\"obner-basis
+certificates of~\citet{bandeira2017estimation} for $L_0\le 15$) and
+Hypothesis~H2 (uniform per-degree augmented Jacobian nonvanishing).
+H2 is supported per $\ell$ by a numerical witness at the
+deterministic seed-42 real-signal point: the smallest singular value
+of the augmented per-degree Jacobian satisfies
+$\sigma_{\min}/\sigma_{\max}\ge 10^{-4}$ in double precision for
+every $\ell\le 100$, well above the SVD numerical noise floor (this
+is consistent with non-degeneracy at the witness, but is not a
+closed-form proof). The constant-size seed Jacobian rank
 (Lemma~\ref{lem:app-ell3}) is verified in exact rational arithmetic
 via \texttt{sympy}. Upgrading H2 to an unconditional theorem
-requires interval arithmetic, exact rational determinants per~$\ell$,
+requires interval arithmetic, exact rational Jacobian rank per~$\ell$,
 or a closed-form Wigner-3j non-vanishing identity; a full
 characterisation of the degenerate set is open.
 Our experimental comparisons do not include tensor-product
@@ -1220,15 +1321,22 @@ $\mathbf{F}_\ell \mapsto D^\ell(g)\mathbf{F}_\ell$.
 \subsection{Why $\mathcal{O}(L)$ is impossible}
 
 \begin{proposition}[Dimensional lower bound]\label{prop:app-lower-bound}
-Any complete $\SO(3)$-invariant for band-limited signals on $S^2$
-at band-limit $L$ must have at least $(L+1)^2 - 3$ functionally
-independent components.
+Any \emph{smooth or polynomial} complete $\SO(3)$-invariant for
+band-limited signals on $S^2$ at band-limit $L$ must have codomain
+of dimension at least $(L+1)^2 - 3$.
 \end{proposition}
 \begin{proof}
-The orbit space $\R^{(L+1)^2} / \SO(3)$ has dimension
-$(L+1)^2 - \dim\SO(3) = (L+1)^2 - 3$. Any injective map from the
-orbit space to $\R^k$ requires $k \ge (L+1)^2 - 3$, hence
-$\Omega(L^2)$.
+Let $\Phi : \R^{(L+1)^2} \to \R^k$ be a smooth (or polynomial)
+$\SO(3)$-invariant map that separates orbits on a Zariski-open
+dense subset $U\subset\R^{(L+1)^2}$. Smoothness implies $\Phi$ has a
+well-defined generic rank $r := \max_{x\in U} \mathrm{rank}\,
+d\Phi_x$; on the open dense subset where this rank is attained,
+$\Phi$ is locally a submersion onto an $r$-dimensional submanifold,
+and orbit-separation forces $r \ge \dim(\R^{(L+1)^2}/\SO(3))
+= (L+1)^2 - \dim\SO(3) = (L+1)^2 - 3$
+(generic-rank theorem for $\SO(3)$ acting on $V_L$;
+cf.~Tarski--Seidenberg in the polynomial case). Hence
+$k \ge r \ge (L+1)^2 - 3 = \Omega(L^2)$.
 \end{proof}
 
 \begin{remark}
@@ -1236,6 +1344,14 @@ The chain $\beta_{1,\ell,\ell+1}$ for $\ell = 0, \dotsc, L-1$ provides
 only $\sim 3L$ scalar constraints (since each chain entry couples
 $\mathbf{F}_1 \in \C^3$ with one known $\mathbf{F}_\ell$). This cannot
 recover $(L+1)^2 \approx L^2$ unknowns.
+\end{remark}
+
+\begin{remark}[Smoothness assumption]
+The smoothness/polynomial qualifier is essential: pathological
+non-measurable invariants (e.g.\ a fixed orbit-section indexed by
+the axiom of choice) can in principle have codomain dimension $1$
+but are not implementable. All practical bispectral or spectral
+invariants are polynomial, so the proposition applies.
 \end{remark}
 
 \subsection{The selective index set}
@@ -1247,13 +1363,13 @@ selected entries are simultaneously linear in $\mathbf{F}_\ell$ (or in
 $\conj{\mathbf{F}_\ell}$, which we conjugate) and have a coefficient
 matrix depending only on already-recovered lower degrees. Combined
 with a constant-size full-bispectrum seed at degrees
-$\le L_{\mathrm{seed}}=\min(L,7)$, this gives an $O(L^2)$-sized
+$\le L_{\mathrm{seed}}=\min(L,4)$, this gives an $O(L^2)$-sized
 invariant matching the orbit-space lower bound of
 Proposition~\ref{prop:app-lower-bound}.
 
 \begin{definition}[Selective $\SO(3)$ bispectrum on
   $S^2$]\label{def:app-selective}
-Set $L_{\mathrm{seed}} := \min(L,7)$. The \emph{seed index set} is
+Set $L_{\mathrm{seed}} := \min(L,4)$. The \emph{seed index set} is
 the full bispectrum truncated at $L_{\mathrm{seed}}$,
 \[
   \mathcal{S}_{\mathrm{seed}}
@@ -1262,32 +1378,56 @@ the full bispectrum truncated at $L_{\mathrm{seed}}$,
     \abs{\ell_1{-}\ell_2} \le \ell
       \le \min(\ell_1{+}\ell_2, L_{\mathrm{seed}})\},
 \]
-of size at most $(L_{\mathrm{seed}}{+}1)^3 \le 512$, independent of
-$L$ once $L\ge 7$.  For each high-degree
-target $\ell\ge 8$, the \emph{bootstrap block}
+of size at most $(L_{\mathrm{seed}}{+}1)^3 \le 125$, independent of
+$L$ once $L\ge 4$. This matches the implementation seed
+$L_0 = 4$ of Algorithm~\ref{alg:so3-augmented}, on which
+Bandeira et al.'s exact-arithmetic Gr\"obner-basis evidence for the
+scalar bispectrum at low degrees~\citep{bandeira2017estimation} is
+strongest. For each intermediate target $5\le\ell\le 7$ we use the
+small explicit linear block
+$\mathcal{T}_\ell^{\mathrm{small}}$ tabulated in
+Algorithm~\ref{alg:so3-augmented}; for each high-degree target
+$\ell\ge 8$ the \emph{bootstrap block}
 $\mathcal{T}_\ell$ (also used in
 Proposition~\ref{prop:app-entry-counts}) is
 \begin{equation}\label{eq:app-Tell}
 \begin{aligned}
   \mathcal{T}_\ell
   := &\ \{(a,\ell,\ell-a) : 1\le a \le \ell{-}1\} \\
-   &\cup \{(a,\ell,\ell-a+1) : 2\le a \le \ell{-}1\} \\
-   &\cup \{(a,\ell-a,\ell) : 1\le a \le 4\}
+   &\cup \bigl\{(a,\ell,\ell-a+1) : 2\le a \le \ell{-}1,
+        \; a \ne (\ell+1)/2 \bigr\} \\
+   &\cup \{(a,\ell-a,\ell) : 1\le a \le 4\} \;\cup\; \mathcal{Z}_\ell,
 \end{aligned}
 \end{equation}
-with $(\ell{-}1)+(\ell{-}2)+4 = 2\ell{+}1$ entries. The bispectral
+where $\mathcal{Z}_\ell = \emptyset$ for $\ell$ even and
+$\mathcal{Z}_\ell = \{(2,\ell{-}1,\ell)\}$ for $\ell$ odd ($\ell\ge 9$).
+The exclusion $a\ne (\ell+1)/2$ for odd $\ell$ removes the
+self-conjugate triple $(r,2r-1,r)$ at $\ell = 2r-1$, which has a
+repeated index and is identically zero on real signals
+(Proposition~\ref{prop:app-odd-vanishing}); the compensating row
+$(2,\ell{-}1,\ell)\in\mathcal{Z}_\ell$ is admissible
+($|\ell{-}1-2|\le\ell\le \ell{-}1+2$), has all-distinct indices, and is
+not contained in the chain family above (which only covers
+$(a,\ell{-}a,\ell)$ with $a=1,\dots,4$, i.e.\ pairs $(a,\ell{-}a)$ with
+$a\le 4$). The size
+counts to $(\ell{-}1)+(\ell{-}2)+4 = 2\ell{+}1$ for even $\ell$ and
+$(\ell{-}1)+(\ell{-}3)+4+1 = 2\ell{+}1$ for odd $\ell\ge 9$. The bispectral
 index set is
 \[
   \mathcal{S}_\beta
   := \mathcal{S}_{\mathrm{seed}} \;\cup\;
-     \bigcup_{\ell=8}^{L} \mathcal{T}_\ell.
+     \bigcup_{\ell=5}^{L} \mathcal{T}_\ell,
 \]
+where $\mathcal{T}_\ell = \mathcal{T}_\ell^{\mathrm{small}}$ for
+$5\le\ell\le 7$ (Algorithm~\ref{alg:so3-augmented}) and is given by
+eq.~\eqref{eq:app-Tell} for $\ell\ge 8$.
 The \emph{selective bispectrum} $\beta_{\mathrm{sel}}:V_L\to\R^N$ is
 the concatenation of all selected scalar entries
-$\{\beta_{\ell_1,\ell_2,\ell}\}_{(\ell_1,\ell_2,\ell)\in\mathcal{S}_\beta}$,
-storing the full complex value of each entry (equivalently, real and
-imaginary parts). We set $\mathcal{S}_P := \varnothing$ in the formal
-theorem; the optional CG power augmentation
+$\{\beta_{\ell_1,\ell_2,\ell}\}_{(\ell_1,\ell_2,\ell)\in\mathcal{S}_\beta}$;
+by Lemma~\ref{lem:app-parity}, each entry contributes one real
+component on the real-signal slice (real for even parity, purely
+imaginary for odd parity). We set $\mathcal{S}_P := \varnothing$ in
+the formal theorem; the optional CG power augmentation
 (Definition~\ref{def:app-cg-power}) may be appended at $O(L^2)$ cost
 without changing the asymptotic budget or the conclusion of
 Theorem~\ref{thm:app-main}.
@@ -1343,9 +1483,15 @@ for the smaller, purely-bispectral $\beta_{\mathrm{sel}}$.
       \STATE append $(a,\, \ell,\, \ell{-}a)$ to candidates
     \ENDFOR
     \FOR{$a = 2, \dotsc, \ell{-}1$}
+      \IF{$\ell$ is odd \AND $a = (\ell{+}1)/2$}
+        \STATE \textbf{skip}
+        \COMMENT{$(r,2r{-}1,r)\equiv0$ on real signals,
+          Prop.~\ref{prop:app-odd-vanishing}}
+      \ENDIF
       \STATE append $(a,\, \ell,\, \ell{-}a{+}1)$ to candidates
     \ENDFOR
-    \FOR{$a = 1,2,3,4$}
+    \STATE $c_\ell \leftarrow 5$ if $\ell$ is odd else $4$
+    \FOR{$a = 1, \dotsc, c_\ell$}
       \STATE append $(a,\, \ell{-}a,\, \ell)$ to candidates
     \ENDFOR
   \ELSE
@@ -1417,18 +1563,19 @@ $a_a^{m_1}$ and $a_{\ell-a}^{m_2}$.
 For every $L\ge 4$,
 \[
   |\beta_{\mathrm{sel}}|
-  \;=\; |\mathcal{S}_{\mathrm{seed}}| + \sum_{\ell=8}^{L}(2\ell{+}1)
+  \;=\; |\mathcal{S}_{\mathrm{seed}}| + \sum_{\ell=5}^{L}(2\ell{+}1)
   \;=\; \Theta(L^2),
 \]
-which matches the orbit-space lower bound $(L{+}1)^2-3$ of
+counting one real component per scalar entry (real for even parity,
+purely imaginary for odd parity, by Lemma~\ref{lem:app-parity}). This
+matches the orbit-space lower bound $(L{+}1)^2-3$ of
 Proposition~\ref{prop:app-lower-bound} up to an additive constant
-and a leading factor of~$2$ (the storage of complex entries as real
-and imaginary parts). For $4\le L \le 7$ the sum is empty and
-$|\beta_{\mathrm{sel}}|=|\mathcal{S}_{\mathrm{seed}}| = O(1)$. The
-Jacobian-rank diagnostic (Hypothesis~\ref{lem:app-augmented-perdegree})
-is reported only for the live, non-vanishing entries; the count
-matches the $30$ (resp.~$49$) live entries reported by the
-implementation at $L=4$ (resp.~$L=5$).
+(no factor-of-two from complex storage). For $L=4$ the sum is empty
+and $|\beta_{\mathrm{sel}}|=|\mathcal{S}_{\mathrm{seed}}| = O(1)$. The
+augmented Jacobian-rank diagnostic
+(Remark~\ref{lem:app-augmented-perdegree}) is reported only for the
+live, non-vanishing entries; the count matches the $30$ (resp.~$49$)
+live entries reported by the implementation at $L=4$ (resp.~$L=5$).
 \end{proposition}
 
 \subsection{Completeness proof}
@@ -1559,6 +1706,30 @@ is fixed by the gauge.
 \subsubsection{Structural seed completeness via Kakarala's theorem}
 \label{sec:app-seed-kakarala}
 
+\paragraph{Scalar versus matrix bispectrum.}
+\label{par:app-scalar-vs-matrix}
+Kakarala's Theorem~7~\citep{kakarala2012bispectrum,kakarala1992triple}
+is stated for the \emph{matrix} (or \emph{operator}) bispectrum: each
+Fourier mode is a $(2\ell{+}1)\times(2\ell_1{+}1)(2\ell_2{+}1)$
+operator, and the triple correlation contains every spin component
+of $\mathbf{F}_\ell$ before any CG contraction. Our scalar bispectrum
+$\beta_{\ell_1,\ell_2,\ell}$
+(Definition~\ref{def:app-bispectrum}) is the single Clebsch--Gordan
+contraction of that operator down to one complex number per triple.
+The contraction discards the $(2\ell{+}1)$-dimensional vector index
+that Kakarala's argument relies on, so Theorem~7 does \emph{not} directly
+imply injectivity of the scalar map. We retain Kakarala's theorem
+below (Lemma~\ref{lem:app-kakarala-thm7}) as \emph{structural
+motivation}: it shows that a $G/H$-bispectrum carries enough
+information in the matrix sense, and a sufficiently rich finite
+collection of scalar contractions (the seed) is conjectured to
+inherit the same separation power on a Zariski-open set of signals.
+This conjecture is exactly hypothesis~\ref{lem:app-seed-kakarala}
+(H1). Bandeira et al.~\citep{bandeira2017estimation} provide an
+independent Gr\"obner-basis check for the scalar setup at low
+band-limits, but no closed-form proof is known beyond their
+finite-degree range.
+
 \begin{lemma}[Kakarala bispectrum completeness on $S^2$, restated]
 \label{lem:app-kakarala-thm7}
 Let $G = \SO(3)$ and $H = \SO(2)_z \subset G$ be the stabiliser of
@@ -1609,9 +1780,9 @@ generically detected as a different signal by the full bispectrum.
 \label{def:app-Phi-aug-L0}
 We use the seed index set $\mathcal{S}_{\mathrm{seed}}$ of
 Definition~\ref{def:app-selective}, that is, the full bispectrum at
-$L_{\mathrm{seed}}=\min(L,7)$. The number of seed entries is
-$N_{\mathrm{seed}} \le (L_{\mathrm{seed}}{+}1)^3 \le 512$,
-\emph{constant} once $L\ge 7$. The output of $\beta_{\mathrm{sel}}$
+$L_{\mathrm{seed}}=\min(L,4)$. The number of seed entries is
+$N_{\mathrm{seed}} \le (L_{\mathrm{seed}}{+}1)^3 \le 125$,
+\emph{constant} once $L\ge 4$. The output of $\beta_{\mathrm{sel}}$
 restricted to the seed is therefore $O(1)$ scalars, and the total
 $|\beta_{\mathrm{sel}}|$ remains $\Theta(L^2)$
 (Proposition~\ref{prop:app-output-size}).
@@ -1619,40 +1790,43 @@ $|\beta_{\mathrm{sel}}|$ remains $\Theta(L^2)$
 
 \begin{hypothesis}[H1: finite seed injectivity]
 \label{lem:app-seed-kakarala}
-Let $L_{\mathrm{seed}}\le 7$. For every $f \in V_{L_{\mathrm{seed}}}$
-satisfying Assumption~\ref{ass:app-generic} (in particular
+Let $L_{\mathrm{seed}}=\min(L,4)$. For every
+$f \in V_{L_{\mathrm{seed}}}$ satisfying
+Assumption~\ref{ass:app-generic} (in particular
 $\mathbf{F}_\ell\ne 0$ for $0\le\ell\le L_{\mathrm{seed}}$), the full
-bispectrum on $\mathcal{S}_{\mathrm{seed}}$ together with the
-$\OG(3)$-distinguishing entry $\im(\beta_{2,3,4})$ uniquely
+\emph{scalar} bispectrum on $\mathcal{S}_{\mathrm{seed}}$ together
+with the $\OG(3)$-distinguishing entry $\im(\beta_{2,3,4})$ uniquely
 determines $(\mathbf{F}_0,\mathbf{F}_1,\dots,\mathbf{F}_{L_{\mathrm{seed}}})$
 on the gauge slice of Lemma~\ref{lem:app-gauge}.
 \end{hypothesis}
 
 \paragraph{Structural support for H1.}
 Two independent partial results motivate H1, but neither alone is a
-proof of the band-limited statement above:
+proof of the band-limited \emph{scalar} statement above (recall the
+matrix-vs-scalar gap of
+Paragraph~\ref{par:app-scalar-vs-matrix}):
 \begin{enumerate}[label=(\roman*),nosep]
 \item \emph{Representation-theoretic (Kakarala).}
   Theorem~7 of~\citep{kakarala2012bispectrum},
   restated as Lemma~\ref{lem:app-kakarala-thm7} and originally proved
   in~\citep{kakarala1992triple}, gives recovery up to the normaliser
-  $N_H\subset\SO(3)$ from the matrix-valued bispectrum on
+  $N_H\subset\SO(3)$ from the \emph{matrix-valued} bispectrum on
   $G=\SO(3)$, $H=\SO(2)_z$, in the $L^1(G)$ category;
-  Remark~\ref{rem:app-NH} computes $N_H$ explicitly. The translation
-  to a band-limited statement at
-  $L_{\mathrm{seed}}\le 7$ is not formalised in
+  Remark~\ref{rem:app-NH} computes $N_H$ explicitly. Theorem~7 does
+  not directly imply scalar-bispectrum injectivity, and the
+  translation to a band-limited \emph{scalar} statement at
+  $L_{\mathrm{seed}}=4$ is not formalised in
   either~\citep{kakarala1992triple,kakarala2012bispectrum}; H1 is the
-  band-limited specialisation we assume.
+  band-limited scalar specialisation we assume.
 \item \emph{Computer-algebra (Bandeira et al.).}
   \citet{bandeira2017estimation} verify by symbolic computation
-  (Jacobian rank of the bispectrum map at a rational test point,
-  combined with Zariski-density propagation) that the bispectrum
-  separates generic $\SO(3)$-orbits on
+  (Jacobian rank of the scalar bispectrum map at a rational test
+  point, combined with Zariski-density propagation) that the scalar
+  bispectrum separates generic $\SO(3)$-orbits on
   $V_0 \oplus \cdots \oplus V_{L_0}$ for every $L_0 \le 15$. This is
   a one-time computer-algebra certificate over an algebraic number
-  field rather than a floating-point witness, and provides
-  exact-arithmetic structural evidence for H1 at our fixed
-  $L_{\mathrm{seed}} \le 7$.
+  field rather than a floating-point witness, and directly covers our
+  fixed $L_{\mathrm{seed}}=4$.
 \end{enumerate}
 The constructive seed solver of
 Appendix~\ref{app:constructive-solver} is a third, explicitly
@@ -1664,28 +1838,23 @@ reduce H1 to a formally proved statement in the band-limited setting.
 \begin{remark}[On the ``up to reflection'' caveat
   of~\citet{edidin2024orbit}]
 \label{rem:app-edidin-reflection}
-\citet[Section~1]{edidin2024orbit} write that
-\citet{kakarala2012bispectrum} ``recovers the $\SO(3)$-orbit of a
-band-limited real-valued function up to reflection from the
-bispectrum.''  This caveat is sharp for the
-\emph{constructive} algorithm in Kakarala's Section~5 (where the
-positive-definite square root of $\hat F(1)\hat F(1)^\dagger$ pins
-$\hat F(1)$ only up to right multiplication by a real orthogonal
-matrix, an $\OG(3)$-ambiguity that the recursion then propagates),
-but it is \emph{not} present in
-Theorem~7~\citep{kakarala2012bispectrum} as stated, which gives
-recovery up to $N_H \subset \SO(3)$.  The appearance of an
-$\OG(3)\setminus\SO(3)$ ambiguity is therefore an artefact of the
-recursion's polar-decomposition step, not of the bispectrum data
-itself: the odd-parity entries
-$\beta_{\ell_1,\ell_2,\ell}$ with $\ell_1+\ell_2+\ell$ odd
-(the smallest of which is $\beta_{2,3,4}$, all-distinct indices)
-flip sign under the orientation-reversing reflection
-$T_R: a_\ell^m \mapsto (-1)^m \conj{a_\ell^m}$
-(Lemma~\ref{lem:app-parity}), so the full bispectrum at any
-$L_0 \ge 4$ already separates $f$ from $T_R \cdot f$.  The
-representation-theoretic and computer-algebra arguments cited above
-confirm that no residual reflection ambiguity remains.
+The reflection caveat reduces to three points:
+\begin{enumerate}[nosep,label=(\arabic*)]
+\item $T_R: a_\ell^m \mapsto (-1)^m \conj{a_\ell^m}$ lies in
+  $\OG(3)\setminus\SO(3)$, not in $\SO(3)$ (so $T_R$ is not absorbed
+  by the gauge of Lemma~\ref{lem:app-gauge}).
+\item Every odd-parity scalar entry flips sign under $T_R$ by
+  Lemma~\ref{lem:app-parity}.
+\item $\im(\beta_{2,3,4})$ is generically nonzero
+  (Cor.~\ref{cor:app-first-odd}), so its sign separates $f$ from
+  $T_R\cdot f$ at any $L\ge 4$.
+\end{enumerate}
+The reflection caveat in~\citet[Section~1]{edidin2024orbit} refers
+to the constructive polar-decomposition algorithm of
+Kakarala~\citep[Section~5]{kakarala2012bispectrum}, not to the
+bispectrum data itself; Theorem~7 there gives recovery up to
+$N_H\subset\SO(3)$ and the odd-parity entry above closes the
+remaining $T_R$ ambiguity.
 \end{remark}
 
 \begin{remark}[Relation to the constructive seed lemmas]
@@ -1752,23 +1921,56 @@ Taking the squared norm and re-indexing the sum over $M$
 leaves $P$ unchanged.
 \end{proof}
 
-\begin{proposition}[Vanishing of odd-parity entries at low degrees]
+\begin{proposition}[Vanishing of odd-parity entries with a repeated index]
 \label{prop:app-odd-vanishing}
-For real signals, the odd-parity bispectral entry
-$\beta_{\ell_1,\ell_2,\ell}$ (with $\ell_1+\ell_2+\ell$ odd)
-vanishes identically whenever two of the three representation indices
-coincide. In particular:
-\begin{enumerate}[nosep,label=(\roman*)]
-\item $\ell_1 = \ell_2$: the CG coefficients are antisymmetric
-  under swapping $m_1 \leftrightarrow m_2$, while
-  $a_{\ell_1}^{m_1} a_{\ell_1}^{m_2}$ is symmetric, giving
-  exact cancellation.
-\item Two of $\{\ell_1, \ell_2, \ell\}$ are equal: a symmetry
-  argument yields $\beta = -\conj\beta$ \textbf{and}
-  $\beta = 0$, verified symbolically for all
-  triples with indices $\le 5$.
-\end{enumerate}
+Let $\beta_{\ell_1,\ell_2,\ell}$ be the scalar bispectrum entry of a
+real signal $f$ (so $\ell_1+\ell_2+\ell$ odd). If the index multiset
+$\{\ell_1,\ell_2,\ell\}$ contains a repeated value, then
+$\beta_{\ell_1,\ell_2,\ell}(f)\equiv 0$ as a polynomial in the SH
+coefficients of $f$.
 \end{proposition}
+
+\begin{proof}
+Define the symmetric scalar 3j contraction
+\[
+  T_{\ell_1,\ell_2,\ell_3}(f) :=
+  \sum_{m_1,m_2,m_3}
+  \begin{pmatrix} \ell_1 & \ell_2 & \ell_3 \\
+                  m_1 & m_2 & m_3 \end{pmatrix}\,
+  a_{\ell_1}^{m_1}\, a_{\ell_2}^{m_2}\, a_{\ell_3}^{m_3} .
+\]
+Converting the Wigner~3j into a Clebsch-Gordan coefficient via
+$\bigl(\begin{smallmatrix} j_1 & j_2 & j_3 \\
+       m_1 & m_2 & m_3\end{smallmatrix}\bigr)
+= \frac{(-1)^{j_1-j_2-m_3}}{\sqrt{2j_3+1}}\,
+  \CG{j_1}{m_1}{j_2}{m_2}{j_3}{-m_3}$ and applying the reality identity
+$a_{\ell_3}^{m_3} = (-1)^{m_3}\,\conj{a_{\ell_3}^{-m_3}}$ shows
+\[
+  \beta_{\ell_1,\ell_2,\ell}(f)
+  = (-1)^{\ell_1+\ell_2}\sqrt{2\ell+1}\,
+    T_{\ell_1,\ell_2,\ell}(f),
+\]
+so $\beta$ and $T$ have the same vanishing locus. The 3j symbol is
+invariant under even column permutations and picks up
+$(-1)^{\ell_1+\ell_2+\ell_3}$ under odd ones. If two columns $i,j$
+satisfy $\ell_i=\ell_j$, the inserted vectors $a_{\ell_i},a_{\ell_j}$
+are literally the same coefficient vector of $f$, so swapping those
+two columns leaves the contracted sum $T$ unchanged while multiplying
+the 3j prefactor by $(-1)^{\ell_1+\ell_2+\ell_3}$. For odd parity this
+forces $T=-T$, hence $T\equiv 0$ and $\beta\equiv 0$.
+\end{proof}
+
+\begin{remark}[Consequences for $\mathcal{T}_\ell$]
+\label{rem:app-Tell-zero-rows}
+Proposition~\ref{prop:app-odd-vanishing} applies in particular to the
+family $(r,2r-1,r)$: it has parity $4r-1$ (odd) and a repeated index,
+so $\beta_{r,2r-1,r}\equiv 0$ on real signals. Numerical evaluation at
+the seed-42 real witness confirms this: for $r=2,\dots,7$ the entry is
+zero to double-precision rounding ($|\beta|\lesssim 10^{-14}$). Any
+formal definition of $\mathcal{T}_\ell$ must therefore exclude these
+triples (see~\eqref{eq:app-Tell}); we substitute a chain row with
+all-distinct indices in their place.
+\end{remark}
 
 \begin{corollary}[First nonzero odd-parity entry]\label{cor:app-first-odd}
 The first bispectral entry with odd parity and generically nonzero imaginary
@@ -1790,83 +1992,99 @@ By Proposition~\ref{prop:app-odd-vanishing}, all odd-parity entries vanish.
 Therefore, the $T_R$ ambiguity cannot be resolved using only degrees $\le 3$.
 \end{remark}
 
-\subsubsection{Per-degree recovery ($\ell \ge 8$)}
+\subsubsection{Per-degree recovery ($\ell \ge 5$)}
 
-\begin{hypothesis}[H2: uniform bootstrap-determinant nonvanishing]
+\begin{hypothesis}[H2: uniform per-degree augmented Jacobian
+  nonvanishing]
 \label{lem:app-bootstrap-rank}
-For each $\ell\ge 8$, viewing the bootstrap-block coefficient matrix
-$A_\ell(\mathbf{F}_{<\ell})\in\R^{(2\ell+1)\times(2\ell+1)}$ assembled
-from $\{\beta_{\ell_1,\ell_2,\ell}\}_{(\ell_1,\ell_2,\ell)\in\mathcal{T}_\ell}$
-(eq.~\eqref{eq:app-Tell}) under the real-signal slice
-$\conj{a_{\ell'}^m}=(-1)^m a_{\ell'}^{-m}$ for all $\ell'<\ell$, the
-determinant
+For each $\ell\ge 5$, let $J_\ell(\mathbf{F}_{<\ell})$ be the
+real Jacobian of the augmented per-degree block
 \[
-  \Delta_\ell(\mathbf{F}_{<\ell}) := \det A_\ell(\mathbf{F}_{<\ell})
+  \beta^{\mathrm{aug}}_\ell(f) :=
+  \bigl\{\beta_{\ell_1,\ell_2,\ell}(f) :
+    (\ell_1,\ell_2,\ell)\in
+      \mathcal{T}_\ell \cup \mathcal{S}^{\mathrm{self}}_\ell
+      \cup \mathcal{S}^P_\ell\bigr\},
 \]
-is not identically zero as a polynomial in the lower-degree real
-coordinates. Equivalently, the failure variety
-$\{\Delta_\ell = 0\}$ is a proper algebraic subvariety of the
-lower-degree real coordinate space, and on its complement the linear
-system $A_\ell\,\mathbf{F}_\ell = b_\ell$ uniquely determines
-$\mathbf{F}_\ell$.
+with respect to the $2\ell{+}1$ real parameters of $\mathbf{F}_\ell$
+on the real-signal slice
+$\conj{a_{\ell'}^m}=(-1)^m a_{\ell'}^{-m}$ for all $\ell'\le\ell$.
+Here $\mathcal{S}^{\mathrm{self}}_\ell$ is the set of mandatory even
+self-couplings $\{(\ell,\ell,\ell') : 0\le\ell'\le\ell,\,
+\ell'\text{ even}\}$ and
+$\mathcal{S}^P_\ell$ the set of CG-power entries at target
+degree~$\ell$ generated by Algorithm~\ref{alg:so3-augmented}. Then
+$J_\ell$ has full column rank $2\ell{+}1$ on a Zariski-open subset of
+the real-signal lower-degree coordinate space.
 \end{hypothesis}
 
+\begin{remark}[Why the augmented block is needed]
+\label{rem:app-Tell-rank-deficit}
+The bootstrap block $\mathcal{T}_\ell$ alone is rank-deficient on the
+real-signal slice: at the seed-42 real witness, the
+$(2\ell{+}1)\times(2\ell{+}1)$ submatrix $A_\ell$ assembled from the
+$\mathcal{T}_\ell$ rows has SVD rank
+$\approx \ell{+}2$ rather than $2\ell{+}1$ for $\ell\in\{8,\dots,15\}$
+(verified numerically; the deficit is generic over real witnesses).
+The mandatory even self-couplings and CG-power scalars are quadratic
+or cubic in $\mathbf{F}_\ell$ and supply the additional independent
+real equations needed to fill out the per-degree real Jacobian. H2 is
+therefore stated for the augmented block, not for $A_\ell$ alone.
+\end{remark}
+
 \paragraph{Numerical evidence for H2.}
-Per-degree determinants $\Delta_\ell$ are evaluated at the
-deterministic seed-42 witness signal
-(script: \texttt{benchmarks/verify\_linear\_bootstrap.py}). The
-ratio $\sigma_{\min}(A_\ell)/\sigma_{\max}(A_\ell)$ exceeds $10^{-4}$
-for every $\ell\in\{8,\dots,100\}$ in IEEE 754 double precision, a
-margin of more than $10^{11}$ above double-precision rounding error.
-This shows $\Delta_\ell\not\equiv 0$ at one rational floating-point
-witness per degree, but does not by itself constitute a closed-form
-proof of H2; an interval-arithmetic certificate, an exact rational
+Per-degree augmented Jacobians $J_\ell$ are evaluated at the
+deterministic seed-42 real-signal witness in IEEE 754 double precision
+(scripts: \texttt{benchmarks/verify\_linear\_bootstrap.py},
+\texttt{paper/exact\_certificates.py}). For every
+$\ell\in\{5,\dots,100\}$ the smallest singular value satisfies
+$\sigma_{\min}(J_\ell)/\sigma_{\max}(J_\ell)\ge 10^{-4}$, well above
+the SVD numerical noise floor at this size. This is consistent with
+H2 being non-degenerate at the witness, but is a numerical
+\emph{witness} at one rational floating-point point per degree, not
+a closed-form proof; an interval-arithmetic version, an exact rational
 witness, or a closed-form Wigner-3j identity would upgrade H2 to
 unconditional.
 
 \begin{remark}[Scope of the numerical evidence]\label{rem:app-bootstrap-scope}
 The witness check is per-degree and uniform in the structural form of
-$\mathcal{T}_\ell$ for $\ell\ge 8$. Extending the verified range to
+$\mathcal{T}_\ell\cup\mathcal{S}^{\mathrm{self}}_\ell\cup
+\mathcal{S}^P_\ell$ for $\ell\ge 5$. Extending the verified range to
 $L>100$ requires only re-running the script with a larger upper
-bound. Under H2, the genericity condition for any fixed $L$ is that
-$\Delta_\ell\ne 0$ for $\ell=8,\dots,L$, the complement of finitely
-many proper algebraic subvarieties and hence a Zariski-open dense set
-of full Lebesgue measure.
+bound. Under H2, the genericity condition for any fixed $L$ is
+non-vanishing of the per-degree Jacobian for $\ell=5,\dots,L$, the
+complement of finitely many proper algebraic subvarieties and hence
+a Zariski-open dense set of full Lebesgue measure.
 \end{remark}
 
-\begin{remark}[Complex rank vs.\ real rank, and the role of CG
-  power]\label{rem:app-complex-real}
+\begin{remark}[Complex rank vs.\ real rank]
+\label{rem:app-complex-real}
 For real signals, $\mathbf{F}_\ell$ has $2\ell{+}1$ real degrees of
-freedom.  The bootstrap block $\mathcal{T}_\ell$ consists of entries
-linear in either $\mathbf{F}_\ell$ or $\conj{\mathbf{F}_\ell}$; under
-the real-signal identification $\conj{a_\ell^m}=(-1)^m a_\ell^{-m}$
-both pieces collapse to real-linear equations in the same
-$2\ell{+}1$ unknowns.
-Hypothesis~\ref{lem:app-bootstrap-rank} (H2) asserts that the
-resulting real $(2\ell{+}1)\times(2\ell{+}1)$ matrix has generically
-nonzero determinant; under H2 alone no CG-power entries are required
-to recover $\mathbf{F}_\ell$ at degrees $\ell\ge 8$. The implementation
-(Definition~\ref{def:app-cg-power} and
-Algorithm~\ref{alg:so3-augmented}) appends optional CG-power scalars
-because they (i) provide a per-degree numerical robustness diagnostic,
-(ii) supply additional real equations whenever H2 is borderline, and
-(iii) cost only $O(L^2)$ extra storage. The proof sets
-$\mathcal{S}_P=\varnothing$.
+freedom and each scalar entry $\beta_{\ell_1,\ell_2,\ell}$ contributes
+exactly one real component (real for even parity, purely imaginary
+for odd parity, by Lemma~\ref{lem:app-parity}). A naive complex-rank
+check on the bootstrap block $\mathcal{T}_\ell$ at a generic
+\emph{complex} witness reports full rank $2\ell{+}1$, but this is
+misleading: under the real-signal identification $\conj{a_\ell^m} =
+(-1)^m a_\ell^{-m}$ the complex equations collapse to real-linear
+equations in $2\ell{+}1$ real unknowns, and the resulting real system
+is rank-deficient (Remark~\ref{rem:app-Tell-rank-deficit}). H2 is
+stated for the augmented block (linear $\mathcal{T}_\ell$ plus
+quadratic/cubic self-couplings plus CG-power scalars) where the real
+Jacobian is observed to be full rank at the witness.
 \end{remark}
 
 \begin{remark}[Per-degree real-rank diagnostic]\label{lem:app-augmented-perdegree}
-At the deterministic seed-42 witness, the full augmented system at
-degree $\ell$ produced by Algorithm~\ref{alg:so3-augmented}
-(the $\mathcal{T}_\ell$-block, the mandatory even self-couplings, and
-the appended CG-power entries) has real Jacobian rank $2\ell{+}1$
-w.r.t.\ the $2\ell{+}1$ real parameters of $\mathbf{F}_\ell$ for
-every $\ell\in\{4,\dots,30\}$. This is reported as a per-degree
-numerical diagnostic supporting H2 at the witness; under H2 alone
-(Hypothesis~\ref{lem:app-bootstrap-rank}) the
-$\mathcal{T}_\ell$-block already has full real rank for $\ell\ge 8$
-and no CG-power augmentation is required for completeness. Diagnostics
-for $\ell\in\{4,5,6,7\}$ are absorbed into the seed-injectivity
-Hypothesis~H1 (Hypothesis~\ref{lem:app-seed-kakarala}).
+At the deterministic seed-42 real-signal witness, the full augmented
+system at degree $\ell$ produced by
+Algorithm~\ref{alg:so3-augmented} (the $\mathcal{T}_\ell$ block, the
+mandatory even self-couplings, and the appended CG-power entries) has
+real Jacobian rank $2\ell{+}1$ with respect to the $2\ell{+}1$ real
+parameters of $\mathbf{F}_\ell$ for every $\ell\in\{5,\dots,30\}$.
+This is reported as the per-degree numerical witness supporting H2;
+diagnostics for $\ell\in\{0,\dots,4\}$ are absorbed into the
+seed-injectivity Hypothesis~H1
+(Hypothesis~\ref{lem:app-seed-kakarala}).
 \end{remark}
 
 \subsubsection{Proof of the main theorem}
@@ -1942,59 +2160,74 @@ $\SO(3)$-orbits at $L\le 3$. For $L\ge 4$, $L_{\mathrm{seed}}\ge 4$
 and Hypothesis~H1 applies, removing the $T_R$ ambiguity.
 \end{corollary}
 
-\subsubsection{Computational certificates supporting the hypotheses}
+\subsubsection{Computational evidence supporting the hypotheses}
 
 Theorem~\ref{thm:app-main} is conditional on
 Hypotheses~H1~(\ref{lem:app-seed-kakarala}) and
-H2~(\ref{lem:app-bootstrap-rank}). The repository ships per-degree
-numerical certificates that are evidence for, but not formal proofs
-of, the two hypotheses:
+H2~(\ref{lem:app-bootstrap-rank}). The repository ships
+computational evidence at two precision regimes (exact-rational and
+double-precision floating-point) that support, but do not formally
+prove, the two hypotheses:
 \begin{enumerate}[nosep]
-\item \textbf{H2 (bootstrap-determinant nonvanishing)
-    -- numerical witness.}
-  For each $\ell\in\{8,\dots,100\}$, the determinant
-  $\Delta_\ell = \det A_\ell$ is computed at the deterministic
-  seed-42 witness in IEEE 754 double precision and is nonzero with
-  $\sigma_{\min}(A_\ell)/\sigma_{\max}(A_\ell)\ge 10^{-4}$
-  (margin ${>}10^{11}$ above double-precision rounding error).
-  Script: \texttt{benchmarks/verify\_linear\_bootstrap.py}.
+\item \textbf{H2 (uniform per-degree augmented Jacobian
+    nonvanishing) -- numerical witness.}
+  For each $\ell\in\{5,\dots,100\}$, the augmented per-degree
+  Jacobian $J_\ell$ (the $\mathcal{T}_\ell$ rows together with the
+  mandatory even self-couplings and CG-power scalars at degree~$\ell$)
+  is evaluated at the deterministic seed-42 real-signal witness in
+  IEEE 754 double precision; its smallest singular value satisfies
+  $\sigma_{\min}(J_\ell)/\sigma_{\max}(J_\ell)\ge 10^{-4}$, well
+  above the SVD numerical noise floor at this size. This is a
+  numerical witness at one rational floating-point point per degree,
+  not a closed-form proof. The pure $\mathcal{T}_\ell$ submatrix
+  $A_\ell$ alone is rank-deficient on the real-signal slice
+  (Remark~\ref{rem:app-Tell-rank-deficit}); the augmenting entries
+  are essential. Script:
+  \texttt{benchmarks/verify\_linear\_bootstrap.py}.
 
 \item \textbf{H1 (finite seed injectivity)
-    -- structural support.}
-  Two routes were already collected above: (a)~Kakarala
-  Theorem~7~(\ref{lem:app-kakarala-thm7}) for the $L^1(G)$ category
-  on $G/H=S^2$ (motivation, not a band-limited proof); and
-  (b)~exact-arithmetic Gr\"obner-basis certificates of
-  \citet{bandeira2017estimation} for $L_0\le 15$, an exact rational
-  certificate at one rational test point with Zariski-density
-  propagation. The constant-size seed Jacobian rank
-  (Lemma~\ref{lem:app-ell3}) is additionally verified in exact
-  rational arithmetic via \texttt{sympy}.
+    -- exact-arithmetic certificate plus structural support.}
+  Two routes were collected above: (a)~Kakarala
+  Theorem~7~(\ref{lem:app-kakarala-thm7}) for the matrix bispectrum
+  on $L^1(G)$ with $G/H=S^2$ (structural motivation only; does not
+  imply scalar injectivity, see
+  Paragraph~\ref{par:app-scalar-vs-matrix}); and (b)~exact-arithmetic
+  Gr\"obner-basis certificates of \citet{bandeira2017estimation} for
+  $L_0\le 15$, providing an exact rational certificate at one
+  rational test point with Zariski-density propagation, which
+  directly covers our $L_{\mathrm{seed}}=4$. The constant-size seed
+  Jacobian rank (Lemma~\ref{lem:app-ell3}) is additionally verified
+  in exact rational arithmetic via \texttt{sympy}.
 
 \item \textbf{Per-degree augmented real-rank diagnostic}
-  (Hypothesis~\ref{lem:app-augmented-perdegree}): the full augmented
+  (Remark~\ref{lem:app-augmented-perdegree}): the full augmented
   system (bispectral $+$ optional CG power) has real Jacobian rank
-  $2\ell{+}1$ at the seed-42 witness for $\ell\in\{4,\dots,30\}$.
-  This is reported as a robustness check; under H2 alone it is not
-  required for completeness.
+  $2\ell{+}1$ at the seed-42 real-signal witness for
+  $\ell\in\{5,\dots,30\}$. This is reported as a robustness check
+  consistent with H2 at the witness.
 \end{enumerate}
 
-\begin{remark}[Exact vs.\ floating-point certificates]
-The certificates use two distinct precision regimes: the constant-size
+\begin{remark}[Exact-arithmetic certificates vs.\ floating-point
+  numerical witnesses]
+The two precision regimes play different roles. The constant-size
 seed Jacobian rank (Lemma~\ref{lem:app-ell3}) and the
-\citet{bandeira2017estimation} computer-algebra check are in exact
-rational arithmetic; the per-degree H2 evidence
-(Hypothesis~\ref{lem:app-bootstrap-rank}) uses double-precision
-arithmetic at the seed-42 witness with
-$\sigma_{\min}/\sigma_{\max}\ge 10^{-4}$, far above the double
-rounding error~$\sim 10^{-15}$. Upgrading H2 from numerical evidence
-to an unconditional theorem requires either (i) interval arithmetic
-(infrastructure for which is present in
+\citet{bandeira2017estimation} computer-algebra check are
+\emph{exact-arithmetic certificates}: they are evaluated in exact
+rational arithmetic and rule out non-vanishing at the rational test
+point with no floating-point uncertainty. The per-degree H2 evidence
+(Hypothesis~\ref{lem:app-bootstrap-rank}) is a \emph{numerical
+witness}: $\sigma_{\min}(J_\ell)$ is computed in double precision
+at the seed-42 real-signal point and the observed
+$\sigma_{\min}/\sigma_{\max}\ge 10^{-4}$ is consistent with the
+augmented Jacobian being non-degenerate at the witness, but is not a
+closed-form proof and the floating-point gap to rounding error is not
+itself a quantitative bound on the underlying polynomial. Upgrading
+H2 to an unconditional theorem requires either (i) interval
+arithmetic (infrastructure for which is present in
 \texttt{paper/exact\_certificates.py}), (ii) an exact rational
-certificate per $\ell$, or (iii) a closed-form Wigner-3j identity
-that exhibits $\Delta_\ell\ne 0$ for all $\ell$ symbolically. All
-certificates use deterministic witness points, making them fully
-reproducible.
+witness per $\ell$, or (iii) a closed-form Wigner-3j identity that
+exhibits non-degeneracy for all $\ell$ symbolically. All artefacts
+use deterministic witness points, making them fully reproducible.
 \end{remark}
 
 \subsection{Comparison with existing results}
@@ -2076,33 +2309,43 @@ $65\times$ reduction.
 \begin{enumerate}
   \item \textbf{H1 is not formally proved for the band-limited setting.}
     Hypothesis~\ref{lem:app-seed-kakarala} (finite seed injectivity at
-    $L_{\mathrm{seed}}\le 7$) is supported by Kakarala's
-    Theorem~7~\citep{kakarala1992triple,kakarala2012bispectrum} in the
-    $L^1(G)$ category and by the exact-arithmetic Gr\"obner-basis
-    certificates of \citet{bandeira2017estimation} for $L_0\le 15$,
-    but no published source proves the band-limited seed-injectivity
-    statement in the form we use it. Removing this gap would either
-    require a careful band-limited specialisation of Kakarala's argument
-    or an exact certificate that the seed Jacobian is non-degenerate on
-    the entire band-limited gauge slice (not only at a rational test
-    point with Zariski-density propagation).
+    $L_{\mathrm{seed}}=4$) is supported by Kakarala's
+    Theorem~7~\citep{kakarala1992triple,kakarala2012bispectrum} for
+    the matrix bispectrum on $L^1(G)$ (structural motivation only;
+    does not imply scalar-bispectrum injectivity, see
+    Paragraph~\ref{par:app-scalar-vs-matrix}) and by the
+    exact-arithmetic Gr\"obner-basis certificates of
+    \citet{bandeira2017estimation} for $L_0\le 15$, which directly
+    cover $L_{\mathrm{seed}}=4$ at one rational test point with
+    Zariski-density propagation. No closed-form proof of the scalar
+    band-limited statement is known beyond their finite-degree range.
+    Removing this gap would require either a careful band-limited
+    scalar specialisation of Kakarala's argument or a closed-form
+    proof that the scalar seed Jacobian is non-degenerate on the
+    entire band-limited gauge slice.
 
-  \item \textbf{H2 is supported by per-degree numerical evidence,
+  \item \textbf{H2 is supported by a per-degree numerical witness,
     not a closed-form identity.}
-    Hypothesis~\ref{lem:app-bootstrap-rank} (uniform
-    bootstrap-determinant nonvanishing) is verified per $\ell$ at the
-    deterministic seed-42 witness in IEEE 754 double precision with
-    $\sigma_{\min}/\sigma_{\max}\ge 10^{-4}$ (margin ${>}10^{11}$
-    above rounding error) for every $\ell\in\{8,\dots,100\}$. The
-    structural form of $\mathcal{T}_\ell$ is uniform in $\ell\ge 8$,
-    so extending the verified range to larger $L$ amounts to
-    re-running the same script with a larger upper bound. Three
-    routes would upgrade H2 to an unconditional theorem: (i) interval
-    arithmetic at the witness (infrastructure already in
+    Hypothesis~\ref{lem:app-bootstrap-rank} (uniform per-degree
+    augmented Jacobian nonvanishing) is checked numerically per
+    $\ell$ at the deterministic seed-42 real-signal witness in
+    IEEE 754 double precision: the smallest singular value satisfies
+    $\sigma_{\min}(J_\ell)/\sigma_{\max}(J_\ell)\ge 10^{-4}$, well
+    above the SVD numerical noise floor for every
+    $\ell\in\{5,\dots,100\}$. The pure linear-bootstrap submatrix
+    $A_\ell$ alone is rank-deficient on the real-signal slice
+    (Remark~\ref{rem:app-Tell-rank-deficit}); H2 is the statement
+    that the augmented per-degree block (linear plus quadratic plus
+    cubic entries) is non-degenerate, and the witness is consistent
+    with this. The structural form of the augmented block is uniform
+    in $\ell\ge 5$, so extending the verified range to larger $L$
+    amounts to re-running the same script. Three routes would upgrade
+    H2 to an unconditional theorem: (i) interval arithmetic at the
+    witness (infrastructure already in
     \texttt{paper/exact\_certificates.py}); (ii) exact rational
-    determinants at a rational witness per $\ell$; (iii) a closed-form
-    Wigner-3j identity that exhibits $\Delta_\ell\ne 0$ symbolically
-    for all $\ell$.
+    Jacobian rank at a rational witness per $\ell$; (iii) a
+    closed-form Wigner-3j identity that exhibits non-degeneracy
+    symbolically for all $\ell$.
 
   \item \textbf{Genericity assumption.}
     The proof requires $f$ to avoid the measure-zero algebraic
@@ -2244,54 +2487,57 @@ action recorded in Remark~\ref{rem:app-gauge-param}), and the
 seed/gauge-fixed coordinates $(A_0, c, y, x, u, v, t_\ell, p_{\ell,m},
 q_{\ell,m})$ are those of Lemma~\ref{lem:app-gauge}.
 
-\begin{lemma}[Degree-4 eliminates all spurious seed solutions]
+\begin{remark}[Numerical diagnostic: degree-4 eliminates all spurious
+  seed solutions]
 \label{lem:app-degree4-filter}
 Let $\mathcal{S}$ denote the finite seed fibre at degrees~$0$--$3$
 (Lemma~\ref{lem:app-ell3}).
 For generic real signals with $L \ge 4$, the degree-4 augmented entries
 (12~bispectral + 5~CG power, providing $29$ real constraints on
-$9$~real unknowns of $\mathbf{F}_4$) are simultaneously satisfiable
-for \emph{exactly one} $T_R$-pair in~$\mathcal{S}$:
+$9$~real unknowns of $\mathbf{F}_4$) are observed to be simultaneously
+satisfiable for \emph{exactly one} $T_R$-pair in~$\mathcal{S}$:
 the true solution and its reflection.
-All other seed solutions are inconsistent at degree~$4$.
-\end{lemma}
-\begin{proof}
+All other seed solutions are inconsistent at degree~$4$ in the
+following empirical sense.
+
 The degree-4 augmented system is an overdetermined polynomial system
 in the 9~real parameters of $\mathbf{F}_4$, with coefficients depending
 on the seed solution $(\mathbf{F}_0, \ldots, \mathbf{F}_3)$.
-
 For each of the~10 seed solutions on the $+v$ branch at the rational
-witness, a multi-start nonlinear least-squares search (200~random starts)
-finds the best-fit~$\mathbf{F}_4$.
-Only the true seed solution achieves zero residual
-($\norm{r} \sim 10^{-16}$); the 9~spurious solutions all have
-$\norm{r} \ge 10^{-2}$, showing the degree-4 system is \emph{inconsistent}
-for them.
+witness, a multi-start nonlinear least-squares search (200~random
+starts) finds the best-fit~$\mathbf{F}_4$. Only the true seed
+solution achieves zero residual ($\norm{r} \sim 10^{-16}$); the
+9~spurious solutions all have $\norm{r} \ge 10^{-2}$. This is a
+\emph{numerical witness}, not an exact-arithmetic certificate: it
+depends on multi-start NLLS at finite precision and an empirical
+residual threshold; replacing it with a closed-form proof of
+inconsistency is open.
 
-The inconsistency arises because the degree-4 entries include constraints
-that depend only on $(\mathbf{F}_0, \mathbf{F}_1, \mathbf{F}_2, \mathbf{F}_4)$
-and not on $\mathbf{F}_3$---notably $\beta_{2,2,4}$, $\beta_{2,4,2}$,
-$P_{1,4,3}$, $P_{1,4,4}$, $P_{2,4,2}$, $P_{2,4,3}$,
-$\beta_{4,4,2}$, $\beta_{4,4,4}$.
-These 8~entries nearly determine $\mathbf{F}_4$ independently of $\mathbf{F}_3$.
-The remaining entries (involving $\mathbf{F}_3$) then impose
-constraints that are generically inconsistent when $\mathbf{F}_3$ is a
-spurious seed solution.
+Structurally, the inconsistency arises because the degree-4 entries
+include constraints that depend only on $(\mathbf{F}_0, \mathbf{F}_1,
+\mathbf{F}_2, \mathbf{F}_4)$ and not on $\mathbf{F}_3$---notably
+$\beta_{2,2,4}$, $\beta_{2,4,2}$, $P_{1,4,3}$, $P_{1,4,4}$,
+$P_{2,4,2}$, $P_{2,4,3}$, $\beta_{4,4,2}$, $\beta_{4,4,4}$. These
+8~entries nearly determine $\mathbf{F}_4$ independently of
+$\mathbf{F}_3$; the remaining entries (involving $\mathbf{F}_3$)
+then impose constraints that are generically inconsistent when
+$\mathbf{F}_3$ is a spurious seed solution. The residual for each
+spurious seed is a polynomial function of the signal's coefficients
+that is empirically nonzero at the witness, so its vanishing locus
+is consistent with a proper algebraic subvariety.
+\end{remark}
 
-Since the residual for each spurious seed is a polynomial
-function of the signal's coefficients that is nonzero at the witness,
-its vanishing locus is a proper algebraic subvariety.
-\end{proof}
-
-\begin{lemma}[The $T_R$ branch is overdetermined-inconsistent]
+\begin{remark}[Numerical diagnostic: the $T_R$ branch is
+  overdetermined-inconsistent]
 \label{lem:app-TR-resolve}
 For $L \ge 4$, the $T_R$ partner of the true seed---i.e.,
 $(\mathbf{F}_2', \mathbf{F}_3') = T_R(\mathbf{F}_2, \mathbf{F}_3)$---is
-also inconsistent at degree~$4$ for generic signals.
-\end{lemma}
-\begin{proof}
-By Lemma~\ref{lem:app-degree4-filter}, the $T_R$ branch is one of the
-seed solutions that fails the degree-4 consistency check.
+also empirically observed to be inconsistent at degree~$4$ for
+generic signals.
+
+By the diagnostic of Remark~\ref{lem:app-degree4-filter}, the $T_R$
+branch is one of the seed solutions that fails the degree-4
+consistency check at the witness.
 The mechanism is the parity structure (Lemma~\ref{lem:app-parity}):
 the odd-parity entries $\beta_{2,3,4}$, $\beta_{2,4,3}$, $\beta_{3,4,2}$
 (all-distinct indices, $\im\beta \ne 0$) are part of the degree-4
@@ -2307,9 +2553,10 @@ Then $\Delta$ is a rational function whose numerator is a polynomial $p$
 and whose denominator is $(\det A_4)^2$ (from the bootstrap solve).
 At the witness, $\det A_4 \ne 0$ and $p \ne 0$
 (residual ${\sim}10^{-2}$).
-Hence $p$ is not identically zero, and $\Delta \ne 0$ on the complement
-of the proper algebraic subvariety $\{p = 0\} \cup \{\det A_4 = 0\}$.
-\end{proof}
+Hence $p$ is not identically zero at the witness, and $\Delta \ne 0$
+on the complement of the proper algebraic subvariety $\{p = 0\} \cup
+\{\det A_4 = 0\}$ that contains it.
+\end{remark}
 
 \subsection{Constructive solver: algorithmic summary}
 
@@ -2335,32 +2582,35 @@ Theorem~\ref{thm:app-main}; the theorem itself rests on
 Hypotheses~H1~(\ref{lem:app-seed-kakarala}) and
 H2~(\ref{lem:app-bootstrap-rank}).
 
-\paragraph{Computational certificates for the constructive solver.}
-The constructive route relies on three additional certificates,
-all reproducible from scripts in the repository:
+\paragraph{Computational evidence for the constructive solver.}
+The constructive route relies on one exact-arithmetic certificate
+and two numerical witnesses, all reproducible from scripts in the
+repository:
 \begin{enumerate}[nosep]
 \item \textbf{Seed Jacobian rank} (Lemma~\ref{lem:app-ell3}):
   the $13 \times 11$ Jacobian of the augmented seed system at the
   rational witness has rank $11$. Verified by \emph{exact} rational
-  arithmetic (sympy).
+  arithmetic (sympy); this is an exact-arithmetic \emph{certificate}.
 \item \textbf{Seed fibre enumeration} (Lemma~\ref{lem:app-ell3},
   Remark~\ref{rem:app-seed-fibre-size}): multi-start search (5000
   starts per branch) finds $10$ solutions per $\sgn(v)$ branch
-  ($20$ total, $10$ $T_R$-pairs).
-  Verified by \texttt{benchmarks/verify\_seed\_fibre.py}.
+  ($20$ total, $10$ $T_R$-pairs). This is a numerical \emph{witness}
+  obtained by double-precision NLLS; verified by
+  \texttt{benchmarks/verify\_seed\_fibre.py}.
 \item \textbf{Degree-4 fibre reduction}
   (Lemma~\ref{lem:app-degree4-filter}): for each of the $10$ seed
   solutions on the $+v$ branch, a multi-start nonlinear
   least-squares search (200 starts) attempts to find $\mathbf{F}_4$
   satisfying all $29$ real degree-4 constraints. Only the true
   solution achieves zero residual; all $9$ spurious solutions have
-  residual $\ge 10^{-2}$.
-  Verified by \texttt{benchmarks/verify\_degree4\_filter.py}.
+  residual $\ge 10^{-2}$. This is a numerical \emph{witness} (not an
+  exact-arithmetic certificate): it depends on multi-start NLLS at
+  finite precision and an empirical residual threshold. Verified by
+  \texttt{benchmarks/verify\_degree4\_filter.py}.
 \end{enumerate}
-These certificates audit the constructive algorithm but are not
-used by the completeness theorem of
-Appendix~\ref{app:so3-proof}, which uses only the bootstrap rank
-certificates listed there.
+These items audit the constructive algorithm but are not used by the
+completeness theorem of Appendix~\ref{app:so3-proof}, which uses
+only the per-degree augmented Jacobian witness listed there.
 
 \section{Extended Benchmark Results}
 \label{app:bench}
@@ -2653,8 +2903,11 @@ MNIST digits are projected onto the sphere via stereographic
 projection following \citet{cohen2018spherical} and sampled on a
 $64 \times 128$ equiangular grid. The selective bispectrum is
 computed at $\ell_{\max} = 15$, producing 384 complex invariant
-coefficients (768 real features after taking log-magnitude), which
-are fed to a 3-layer MLP: Linear(768, 256)--BN--ReLU--Linear(256,
+coefficients. The model input is obtained by applying
+$\operatorname{sign}(x)\log(1+|x|)$ separately to the real and
+imaginary parts of each coefficient (a sign-preserving, per-channel
+injective transform), giving 768 real features. These features are
+fed to a 3-layer MLP: Linear(768, 256)--BN--ReLU--Linear(256,
 128)--BN--ReLU--Linear(128, 10). The power spectrum MLP uses the
 same structure with hidden=128: Linear(16, 128)--BN--ReLU--Linear(128,
 64)--BN--ReLU--Linear(64, 10). The standard CNN has 4 convolutional
