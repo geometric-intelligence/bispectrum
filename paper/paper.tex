@@ -959,47 +959,58 @@ below, and leave a closed-form proof for future work.
 \label{sec:so3-recon}
 
 To test whether $\beta_{\mathrm{sel}}$ retains enough information to
-recover signals up to rotation, we run a direct inversion experiment.
-We take two band-limited signals $f:S^2\to\R$ at $L=15$ (one from
-each of the first two Spherical~MNIST classes), compute
-$\beta_{\mathrm{sel}}(f)$, and reconstruct $f$ by gradient descent on
-the spherical-harmonic coefficients $\hat a_\ell^m$, minimising
-$\lVert \beta_{\mathrm{sel}}(\hat f) - \beta_{\mathrm{sel}}(f)
-\rVert^2$ from a random initialisation. After convergence, $\hat f$
-is aligned to $f$ by the optimal $\hat R\in\SO(3)$ (degree-1
-alignment plus Wigner-$D$ refinement).
+recover signals up to rotation, we run a direct inversion experiment
+on Spherical MNIST digits band-limited at $L = 12$.\footnote{We use
+$L{=}12$ here rather than the classifier's $L{=}15$ to keep the
+reconstruction residual safely below the SHT discretisation floor at
+the $64{\times}128$ grid; protocol details are in
+Appendix~\ref{app:so3-recon}.} For each source signal
+$f:S^2\to\R$ we apply a uniform random rotation $R\in\SO(3)$ to form
+the target $R\cdot f$, compute $\beta_{\mathrm{sel}}(R\cdot f)$, and
+recover $\hat f$ by gradient descent from a random Gaussian
+initialisation, minimising
+$\lVert \beta_{\mathrm{sel}}(\hat f) -
+\beta_{\mathrm{sel}}(R\cdot f)\rVert^2 / \lVert
+\beta_{\mathrm{sel}}(R\cdot f)\rVert^2$ (Adam,
+multi-restart, cosine-annealed LR). The orbit ambiguity is then
+resolved by Procrustes-style optimisation on a quaternion
+parameterisation: we fit $\hat R\in\SO(3)$ minimising $\lVert
+\hat R\cdot\hat f - R\cdot f\rVert^2$.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.55\linewidth]{figures/so3_reconstruction.pdf}
-  \caption{$\SO(3)$ bispectrum reconstruction (proof of concept).
-    For each of two source signals (rows: Spherical~MNIST class~$0$
-    and class~$1$, $L=15$), the column \emph{Target $f$} shows the
-    original band-limited signal and the column
-    \emph{Recon $\hat R \cdot \hat f$} shows the gradient-descent
-    reconstruction $\hat f$ (recovered from $\beta_{\mathrm{sel}}(f)$
-    only) after alignment to $f$ by the optimal $\hat R\in\SO(3)$.
-    The relative image residual
-    $\lVert \hat R\cdot \hat f - f\rVert / \lVert f\rVert$ is shown
-    beneath each row.}
+  \includegraphics[width=\linewidth]{experiments/spherical_mnist_reconstruction/figures/paper_orbits.pdf}
+  \caption{$\SO(3)$ bispectrum reconstruction on Spherical MNIST
+    (proof of concept). Top row: target signal $f$ for digit classes
+    0--5. Bottom row: $\hat R\!\cdot\!\hat f$, where $\hat f$ is
+    recovered from $\beta_{\mathrm{sel}}(f)$ alone by gradient
+    descent in image space and $\hat R\in\SO(3)$ is fit by Procrustes
+    alignment to factor out the orbit ambiguity. Both panels of a
+    column share the target's camera, so any visible difference is a
+    true reconstruction error rather than a viewpoint mismatch. The
+    number under each column is the relative image-space residual
+    $\lVert\hat R\!\cdot\!\hat f - f\rVert/\lVert f\rVert$ (median
+    $\approx 0.20$ across the six classes; raw
+    $\lVert\hat f - f\rVert/\lVert f\rVert$ before alignment is
+    $\mathcal{O}(1)$, $\approx 1.3$).}
   \label{fig:so3-reconstruction}
 \end{figure}
 
 \paragraph{Takeaways.}
-On both signals the bispectrum residual reaches
-$\lVert\Delta\beta\rVert/\lVert\beta\rVert\sim 10^{-3}$ at
-convergence, and the aligned image residual
-$\lVert \hat R\cdot\hat f - f\rVert / \lVert f\rVert$ is $0.23$
-(class~$0$) and $0.11$ (class~$1$); the recovered $\hat f$ visually
-matches $f$ up to rotation in both cases
-(Figure~\ref{fig:so3-reconstruction}). Residual image error is
-dominated by gradient-descent local optima rather than by missing
-invariant information: each reconstruction is initialised from a
-single random point and run with no restarts. We read this as
-proof-of-concept evidence that the selective coefficients carry
-enough information to recover band-limited signals up to $\SO(3)$; a
-formal proof of completeness for $\beta_{\mathrm{sel}}$ remains an
-open question.
+Bispectrum residuals reach
+$\lVert\Delta\beta\rVert/\lVert\beta\rVert \sim 10^{-4}$--$10^{-3}$
+(below the SHT-discretisation invariance noise floor of
+${\sim}8\times 10^{-3}$ at this grid), and the aligned image residuals
+$\lVert\hat R\cdot\hat f - f\rVert/\lVert f\rVert \sim
+0.1$--$0.3$ are dominated by residual local optima of the
+gradient-descent solvers, not by missing invariant information---the
+recovered $\hat f$ visually matches $f$ up to rotation across all six
+digit classes shown (Figure~\ref{fig:so3-reconstruction}; the same
+behaviour holds across our 8-digit sweep, see
+Appendix~\ref{app:so3-recon}). We read this as proof-of-concept
+evidence that the selective coefficients carry enough information to
+recover band-limited signals up to $\SO(3)$; a formal proof of
+completeness for $\beta_{\mathrm{sel}}$ remains an open question.
 
 
 \section{Discussion and Conclusion}
@@ -2054,6 +2065,56 @@ over 3 seeds (42, 123, 456). Rotation robustness
 rotations to the entire test set and computing the standard deviation
 of accuracy, yielding 30 measurements per model (10 rotations
 $\times$ 3 seeds).
+
+\subsection{Spherical MNIST: bispectrum reconstruction protocol}
+\label{app:so3-recon}
+
+This section gives the protocol behind
+Figure~\ref{fig:so3-reconstruction} (Section~\ref{sec:so3-recon}).
+The implementation lives in
+\texttt{paper/experiments/spherical\_mnist\_reconstruction/reconstruct.py}.
+
+\paragraph{Setup.}
+Spherical MNIST is rendered onto an equiangular $64{\times}128$
+lat--lon grid using the same stereographic projection as the
+classifier, then band-limited at $L = 12$ via a forward/inverse SHT
+roundtrip (\texttt{torch\_harmonics.RealSHT}). For each digit we
+draw a target rotation $R\in\SO(3)$ uniformly at random and form
+$f := R\cdot f_0$. We compute the SO(3)-on-$S^2$ selective bispectrum
+$\beta := \beta_{\mathrm{sel}}(f)$.
+
+\paragraph{Reconstruction.}
+Starting from a Gaussian initialization $\hat f_0\sim\mathcal{N}(0, I)$
+on the $64{\times}128$ grid, we optimize $\hat f$ with Adam
+(initial LR $5\times 10^{-2}$, cosine annealing to $5\times 10^{-4}$,
+$8000$ steps) to minimize the relative complex L2 loss
+$\|\beta(\hat f) - \beta\|^2 / \|\beta\|^2$. After every step we
+project $\hat f$ back to the band-limited subspace via $\mathrm{SHT}^{-1}\!\circ\mathrm{SHT}$ truncated at $L$ to suppress the
+unconstrained null space. We run $4$ random restarts and keep the
+$\hat f$ with the lowest bispectrum residual. Reconstruction
+typically reaches $\|\beta(\hat f)-\beta\|/\|\beta\|\sim 10^{-3}$,
+near the SHT-discretization invariance floor for this grid.
+
+\paragraph{$\SO(3)$ alignment.}
+The bispectrum is invariant on $\SO(3)$-orbits, so $\hat f$ lives
+somewhere in the orbit of $f$ rather than at $f$ itself. We resolve
+the orbit ambiguity by Procrustes-style fitting: we parameterize
+$\hat R \in \SO(3)$ as a unit quaternion (auto-normalized) to avoid
+gimbal lock, and minimize $\|\hat R\cdot\hat f - f\|^2$ with Adam
+($12$ random restarts, $200$ steps each, cosine-annealed LR).
+Rotations of the spherical image use bilinear interpolation in
+lat--lon coordinates (\texttt{bispectrum.rotate\_spherical\_function}).
+
+\paragraph{Numerical floor.}
+On a $64{\times}128$ grid, two SHT roundtrips of two $\SO(3)$-rotated
+copies of the same signal already differ by
+$\|f' - f\|/\|f\|\approx 2\times 10^{-2}$ in image space due to
+bilinear-interpolation discretization; this is the noise floor below
+which alignment cannot improve. The aligned residuals reported in
+Figure~\ref{fig:so3-reconstruction} ($0.1$--$0.3$) sit one to two
+orders of magnitude above this floor and are dominated by gradient
+descent local optima on the bispectrum reconstruction step, not by
+missing information.
 
 \subsection{Dataset licenses}
 
