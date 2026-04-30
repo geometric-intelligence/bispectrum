@@ -1,0 +1,79 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "power_spectrum_matched",
+  "base_model": "power_spectrum",
+  "train_mode": "R",
+  "test_rotation_seed": 777,
+  "seed": 789,
+  "lmax": 15,
+  "n_params": 231906,
+  "invariant_dim": 16,
+  "train_size": null,
+  "train_examples": 50000,
+  "best_val_accuracy": 0.7978,
+  "test_c": {
+    "loss": 0.6498076982498169,
+    "accuracy": 0.7786
+  },
+  "test": {
+    "loss": 0.6498076982498169,
+    "accuracy": 0.7786
+  },
+  "test_nr": {
+    "loss": 0.6498076982498169,
+    "accuracy": 0.7786
+  },
+  "test_r": {
+    "loss": 0.6463006746292115,
+    "accuracy": 0.7808
+  },
+  "rotation_robustness": {
+    "rot_00": 0.7806,
+    "rot_01": 0.7806,
+    "rot_02": 0.7798,
+    "rot_03": 0.7808,
+    "rot_04": 0.7805,
+    "rot_05": 0.7811,
+    "rot_06": 0.7806,
+    "rot_07": 0.7809,
+    "rot_08": 0.7798,
+    "rot_09": 0.7806,
+    "mean_accuracy": 0.78053,
+    "std_accuracy": 0.0004026164427839369
+  },
+  "wall_time_s": 42.49588990211487,
+  "epochs_run": 18,
+  "peak_train_alloc_bytes": 47850496,
+  "peak_train_reserved_bytes": 73400320,
+  "gpu_name": "NVIDIA A100-SXM4-80GB",
+  "cuda_total_memory_bytes": 85095874560,
+  "git_sha": "5fb3903a1c11765c007a1686e1c9acd77b6024db",
+  "argv": [
+    "--model",
+    "power_spectrum",
+    "--run_label",
+    "power_spectrum_matched",
+    "--train_mode",
+    "R",
+    "--seed",
+    "789",
+    "--hidden",
+    "1312",
+    "--lmax",
+    "15",
+    "--batch_size",
+    "256",
+    "--output_dir",
+    "/home/johmathe/bispectrum/paper/experiments/normalized_results/spherical_mnist/n_full",
+    "--data_dir",
+    "./smnist_data",
+    "--subset_dir",
+    "/home/johmathe/bispectrum/paper/experiments/normalized_results/subsets",
+    "--test_rotation_seed",
+    "777",
+    "--patience",
+    "10",
+    "--epochs",
+    "50"
+  ]
+}

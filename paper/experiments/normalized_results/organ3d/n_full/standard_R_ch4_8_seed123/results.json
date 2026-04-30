@@ -1,0 +1,167 @@
+{
+  "dataset": "organ3d",
+  "model": "standard",
+  "train_mode": "R",
+  "seed": 123,
+  "channels": [
+    4,
+    8
+  ],
+  "head_dim": 64,
+  "n_params": 16071,
+  "invariant_dim": 8,
+  "raw_invariant_dim": 8,
+  "projected_dim": 8,
+  "train_size": null,
+  "train_examples": 971,
+  "best_val_auc": 0.9664746859800508,
+  "test": {
+    "loss": 1.0456648529553023,
+    "accuracy": 0.5967212915420532,
+    "auc": 0.9447174160827818
+  },
+  "test_c": {
+    "loss": 1.0456648529553023,
+    "accuracy": 0.5967212915420532,
+    "auc": 0.9447174160827818
+  },
+  "test_r": {
+    "loss": 0.0,
+    "accuracy": 0.6057377060254415,
+    "auc": 0.945882910246849
+  },
+  "rotation_robustness": {
+    "g00": {
+      "accuracy": 0.61147540807724,
+      "auc": 0.9386534876777467
+    },
+    "g01": {
+      "accuracy": 0.591803252696991,
+      "auc": 0.9444933438468077
+    },
+    "g02": {
+      "accuracy": 0.5983606576919556,
+      "auc": 0.943950186359244
+    },
+    "g03": {
+      "accuracy": 0.5950819849967957,
+      "auc": 0.9446649091087774
+    },
+    "g04": {
+      "accuracy": 0.6098360419273376,
+      "auc": 0.9489096655435456
+    },
+    "g05": {
+      "accuracy": 0.5803278684616089,
+      "auc": 0.9483103608158469
+    },
+    "g06": {
+      "accuracy": 0.5950819849967957,
+      "auc": 0.9492833295448762
+    },
+    "g07": {
+      "accuracy": 0.591803252696991,
+      "auc": 0.9460332841047215
+    },
+    "g08": {
+      "accuracy": 0.6213114857673645,
+      "auc": 0.9481584121548614
+    },
+    "g09": {
+      "accuracy": 0.6065573692321777,
+      "auc": 0.944191088743982
+    },
+    "g10": {
+      "accuracy": 0.6081967353820801,
+      "auc": 0.944887436370158
+    },
+    "g11": {
+      "accuracy": 0.6180328130722046,
+      "auc": 0.9438387740185491
+    },
+    "g12": {
+      "accuracy": 0.6163934469223022,
+      "auc": 0.9451403044721413
+    },
+    "g13": {
+      "accuracy": 0.6032786965370178,
+      "auc": 0.9460282337313948
+    },
+    "g14": {
+      "accuracy": 0.6081967353820801,
+      "auc": 0.9464323437867694
+    },
+    "g15": {
+      "accuracy": 0.5852459073066711,
+      "auc": 0.9473878473305303
+    },
+    "g16": {
+      "accuracy": 0.6131147742271423,
+      "auc": 0.9451356629522093
+    },
+    "g17": {
+      "accuracy": 0.6278688311576843,
+      "auc": 0.946963861155453
+    },
+    "g18": {
+      "accuracy": 0.6131147742271423,
+      "auc": 0.9463101292321722
+    },
+    "g19": {
+      "accuracy": 0.6213114857673645,
+      "auc": 0.9487704360035935
+    },
+    "g20": {
+      "accuracy": 0.61147540807724,
+      "auc": 0.9486895077187149
+    },
+    "g21": {
+      "accuracy": 0.6016393303871155,
+      "auc": 0.9483863503762516
+    },
+    "g22": {
+      "accuracy": 0.61147540807724,
+      "auc": 0.9418534747932475
+    },
+    "g23": {
+      "accuracy": 0.5967212915420532,
+      "auc": 0.9447174160827818
+    },
+    "mean_auc": 0.945882910246849,
+    "std_auc": 0.002452792877933432,
+    "mean_accuracy": 0.6057377060254415,
+    "std_accuracy": 0.011754989376001522
+  },
+  "wall_time_s": 71.1333167552948,
+  "epochs_run": 81,
+  "peak_train_alloc_bytes": 198965248,
+  "peak_train_reserved_bytes": 299892736,
+  "gpu_name": "NVIDIA A100-SXM4-80GB",
+  "cuda_total_memory_bytes": 85095874560,
+  "git_sha": "5fb3903a1c11765c007a1686e1c9acd77b6024db",
+  "argv": [
+    "--model",
+    "standard",
+    "--channels",
+    "4",
+    "8",
+    "--head_dim",
+    "64",
+    "--train_mode",
+    "R",
+    "--seed",
+    "123",
+    "--batch_size",
+    "64",
+    "--output_dir",
+    "/home/johmathe/bispectrum/paper/experiments/normalized_results/organ3d/n_full",
+    "--data_dir",
+    "./organ3d_data",
+    "--subset_dir",
+    "/home/johmathe/bispectrum/paper/experiments/normalized_results/subsets",
+    "--patience",
+    "15",
+    "--epochs",
+    "100"
+  ]
+}
