@@ -32,6 +32,7 @@ class OrganMNIST3DDataset(Dataset):
     def __init__(self, split: str, data_dir: str, normalize: bool = True):
         import medmnist
 
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
         ds = medmnist.OrganMNIST3D(
             split=split, download=True, root=data_dir, size=28,
         )

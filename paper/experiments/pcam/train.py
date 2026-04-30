@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import sys
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -36,6 +38,43 @@ from data import apply_group_element, get_dataloaders, gpu_augment, gpu_normaliz
 from model import build_model
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+
+
+def _git_sha() -> str:
+    try:
+        out = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+        return out.stdout.strip() if out.returncode == 0 else ''
+    except (OSError, subprocess.SubprocessError):
+        return ''
+
+
+def _cost_record(device: torch.device, wall_time_s: float, epochs_run: int) -> dict:
+    if torch.cuda.is_available():
+        props = torch.cuda.get_device_properties(device)
+        return {
+            'wall_time_s': float(wall_time_s),
+            'epochs_run': int(epochs_run),
+            'peak_train_alloc_bytes': int(torch.cuda.max_memory_allocated(device)),
+            'peak_train_reserved_bytes': int(torch.cuda.max_memory_reserved(device)),
+            'gpu_name': torch.cuda.get_device_name(device),
+            'cuda_total_memory_bytes': int(props.total_memory),
+            'git_sha': _git_sha(),
+            'argv': list(sys.argv[1:]),
+        }
+    return {
+        'wall_time_s': float(wall_time_s),
+        'epochs_run': int(epochs_run),
+        'peak_train_alloc_bytes': 0,
+        'peak_train_reserved_bytes': 0,
+        'gpu_name': None,
+        'cuda_total_memory_bytes': 0,
+        'git_sha': _git_sha(),
+        'argv': list(sys.argv[1:]),
+    }
 
 
 def compute_metrics(
@@ -388,6 +427,10 @@ def train(args: argparse.Namespace) -> dict:
         out_dir = Path(args.output_dir) / f'{args.model}_{args.group}_gr{args.growth_rate}_{args.train_mode}_seed{args.seed}{n_tag}'
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats(device)
+    t_start = time.time()
+    epochs_run = 0
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
         train_loss = train_one_epoch(
@@ -397,6 +440,7 @@ def train(args: argparse.Namespace) -> dict:
         )
         val_metrics = compute_metrics(model, val_loader, device)
         elapsed = time.time() - t0
+        epochs_run = epoch
 
         print(
             f'Epoch {epoch:3d}/{args.epochs} | '
@@ -418,6 +462,8 @@ def train(args: argparse.Namespace) -> dict:
             print(f'Early stopping at epoch {epoch} (patience={args.patience})')
             break
 
+    cost = _cost_record(device, time.time() - t_start, epochs_run)
+
     model.load_state_dict(torch.load(out_dir / 'best_model.pt', weights_only=True))
     test_c = compute_metrics(model, test_loader, device)
     print(f'\nTest C results: {test_c}')
@@ -433,7 +479,6 @@ def train(args: argparse.Namespace) -> dict:
         rot_metrics = {}
         test_r = {}
 
-    # Save results.
     results: dict = {
         'dataset': 'pcam',
         'model': args.model,
@@ -451,6 +496,7 @@ def train(args: argparse.Namespace) -> dict:
         'test_c': test_c,
         'test_r': test_r,
         'rotation_robustness': rot_metrics,
+        **cost,
     }
     if args.model == 'so2_disk':
         results['bandlimit'] = args.bandlimit
