@@ -116,8 +116,8 @@ visually aligned reconstructions with relative image-space residuals
 in the $0.1$--$0.3$ range across our digit sweep
 (Section~\ref{sec:so3-recon}).
 We benchmark the library on three datasets across three group/domain
-pairs --- PCam under $C_8$, OrganMNIST3D under the octahedral group,
-and Spherical~MNIST under $\SO(3)$ --- comparing against norm pooling,
+pairs (PCam under $C_8$, OrganMNIST3D under the octahedral group,
+and Spherical~MNIST under $\SO(3)$) comparing against norm pooling,
 gated pooling, Fourier-ELU pooling, max pooling, and (non-equivariant)
 augmented CNN baselines. The library delivers near-exact rotation
 invariance (test-set rotation-accuracy std $\sigma_{\mathrm{rot}} <
@@ -171,21 +171,39 @@ drop-in \texttt{nn.Module}s.
 
 \paragraph{Contributions.}
 \begin{enumerate}
-  \item \textbf{Library.} PyTorch \texttt{nn.Module}s for seven
-    $G$/domain pairs with a uniform API; selective $O(|G|)$ default,
-    precomputed CG buffers, GPU-optimized forward passes
-    ($<$1\,ms for finite groups), 96.8\% test coverage.
-  \item \textbf{Theory.} A selective $\SO(3)$ invariant on $S^2$,
-    $\Phi_{\mathrm{sel}}$, with $\Theta(L^2)$ coefficients
-    (Sec.~\ref{sec:so3-selective}), matching the orbit-space lower
-    bound $(L{+}1)^2 - 3$; reconstruction evidence supports that it
-    preserves substantial orbit information, but a formal
-    completeness proof is left to future work.
+  \item \textbf{Library.} A PyTorch library implementing selective
+    $G$-bispectra for \emph{seven group/domain pairs} --- $C_n$,
+    $\SO(2)$ on $S^1$, $D_n$, $\mathbb{T}^d$, $\SO(2)$ on the disk,
+    $\SO(3)$ on $S^2$, and the chiral octahedral group $O$ on voxel
+    grids --- as drop-in differentiable \texttt{nn.Module}s with a
+    uniform API, selective $O(|G|)$ default, precomputed
+    Clebsch--Gordan buffers, sub-millisecond GPU forward passes for
+    finite groups, and a fully unit-tested codebase
+    (96.8\% line coverage).
+  \item \textbf{Augmented selective $\SO(3)$ invariant on $S^2$.}
+    We construct $\Phi_{\mathrm{sel}}$ (Sec.~\ref{sec:so3-selective}),
+    which extends the breadth-first-search (BFS) finite-group
+    template of~\citet{mataigne2024selective} to the continuous case by
+    augmenting a selective scalar bispectrum with degree-$4$
+    \emph{CG-power} entries
+    $P_{\ell_1,\ell_2,\ell} = \lVert (\hat f_{\ell_1} \otimes
+    \hat f_{\ell_2})|_\ell \rVert^2$ that restore rank on real-valued
+    signals. At band-limit $L$, $\Phi_{\mathrm{sel}}$ uses
+    $\Theta(L^2)$ scalar coefficients (matching the orbit-space lower
+    bound $(L{+}1)^2 - 3$ up to a constant) versus $O(L^3)$ for the
+    full bispectrum. Gradient-descent reconstruction from
+    $\Phi_{\mathrm{sel}}$ produces visually aligned copies across our
+    digit sweep; a formal completeness proof for the continuous case
+    is left to future work.
   \item \textbf{Benchmarks.} PCam under $C_8$, OrganMNIST3D under
-    the octahedral group, and Spherical MNIST under $\SO(3)$,
-    against norm / gated / Fourier-ELU / max pooling and augmented
-    CNN baselines; near-exact invariance and a data-efficiency
-    advantage over incomplete alternatives at low data.
+    the octahedral group $O$, and Spherical~MNIST under $\SO(3)$,
+    against norm pooling, gated pooling, Fourier-ELU pooling, max
+    pooling, and (non-equivariant) augmented-CNN baselines.
+    Bispectral pooling delivers near-exact rotation invariance
+    (test-set $\sigma_{\mathrm{rot}}<10^{-3}$) and a consistent
+    data-efficiency advantage over incomplete alternatives in the
+    low-data, moderate-capacity regime, converging to them at high
+    capacity.
 \end{enumerate}
 
 \section{Mathematical Background}
@@ -235,18 +253,19 @@ equivariant features to \emph{invariant} ones (constant on each orbit).
   \label{tab:nonlinearity-comparison}
   \centering
   \small
-  \begin{tabular}{lccccc}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lccccl}
     \toprule
     Nonlinearity & Exact?$^*$ & Complete? & Coefficients & Forward cost & Key limitation \\
     \midrule
-    Norm          & Yes & No  & $O(|G|)$   & $O(|G|)$         & Discards phase \\
-    Gate          & Yes & No  & $O(|G|)$   & $O(|G|)$         & Scalar bottleneck \\
-    Fourier pointwise & No & Yes$^\ddagger$ & $O(|G|)$ & $O(|G| \log |G|)$ & Aliasing \\
-    Full bispectrum & Yes & Yes & $O(|G|^2)$ & $O(|G|^3)$     & Quadratic cost \\
+    Norm              & Yes & No              & $O(|G|)$   & $O(|G|)$          & Discards phase \\
+    Gate              & Yes & No              & $O(|G|)$   & $O(|G|)$          & Scalar bottleneck \\
+    Fourier pointwise & No  & Yes$^\ddagger$  & $O(|G|)$   & $O(|G| \log |G|)$ & Aliasing \\
+    Full bispectrum (finite $G$)      & Yes & Yes & $O(|G|^2)$   & $O(|G|^3)$ & Quadratic cost \\
+    Full bispectrum ($\SO(3)$/$S^2$)  & Yes & Yes & $\Theta(L^3)$ & $O(L^4)$  & Cubic cost \\
     \midrule
-    \textbf{Selective bispectrum} (finite $G$) & \textbf{Yes} & \textbf{Yes}
-      & $\mathbf{O(|G|)}$ & $\mathbf{O(|G|^2)}$ & Genericity assumption$^\dagger$ \\
-    Augmented selective $\SO(3)$/$S^2$ (ours) & Yes & Empirical & $\Theta(L^2)$ & $O(L^3)$ & Proof of concept only \\
+    Selective bispectrum (finite $G$) & Yes & Yes       & $O(|G|)$      & $O(|G|^2)$ & Genericity assumption$^\dagger$ \\
+    Augmented selective $\SO(3)$/$S^2$ (ours) & Yes & Empirical & $\Theta(L^2)$ & $O(L^3)$   & Proof of concept only \\
     \bottomrule
   \end{tabular}
 
@@ -260,7 +279,7 @@ pooling layers. Norm pooling and gated nonlinearities are exact
 invariants but \emph{incomplete}: they discard the phase of Fourier
 blocks, collapsing distinct orbits. Fourier-space pointwise
 nonlinearities preserve completeness but sacrifice exactness through
-aliasing~\citep{weiler2019general}. The full bispectrum is exact and
+\mbox{aliasing~\citep{weiler2019general}}. The full bispectrum is exact and
 complete but costs $O(|G|^2)$ coefficients. The \emph{selective}
 bispectrum (introduced below) preserves both exactness and completeness
 while using only $O(|G|)$ coefficients on generic signals.
@@ -313,7 +332,7 @@ on the disk). The explicit specialisation for $S^2$ is in
 Definition~\ref{def:app-bispectrum}.
 
 \emph{Selective bispectra.} \citet{mataigne2024selective} show that for
-finite groups, a breadth-first search (BFS) over the Kronecker product
+finite groups, a BFS over the Kronecker product
 table of $\hat{G}$ selects $O(|G|)$ bispectral coefficients
 $\beta_{i,j}^{k}$ that remain complete; \citet{myers2025selective}
 extend this to the disk. This
@@ -385,7 +404,8 @@ its distinguishing theoretical advantage.
 \label{sec:design}
 
 Every $G$/domain pair is a \texttt{torch.nn.Module} named
-\texttt{\{Group\}on\{Domain\}} (e.g.\ \texttt{SO3onS2}) with a
+\texttt{\{Group\}on\{Domain\}} (e.g.\ \texttt{SO3onS2});
+Table~\ref{tab:supported-groups} lists all seven modules. Each exposes a
 uniform API: \texttt{forward(f)} returns the selective invariants,
 \texttt{fourier(f)} the group Fourier coefficients, and
 \texttt{invert(beta)} the reconstructed signal up to group-action
@@ -397,6 +417,28 @@ PyTorch~\citep{paszke2019pytorch}, NumPy~\citep{harris2020numpy},
 and \texttt{torch\_harmonics}~\citep{bonev2023spherical} (for
 \texttt{SO3onS2}). Test suite line coverage is 96.8\%; a minimal
 usage example is in Appendix~\ref{app:api-example}.
+
+\begin{table}[t]
+  \caption{Scope of the \texttt{bispectrum} library.
+    \texttt{SO2onS1} is the continuous-$n$ limit of \texttt{CnonCn}
+    and shares its implementation.}
+  \label{tab:supported-groups}
+  \centering
+  \small
+  \begin{tabular}{llll}
+    \toprule
+    Module & Group / Domain & Output mode & Reference \\
+    \midrule
+    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full & \citep{sanborn2023bispectral} \\
+    \texttt{SO2onS1} & $\SO(2)$ on $S^1$ & selective + full & \citep{mataigne2024selective} \\
+    \texttt{TorusDnTorus} & $\mathbb{T}^d$ & selective + full & \citep{mataigne2024selective} \\
+    \texttt{DnonDn} & $D_n$ on $D_n$ & selective & \citep{mataigne2024selective} \\
+    \texttt{SO2onDisk} & $\SO(2)$ on disk & selective & \citep{myers2025selective} \\
+    \texttt{SO3onS2} & $\SO(3)$ on $S^2$ & selective + full & \citep{kakarala2012bispectrum}, this paper \\
+    \texttt{OctaonOcta} & chiral octahedral $O$ & selective & \citep{mataigne2024selective} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Profiling}
 \label{sec:benchmarks}
