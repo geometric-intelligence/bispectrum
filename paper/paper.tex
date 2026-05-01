@@ -146,8 +146,7 @@ signals~\citep{mataigne2024selective}.
 
 Existing invariant pooling layers --- norm pooling, gate-based pooling,
 max/sum aggregation~\citep{weiler2019general} --- are simple but
-\emph{incomplete}: they collapse equivariant features to scalars and
-discard information that distinguishes signals in different orbits.
+\emph{incomplete}: they discard information that distinguishes signals in different orbits.
 The bispectrum offers a mathematically principled
 alternative~\citep{giannakis1989bispectrum, kakarala2012bispectrum} and
 has been used as a competitive pooling layer in equivariant
@@ -158,10 +157,7 @@ for both theoretical and computational reasons.} Existing bispectral
 constructions are scattered across theory papers, domain-specific
 derivations, and small implementations, with no general-purpose PyTorch
 library covering the discrete and continuous symmetry groups relevant
-to modern geometric deep learning. Even for groups where
-selectivity~\citep{mataigne2024selective} reduces the bispectrum from
-$O(|G|^2)$ to $O(|G|)$ scalars (and the per-pass cost from $O(|G|^3)$
-to $O(|G|^2)$), a user still needs a numerically stable
+to modern geometric deep learning. Users still need a numerically stable
 implementation, a consistent API, an inversion routine, tests, and
 benchmarked runtime. On the theoretical side, the selective construction
 of \citet{mataigne2024selective} applies to finite groups; the
@@ -210,10 +206,6 @@ $\Theta(L^2)$ coefficients (Section~\ref{sec:so3-selective}).
     low-data, moderate-capacity regime while converging to incomplete
     alternatives at high capacity.
 \end{enumerate}
-Together, these contributions provide the first general-purpose,
-drop-in differentiable library for $G$-bispectral invariants and the
-first practical extension of the selective construction from finite
-groups to $\SO(3)$ on $S^2$.
 
 \section{Mathematical Background}
 \label{sec:background}
@@ -344,18 +336,6 @@ in a basis adapted to $G/H$ (spherical harmonics for $S^2$, Bessel modes
 on the disk). The explicit specialisation for $S^2$ is in
 Definition~\ref{def:app-bispectrum}.
 
-\paragraph{Scalar vs.\ matrix (vector) bispectrum.}
-Throughout this paper the term \emph{scalar bispectrum} refers to the
-single complex number $\beta_{i,j}^{k}(f)$ obtained from the inner
-product in Eq.~\eqref{eq:bispectrum-def}---i.e., the CG-contracted
-scalar associated with each admissible triple. In the literature one
-also encounters the \emph{matrix} or \emph{vector} bispectrum, which
-keeps the un-contracted matrix
-$(C_{ij}^k)^\dagger (\hat f(\rho_i) \otimes \hat f(\rho_j))$ before
-pairing it with $\hat f(\rho_k)$. The two are related by a single
-trace/inner-product step; the scalar form is what the library outputs
-and what we analyse for $\SO(3)$ on $S^2$.
-
 \emph{Selective bispectra.} \citet{mataigne2024selective} show that for
 finite groups, a breadth-first search (BFS) over the Kronecker product
 table of $\hat{G}$ selects $O(|G|)$ bispectral coefficients
@@ -411,20 +391,6 @@ disk, where $\SO(2)$ acts on a non-homogeneous space.
 bispectrum and the closely related sphere case via Wigner-$D$ irreps.
 The matrix (vector) bispectrum on $S^2$ is the homogeneous-space form
 on which our scalar contractions and CG power augmentation are built.
-
-\paragraph{CG product nonlinearities and tensor products.}
-Tensor field networks~\citep{thomas2018tensor} and
-MACE~\citep{batatia2022mace} use iterated Clebsch--Gordan products
-to build equivariant interactions. These products are exact and complete
-in principle, but each layer incurs $O(L^3)$ cost per CG contraction.
-\citet{xie2025price} analyse the \emph{price of freedom} in tensor
-product architectures, showing that maintaining full expressivity through
-CG products becomes expensive at high angular momenta.
-The selective bispectrum is empirically complete (proof of concept
-in Figure~\ref{fig:so3-reconstruction}; finite-group case proved
-in~\citet{mataigne2024selective}) in a single $O(L^2)$ pass for
-$\SO(3)$ or $O(|G|)$ pass for finite groups, avoiding iterated
-contractions.
 
 \paragraph{Invariant theory and scattering.}
 The wavelet scattering transform~\citep{mallat2012scattering} provides
@@ -1046,15 +1012,6 @@ Each bispectrum module is also invariant to a \emph{specific} group
 invariance to multiple or unknown symmetries, learned invariance via
 data augmentation or group-equivariant networks with flexible symmetry
 may be a better fit.
-Completeness is a property of the \emph{map}, not of downstream task
-performance: a complete invariant provides a stronger inductive bias,
-but does not guarantee superior accuracy on every task.
-Invertibility of the bispectrum for generic signals was first proved by
-\citet{giannakis1989bispectrum}; \citet{kakarala2012bispectrum}
-extended this to compact groups.
-For $\SO(3)$ on $S^2$, computational cost grows as $O(L^2)$ per forward
-pass; at very large band-limits this may become a bottleneck relative
-to simpler pooling strategies.
 
 \paragraph{Limitations.}
 Inversion for $\SO(3)$ on $S^2$ is not yet shipped as a library API;
