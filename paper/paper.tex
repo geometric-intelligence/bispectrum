@@ -61,6 +61,13 @@
   columns=fullflexible,
 }
 
+\setlist[itemize]{noitemsep,topsep=2pt,partopsep=0pt}
+\setlist[enumerate]{noitemsep,topsep=2pt,partopsep=0pt}
+\setlength{\textfloatsep}{6pt plus 1pt minus 2pt}
+\setlength{\intextsep}{6pt plus 1pt minus 2pt}
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{2pt}
+
 \title{\texttt{bispectrum}: Selective $G$-Bispectra Made Practical}
 
 \author{%
@@ -96,18 +103,18 @@ group-specific implementations.
 We present \texttt{bispectrum}, an open-source, fully unit-tested
 PyTorch library that computes \emph{selective} $G$-bispectral
 invariants for seven different group/domain pairs as drop-in
-differentiable \texttt{nn.Module}s. Selectivity reduces the invariant
-size from $O(|G|^2)$ for the full bispectrum to $O(|G|)$ while
-remaining complete on generic signals.
-On the theoretical side, we contribute a selective $\SO(3)$ invariant
-on the sphere $S^2$ that achieves $\Theta(L^2)$ coefficients at
-band-limit~$L$, matching the information-theoretic orbit-space lower
-bound $(L{+}1)^2 - 3$ instead of the $O(L^3)$ of the full bispectrum.
-We provide proof-of-concept evidence that the construction
-retains enough information to recover signals up to rotation:
-gradient-descent reconstruction from the selective coefficients
-converges to rotated copies of the source signal across multiple
-test signals (Section~\ref{sec:so3-recon}).
+differentiable \texttt{nn.Module}s. For finite groups, selectivity
+reduces the invariant size from $O(|G|^2)$ for the full bispectrum
+to $O(|G|)$ while remaining complete on generic signals. For $\SO(3)$
+on $S^2$, we introduce an augmented selective construction
+$\Phi_{\mathrm{sel}}$ with $\Theta(L^2)$ coefficients at band-limit
+$L$ (matching the orbit-space lower bound $(L{+}1)^2 - 3$ up to a
+constant, vs.\ $O(L^3)$ for the full bispectrum); a formal
+completeness proof for the continuous case is left to future work.
+Gradient-descent reconstruction from $\Phi_{\mathrm{sel}}$ produces
+visually aligned reconstructions with relative image-space residuals
+in the $0.1$--$0.3$ range across our digit sweep
+(Section~\ref{sec:so3-recon}).
 We benchmark the library on three datasets across three group/domain
 pairs --- PCam under $C_8$, OrganMNIST3D under the octahedral group,
 and Spherical~MNIST under $\SO(3)$ --- comparing against norm pooling,
@@ -144,100 +151,62 @@ recovered from the invariant up to its orbit; and
 $O(|G|^2)$ full bispectrum still suffices for completeness on generic
 signals~\citep{mataigne2024selective}.
 
-Existing invariant pooling layers --- norm pooling, gate-based pooling,
-max/sum aggregation~\citep{weiler2019general} --- are simple but
-\emph{incomplete}: they discard information that distinguishes signals in different orbits.
-The bispectrum offers a mathematically principled
-alternative~\citep{giannakis1989bispectrum, kakarala2012bispectrum} and
-has been used as a competitive pooling layer in equivariant
-networks~\citep{sanborn2023bispectral, mataigne2024selective}.
+Existing invariant pooling layers --- norm pooling, gate-based
+pooling, max/sum
+aggregation~\citep{weiler2019general} --- are simple but
+\emph{incomplete}: they discard information distinguishing signals
+in different orbits. The bispectrum is a principled
+alternative~\citep{giannakis1989bispectrum, kakarala2012bispectrum,
+sanborn2023bispectral, mataigne2024selective}, but existing
+constructions are scattered across theory papers and
+domain-specific implementations, and the selective template
+of~\citet{mataigne2024selective} is specific to finite groups; the
+continuous case of $\SO(3)$ on $S^2$ has remained open.
 
-\paragraph{Despite this, bispectral pooling has not been widely adopted,
-for both theoretical and computational reasons.} Existing bispectral
-constructions are scattered across theory papers, domain-specific
-derivations, and small implementations, with no general-purpose PyTorch
-library covering the discrete and continuous symmetry groups relevant
-to modern geometric deep learning. Users still need a numerically stable
-implementation, a consistent API, an inversion routine, tests, and
-benchmarked runtime. On the theoretical side, the selective construction
-of \citet{mataigne2024selective} applies to finite groups; the
-continuous case of $\SO(3)$ acting on the sphere $S^2$ has remained open.
-
-This paper presents \texttt{bispectrum}, a PyTorch~\citep{paszke2019pytorch}
-library for computing bispectral invariants and, where available, their
-inverses. The library supports the $C_n$, $D_n$, $\mathbb{T}^d$, disk,
-$S^2$, and octahedral domains as differentiable \texttt{nn.Module}s
-intended to plug into standard ML workflows. Beyond the software contribution,
-the paper makes one technical contribution that arose during
-implementation: a selective $\SO(3)$ bispectrum on $S^2$ with
-$\Theta(L^2)$ coefficients (Section~\ref{sec:so3-selective}).
+This paper presents \texttt{bispectrum}, a
+PyTorch~\citep{paszke2019pytorch} library for computing bispectral
+invariants (and, where available, their inverses) on the $C_n$,
+$D_n$, $\mathbb{T}^d$, disk, $S^2$, and octahedral domains as
+drop-in \texttt{nn.Module}s.
 
 \paragraph{Contributions.}
 \begin{enumerate}
-  \item \textbf{Software contribution.} A PyTorch library implementing
-    selective $G$-bispectra for \emph{seven different group/domain
-    pairs} (a \emph{domain} is the underlying space on which the group
-    acts: $C_n$ on $C_n$, $\SO(2)$ on $S^1$, $\mathbb{T}^d$, $D_n$,
-    $\SO(2)$ on the disk, $\SO(3)$ on $S^2$, and the octahedral group
-    $O$) as drop-in differentiable \texttt{nn.Module}s with a consistent
-    API, GPU-optimized forward passes ($<$1\,ms for finite groups),
-    precomputed CG buffers, and a fully unit-tested codebase
-    (96.8\% line coverage).
-  \item \textbf{Selective $\SO(3)$ bispectrum on $S^2$.} We construct
-    an invariant on $S^2$ that uses $\Theta(L^2)$ scalar coefficients
-    (matching the orbit-space dimension $(L{+}1)^2 - 3$ up to a
-    constant factor) instead of the $O(L^3)$ of the full bispectrum,
-    extending the BFS-style finite-group construction
-    of~\citet{mataigne2024selective} to the continuous case
-    $\SO(3)$ on $S^2$ (Section~\ref{sec:so3-selective}). We
-    demonstrate empirically that the construction retains enough
-    information to recover band-limited signals up to rotation:
-    gradient-descent reconstruction from $\beta_{\mathrm{sel}}$
-    converges to rotated copies of the source signal across all
-    test cases (Figure~\ref{fig:so3-reconstruction}). A formal proof
-    of completeness for the selective construction is left to future
-    work.
-  \item \textbf{Empirical validation.} A benchmark of $G$-bispectral
-    pooling across three ML tasks --- PCam under $C_8$, OrganMNIST3D
-    under the octahedral group $O$, and Spherical~MNIST under $\SO(3)$
-    --- against norm pooling, gated pooling, Fourier-ELU pooling, max
-    pooling, and (non-equivariant) augmented-CNN baselines. Complete
-    bispectral invariants provide a data-efficiency advantage in the
-    low-data, moderate-capacity regime while converging to incomplete
-    alternatives at high capacity.
+  \item \textbf{Library.} PyTorch \texttt{nn.Module}s for seven
+    $G$/domain pairs with a uniform API; selective $O(|G|)$ default,
+    precomputed CG buffers, GPU-optimized forward passes
+    ($<$1\,ms for finite groups), 96.8\% test coverage.
+  \item \textbf{Theory.} A selective $\SO(3)$ invariant on $S^2$,
+    $\Phi_{\mathrm{sel}}$, with $\Theta(L^2)$ coefficients
+    (Sec.~\ref{sec:so3-selective}), matching the orbit-space lower
+    bound $(L{+}1)^2 - 3$; reconstruction evidence supports that it
+    preserves substantial orbit information, but a formal
+    completeness proof is left to future work.
+  \item \textbf{Benchmarks.} PCam under $C_8$, OrganMNIST3D under
+    the octahedral group, and Spherical MNIST under $\SO(3)$,
+    against norm / gated / Fourier-ELU / max pooling and augmented
+    CNN baselines; near-exact invariance and a data-efficiency
+    advantage over incomplete alternatives at low data.
 \end{enumerate}
 
 \section{Mathematical Background}
 \label{sec:background}
 
 \paragraph{Notation.}
-A \emph{group} $G$ is a set with an associative product, identity, and inverse
-(e.g.\ rotations of the plane, translations of an image grid). $G$ is
-\emph{abelian} if elements commute (e.g.\ cyclic groups $C_n$, the torus
-$\mathbb{T}^d$) and \emph{non-abelian} otherwise (e.g.\ $\SO(3)$, the
-dihedral groups $D_n$, the octahedral group $O$). A
-\emph{representation} $\rho$ assigns to each $g \in G$ a unitary matrix
-$\rho(g)$ such that $\rho(gh) = \rho(g)\rho(h)$; an \emph{irreducible
-representation} (\emph{irrep}) admits no nontrivial invariant subspace.
-The \emph{dual} $\hat{G}$ denotes the set of equivalence classes of
-irreps; for finite $G$, $|\hat{G}| = O(|G|)$. A \emph{group action} of
-$G$ on a domain $X$ is a map $G \times X \to X$, $(g, x) \mapsto g \cdot x$,
-compatible with the group product; it induces an action on functions
-$f : X \to \R$ by $(f \circ g)(x) := f(g \cdot x)$. Two signals are in
-the same \emph{orbit} if one is the image of the other under some
-$g \in G$; an \emph{invariant} of $f$ is a function constant on each
-orbit. For compact $G$ there is a unique normalised translation-invariant
-measure $d\mu$ called the \emph{Haar measure}; finite $G$ is the special
-case where $d\mu$ is the counting measure. ``\emph{Lebesgue-almost-every
-$f$}'' means ``every $f$ outside a measure-zero algebraic subvariety of
-the signal space.'' The groups and domains used in this paper are: the
-cyclic group $C_n$ (discrete planar rotations), the dihedral group $D_n$
-(rotations and reflections of a regular $n$-gon), the torus
-$\mathbb{T}^d = (S^1)^d$ (multi-channel periodic signals), $\SO(2)$
-acting on the disk (continuous planar rotations of a 2D image), $\SO(3)$
-acting on the sphere $S^2$ (continuous 3D rotations of a spherical
-signal), and the chiral octahedral group $O$ ($24$ proper rotations of
-the cube, acting on $3$D voxel grids).
+For a group $G$ with associative product, a \emph{representation}
+$\rho$ assigns each $g\in G$ a unitary matrix
+$\rho(g)$ with $\rho(gh)=\rho(g)\rho(h)$; an \emph{irreducible
+representation} (\emph{irrep}) has no nontrivial invariant subspace,
+and the \emph{dual} $\hat{G}$ is the set of equivalence classes of
+irreps (for finite $G$, $|\hat G|=O(|G|)$). A $G$-action on a domain
+$X$, $(g,x)\mapsto g\cdot x$, induces
+$(f\circ g)(x):= f(g\cdot x)$; two signals are in the same
+\emph{orbit} iff related by some $g\in G$, and an \emph{invariant}
+of $f$ is a function constant on each orbit. For compact $G$, $d\mu$
+denotes the normalised Haar measure (counting measure for finite $G$).
+``Lebesgue-almost-every $f$'' means outside a measure-zero algebraic
+subvariety. The groups and domains we target are
+$C_n,D_n,\mathbb{T}^d,\SO(2)$ on the disk, $\SO(3)$ on $S^2$, and the
+chiral octahedral group $O$ on $3$D voxel grids.
 
 \subsection{Equivariant features and invariant maps}
 
@@ -257,12 +226,12 @@ equivariant features to \emph{invariant} ones (constant on each orbit).
 \begin{table}[t]
   \caption{Invariant nonlinearities for equivariant CNNs. ``Exact''$^*$
     means the invariant has no discretisation/aliasing error; ``Complete''
-    means it separates orbits; the coefficient column counts the size of
-    the output for a signal with $|G|$ Fourier samples. ``Genericity
-    assumption''$^\dagger$ means completeness holds outside a
-    Lebesgue-measure-zero algebraic subvariety of the signal space.
-    The selective bispectrum is the only method that is simultaneously
-    exact, complete, and linear-cost for finite groups.}
+    means it separates orbits; ``Genericity assumption''$^\dagger$ means
+    completeness holds outside a Lebesgue-measure-zero algebraic
+    subvariety. The selective bispectrum is the only entry that is
+    simultaneously exact, complete, and linear-cost for finite groups;
+    the $\SO(3)$-on-$S^2$ case is treated empirically
+    (Sec.~\ref{sec:so3-selective}).}
   \label{tab:nonlinearity-comparison}
   \centering
   \small
@@ -275,13 +244,14 @@ equivariant features to \emph{invariant} ones (constant on each orbit).
     Fourier pointwise & No & Yes$^\ddagger$ & $O(|G|)$ & $O(|G| \log |G|)$ & Aliasing \\
     Full bispectrum & Yes & Yes & $O(|G|^2)$ & $O(|G|^3)$     & Quadratic cost \\
     \midrule
-    \textbf{Selective bispectrum} & \textbf{Yes} & \textbf{Yes}
+    \textbf{Selective bispectrum} (finite $G$) & \textbf{Yes} & \textbf{Yes}
       & $\mathbf{O(|G|)}$ & $\mathbf{O(|G|^2)}$ & Genericity assumption$^\dagger$ \\
+    Augmented selective $\SO(3)$/$S^2$ (ours) & Yes & Empirical & $\Theta(L^2)$ & $O(L^3)$ & Proof of concept only \\
     \bottomrule
   \end{tabular}
 
   \vspace{0.3em}
-  {\small $^\ddagger$Complete pre-aliasing; the pointwise nonlinearity in the forward pass introduces aliasing that may break completeness in practice.}
+  {\small $^\ddagger$Complete pre-aliasing; the pointwise nonlinearity introduces aliasing that may break completeness in practice.}
 \end{table}
 
 Table~\ref{tab:nonlinearity-comparison} summarises the trade-offs between
@@ -322,12 +292,18 @@ scalar
         \bigl(\hat{f}(\rho_i) \otimes \hat{f}(\rho_j)\bigr),\,
         \hat{f}(\rho_k) \bigr\rangle.
 \end{equation}
-Each $\beta_{i,j}^{k}$ is invariant under the action $f \mapsto f \circ g$
-and, taken over all admissible triples, the bispectrum
-$\{\beta_{i,j}^{k}\}_{(i,j,k)}$ is a \emph{complete} invariant: it
-separates orbits for generic signals~\citep{kakarala2012bispectrum}. For
-finite $G$, $|\hat G| = O(|G|)$, so the full bispectrum has $O(|G|^2)$
-scalar coefficients (and is naturally indexed by $(i,j) \in \hat{G}^2$
+Each $\beta_{i,j}^{k}$ is invariant under the action $f \mapsto f \circ g$.
+The full matrix/operator bispectrum is complete on compact
+groups under Kakarala-style
+hypotheses~\citep{kakarala1992triple,kakarala2012bispectrum}; for
+finite $G$, the scalar-entry family
+$\{\beta_{i,j}^{k}\}_{(i,j,k)}$ remains complete on generic signals
+via the selective construction of~\citet{mataigne2024selective}.
+For $\SO(3)$ on $S^2$ we do not claim scalar
+completeness---the library's selective invariant is empirical; see
+Section~\ref{sec:so3-selective}. For finite $G$,
+$|\hat G| = O(|G|)$, so the full bispectrum has $O(|G|^2)$
+scalar coefficients (indexed by $(i,j) \in \hat{G}^2$
 with $k$ ranging over the CG-allowed irreps).
 Equation~\eqref{eq:bispectrum-def} is stated for $G$ acting on itself;
 for homogeneous spaces of the form $G/H$ (e.g.\ $\SO(3)$ on $S^2$, or
@@ -408,32 +384,19 @@ its distinguishing theoretical advantage.
 \subsection{Design and implementation}
 \label{sec:design}
 
-Every group/domain pair is exposed as a \texttt{torch.nn.Module}
-named \texttt{\{Group\}on\{Domain\}} (e.g.\ \texttt{SO3onS2}).
-Each module exposes a uniform API: \texttt{forward(f)} returns the
-selective bispectral invariants of $f$; \texttt{fourier(f)} returns the
-underlying group Fourier coefficients; and, where available,
-\texttt{invert(beta)} returns the reconstructed signal up to
-group-action indeterminacy.
-Modules accept raw real-valued inputs, handle the Fourier transform
-internally, and default to $O(|G|)$ selective coefficients
-(\texttt{selective=False} gives the full $O(|G|^2)$ set).
-Clebsch--Gordan (CG) matrices, discrete Fourier transform (DFT) kernels,
-and Bessel roots (used for the radial discretisation of the disk
-in \texttt{SO2onDisk}) are precomputed at construction and stored as
-non-learnable buffers; this lets \texttt{.to(device)} migrate the
-module transparently and ensures that forward passes incur zero
-recomputation.
-The only dependencies are PyTorch~\citep{paszke2019pytorch},
-NumPy~\citep{harris2020numpy}, and
-\texttt{torch\_harmonics}~\citep{bonev2023spherical}
-(for \texttt{SO3onS2}).
-For $\SO(3)$ on $S^2$, reduced CG matrices are built in parallel and
-cached to disk; all forward methods are batch-native, using
-\texttt{torch.einsum}/\texttt{torch.bmm} for non-abelian modules and
-\texttt{torch.fft} for abelian ones.
-The test suite covers 96.8\% of lines across all modules.
-A minimal usage example is in Appendix~\ref{app:api-example}.
+Every $G$/domain pair is a \texttt{torch.nn.Module} named
+\texttt{\{Group\}on\{Domain\}} (e.g.\ \texttt{SO3onS2}) with a
+uniform API: \texttt{forward(f)} returns the selective invariants,
+\texttt{fourier(f)} the group Fourier coefficients, and
+\texttt{invert(beta)} the reconstructed signal up to group-action
+indeterminacy (where available). Modules default to $O(|G|)$
+selective coefficients (\texttt{selective=False} restores the full
+$O(|G|^2)$ set), precompute CG matrices / DFT kernels / Bessel
+roots as non-learnable buffers, and depend only on
+PyTorch~\citep{paszke2019pytorch}, NumPy~\citep{harris2020numpy},
+and \texttt{torch\_harmonics}~\citep{bonev2023spherical} (for
+\texttt{SO3onS2}). Test suite line coverage is 96.8\%; a minimal
+usage example is in Appendix~\ref{app:api-example}.
 
 \subsection{Profiling}
 \label{sec:benchmarks}
@@ -441,66 +404,49 @@ A minimal usage example is in Appendix~\ref{app:api-example}.
 We profile the library on a single NVIDIA H100 80\,GB GPU
 (PyTorch 2.10, batch\,=\,16 for the forward pass and 4 for inversion,
 median wall-clock via \texttt{torch.utils.benchmark}); results are in
-Table~\ref{tab:benchmarks} and Figure~\ref{fig:coeff-scaling}.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{experiments/benchmarks/paper_fig1.pdf}
-  \caption{Bispectral coefficient count vs.\ group order $|G|$. Solid
-    lines: selective ($O(|G|)$); dashed: full ($O(|G|^2)$). At
-    $|G|{=}1{,}024$, selectivity yields a 512$\times$ reduction.
-    Continuous groups ($\SO(2)$, $\SO(3)$) are plotted at their
-    band-limited signal dimension. The full-bispectrum curves for
-    $D_n$ and the disk are omitted because the corresponding backends
-    are not yet implemented in the library.}
-  \label{fig:coeff-scaling}
-\end{figure}
+Table~\ref{tab:benchmarks}. Coefficient-count scaling and additional
+plots are in Appendix~\ref{app:bench}
+(Figure~\ref{fig:coeff-scaling}).
 
 \begin{table}[t]
   \centering
-  \caption{Library profiling summary. Timings are median wall-clock on a
-    single NVIDIA H100 80\,GB GPU. ``Coefs'' = number of scalar
-    coefficients (Sel.\ = selective, Full = full bispectrum); ``Fwd''
-    = forward-pass time in milliseconds; ``Inv'' = inversion time in
-    milliseconds. ``--'' = not implemented.
-    For continuous groups, $|G| = \infty$; coefficient counts refer to the
-    band-limited representation at the tested resolution.
-    $^*$\texttt{SO3onS2} benchmarked at band-limit
-    $\ell_{\max}{=}16$ (we use $\ell_{\max}$ and $L$
-    interchangeably to denote the band-limit; see
-    Section~\ref{sec:so3-selective}).}
+  \caption{Library profiling summary on a single NVIDIA H100 80\,GB GPU.
+    ``Sel.\ coefs'' = selective coefficient count; ``Fwd'' /``Inv'' =
+    median forward/inversion wall-clock (ms); ``--'' = not implemented.
+    $^*$\texttt{SO3onS2} at $\ell_{\max}{=}16$. The full bispectrum at
+    matched group order is $8256$/$524{,}800$ coefficients for
+    $C_{128}$/$\mathbb{T}^2$ (vs.\ $128$/$1024$ selective, a
+    $64\times$/$512\times$ reduction), taking $9.17$/$0.71$\,ms in
+    the forward pass.}
   \label{tab:benchmarks}
   \small
-  \setlength{\tabcolsep}{3.5pt}
-  \begin{tabular}{llrrrrrr}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{llrrrr}
     \toprule
-    Module & $G$ & $|G|$ & \multicolumn{2}{c}{Coefs} & \multicolumn{2}{c}{Fwd (ms)} & Inv (ms) \\
-    \cmidrule(lr){4-5} \cmidrule(lr){6-7}
-     & & & Sel. & Full & Sel. & Full & Sel. \\
+    Module & $G$ & $|G|$ & Sel.\ coefs & Fwd (ms) & Inv (ms) \\
     \midrule
-    \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8256 & 0.15 & 9.17 & 8.56 \\
-    \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 524800 & 0.08 & 0.71 & 68.02 \\
-    \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 2.52 & -- & 42.33 \\
-    \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & $\infty$ & 411 & -- & 1.94 & -- & 17.69 \\
-    \texttt{SO3onS2}\rlap{$^*$} & $\mathrm{SO}(3)$ & $\infty$ & 430 & -- & 26.54 & -- & -- \\
-    \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.70 & -- & -- \\
+    \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 0.15 & 8.56 \\
+    \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 0.08 & 68.02 \\
+    \texttt{DnonDn} & $D_{32}$ & 64 & 245 & 2.52 & 42.33 \\
+    \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & $\infty$ & 411 & 1.94 & 17.69 \\
+    \texttt{SO3onS2}\rlap{$^*$} & $\mathrm{SO}(3)$ & $\infty$ & 430 & 26.54 & -- \\
+    \texttt{OctaonOcta} & $O$ & 24 & 172 & 0.70 & -- \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-The selective forward pass is sub-millisecond for finite abelian modules
-($C_n$: 0.15\,ms, $\mathbb{T}^2$: 0.08\,ms), under 2\,ms for
-$\SO(2)$/disk (1.94\,ms), and under 1\,ms for the octahedral group
-(0.70\,ms), making it negligible relative to backbone computation. $\SO(3)$ on $S^2$ at
-$\ell_{\max}{=}16$ takes 26.5\,ms, dominated by the spherical harmonic
-transform (via \texttt{torch\_harmonics}~\citep{bonev2023spherical}).
-Selective coefficient counts confirm the $O(|G|)$ scaling:
-$C_{128}$ uses 128 coefficients vs.\ 8{,}256 full (64$\times$
-reduction); $\mathbb{T}^2$ at $|G|{=}1{,}024$ uses 1{,}024 vs.\
-524{,}800 full (512$\times$). Inversion is fast for abelian groups
-(9--68\,ms). GPU throughput scales linearly with batch size,
-exceeding $10^7$~samples/s for $C_n$ and $\mathbb{T}^2$
-(Appendix~\ref{app:bench}).
+The selective forward pass is sub-millisecond for finite abelian
+modules ($C_n$: 0.15\,ms, $\mathbb{T}^2$: 0.08\,ms), under 2\,ms for
+$\SO(2)$/disk and under 1\,ms for the octahedral group, making it
+negligible relative to backbone computation. $\SO(3)$ on $S^2$ at
+$\ell_{\max}{=}16$ takes 26.5\,ms, dominated by the spherical
+harmonic transform
+(\texttt{torch\_harmonics}~\citep{bonev2023spherical}). GPU throughput
+scales linearly with batch size, exceeding $10^7$~samples/s for $C_n$
+and $\mathbb{T}^2$ (Appendix~\ref{app:bench}). Six backends are
+tabulated; the seventh module, \texttt{SO2onS1}, subclasses
+\texttt{CnonCn} with $n = \ell_{\max}{+}1$ and has identical runtime
+to the corresponding \texttt{CnonCn} row at matched $|G|$.
 
 \section{Experiments}
 \label{sec:experiments}
@@ -530,26 +476,15 @@ group-orbit subsample, drawn before any group augmentation) with
 AdamW~\citep{loshchilov2019adamw}. Full model descriptions are in
 Appendix~\ref{app:pcam-details}.
 
-\paragraph{Results.}
-Table~\ref{tab:pcam-results} and Figure~\ref{fig:pcam-pareto} present the
-results at matched ${\sim}$100K parameters.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{experiments/pcam/pareto_analysis.pdf}
-  \caption{PCam Pareto analysis (\texttt{CnonCn} selective bispectrum,
-    single seed, 10\% training data).
-    (a)~Test AUC vs.\ parameter count across all five pooling variants.
-    (b)~Ranking at the ${\sim}$100K parameter budget.
-    (c)~Data efficiency at matched ${\sim}$100K parameters.
-    Multi-seed statistics are in Table~\ref{tab:pcam-results}.}
-  \label{fig:pcam-pareto}
-\end{figure}
+Table~\ref{tab:pcam-results} reports multi-seed statistics at
+matched $\sim$100K params; the full Pareto sweep (AUC vs.\
+parameter count, ranking, data efficiency) is
+Figure~\ref{fig:pcam-pareto} in Appendix~\ref{app:pcam-details}.
 
 \begin{table}[t]
-  \caption{PCam results at matched ${\sim}100$K parameters (10\% training
-    data, mean $\pm$ std over 3 seeds). All equivariant models share a
-    $C_8$-equivariant DenseNet backbone.}
+  \caption{PCam at matched ${\sim}100$K params, $10\%$ training
+    data, mean $\pm$ std over 3 seeds; all equivariant models share
+    a $C_8$-equivariant DenseNet backbone.}
   \label{tab:pcam-results}
   \centering
   \small
@@ -593,14 +528,13 @@ scalars). Models are trained with AdamW~\citep{loshchilov2019adamw} for
 24 octahedral rotations of the test set. Published baselines and
 wider-channel experiments are in Appendix~\ref{app:organ3d-details}.
 
-\paragraph{Results.}
-Table~\ref{tab:organ3d-results} and Figure~\ref{fig:data-efficiency} report
-the key findings.
+Table~\ref{tab:organ3d-results} and
+Figure~\ref{fig:data-efficiency} report the key findings.
 
 \begin{table}[t]
-  \caption{OrganMNIST3D results (mean $\pm$ std over 3 seeds). Rot ACC and
-    $\sigma_{\mathrm{rot}}$: mean and std of accuracy across 24 octahedral
-    test-set rotations.}
+  \caption{OrganMNIST3D results (mean $\pm$ std over 3 seeds). Rot ACC
+    and $\sigma_{\mathrm{rot}}$: mean and std of accuracy across 24
+    octahedral test-set rotations.}
   \label{tab:organ3d-results}
   \centering
   \small
@@ -619,15 +553,11 @@ the key findings.
   {\small $^\dagger$Nonzero $\sigma_{\mathrm{rot}}$ due to floating-point precision in CG contractions, not a theoretical invariance failure.}
 \end{table}
 
-\paragraph{Rotation invariance.}
-All equivariant models achieve $\sigma_{\mathrm{rot}} \leq 0.0005$,
-while the augmented CNN drops ${\sim}$2.5\,pp (percentage points)
-under rotation.
-
-\paragraph{Completeness vs.\ lossy pooling.}
-The bispectrum (72.6\%) matches max pool (73.0\%) and substantially
-outperforms norm pool (56.8\%) and Regular SE(3)
-convolutions~\citep{kuipers2023regular} (69.8\%).
+All equivariant models achieve $\sigma_{\mathrm{rot}}\le 0.0005$
+while the augmented CNN drops ${\sim}2.5$\,pp under rotation. The
+bispectrum ($72.6\%$) matches max pool ($73.0\%$) and substantially
+outperforms norm pool ($56.8\%$) and Regular SE(3)
+convolutions~\citep{kuipers2023regular} ($69.8\%$).
 At reduced data (Figure~\ref{fig:data-efficiency}), the bispectrum's
 advantage widens: at 5\% data it reaches $33.2\%$ vs.\ $18.9\%$ for max
 pool. At higher capacity (6M params,
@@ -640,8 +570,8 @@ regime.
   \includegraphics[width=0.75\linewidth]{experiments/organ3d/data_efficiency.pdf}
   \caption{Test accuracy vs.\ training data fraction on OrganMNIST3D
     (\texttt{OctaonOcta} bispectrum, mean over 3 seeds; shaded bands:
-    $\pm 1$ std). The complete invariant map provides a consistent
-    advantage in the low-data regime.}
+    $\pm 1$ std). The bispectrum provides a clear advantage in the
+    low-data regime.}
   \label{fig:data-efficiency}
 \end{figure}
 
@@ -650,44 +580,33 @@ regime.
 
 The preceding experiments validate bispectral pooling for finite groups
 ($C_8$ and the octahedral group $O$). To evaluate the library's continuous
-group support, we test \texttt{SO3onS2}---the $\SO(3)$ bispectrum on the
-2-sphere---on Spherical MNIST~\citep{cohen2018spherical}, the standard
-benchmark for rotation invariance on $S^2$.
+group support, we test \texttt{SO3onS2}---the augmented selective
+$\SO(3)$ invariant on the 2-sphere
+(Section~\ref{sec:so3-selective})---on Spherical
+MNIST~\citep{cohen2018spherical}, the standard benchmark for
+rotation invariance on $S^2$.
 
 \paragraph{Setup.}
-MNIST digits are projected onto the sphere via stereographic projection and
-sampled on a $64 \times 128$ equiangular grid. We compute the selective
-bispectrum at $\ell_{\max} = 15$, producing 384 complex invariant
-coefficients. To form the network input we apply a sign-preserving
-$\operatorname{sign}(x)\log(1+|x|)$ transform separately to the real
-and imaginary parts of each coefficient, yielding 768 real features.
-By Lemma~\ref{lem:app-parity}, exactly one of the two log1p features
-per coefficient is structurally zero on real signals (real for even
-parity, imaginary for odd parity); we keep both channels because the
-transform is sign-preserving and per-channel injective. The features
-are fed to a 3-layer MLP (232K parameters total). Three baselines
-provide controls:
-\begin{itemize}
-  \item \textbf{Power Spectrum + MLP} (11K params): computes only the
-    rotation-invariant power spectrum $\|f_\ell\|^2$ per degree $\ell$,
-    discarding all phase coupling between harmonics. Invariant but
-    \emph{incomplete}.
-  \item \textbf{Power Spectrum + MLP (matched)} (166K params): same
-    incomplete invariant features but with a larger MLP (166K),
-    isolating the effect of feature completeness from model capacity.
-  \item \textbf{Standard CNN} (185K params): a conventional CNN operating
-    directly on the equirectangular image. Not rotation-invariant.
-\end{itemize}
+MNIST digits are stereographically projected onto a
+$64\times 128$ equiangular grid; we compute
+$\Phi_{\mathrm{sel}}$ at $\ell_{\max}=15$ ($N=384$ live real
+components, stored as 384 complex tensors by the library), apply
+sign-preserving $\operatorname{sign}(x)\log(1+|x|)$ to real and
+imaginary parts ($2N=768$ real channels; one channel per
+bispectral entry is structurally zero by parity but we feed both
+since the log transform is per-channel injective and cheap), and
+feed a 3-layer MLP (232K params). Controls: a power-spectrum MLP at 11K
+params (equally invariant but \emph{incomplete}, discarding
+inter-harmonic phase), a matched 166K-param version isolating
+capacity vs.\ completeness, and a non-invariant CNN directly on the
+equirectangular image at 185K params.
 Following \citet{cohen2018spherical}, we evaluate under three
-protocols: train on non-rotated / test on non-rotated (NR/NR), train on
-rotated / test on rotated (R/R), and the most challenging train on
-non-rotated / test on rotated (NR/R). Each configuration is run with three
-seeds. Rotation robustness is assessed by applying 10 random $\SO(3)$
-rotations to the entire test set and measuring accuracy variance.
+protocols NR/NR, R/R, and the most challenging NR/R; each run uses
+three seeds, and rotation robustness $\sigma_{\mathrm{rot}}$ is
+measured over 10 random $\SO(3)$ rotations of the test set.
 
-\paragraph{Results.}
-Table~\ref{tab:smnist-results} and Figure~\ref{fig:smnist-analysis} report
-the results.
+Table~\ref{tab:smnist-results} and
+Figure~\ref{fig:smnist-analysis} report the results.
 
 \begin{table}[t]
   \caption{Spherical MNIST results (mean $\pm$ std over 3 seeds).
@@ -736,105 +655,78 @@ the results.
   \label{fig:smnist-analysis}
 \end{figure}
 
-\paragraph{Numerically exact $\SO(3)$ invariance.}
-The bispectrum achieves near-identical accuracy across all three protocols
-($\sigma_{\mathrm{rot}} \sim 10^{-4}$), confirming true $\SO(3)$
-invariance. The standard CNN collapses from 99.1\% (NR/NR) to 13.8\%
-(NR/R), showing that augmentation alone does not confer invariance.
-
-\paragraph{Completeness gap.}
-The power spectrum is equally invariant but reaches only 78\%---a 17pp
-deficit that persists even after scaling the MLP to 166K parameters
-(+1.4pp), confirming incompleteness rather than capacity as the
-bottleneck.
-
-\paragraph{Comparison with Cohen et al.}
-Cohen's spherical CNN~\citep{cohen2018spherical} reaches 96\%/95\%/94\%
-with learned equivariant convolutions. Our single-pass bispectrum
-(95.0\%/94.9\%/95.1\%) is 1--2pp lower but has a tighter invariance gap
-(0.1pp vs.\ 2.0pp).
+The bispectrum achieves near-identical accuracy across all three
+protocols ($\sigma_{\mathrm{rot}}{\sim}10^{-4}$), confirming true
+$\SO(3)$ invariance; the standard CNN collapses from $99.1\%$
+(NR/NR) to $13.8\%$ (NR/R), showing that augmentation alone does not
+confer invariance. The power spectrum is equally invariant but
+reaches only $78\%$---a $17$pp deficit that persists after scaling
+the MLP to $166$K params (${+}1.4$pp), consistent with the power
+spectrum's incompleteness (rather than MLP capacity) being the
+bottleneck. Cohen's spherical CNN~\citep{cohen2018spherical} reaches
+$96\%/95\%/94\%$ with learned equivariant convolutions; our
+single-pass bispectrum ($95.0\%/94.9\%/95.1\%$) is $1$--$2$pp lower
+but has a tighter invariance gap ($0.1$pp vs.\ $2.0$pp).
 
 
-\section{Selective $\SO(3)$ bispectrum on $S^2$}
+\section{Augmented selective $\SO(3)$ invariant on $S^2$}
 \label{sec:so3-selective}
 
-\subsection{Setup}
+\subsection{Setup and construction}
 
-A real signal $f : S^2 \to \R$ band-limited at degree~$L$ expands in
-spherical harmonics as
-$f(\theta,\varphi) = \sum_{\ell=0}^{L}\sum_{m=-\ell}^{\ell}
-a_\ell^m \SH_\ell^m(\theta,\varphi)$ with the reality constraint
-$a_\ell^{-m} = (-1)^m \conj{a_\ell^m}$, so it is parameterised by
-$(L{+}1)^2$ real scalars
-(Definition~\ref{def:app-bispectrum},
-eq.~\eqref{eq:app-sh-expansion}). On $S^2 = \SO(3)/\SO(2)_z$, the
-relevant irreducible representations of $\SO(3)$ are
-$\{\rho_\ell\}_{\ell\ge 0}$ with $V_{\rho_\ell}$ the
-$(2\ell{+}1)$-dimensional space of degree-$\ell$ spherical harmonics
-and Wigner-$D$ action $\rho_\ell(g) = D^\ell(g)$. In the irrep notation
-of~\citet{mataigne2024selective}, the Fourier coefficient at
-$\rho_\ell$ is
-$\mathcal{F}(f)_{\rho_\ell}=\mathbf{F}_\ell\in\C^{2\ell+1}$; we write
-$\mathbf{F}_\ell$ throughout. The scalar
-$\rho_\ell$-isotypic component of the matrix-valued bispectrum
-$\beta_{\rho_{\ell_1},\rho_{\ell_2}}(f)$ is the familiar
+A real signal $f : S^2 \to \R$ band-limited at degree~$L$ has
+spherical harmonic coefficients
+$\mathbf{F}_\ell \in \C^{2\ell+1}$, $\ell = 0,\dots,L$, transforming
+as $\mathbf{F}_\ell \mapsto D^\ell(g)\mathbf{F}_\ell$ under
+$g\in\SO(3)$; the reality condition leaves $(L{+}1)^2$ real degrees
+of freedom (Appendix~\ref{sec:app-setup}). The scalar bispectral
+coefficient at a CG-admissible triple $(\ell_1,\ell_2,\ell)$ is
 \begin{equation}\label{eq:s6-bispectrum}
   \beta_{\ell_1,\ell_2,\ell}
   = \!\!\!\sum_{\substack{m_1,m_2,m\\ m_1+m_2=m}}\!\!\!
     \CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}\,
     a_{\ell_1}^{m_1}\,a_{\ell_2}^{m_2}\,\conj{a_\ell^m},
 \end{equation}
-the specialisation of eq.~\eqref{eq:bispectrum-def} to $\SO(3)$-on-$S^2$.
-The full bispectrum has $\Theta(L^3)$ such scalars; the orbit space
-$\R^{(L+1)^2}/\SO(3)$ has dimension $(L{+}1)^2 - 3$, so any complete
-invariant requires $\Omega(L^2)$ independent components
-(Proposition~\ref{prop:app-lower-bound}). The Mataigne chain
-$\beta_{1,\ell,\ell+1}$ for $\ell=0,\dots,L{-}1$ provides only
-$\sim 3L$ scalars and cannot achieve this bound.
+the specialisation of~\eqref{eq:bispectrum-def} to $\SO(3)/S^2$.
+The full set has $\Theta(L^3)$ scalars; the orbit space
+$\R^{(L+1)^2}/\SO(3)$ has dimension $(L{+}1)^2 - 3$, so any smooth
+complete invariant requires $\Omega(L^2)$ components
+(Proposition~\ref{prop:app-lower-bound}), which the Mataigne chain
+$\beta_{1,\ell,\ell+1}$ ($\sim 3L$ scalars) cannot achieve.
 
-\subsection{Selective construction and algorithm}
-
-Let $L_{\mathrm{seed}} := \min(L, 4)$. The \emph{seed index set}
-collects all admissible bispectral triples up to $L_{\mathrm{seed}}$,
-\[
-  \mathcal{S}_{\mathrm{seed}} :=
-    \{(\ell_1,\ell_2,\ell) :
-      0\le \ell_1\le \ell_2 \le L_{\mathrm{seed}},\,
-      \abs{\ell_1{-}\ell_2}\le \ell
-        \le \min(\ell_1{+}\ell_2, L_{\mathrm{seed}})\},
-\]
-of constant size $\le 50$ once $L\ge 4$, matching the implementation
-seed (Algorithm~\ref{alg:so3-augmented}). For each high-degree
-target $\ell\ge 5$, we use a size-$(2\ell{+}1)$ \emph{bootstrap
-block} $\mathcal{T}_\ell$, which for $\ell\ge 8$ is the closed-form
-family of eq.~\eqref{eq:app-Tell}
-(Definition~\ref{def:app-selective}) and for $5\le\ell\le 7$ is the
-explicit small block $\mathcal{T}_\ell^{\mathrm{small}}$ tabulated
-in Algorithm~\ref{alg:so3-augmented}. Both versions consist of
-entries linear in $\mathbf{F}_\ell$ with coefficients depending only
-on already-recovered lower degrees. The \emph{selective $\SO(3)$
-bispectrum on $S^2$} is then the concatenation
-\begin{equation}\label{eq:s6-betasel}
-  \beta_{\mathrm{sel}}(f) := \bigl\{\beta_{\ell_1,\ell_2,\ell}\bigr\}_{
-    (\ell_1,\ell_2,\ell)\in
-      \mathcal{S}_\beta},\qquad
-  \mathcal{S}_\beta := \mathcal{S}_{\mathrm{seed}}\,\cup\,
-    \bigcup_{\ell=5}^{L} \mathcal{T}_\ell.
-\end{equation}
-By Lemma~\ref{lem:app-parity}, each scalar entry contributes
-exactly one real degree of freedom on the real-signal slice (real
-for even parity, purely imaginary for odd parity); we record that
-single real number per entry.
-Algorithm~\ref{alg:selective-bsp-so3} writes this as a Mataigne-style
-BFS over selected triples; the implementation-grade index set
-(Algorithm~\ref{alg:so3-augmented} in Appendix~\ref{app:so3-proof})
-augments $\mathcal{S}_\beta$ with mandatory even self-couplings and
-optional CG-power scalars for numerical robustness, and is a strict
-superset of $\beta_{\mathrm{sel}}$.
+We define $\Phi_{\mathrm{sel}}(f)$ as the output of the augmented
+selective index construction of Algorithm~\ref{alg:so3-augmented}
+(Appendix~\ref{sec:app-selective-index}). For each degree $\ell$
+it collects (i) a size-$(2\ell{+}1)$ linear bootstrap block
+$\mathcal{T}_\ell$ of scalar bispectrum entries, (ii) mandatory
+even self-couplings $\beta_{\ell,\ell,\ell'}$, and (iii) a greedily
+chosen set of CG-power scalars
+$P_{\ell_1,\ell_2,\ell} := \lVert(\mathbf{F}_{\ell_1}\otimes
+\mathbf{F}_{\ell_2})|_\ell\rVert^2$ (the bootstrap block alone is
+rank-deficient on real signals, see
+Remark~\ref{rem:app-Tell-rank-deficit}). Because
+$\Phi_{\mathrm{sel}}$ mixes bispectrum entries with CG-power
+scalars (a degree-$4$ invariant), we call it an \emph{augmented
+selective invariant} rather than a bispectrum; the phrase
+``selective bispectrum'' refers strictly to the bispectral
+component $\mathcal{S}_\beta$. For degrees
+$\ell\le L_{\mathrm{seed}}:=\min(L,4)$ we additionally include the
+full seed $\mathcal{S}_{\mathrm{seed}}$. The total size is
+$|\Phi_{\mathrm{sel}}| = \Theta(L^2)$
+(Proposition~\ref{prop:app-output-size}); Algorithm~\ref{alg:selective-bsp-so3}
+summarises the bispectral-triple selection, and the full index
+set---including self-couplings and CG power---is laid out in
+Algorithm~\ref{alg:so3-augmented}. Concretely, at $L=15$ (resp.\
+$L=16$) the library outputs $|\Phi_{\mathrm{sel}}| = 384$ (resp.\
+$430$) real scalars; the full bispectrum at $L=15$ has $2{,}056$
+admissible triples (cf.~Table~\ref{tab:app-counts}).
 
 \begin{algorithm}[H]
-\caption{Selective $\SO(3)$ bispectrum on $S^2$
-  (BFS form, mirroring~\citet{mataigne2024selective}, Alg.~1).}
+\caption{Selected bispectral triples $\mathcal{S}_\beta$ for the
+  augmented $\SO(3)$ invariant (BFS form; mirrors~\citet{mataigne2024selective},
+  Alg.~1). The full index set --- bispectral triples, mandatory
+  self-couplings, and CG-power scalars --- is
+  Algorithm~\ref{alg:so3-augmented} in Appendix~\ref{sec:app-selective-index}.}
 \label{alg:selective-bsp-so3}
 \small
 \begin{algorithmic}[1]
@@ -844,87 +736,20 @@ superset of $\beta_{\mathrm{sel}}$.
   $(\ell_1,\ell_2,\ell)$ with $\ell\le L_{\mathrm{seed}}$
   \COMMENT{seed block $\mathcal{S}_{\mathrm{seed}}$}
 \FOR{$\ell = L_{\mathrm{seed}}{+}1, \dotsc, L$}
-  \STATE append the bootstrap block $\mathcal{T}_\ell$ to $\mathcal{L}_\beta$
+  \STATE append the bootstrap block $\mathcal{T}_\ell$
+    to $\mathcal{L}_\beta$
     \COMMENT{$2\ell{+}1$ entries linear in $\mathbf{F}_\ell$;
-      $\mathcal{T}_\ell^{\mathrm{small}}$ for $\ell\le 7$,
-      eq.~\eqref{eq:app-Tell} for $\ell\ge 8$}
+      tabulated in Appendix~\ref{sec:app-selective-index}}
 \ENDFOR
-\RETURN $\beta_{\mathrm{sel}}(f) = \{\beta_{\ell_1,\ell_2,\ell}(f) :
+\RETURN $\{\beta_{\ell_1,\ell_2,\ell}(f) :
   (\ell_1,\ell_2,\ell)\in\mathcal{L}_\beta\}$
 \end{algorithmic}
 \end{algorithm}
 
-\noindent
-The output size is
-$|\beta_{\mathrm{sel}}|
- = |\mathcal{S}_{\mathrm{seed}}| + \sum_{\ell=5}^{L}(2\ell{+}1)
- = \Theta(L^2)$,
-matching the orbit-space lower bound up to a constant
-(Proposition~\ref{prop:app-output-size}).
-
-\begin{remark}[CG power augmentation in the implementation]
-The library appends the CG power spectrum
-$P_{\ell_1,\ell_2,\ell} := \lVert(\mathbf{F}_{\ell_1}\otimes
-\mathbf{F}_{\ell_2})|_\ell\rVert^2$
-(Definition~\ref{def:app-cg-power}) at $O(L^2)$ extra cost. The pure
-linear bootstrap submatrix $A_\ell\in\R^{(2\ell+1)\times(2\ell+1)}$
-assembled from $\mathcal{T}_\ell$ alone is rank-deficient on the
-real-signal slice (see
-Remark~\ref{rem:app-Tell-rank-deficit}); appending the CG power
-scalars (and the mandatory even self-couplings of
-Algorithm~\ref{alg:so3-augmented}) restores per-degree numerical
-robustness, and is what the implementation does unconditionally.
-\end{remark}
-
-\begin{table}[h]
-\centering
-\small
-\setlength{\tabcolsep}{6pt}
-\caption{Theorem--implementation consistency at $L=15$ and $L=16$.
-Formal $|\beta_{\mathrm{sel}}|$ counts one real component per scalar
-entry (Lemma~\ref{lem:app-parity}); the implementation
-\texttt{output\_size} from
-\texttt{\_build\_selective\_index\_map}~$\cup$
-\texttt{\_build\_cg\_power\_index\_map} is a strict superset, adding
-mandatory even self-couplings and CG-power scalars for numerical
-robustness; the Spherical MNIST feature vector applies a
-sign-preserving $\log 1p$ separately to the real and imaginary parts
-of each implementation scalar (Section~\ref{sec:so3-selective}).}
-\label{tab:counts-consistency}
-\begin{tabular}{lccc}
-\toprule
-$L$ & Formal $|\beta_{\mathrm{sel}}|$ & Impl.\ \texttt{output\_size}
-    & SMNIST features \\
-\midrule
-$15$ & $273$ & $384$ & $768$ \\
-$16$ & $306$ & $430$ & $860$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\paragraph{Motivation.}
-Three structural facts justify this construction. (i)~The output
-size $|\beta_{\mathrm{sel}}| = \Theta(L^2)$ matches the orbit-space
-dimension $(L{+}1)^2 - 3$ up to a constant factor
-(Proposition~\ref{prop:app-lower-bound}); no $G$-invariant of
-strictly lower complexity can be complete. (ii)~The BFS-style
-construction directly mirrors the selective bispectrum of
-\citet{mataigne2024selective} for finite groups, where the same
-$2\ell{+}1$ entries-per-shell pattern is provably complete; we
-extend their template from finite $G$ to the continuous case
-$\SO(3)$ on $S^2$. (iii)~The matrix bispectrum on $L^1(\SO(3))$ is
-known to be injective on dense
-orbits~\citep{kakarala1992triple,kakarala2012bispectrum},
-suggesting the scalar CG contraction $\beta_{\ell_1,\ell_2,\ell}$
-inherits enough information to separate orbits in the band-limited
-setting, at least generically. We do not give a formal proof of
-completeness here; instead we provide direct empirical evidence
-below, and leave a closed-form proof for future work.
-
 \subsection{Empirical proof of concept: bispectrum reconstruction}
 \label{sec:so3-recon}
 
-To test whether $\beta_{\mathrm{sel}}$ retains enough information to
+To test whether $\Phi_{\mathrm{sel}}$ retains enough information to
 recover signals up to rotation, we run a direct inversion experiment
 on Spherical MNIST digits band-limited at $L = 12$.\footnote{We use
 $L{=}12$ here rather than the classifier's $L{=}15$ to keep the
@@ -932,12 +757,12 @@ reconstruction residual safely below the SHT discretisation floor at
 the $64{\times}128$ grid; protocol details are in
 Appendix~\ref{app:so3-recon}.} For each source signal
 $f:S^2\to\R$ we apply a uniform random rotation $R\in\SO(3)$ to form
-the target $R\cdot f$, compute $\beta_{\mathrm{sel}}(R\cdot f)$, and
+the target $R\cdot f$, compute $\Phi_{\mathrm{sel}}(R\cdot f)$, and
 recover $\hat f$ by gradient descent from a random Gaussian
 initialisation, minimising
-$\lVert \beta_{\mathrm{sel}}(\hat f) -
-\beta_{\mathrm{sel}}(R\cdot f)\rVert^2 / \lVert
-\beta_{\mathrm{sel}}(R\cdot f)\rVert^2$ (Adam,
+$\lVert \Phi_{\mathrm{sel}}(\hat f) -
+\Phi_{\mathrm{sel}}(R\cdot f)\rVert^2 / \lVert
+\Phi_{\mathrm{sel}}(R\cdot f)\rVert^2$ (Adam,
 multi-restart, cosine-annealed LR). The orbit ambiguity is then
 resolved by Procrustes-style optimisation on a quaternion
 parameterisation: we fit $\hat R\in\SO(3)$ minimising $\lVert
@@ -946,97 +771,61 @@ parameterisation: we fit $\hat R\in\SO(3)$ minimising $\lVert
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{experiments/spherical_mnist_reconstruction/figures/paper_orbits.pdf}
-  \caption{$\SO(3)$ bispectrum reconstruction on Spherical MNIST
-    (proof of concept). Top row: target signal $f$ for digit classes
-    0--5. Bottom row: $\hat R\!\cdot\!\hat f$, where $\hat f$ is
-    recovered from $\beta_{\mathrm{sel}}(f)$ alone by gradient
-    descent in image space and $\hat R\in\SO(3)$ is fit by Procrustes
-    alignment to factor out the orbit ambiguity. Both panels of a
-    column share the target's camera, so any visible difference is a
-    true reconstruction error rather than a viewpoint mismatch. The
-    number under each column is the relative image-space residual
-    $\lVert\hat R\!\cdot\!\hat f - f\rVert/\lVert f\rVert$ (median
-    $\approx 0.20$ across the six classes; raw
-    $\lVert\hat f - f\rVert/\lVert f\rVert$ before alignment is
-    $\mathcal{O}(1)$, $\approx 1.3$).}
+  \caption{$\Phi_{\mathrm{sel}}$ reconstruction (proof of concept).
+    Top: target $f$ (digit classes 0--5). Bottom: $\hat R\!\cdot\!\hat f$,
+    recovered from $\Phi_{\mathrm{sel}}(f)$ by gradient descent and
+    Procrustes-aligned. Numbers: relative image residual
+    $\lVert\hat R\!\cdot\!\hat f - f\rVert/\lVert f\rVert$, median
+    ${\approx}0.20$ across the six classes (raw pre-alignment residual
+    ${\approx}1.3$).}
   \label{fig:so3-reconstruction}
 \end{figure}
 
 \paragraph{Takeaways.}
 Bispectrum residuals reach
-$\lVert\Delta\beta\rVert/\lVert\beta\rVert \sim 10^{-4}$--$10^{-3}$
+$\lVert\Delta\Phi\rVert/\lVert\Phi\rVert \sim 10^{-4}$--$10^{-3}$
 (below the SHT-discretisation invariance noise floor of
-${\sim}8\times 10^{-3}$ at this grid), and the aligned image residuals
-$\lVert\hat R\cdot\hat f - f\rVert/\lVert f\rVert \sim
-0.1$--$0.3$ are dominated by residual local optima of the
-gradient-descent solvers, not by missing invariant information---the
-recovered $\hat f$ visually matches $f$ up to rotation across all six
-digit classes shown (Figure~\ref{fig:so3-reconstruction}; the same
-behaviour holds across our 8-digit sweep, see
-Appendix~\ref{app:so3-recon}). We read this as proof-of-concept
-evidence that the selective coefficients carry enough information to
-recover band-limited signals up to $\SO(3)$; a formal proof of
-completeness for $\beta_{\mathrm{sel}}$ remains an open question.
+${\sim}8\times 10^{-3}$ at this grid); the aligned image residuals
+$\lVert\hat R\cdot\hat f - f\rVert/\lVert f\rVert \sim 0.1$--$0.3$
+are consistent with local-optimisation error or conditioning effects,
+and we did not observe a systematic missing-information failure mode,
+but the experiment does not rule out incompleteness or near-collisions
+in feature space. Visually, $\hat R\cdot\hat f$ aligns with $f$ up to
+rotation across all six digit classes shown
+(Figure~\ref{fig:so3-reconstruction}; the same behaviour holds across
+our 8-digit sweep, see Appendix~\ref{app:so3-recon}). We read this as
+proof-of-concept evidence that $\Phi_{\mathrm{sel}}$ preserves
+substantial orbit information on band-limited signals; a formal
+completeness proof remains open.
 
 
 \section{Discussion and Conclusion}
 \label{sec:discussion}
 
-We have presented \texttt{bispectrum}, a PyTorch library that makes selective
-$G$-bispectral invariants practical for machine learning. The library covers
-seven group/domain pairs with a uniform \texttt{nn.Module} interface and
-required one technical contribution during implementation: a
-selective $\SO(3)$ bispectrum on $S^2$ achieving the optimal
-$\Theta(L^2)$ coefficient count
-(Section~\ref{sec:so3-selective}). Table~\ref{tab:benchmarks} confirms that the
-selective forward pass adds negligible overhead to training pipelines
-($<$1\,ms for all finite-group modules on a single GPU). Across three
-experimental settings, bispectral pooling provides numerically exact
-rotation invariance (note that other pooling strategies, such as norm
-or max pooling, also yield exact invariance; the bispectrum's
-distinguishing property is its richer, completeness-oriented invariant,
-not invariance per se) and a data-efficiency advantage over incomplete
-alternatives in the low-data / moderate-capacity regime, where the
-$\Theta(L^2)$ invariant map provides a stronger inductive bias that
-partially compensates for limited training data.
+We have presented \texttt{bispectrum}, a PyTorch library that makes
+selective $G$-bispectral invariants practical, covering seven
+group/domain pairs through a uniform \texttt{nn.Module} interface,
+and we contribute a $\Theta(L^2)$ selective $\SO(3)$ invariant on
+$S^2$ (Section~\ref{sec:so3-selective}). The selective forward pass
+adds negligible overhead ($<$1\,ms for finite-group modules) and
+delivers numerically exact rotation invariance with a consistent
+data-efficiency advantage over incomplete alternatives in the
+low-data / moderate-capacity regime.
 
 \paragraph{When not to use the bispectrum.}
-The data-efficiency advantage of complete invariants is most pronounced
-in the low-data, moderate-capacity regime.
-At high model capacity (Section~\ref{sec:experiments}), incomplete
-alternatives such as max pooling can match or surpass bispectral pooling,
-likely because the network learns to compensate for missing invariant
-information.
-Each bispectrum module is also invariant to a \emph{specific} group
-(e.g.\ rotations only, or translations only); for tasks that need
-invariance to multiple or unknown symmetries, learned invariance via
-data augmentation or group-equivariant networks with flexible symmetry
-may be a better fit.
+At high model capacity (Sec.~\ref{sec:experiments}), incomplete
+alternatives like max pooling can match or surpass bispectral
+pooling, and each module is invariant to a \emph{specific} group
+only---data augmentation or flexible-symmetry equivariant networks
+fit better when the relevant symmetry is multi-group or unknown.
 
-\paragraph{Limitations.}
-Inversion for $\SO(3)$ on $S^2$ is not yet shipped as a library API;
-only the selective forward map is. The reconstruction experiment of
-Figure~\ref{fig:so3-reconstruction} supports completeness of
-$\beta_{\mathrm{sel}}$ as a working hypothesis, but a closed-form
-proof of completeness for the selective construction is left to
-future work; in particular, a full characterisation of the
-degenerate set and a numerical-conditioning analysis at large
-band-limits are open. Our experimental comparisons do not include
-tensor-product architectures (e3nn, MACE) or wavelet scattering,
-which target different input assumptions and would require
-non-trivial adaptation to the benchmarks used here.
-
-\paragraph{Future work.}
-Key directions include: implementing $\SO(3)$ inversion from selective
-bispectral coefficients as a first-class library API; a closed-form
-completeness proof for $\beta_{\mathrm{sel}}$;
-numerical conditioning analysis at large band-limits;
-broader framework integration (the library is intentionally
-framework-agnostic and already drops in as an invariant module for
-architectures built on \texttt{escnn}~\citep{cesa2022program} or
-\texttt{e3nn}~\citep{geiger2022e3nn});
-and applications to cryo-EM reconstruction and molecular property
-prediction.
+\paragraph{Limitations and future work.}
+Inversion from $\Phi_{\mathrm{sel}}$ is not shipped as a library
+API, and a formal completeness proof, a characterisation of the
+degenerate set, and numerical-conditioning analysis at large
+band-limits remain open. We do not compare against tensor-product
+architectures (e3nn, MACE) or wavelet scattering. Natural next
+steps are $\SO(3)$ inversion and cryo-EM / molecular applications.
 
 \begin{ack}
 Omitted for review.
@@ -1068,32 +857,15 @@ revision; the empirical reconstruction of
 Figure~\ref{fig:so3-reconstruction} is the proof-of-concept evidence
 the construction is supported by.
 
-\begin{table}[h]
-  \caption{Asymptotic entry counts in $\beta_{\mathrm{sel}}$. The
-    constant-size seed block $\mathcal{S}_{\mathrm{seed}}$ collects
-    every triple at degrees $\le L_{\mathrm{seed}}=\min(L,4)$; the
-    high-degree selective part allocates exactly $2\ell{+}1$ rows per
-    target degree (the bootstrap block $\mathcal{T}_\ell$ of
-    eq.~\eqref{eq:app-Tell}).}
-  \label{tab:entry-counts}
-  \centering
-  \small
-  \begin{tabular}{ccc}
-    \toprule
-    degree range & selected $\beta$ & total \\
-    \midrule
-    $\ell\le 4$ & full seed, $\le 125$ & $O(1)$ \\
-    $\ell\ge 5$ & $2\ell{+}1$ & $O(\ell)$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\noindent
-The total invariant size is therefore
-$|\mathcal{S}_{\mathrm{seed}}|+\sum_{\ell=5}^{L}(2\ell{+}1)
-= \Theta(L^2)$, matching the orbit-space lower bound
-$(L{+}1)^2-3$ of Proposition~\ref{prop:app-lower-bound} up to a
-constant factor (Proposition~\ref{prop:app-output-size}).
+Per-degree entry allocation: the full seed
+$\mathcal{S}_{\mathrm{seed}}$ handles $\ell\le L_{\mathrm{seed}}=4$
+in constant size; for $\ell\ge 5$, Algorithm~\ref{alg:so3-augmented}
+allocates $2\ell{+}1$ bispectral rows plus $O(\ell)$
+self-coupling and CG-power entries, giving
+$|\Phi_{\mathrm{sel}}|=\Theta(L^2)$ total (matching the orbit-space
+lower bound $(L{+}1)^2-3$ of
+Proposition~\ref{prop:app-lower-bound}; exact per-$L$ counts in
+Table~\ref{tab:app-counts}).
 
 \subsection{Setup and notation}
 \label{sec:app-setup}
@@ -1191,15 +963,9 @@ $|\ell_1 - \ell_2| \le \ell \le \ell_1 + \ell_2$ is $\Theta(L^3)$.
 \end{proposition}
 \begin{proof}
 For fixed $\ell_1$ and $\ell_2$, the triangle inequality admits
-$\ell \in \{|\ell_1 - \ell_2|, \dotsc, \min(\ell_1 + \ell_2, L)\}$,
-giving $\min(\ell_1 + \ell_2, L) - |\ell_1 - \ell_2| + 1$ valid
-values of $\ell$. Summing:
-\[
-  N_{\mathrm{full}}
-  = \sum_{\ell_1=0}^{L}\;\sum_{\ell_2=0}^{L}\;
-    \bigl(\min(\ell_1+\ell_2,L) - |\ell_1-\ell_2| + 1\bigr)
-  = \tfrac{1}{3}L^3 + \mathcal{O}(L^2).
-\]
+$\min(\ell_1 + \ell_2, L) - |\ell_1 - \ell_2| + 1$ valid values of
+$\ell$. Summing over $(\ell_1,\ell_2)\in[0,L]^2$ gives
+$N_{\mathrm{full}} = \Theta(L^3)$.
 \end{proof}
 
 \begin{remark}[Invariance]
@@ -1250,39 +1016,33 @@ invariants are polynomial, so the proposition applies.
 \subsection{The selective index set}
 \label{sec:app-selective-index}
 
-The goal is to select, for each target degree $\ell\ge 8$, exactly
-$2\ell{+}1$ bispectral triples $(\ell_1,\ell_2,\ell)$ such that the
-selected entries are simultaneously linear in $\mathbf{F}_\ell$ (or in
-$\conj{\mathbf{F}_\ell}$, which we conjugate) and have a coefficient
-matrix depending only on already-recovered lower degrees. Combined
-with a constant-size full-bispectrum seed at degrees
-$\le L_{\mathrm{seed}}=\min(L,4)$, this gives an $O(L^2)$-sized
-invariant matching the orbit-space lower bound of
+For each target degree $\ell$, the library's selective invariant
+allocates $2\ell{+}1$ linear bispectral entries, plus quadratic/cubic
+self-couplings and CG-power scalars for numerical robustness on the
+real-signal slice. Combined with a constant-size full-bispectrum seed
+at degrees $\le L_{\mathrm{seed}}=\min(L,4)$, this gives an
+$O(L^2)$-sized invariant matching the orbit-space lower bound of
 Proposition~\ref{prop:app-lower-bound}.
 
-\begin{definition}[Selective $\SO(3)$ bispectrum on
-  $S^2$]\label{def:app-selective}
-Set $L_{\mathrm{seed}} := \min(L,4)$. The \emph{seed index set} is
-the full bispectrum truncated at $L_{\mathrm{seed}}$,
-\[
-  \mathcal{S}_{\mathrm{seed}}
-  := \{(\ell_1,\ell_2,\ell) :
-    0\le \ell_1 \le \ell_2 \le L_{\mathrm{seed}},\;
-    \abs{\ell_1{-}\ell_2} \le \ell
-      \le \min(\ell_1{+}\ell_2, L_{\mathrm{seed}})\},
-\]
-of size at most $(L_{\mathrm{seed}}{+}1)^3 \le 125$, independent of
-$L$ once $L\ge 4$. This matches the implementation seed
-$L_0 = 4$ of Algorithm~\ref{alg:so3-augmented}, on which
-Bandeira et al.'s exact-arithmetic Gr\"obner-basis evidence for the
-scalar bispectrum at low degrees~\citep{bandeira2017estimation} is
-strongest. For each intermediate target $5\le\ell\le 7$ we use the
-small explicit linear block
-$\mathcal{T}_\ell^{\mathrm{small}}$ tabulated in
-Algorithm~\ref{alg:so3-augmented}; for each high-degree target
-$\ell\ge 8$ the \emph{bootstrap block}
-$\mathcal{T}_\ell$ (also used in
-Proposition~\ref{prop:app-entry-counts}) is
+\begin{definition}[Augmented selective $\SO(3)$-on-$S^2$ invariant]\label{def:app-selective}
+Set $L_{\mathrm{seed}} := \min(L,4)$. Let
+$\mathcal{S}_{\mathrm{seed}}$ denote the bispectral triples at
+degrees $\ell\le L_{\mathrm{seed}}$ returned by
+Algorithm~\ref{alg:so3-augmented}'s seed phase: the pre-prune set
+collects all admissible triples
+$\{(\ell_1,\ell_2,\ell):
+0\le\ell_1\le\ell_2\le L_{\mathrm{seed}},\,
+|\ell_1{-}\ell_2|\le\ell\le\min(\ell_1{+}\ell_2,L_{\mathrm{seed}})\}$
+($42$ triples at $L_{\mathrm{seed}}=4$); Algorithm~\ref{alg:so3-augmented}
+then parity-prunes entries that vanish identically on real signals
+(Lemma~\ref{lem:app-parity}), deduplicates, and caps each degree
+to its per-degree budget. The surviving bispectral count at $L=4$
+is $24$ (see Table~\ref{tab:app-counts}, column ``Bispectral''),
+and $|\mathcal{S}_{\mathrm{seed}}|$ is constant in $L$ for $L\ge 4$.
+For each intermediate target $4\le\ell\le 7$ Algorithm~\ref{alg:so3-augmented}
+uses the small explicit linear block $\mathcal{T}_\ell^{\mathrm{small}}$
+(Table~\ref{tab:Tsmall}); for each high-degree target $\ell\ge 8$
+the \emph{bootstrap block} $\mathcal{T}_\ell$ is
 \begin{equation}\label{eq:app-Tell}
 \begin{aligned}
   \mathcal{T}_\ell
@@ -1292,51 +1052,106 @@ Proposition~\ref{prop:app-entry-counts}) is
    &\cup \{(a,\ell-a,\ell) : 1\le a \le 4\} \;\cup\; \mathcal{Z}_\ell,
 \end{aligned}
 \end{equation}
-where $\mathcal{Z}_\ell = \emptyset$ for $\ell$ even and
-$\mathcal{Z}_\ell = \{(2,\ell{-}1,\ell)\}$ for $\ell$ odd ($\ell\ge 9$).
-The exclusion $a\ne (\ell+1)/2$ for odd $\ell$ removes the
-self-conjugate triple $(r,2r-1,r)$ at $\ell = 2r-1$, which has a
-repeated index and is identically zero on real signals
+where $\mathcal{Z}_\ell = \emptyset$ for even $\ell$ and
+$\mathcal{Z}_\ell = \{(2,\ell{-}1,\ell)\}$ for odd $\ell\ge 9$. The
+exclusion $a\ne (\ell+1)/2$ for odd $\ell$ removes the self-conjugate
+triple $(r,2r-1,r)$ at $\ell = 2r-1$, which has a repeated index and
+vanishes identically on real signals
 (Proposition~\ref{prop:app-odd-vanishing}); the compensating row
-$(2,\ell{-}1,\ell)\in\mathcal{Z}_\ell$ is admissible
-($|\ell{-}1-2|\le\ell\le \ell{-}1+2$), has all-distinct indices, and is
-not contained in the chain family above (which only covers
-$(a,\ell{-}a,\ell)$ with $a=1,\dots,4$, i.e.\ pairs $(a,\ell{-}a)$ with
-$a\le 4$). The size
-counts to $(\ell{-}1)+(\ell{-}2)+4 = 2\ell{+}1$ for even $\ell$ and
-$(\ell{-}1)+(\ell{-}3)+4+1 = 2\ell{+}1$ for odd $\ell\ge 9$. The bispectral
-index set is
-\[
-  \mathcal{S}_\beta
-  := \mathcal{S}_{\mathrm{seed}} \;\cup\;
-     \bigcup_{\ell=5}^{L} \mathcal{T}_\ell,
-\]
-where $\mathcal{T}_\ell = \mathcal{T}_\ell^{\mathrm{small}}$ for
-$5\le\ell\le 7$ (Algorithm~\ref{alg:so3-augmented}) and is given by
-eq.~\eqref{eq:app-Tell} for $\ell\ge 8$.
-The \emph{selective bispectrum} $\beta_{\mathrm{sel}}:V_L\to\R^N$ is
-the concatenation of all selected scalar entries
-$\{\beta_{\ell_1,\ell_2,\ell}\}_{(\ell_1,\ell_2,\ell)\in\mathcal{S}_\beta}$;
-by Lemma~\ref{lem:app-parity}, each entry contributes one real
-component on the real-signal slice (real for even parity, purely
-imaginary for odd parity). The optional CG power augmentation
-(Definition~\ref{def:app-cg-power}) may be appended at $O(L^2)$ cost
-without changing the asymptotic budget; the implementation does this
-unconditionally, see the library implementation note below.
+$(2,\ell{-}1,\ell)\in\mathcal{Z}_\ell$ has all-distinct indices and
+does not overlap the chain family (which only covers pairs
+$(a,\ell{-}a)$ with $a\le 4$). Size bookkeeping:
+$(\ell{-}1)+(\ell{-}2)+4 = 2\ell{+}1$ for even $\ell$, and
+$(\ell{-}1)+(\ell{-}3)+4+1 = 2\ell{+}1$ for odd $\ell\ge 9$; the first
+two families differ in the last index ($\ell{-}a$ vs.\ $\ell{-}a+1$),
+and $\mathcal{Z}_\ell$ at $a=2$ has second coordinate $\ell{-}1$
+rather than $\ell{-}2$, so all three subfamilies are disjoint.
+
+The \emph{augmented selective $\SO(3)$-on-$S^2$ invariant}
+$\Phi_{\mathrm{sel}}$ is the output of
+Algorithm~\ref{alg:so3-augmented}: bispectral triples
+$\mathcal{S}_\beta = \mathcal{S}_{\mathrm{seed}}\cup
+\bigcup_{\ell=5}^{L}\mathcal{T}_\ell$ (with
+$\mathcal{T}_\ell = \mathcal{T}_\ell^{\mathrm{small}}$ for
+$5\le\ell\le 7$), mandatory even self-couplings
+$\beta_{\ell,\ell,\ell'}$ ($\ell'$ even, $2\le\ell'\le\ell$), and
+CG-power scalars $P_{\ell_1,\ell_2,\ell} = \lVert(\mathbf{F}_{\ell_1}
+\otimes \mathbf{F}_{\ell_2})|_\ell\rVert^2$
+(Definition~\ref{def:app-cg-power}) chosen greedily for per-degree
+Jacobian rank. Mathematically, $\Phi_{\mathrm{sel}}:V_L\to\R^N$ has
+$N$ live real scalar components: by
+Lemma~\ref{lem:app-parity}, each bispectral entry contributes one
+real component on the real-signal slice (real for even parity,
+purely imaginary for odd), and CG-power entries are real-valued
+degree-$4$ invariants. The PyTorch implementation stores each
+scalar in a complex tensor, so downstream layers receive $2N$ real
+channels after splitting real and imaginary parts; for bispectral
+entries exactly one of the two channels is structurally zero by
+parity, and for CG-power entries the imaginary channel is
+structurally zero.
 \end{definition}
 
-\paragraph{Library implementation note.}
-Algorithm~\ref{alg:so3-augmented} below specifies the
-implementation-grade index construction used by the
-\texttt{SO3onS2} module. It augments
-Definition~\ref{def:app-selective} in two ways: (i) it includes
-\emph{mandatory even self-couplings}
-$\beta_{\ell,\ell,\ell'}$ ($\ell'$ even, $2\le\ell'\le\ell$) and the
-power entries $\beta_{0,\ell,\ell}$ for numerical robustness on the
-real-signal slice, and (ii) it greedily appends CG-power entries to
-$\mathcal{S}_P$ to maximise the per-degree real Jacobian rank. The
-augmented invariant is a strict superset of $\beta_{\mathrm{sel}}$;
-this is the structural index set used by the implementation.
+\begin{table}[h]
+  \caption{Explicit low-degree bootstrap blocks
+    $\mathcal{T}_\ell^{\mathrm{small}}$ for $4\le\ell\le 7$, copied
+    from \texttt{bispectrum.so3\_on\_s2.\_small\_linear\_bootstrap\_block}.
+    Each triple $(\ell_1,\ell_2,\ell_3)$ denotes
+    $\beta_{\ell_1,\ell_2,\ell_3}$; all are admissible and have
+    $\ell$ in at least one slot. Entry counts
+    $|\mathcal{T}_4^{\mathrm{small}}|=10$,
+    $|\mathcal{T}_5^{\mathrm{small}}|=11$,
+    $|\mathcal{T}_6^{\mathrm{small}}|=13$,
+    $|\mathcal{T}_7^{\mathrm{small}}|=15$ match the per-degree budgets.
+    $\mathcal{T}_4^{\mathrm{small}}$ is implementation-only:
+    Algorithm~\ref{alg:so3-augmented} uses it as a ranked candidate
+    list at $\ell=4$, deduplicated against the seed
+    $\mathcal{S}_{\mathrm{seed}}$ and capped to a budget of $10$ entries;
+    $\mathcal{T}_5^{\mathrm{small}},\mathcal{T}_6^{\mathrm{small}},\mathcal{T}_7^{\mathrm{small}}$
+    are the formal bootstrap blocks at $\ell\in\{5,6,7\}$.}
+  \label{tab:Tsmall}
+  \centering
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \footnotesize
+  \begin{tabular}{@{}cp{0.92\linewidth}@{}}
+    \toprule
+    $\ell$ & $\mathcal{T}_\ell^{\mathrm{small}}$ (each entry a triple $(\ell_1,\ell_2,\ell_3)$) \\
+    \midrule
+    $4$ & $(1,3,4),$ $(2,2,4),$ $(2,3,4),$ $(3,3,4),$ $(1,4,3),$ $(2,4,2),$ $(3,4,1),$ $(2,4,3),$ $(3,4,2),$ $(3,4,3)$ \\
+    $5$ & $(1,4,5),$ $(2,3,5),$ $(2,4,5),$ $(3,4,5),$ $(1,5,4),$ $(2,5,3),$ $(3,5,2),$ $(4,5,1),$ $(2,5,4),$ $(3,5,4),$ $(4,5,4)$ \\
+    $6$ & $(1,5,6),$ $(2,4,6),$ $(3,3,6),$ $(3,4,6),$ $(1,6,5),$ $(2,6,4),$ $(3,6,3),$ $(4,6,2),$ $(5,6,1),$ $(2,6,5),$ $(3,6,5),$ $(4,6,5),$ $(5,6,5)$ \\
+    $7$ & $(1,6,7),$ $(2,5,7),$ $(3,4,7),$ $(4,5,7),$ $(1,7,6),$ $(2,7,5),$ $(3,7,4),$ $(4,7,3),$ $(5,7,2),$ $(6,7,1),$ $(2,7,6),$ $(3,7,6),$ $(4,7,6),$ $(5,7,6),$ $(6,7,6)$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[h]
+  \caption{Coefficient counts of $\Phi_{\mathrm{sel}}$ at
+    representative band-limits. ``Bispectral'' counts the triples in
+    $\mathcal{S}_\beta$ (including mandatory even self-couplings);
+    ``CG-power'' counts entries in $\mathcal{S}_P$; ``Total $N$'' is
+    $|\Phi_{\mathrm{sel}}|$ (live real components) and matches the
+    library's \texttt{output\_size}. ``Stored channels'' counts the
+    complex-tensor storage ($2N$) seen by the SMNIST classifier;
+    one channel per bispectral entry is structurally zero by
+    parity, and the imaginary channel of each CG-power entry is
+    structurally zero.}
+  \label{tab:app-counts}
+  \centering
+  \small
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{ccccc}
+    \toprule
+    $L$ & Bispectral & CG-power & Total $N=|\Phi_{\mathrm{sel}}|$
+        & Stored channels ($2N$) \\
+    \midrule
+    $4$  & $24$  & $10$  & $34$  & $68$  \\
+    $5$  & $37$  & $17$  & $54$  & $108$ \\
+    $15$ & $307$ & $77$  & $384$ & $768$ \\
+    $16$ & $348$ & $82$  & $430$ & $860$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \begin{algorithm}[t]
 \caption{Augmented selective index set for the $\SO(3)$ bispectrum
@@ -1373,12 +1188,11 @@ this is the structural index set used by the implementation.
       \STATE append $(a,\, \ell,\, \ell{-}a)$ to candidates
     \ENDFOR
     \FOR{$a = 2, \dotsc, \ell{-}1$}
-      \IF{$\ell$ is odd \AND $a = (\ell{+}1)/2$}
-        \STATE \textbf{skip}
-        \COMMENT{$(r,2r{-}1,r)\equiv0$ on real signals,
-          Prop.~\ref{prop:app-odd-vanishing}}
+      \IF{\NOT ($\ell$ is odd \AND $a = (\ell{+}1)/2$)}
+        \STATE append $(a,\, \ell,\, \ell{-}a{+}1)$ to candidates
+          \COMMENT{skip $(r,2r{-}1,r)\equiv0$ on real signals,
+            Prop.~\ref{prop:app-odd-vanishing}}
       \ENDIF
-      \STATE append $(a,\, \ell,\, \ell{-}a{+}1)$ to candidates
     \ENDFOR
     \FOR{$a = 1, \dotsc, 4$}
       \STATE append $(a,\, \ell{-}a,\, \ell)$ to candidates
@@ -1420,53 +1234,24 @@ this is the structural index set used by the implementation.
   \STATE Greedily add $P_{\ell_1,\ell_2,\ell'}$ (with
     $\max(\ell_1,\ell_2) = \ell$, $|\ell_1{-}\ell_2| \le \ell'
     \le \ell_1{+}\ell_2$) to $\mathcal{S}_P$ until the
-    Jacobian rank of $\Phi_{\mathrm{aug}}$ at degree~$\ell$
-    matches the number of unknowns
+    Jacobian rank of the per-degree restriction
+    $\Phi_{\mathrm{sel}}|_\ell$ matches the number of unknowns
 \ENDFOR
 \RETURN $(\mathcal{S}_\beta,\, \mathcal{S}_P)$
 \end{algorithmic}
 \end{algorithm}
 
-\begin{proposition}[Bootstrap-block entry count]\label{prop:app-entry-counts}
-For each target degree $\ell\ge 8$, the bootstrap block
-$\mathcal{T}_\ell$ defined in~\eqref{eq:app-Tell} contains exactly
-$2\ell{+}1$ admissible triples and they are pairwise distinct.
-Each triple in $\mathcal{T}_\ell$ has $\ell$ in exactly one of the
-three slots, with the other two slots filled by indices strictly
-smaller than $\ell$, so each entry contributes one scalar equation
-linear in either $a_\ell^{m_2}$ or $\conj{a_\ell^m}$ with coefficients
-depending only on lower-degree~$\mathbf{F}_{\ell'}$ ($\ell'<\ell$).
-\end{proposition}
-\begin{proof}
-The three subfamilies in~\eqref{eq:app-Tell} have sizes
-$\ell{-}1$, $\ell{-}2$, $4$, summing to $2\ell{+}1$.
-Triangle-inequality and bound checks ($a\le\ell{-}1$, $\ell{-}a\ge 1$,
-$\ell{-}a{+}1\le\ell$) show every triple is admissible. Pairwise
-distinctness is immediate from the disjoint patterns of the position
-of the index $\ell$.  Linearity in the $\ell$-slot: the first two
-families place $\ell$ in the $\ell_2$-slot
-of~\eqref{eq:app-bispectrum}, so $a_\ell^{m_2}$ enters once with
-known $a_a^{m_1}$ and $\conj{a_{\ell-a}^m}$ (resp.\
-$\conj{a_{\ell-a+1}^m}$); the third family places $\ell$ in the
-$\ell$-slot, so $\conj{a_\ell^m}$ enters once with known
-$a_a^{m_1}$ and $a_{\ell-a}^{m_2}$.
-\end{proof}
-
 \begin{proposition}[Output size]\label{prop:app-output-size}
-For every $L\ge 4$,
-\[
-  |\beta_{\mathrm{sel}}|
-  \;=\; |\mathcal{S}_{\mathrm{seed}}| + \sum_{\ell=5}^{L}(2\ell{+}1)
-  \;=\; \Theta(L^2),
-\]
-counting one real component per scalar entry (real for even parity,
-purely imaginary for odd parity, by Lemma~\ref{lem:app-parity}). This
-matches the orbit-space lower bound $(L{+}1)^2-3$ of
-Proposition~\ref{prop:app-lower-bound} up to an additive constant
-(no factor-of-two from complex storage). For $L=4$ the sum is empty
-and $|\beta_{\mathrm{sel}}|=|\mathcal{S}_{\mathrm{seed}}| = O(1)$.
-The count matches the $30$ (resp.~$49$) live entries reported by the
-implementation at $L=4$ (resp.~$L=5$).
+For every $L\ge 4$, Algorithm~\ref{alg:so3-augmented} produces a
+$\Theta(L^2)$-sized invariant: the per-degree bootstrap block
+contributes at most $2\ell{+}1$ bispectral triples
+(Eq.~\eqref{eq:app-Tell} for $\ell\ge 8$ plus
+Table~\ref{tab:Tsmall} for $5\le\ell\le 7$), and the self-coupling
+and CG-power augmentations add $O(\ell)$ per degree, giving a total
+of $\Theta(L^2)$ real scalars. Per-$L$ counts are listed in
+Table~\ref{tab:app-counts}; both panels match the orbit-space
+lower bound $(L{+}1)^2-3$ of Proposition~\ref{prop:app-lower-bound}
+up to a constant factor.
 \end{proposition}
 
 
@@ -1705,6 +1490,20 @@ This appendix supplements the summary in Table~\ref{tab:benchmarks}
 \texttt{benchmarks/benchmark.py} on a single NVIDIA H100 80\,GB GPU
 (PyTorch 2.10).
 
+\subsection{Coefficient-count scaling}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{experiments/benchmarks/paper_fig1.pdf}
+  \caption{Bispectral coefficient count vs.\ group order $|G|$. Solid
+    lines: selective ($O(|G|)$); dashed: full ($O(|G|^2)$). At
+    $|G|{=}1{,}024$, selectivity yields a $512\times$ reduction.
+    Continuous groups ($\SO(2)$, $\SO(3)$) are plotted at their
+    band-limited signal dimension; full-bispectrum curves for $D_n$
+    and the disk are omitted (backends not yet implemented).}
+  \label{fig:coeff-scaling}
+\end{figure}
+
 \subsection{Forward-pass timing}
 
 \begin{figure}[h]
@@ -1746,6 +1545,19 @@ compute-bound at these scales.
 
 \section{PCam: Extended Results}
 \label{app:pcam-details}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{experiments/pcam/pareto_analysis.pdf}
+  \caption{PCam Pareto analysis (\texttt{CnonCn} selective bispectrum,
+    single seed, 10\% training data).
+    (a)~Test AUC vs.\ parameter count across all five pooling variants.
+    (b)~Ranking at the ${\sim}$100K parameter budget.
+    (c)~Data efficiency at matched ${\sim}$100K parameters. Multi-seed
+    statistics at matched capacity are in
+    Table~\ref{tab:pcam-results} (main text).}
+  \label{fig:pcam-pareto}
+\end{figure}
 
 \subsection{Published baselines}
 
@@ -2038,7 +1850,7 @@ classifier, then band-limited at $L = 12$ via a forward/inverse SHT
 roundtrip (\texttt{torch\_harmonics.RealSHT}). For each digit we
 draw a target rotation $R\in\SO(3)$ uniformly at random and form
 $f := R\cdot f_0$. We compute the SO(3)-on-$S^2$ selective bispectrum
-$\beta := \beta_{\mathrm{sel}}(f)$.
+$\beta := \Phi_{\mathrm{sel}}(f)$.
 
 \paragraph{Reconstruction.}
 Starting from a Gaussian initialization $\hat f_0\sim\mathcal{N}(0, I)$
