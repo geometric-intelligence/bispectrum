@@ -1,9 +1,5 @@
 # bispectrum
 
-[![Tests](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml)
-[![Pre-commit](https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml)
-[![codecov](https://codecov.io/github/geometric-intelligence/bispectrum/graph/badge.svg?token=J6GGY4VK1E)](https://codecov.io/github/geometric-intelligence/bispectrum)
-
 Bispectrum analysis for machine learning.
 
 ## Installation
@@ -21,8 +17,6 @@ uv pip install bispectrum
 ### Development
 
 ```bash
-git clone https://github.com/geometric-intelligence/bispectrum.git
-cd bispectrum
 uv pip install -e ".[dev]"
 pre-commit install
 ```
@@ -80,8 +74,6 @@ f = torch.randn(4, 24)       # signal on O (|O| = 24)
 beta = bsp(f)                 # shape (4, 172), complex64
 f_rec = bsp.invert(beta)      # reconstructed up to group action
 ```
-
-See [DESIGN.md](DESIGN.md) for the full API and all supported groups.
 
 ## License
 
