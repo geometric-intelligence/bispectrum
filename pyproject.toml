@@ -21,7 +21,7 @@ description = "Bispectrum analysis for machine learning"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12,<3.13"
-authors = [{ name = "Johan Mathe", email = "johan.mathe@gmail.com" }]
+authors = [{ name = "Anonymous" }]
 keywords = [
     "deep learning",
     "neural networks",
@@ -57,14 +57,10 @@ optional-dependencies.dev = [
 ]
 optional-dependencies.plotting = ["matplotlib>=3.7.0"]
 
-urls.Homepage = "https://github.com/geometric-intelligence/bispectrum"
-urls.Repository = "https://github.com/geometric-intelligence/bispectrum"
-urls.Issues = "https://github.com/geometric-intelligence/bispectrum/issues"
+urls.Homepage = "https://anonymous.4open.science/r/bispectrum"
+urls.Repository = "https://anonymous.4open.science/r/bispectrum"
 
-# Pin torch and torchvision to the cu128 wheels so they match systems with
-# NVIDIA driver >= 12.8 (e.g. the local 8x H100 box). PyPI's default torch
-# wheels target a newer CUDA runtime and crash with
-# "NVIDIA driver on your system is too old (found version 12080)".
+# Pin torch and torchvision to the cu128 wheels for CUDA 12.8 compatibility.
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
