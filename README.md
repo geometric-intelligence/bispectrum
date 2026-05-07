@@ -14,7 +14,7 @@ The G-bispectrum is a principled *complete* invariant of a signal — it retains
 | `DnonDn` | D_n on D_n | selective | O(n) |
 | `SO2onDisk` | SO(2) on disk | selective | O(L) |
 | `SO3onS2` | SO(3) on S² | selective + full | Θ(L²) |
-| `OctaonOcta` | chiral octahedral O | selective | O(|G|) |
+| `OctaonOcta` | chiral octahedral O (24 elements) | selective | 172 coefficients |
 
 `SO2onS1` is the continuous-n limit of `CnonCn` and shares its implementation.
 
