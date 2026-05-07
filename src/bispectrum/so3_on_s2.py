@@ -129,23 +129,33 @@ def _proved_linear_bootstrap_block(l_target: int) -> list[tuple[int, int, int]]:
     For each target degree ell >= 8, use:
 
     - X0_a = (a, ell, ell-a),    1 <= a <= ell-1
-    - X1_a = (a, ell, ell-a+1),  2 <= a <= ell-1
-    - C_a  = (a, ell-a, ell),    1 <= a <= 4
-
-    This gives exactly
-        (ell - 1) + (ell - 2) + 4 = 2*ell + 1
-    linear equations in F_ell.
+    - X1_a = (a, ell, ell-a+1),  2 <= a <= ell-1, EXCLUDING a = (ell+1)//2
+      when ell is odd. The excluded triple is (r, 2*r-1, r) at ell = 2r-1,
+      which has a repeated index and parity 4r-1 (odd), so it is identically
+      zero on real signals (Proposition prop:app-odd-vanishing in the paper).
+    - C_a  = (a, ell-a, ell),    1 <= a <= 4 (chain rows).
+    - Z_ell = {(2, ell-1, ell)} for odd ell, empty for even ell. This single
+      shifted-chain row compensates for the dropped second-family entry,
+      preserving the budget |T_ell| = 2*ell + 1. It has all-distinct
+      indices (admissible, not contained in C since C only covers
+      pairs (a, ell-a) with a in {1,2,3,4}).
     """
     block: list[tuple[int, int, int]] = []
 
     for a in range(1, l_target):
         block.append((a, l_target, l_target - a))
 
+    skip_a = (l_target + 1) // 2 if l_target % 2 == 1 else None
     for a in range(2, l_target):
+        if a == skip_a:
+            continue
         block.append((a, l_target, l_target - a + 1))
 
     for a in range(1, 5):
         block.append((a, l_target - a, l_target))
+
+    if l_target % 2 == 1:
+        block.append((2, l_target - 1, l_target))
 
     return block
 
