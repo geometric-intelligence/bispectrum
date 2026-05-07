@@ -1,4 +1,0 @@
-Run the code in a conda environment called bispectrum.
-Activate the environment
-Also activate the environment in the .venv file.
-Do not use thick section separator comments like `# ----` or `# ===`. Let the code structure speak for itself.
