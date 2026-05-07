@@ -1,0 +1,534 @@
+\documentclass[10pt,aspectratio=169]{beamer}
+
+\usetheme{metropolis}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{listings}
+
+\definecolor{accent}{HTML}{1F6FEB}
+\definecolor{warn}{HTML}{C53030}
+\definecolor{ok}{HTML}{2F855A}
+
+\setbeamercolor{alerted text}{fg=warn}
+\setbeamercolor{frametitle}{bg=accent}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\SO}{\mathrm{SO}}
+\newcommand{\OG}{\mathrm{O}}
+\newcommand{\im}{\operatorname{Im}}
+\newcommand{\F}{\mathbf{F}}
+\newcommand{\bispec}{\beta}
+\DeclareMathOperator{\sgn}{sgn}
+
+\title{\texttt{bispectrum}: Selective $G$-Bispectra Made Practical}
+\subtitle{Walkthrough for co-authors}
+\author{Johan Mathe \and Simon Mataigne \and Adele Myers Lantow \and Nina Miolane}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{frame}{What is this paper?}
+\begin{itemize}
+  \item PyTorch library + two theoretical contributions wrapped around it.
+  \item \textbf{Library:} 7 group/domain pairs as drop-in \texttt{nn.Module}s with
+        a uniform \texttt{\{Group\}on\{Domain\}} naming convention.
+  \item \textbf{Theory 1:} Augmented selective $\SO(3)$ bispectrum on $S^2$ with
+        $\Theta(L^2)$ entries (vs.\ the standard $\Theta(L^3)$ full bispectrum).
+  \item \textbf{Theory 2:} Diagnosis (and partial workaround) of why the
+        Mataigne et al.\ (2024) bootstrap inversion fails on the
+        octahedral group~$O$.
+  \item \textbf{Empirical:} PCam ($C_8$), OrganMNIST3D ($O$), Spherical MNIST ($\SO(3)$).
+\end{itemize}
+\vspace{0.4em}
+Plan for this deck:
+\begin{enumerate}
+  \item Library and its optimizations.
+  \item Experiments and what they don't show.
+  \item Proofs (focus on $\SO(3)$/$S^2$), the history, the weaknesses.
+  \item Openings + work that's left.
+\end{enumerate}
+\end{frame}
+
+\section{Part 1 --- The library and its optimizations}
+
+\begin{frame}{Modules, in one slide}
+\begin{table}\centering\small
+\begin{tabular}{lll}
+\toprule
+Class & Group / Domain & Output \\
+\midrule
+\texttt{CnonCn} & $C_n$ on $C_n$ & selective $O(n)$ + full $O(n^2)$ \\
+\texttt{SO2onS1} & $\SO(2)$ on $S^1$ & wraps \texttt{CnonCn} \\
+\texttt{TorusOnTorus} & $\prod C_{n_l}$ on torus & selective $O(|G|)$ + full \\
+\texttt{DnonDn} & $D_n$ on $D_n$ & selective \\
+\texttt{SO2onDisk} & $\SO(2)$ on disk & selective (Myers \& Miolane 2025) \\
+\texttt{OctaonOcta} & octahedral $O$ on $O$ & selective (172 scalars) \\
+\texttt{\textbf{SO3onS2}} & $\SO(3)$ on $S^2$ & \alert{augmented selective $\Theta(L^2)$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+\vspace{0.4em}
+Design rules:
+\begin{itemize}
+  \item Real-valued spatial input goes in. Module owns the FT (SHT, DFT, DHT).
+  \item Selective by default; \texttt{selective=False} for debugging.
+  \item Complex output (\texttt{complex64}); CG / Bessel / DFT kernels are
+        non-learnable buffers $\Rightarrow$ \texttt{.to(device)} is free.
+  \item No \texttt{escnn}/\texttt{e3nn} dependency. CG built from Racah +
+        log-factorials, cached on disk.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Optimizations actually in the code}
+\begin{itemize}
+  \item \textbf{Reduced CG matrices, parallel build.}
+        For \texttt{SO3onS2}, only the nonzero CG slices are kept; build
+        across $(\ell_1,\ell_2)$ pairs is parallelised at construction time
+        and pickled to \texttt{\textasciitilde/.cache/bispectrum/}.
+  \item \textbf{Sparse CG path} for high-$L$ single-pair contractions.
+  \item \textbf{Batch-native forward.}
+        Abelian modules use \texttt{torch.fft.fftn}; non-abelian use
+        \texttt{einsum}/\texttt{bmm} with no Python-level loops over $(\ell_1,\ell_2)$.
+  \item \textbf{Inversion via forward-mode AD + Levenberg--Marquardt}
+        (\texttt{torch.func.jacfwd} composed with \texttt{torch.vmap}) for
+        the octahedral case --- gives a damped least-squares step that is
+        a single linear solve per iteration.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Benchmark numbers (H100, batch 16)}
+\centering\small
+\begin{tabular}{llrrrrr}
+\toprule
+Module & $G$ & Sel.\ coefs & Full coefs & Fwd sel.\ (ms) & Fwd full (ms) & Inv (ms) \\
+\midrule
+\texttt{CnonCn} & $C_{128}$ & 128 & 8\,256 & 0.15 & 9.17 & 8.6 \\
+\texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1\,024 & 524\,800 & 0.08 & 0.71 & 68 \\
+\texttt{DnonDn} & $D_{32}$ & 245 & --- & 2.52 & --- & 42 \\
+\texttt{SO2onDisk} & $\SO(2)$ & 411 & --- & 1.94 & --- & 18 \\
+\texttt{SO3onS2} & $\SO(3)$, $L{=}16$ & 430 & --- & 26.5 & --- & --- \\
+\texttt{OctaonOcta} & $O$ & 172 & --- & 0.70 & --- & 2\,170 \\
+\bottomrule
+\end{tabular}
+\vspace{0.6em}
+\begin{itemize}
+  \item Sub-millisecond forward for finite groups $\Rightarrow$ negligible
+        overhead vs.\ a CNN backbone.
+  \item \texttt{SO3onS2}: 26.5\,ms is dominated by the SHT
+        (\texttt{torch\_harmonics}, Bonev et al.\ 2023), not by CG
+        contractions.
+  \item Octahedral inversion is $\sim$2\,s and \alert{converges to wrong basin}
+        on most signals (5.7\% success). This is the topic of Part 3.
+\end{itemize}
+\end{frame}
+
+\section{Part 2 --- Experiments and their weaknesses}
+
+\begin{frame}{Experimental scope}
+Three benchmarks, one per group regime:
+\begin{enumerate}
+  \item \textbf{PCam} (2D histopathology, 327K patches): \texttt{CnonCn}$(n{=}8)$
+        as terminal invariant pool on a $C_8$-equivariant DenseNet.
+  \item \textbf{OrganMNIST3D} (1\,742 abdominal CT volumes): \texttt{OctaonOcta}
+        on an $O$-equivariant 3D ResNet with exact voxel-permutation kernels.
+  \item \textbf{Spherical MNIST}: \texttt{SO3onS2} at $\ell_{\max}{=}15$,
+        log-magnitudes $\to$ 3-layer MLP.
+\end{enumerate}
+\vspace{0.4em}
+What we test in each setting:
+\begin{itemize}
+  \item Numerical $G$-invariance ($\sigma_\mathrm{rot}$).
+  \item Completeness vs.\ lossy pooling (norm, max, gate, Fourier-ELU).
+  \item Capacity / data sweeps (Pareto curves).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Headline numbers}
+\centering\small
+\textbf{PCam} (matched $\sim$100K params, 10\% data, 3 seeds):
+\begin{tabular}{lcc}
+\toprule
+Pool & AUC & Acc \\
+\midrule
+Standard (augmented) & .896 & .826 \\
+Bispectrum (\texttt{CnonCn}) & .941 & \textbf{.872} \\
+Fourier-ELU & \textbf{.945} & .855 \\
+NormReLU & .942 & .858 \\
+\bottomrule
+\end{tabular}
+\vspace{0.6em}
+
+\textbf{OrganMNIST3D}:
+\begin{tabular}{lccc}
+\toprule
+Model & Params & Test Acc & $\sigma_\mathrm{rot}$ \\
+\midrule
+$O$-equiv + Norm pool & 375K & .568 & 0 \\
+$O$-equiv + Max pool & 374K & .730 & 0 \\
+$O$-equiv + Bispectrum & 463K & .726 & $5{\times}10^{-4}$ \\
+\bottomrule
+\end{tabular}
+\vspace{0.6em}
+
+\textbf{Spherical MNIST} (NR/NR / R/R / NR/R):
+\begin{tabular}{lccc}
+\toprule
+Model & NR/NR & R/R & NR/R \\
+\midrule
+Power spec.\ + MLP (166K) & .794 & .794 & .792 \\
+Bispectrum + MLP (232K) & \textbf{.950} & \textbf{.949} & \textbf{.951} \\
+Cohen spherical CNN (ref) & .96 & .95 & .94 \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{The story they tell}
+\begin{itemize}
+  \item \textbf{Invariance is real and tight.} Bispectrum $\sigma_\mathrm{rot}
+        \sim 10^{-4}$; standard CNN drops 99\%$\to$14\% under NR/R.
+  \item \textbf{Completeness $>$ incomplete pools at low data.}
+        At 1\% PCam, bispectrum leads (.912 vs .873 NormReLU, .876 Fourier-ELU).
+        At 5\% OrganMNIST3D, .332 vs .189 for max pool.
+  \item \textbf{Completeness $\to$ no advantage at high capacity / data.}
+        Max pool catches up at 6M params on OrganMNIST3D.
+        Cohen spherical CNN beats us by 1--2pp.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Weaknesses of the experimental section}
+\small
+This is where reviewers will push back. Be honest about it:
+\begin{itemize}
+  \item \alert{No comparison vs.\ tensor-product architectures}
+        (e3nn, MACE) or wavelet scattering. They target different
+        input assumptions but it's the obvious missing baseline.
+  \item \alert{Spherical MNIST is not a discriminating task} for SO(3)
+        invariance any more --- everyone gets $\sim$95\%. We win on
+        \emph{tightness of invariance} ($10^{-4}$ vs $10^{-2}$), not raw acc.
+  \item \alert{OrganMNIST3D is small} (1.7K samples, 11 classes).
+        Variance per seed is large; the .726 vs .730 max-pool gap is
+        well within noise.
+  \item \alert{PCam: only one architecture family} (DenseNet, $C_8$).
+        We don't show the bispectrum is robust across backbones.
+  \item \alert{Octahedral inversion never used downstream.} The 5.7\% success
+        rate makes it useless as a feature for any task --- so the inversion
+        story is theoretical, not practical.
+  \item Three seeds per config. Conventional in this venue, but on
+        OrganMNIST3D we'd want more.
+  \item No dataset where the bispectrum \emph{loses} cleanly, which would
+        actually \emph{strengthen} the ``when not to use it'' paragraph.
+\end{itemize}
+\end{frame}
+
+\section{Part 3 --- Proofs and their weaknesses}
+
+\begin{frame}{What proofs the paper makes}
+\begin{enumerate}
+  \item \textbf{$\SO(3)$ on $S^2$ ($L \le 100$).}
+        Augmented selective bispectrum is a complete $\SO(3)$-invariant
+        on a Zariski-open dense subset of $V_L$. Output size $\Theta(L^2)$,
+        matches lower bound $(L{+}1)^2 - 3$ up to a constant.
+  \item \textbf{Octahedral diagnosis, no positive proof.}
+        Shows the bootstrap inversion of Mataigne et al.\ (2024)
+        \emph{cannot} work on $O$: cross-block leakage of order 1 in
+        $C_{11}^\top (Q\otimes Q) C_{11}$ for $Q \in \SO(3)\setminus O$.
+\end{enumerate}
+\vspace{0.6em}
+The first one is what most of the appendix is. We focus the rest of the
+deck there.
+\end{frame}
+
+\begin{frame}{The $\SO(3)$ on $S^2$ result --- statement}
+\begin{block}{Theorem (informal)}
+For $4 \le L \le 100$, the augmented invariant
+\[
+  \Phi_\mathrm{aug}(f)
+  = \bigl\{\beta_{\ell_1,\ell_2,\ell}\bigr\}_{\mathcal S_\beta}
+    \cup \bigl\{P_{\ell_1,\ell_2,\ell}\bigr\}_{\mathcal S_P}
+    \cup \bigl\{\text{full bispectrum at } L_0=4\bigr\}
+\]
+with $|\Phi_\mathrm{aug}| = \Theta(L^2)$, separates $\SO(3)$-orbits on
+real band-limited signals satisfying mild genericity (G1)--(G3).
+\end{block}
+\vspace{0.4em}
+Pieces:
+\begin{itemize}
+  \item $\beta_{\ell_1,\ell_2,\ell}$: scalar bispectral entries (degree~3).
+  \item $P_{\ell_1,\ell_2,\ell} := \|(\F_{\ell_1}\otimes \F_{\ell_2})|_\ell\|^2$:
+        \alert{CG power spectrum} (degree~4, real, $T_R$-invariant).
+  \item Full bispectrum at $L_0{=}4$: 30 extra entries, asymptotically free.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Proof skeleton (current version)}
+\begin{enumerate}
+  \item \textbf{Gauge fix} $\F_1$ to $z$-axis, $\im(a_2^1) = 0$ \quad (3 DoF, lemma~\texttt{app-gauge}).
+  \item \textbf{Recover $\F_0$, $\F_1$} from $\beta_{0,0,0}$, $\beta_{0,1,1}$.
+  \item \textbf{Seed (degrees 0--4) via Kakarala 1992/2012 Thm 7.}
+        Adjoin the full bispectrum at $L_0{=}4$. Two independent arguments:
+        \begin{itemize}\small
+          \item Representation-theoretic (Kakarala / Iwahori--Sugiura).
+          \item Computer-algebra (Bandeira et al.\ 2017, Gröbner, $L_0 \le 15$).
+        \end{itemize}
+  \item \textbf{Bootstrap for $\ell \ge 5$.}
+        Linear system $A_\ell \F_\ell = b$ with
+        $\mathrm{rank}_{\C}(A_\ell) = 2\ell+1$. Verified at deterministic
+        witness (seed 42) for $\ell \in [4,100]$.
+  \item Real rank of full augmented per-degree system $= 2\ell+1$
+        (verified $\ell \le 30$). \alert{CG power entries are essential at every $\ell$.}
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Why CG power is needed at all}
+For \emph{complex} signals: scalar bispectrum alone has full
+complex rank $2\ell+1$ at every $\ell$.
+\vspace{0.4em}
+
+For \emph{real} signals: the constraint
+$a_\ell^{-m} = (-1)^m \overline{a_\ell^m}$ creates algebraic
+dependencies in $A_\ell$ that \alert{cannot be fixed by choosing different triples}.
+
+\centering\small
+\begin{tabular}{ccccc}
+\toprule
+$\ell$ & complex rank & real rank (linear) & + self-coupling & + CG power \\
+\midrule
+4 & 9 & 4 & 6 & \textbf{9} \\
+5 & 11 & 4 & 6 & \textbf{11} \\
+6 & 13 & 8 & 11 & \textbf{13} \\
+\bottomrule
+\end{tabular}
+\vspace{0.6em}
+
+The Zariski-density argument (``real $\subset \C$ is dense'') \alert{fails} because
+the reality constraint involves conjugation, which is not algebraic over $\C$.
+This was discovered the hard way (research log, 2026-04-13).
+\end{frame}
+
+\begin{frame}{Parity, $T_R$, and why $\beta_{2,3,4}$ is the hero}
+The azimuthal reflection $T_R: a_\ell^m \mapsto (-1)^m a_\ell^{-m}$
+is in $\OG(3) \setminus \SO(3)$.
+\begin{itemize}
+  \item For real signals: $\overline{\beta} = (-1)^{\ell_1+\ell_2+\ell}\,\beta$.
+  \item Even parity $\Rightarrow$ $\beta \in \R$, $T_R$-invariant.
+  \item Odd parity $\Rightarrow$ $\beta \in i\R$, $\im\beta$ flips sign under $T_R$.
+\end{itemize}
+\vspace{0.4em}
+Vanishing pattern (proved symbolically): odd-parity $\beta_{\ell_1,\ell_2,\ell}$
+\alert{vanishes identically} whenever any two indices coincide.
+
+$\Rightarrow$ The smallest nonzero odd-parity entry is
+\[
+  \boxed{\beta_{2,3,4}}, \quad \ell_1+\ell_2+\ell = 9, \text{ all distinct.}
+\]
+At seed-42 witness, $\im(\beta_{2,3,4}) \approx 3.26$, flips sign under $T_R$.
+This is why $L_0 = 4$ is the magic number: any seed cutoff $\ge 4$
+contains $\beta_{2,3,4}$, which kills the $T_R$ ambiguity.
+\end{frame}
+
+\begin{frame}{Limitations of the $\SO(3)$/$S^2$ proof}
+What's actually \alert{not} structural / not proved uniformly:
+\begin{itemize}
+  \item \textbf{Bootstrap rank is per-$\ell$, not uniform-in-$\ell$.}
+        We verify $\det A_\ell \ne 0$ at one witness for each $\ell \in [4,100]$.
+        Sound for any fixed $L \le 100$, but a single closed-form Wigner-3j
+        identity uniform in $\ell$ remains open (Wigner-3j non-vanishing).
+  \item \textbf{Real per-degree rank certificate} only goes up to $\ell \le 30$
+        (was bottlenecked by sympy time at the time of writing).
+  \item \textbf{The Bandeira et al.\ symbolic certificate} bounds $L_0 \le 15$.
+        For our use $L_0 = 4$ this is fine, but the structural ceiling exists.
+  \item \textbf{Genericity set not characterised explicitly.}
+        We know it's the complement of a measure-zero variety; we don't
+        write the variety down.
+  \item \textbf{Numerical conditioning.}
+        $\kappa(A_\ell)$ at the witness is $10^1$--$10^4$. No bound in terms
+        of spectral decay of $f$.
+  \item \textbf{No inversion algorithm} on $S^2$: forward-only.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Octahedral proof: do we even need it?}
+\small
+\textbf{Honest answer: probably no, in the current form.}
+\begin{itemize}
+  \item The selective $O$-bispectrum \emph{is} complete (172 coefs determine
+        $f$ up to $O$-action) --- this is from
+        Mataigne et al.\ (2024), not new.
+  \item Our contribution: a clean diagnosis that the
+        \emph{bootstrap inversion algorithm} cannot work.
+        Cause: $C_{11}^\top (Q\otimes Q) C_{11}$ has off-diagonal blocks of
+        norm $\sim 0.79$ for generic $Q \in \SO(3) \setminus O$.
+        The CG matrices block-diagonalise $\rho_1\otimes\rho_1$ only for
+        $g \in O$, not for $g \in \SO(3)$.
+  \item LM workaround: bispectral residual goes to $5{\times}10^{-5}$ in
+        $<$50 iterations, but \alert{signal recovery rate is 5.7\%}.
+\end{itemize}
+\vspace{0.4em}
+\textbf{So, options:}
+\begin{enumerate}
+  \item Keep it as a cautionary tale (current draft).
+  \item Drop it and free $\sim$2 pages for tighter $\SO(3)$/$S^2$ work.
+  \item Replace with a positive result: prove that \emph{no} bootstrap
+        inversion can succeed on $O$ (i.e.\ formalise the failure as a
+        no-go theorem).
+\end{enumerate}
+My take: option 3 is the only version that's worth its space.
+\end{frame}
+
+\begin{frame}{History: what we tried before landing on the current proof}
+From \texttt{paper/research\_log.md}.
+\vspace{0.4em}
+
+\textbf{Attempt A: Augment with $P_{\ell_1,\ell_2,\ell}$.}
+Started with the empirical observation that the seed Jacobian (10$\times$11)
+had rank 6 instead of 10 for real signals. Added CG power entries one at a
+time; greedy augmentation hits full rank.
+
+\textbf{Attempt B: Switch to matrix-valued bispectrum.} Higher rank but
+$O(L^3)$ output. Rejected.
+
+\textbf{Attempt C: Edidin--Satriano (2024) as black-box seed.}
+Misread their $R \ge L+2$ theorem --- it's the multi-shell case, not
+single-$S^2$. Rescue plan failed.
+
+\textbf{Attempt D (current): Kakarala 1992/2012 Theorem 7 + Bandeira et al.\ 2017.}
+After re-reading: $N_H \subset \SO(3)$, so the ``up to reflection''
+caveat in Edidin--Satriano refers to Kakarala's
+\emph{algorithm} (positive square root step), not to the bispectrum
+\emph{data}. The full bispectrum at $L_0 = 4$ already separates $f$
+from $T_R \cdot f$ via $\beta_{2,3,4}$.
+\end{frame}
+
+\begin{frame}{Findings on the way (the bits worth re-using)}
+\begin{itemize}
+  \item \textbf{Seed fibre is 10-fold, not 2-fold.}
+        Multi-start NLS (5000 starts/branch) finds 10 real solutions per
+        $\sgn(v)$ branch. Adding more degree-$\le 4$ CG-power entries
+        \emph{does not} reduce the cover.
+        $\Rightarrow$ The 10:1 ramification is intrinsic to the GIT-quotient
+        $V_{0..3}//\SO(3)$ at degree-4 invariants. Any structural reduction
+        \emph{must} use degree $\ge 4$ data. This validated the Kakarala route.
+  \item \textbf{Reflection is killed by data, not by gauge.}
+        $T_R$ flips $\im\beta_{2,3,4}$; gauge fixing only handles the
+        $\SO(3)$ part.
+  \item \textbf{No simple uniform witness exists.}
+        Tested closed-form sequences W1--W5 ($F_a^m = 1$, $1/(1+m^2)$,
+        $(1+m)(1+a)$, etc.). All fail at moderate $\ell$. A uniform
+        bootstrap-rank proof needs an actual Wigner-3j non-vanishing identity.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Side-by-side: where the proof is structural vs.\ computational}
+\centering\small
+\begin{tabular}{p{0.55\linewidth}p{0.35\linewidth}}
+\toprule
+Step & Status \\
+\midrule
+Gauge fixing & structural \\
+$\F_0, \F_1$ recovery & structural \\
+Parity / $T_R$ classification ($\ell \le 5$) & structural (sympy-symbolic) \\
+Seed (degrees 0--4) via Kakarala Thm 7 & structural (citation) \\
+Seed via Bandeira et al.\ Gröbner & structural (one-time CA) \\
+Constructive seed (Lemmas \texttt{app-ell2}--\texttt{app-TR-resolve}) & numerical witness, kept as \emph{algorithm}, not as proof \\
+Bootstrap rank $\ell \in [4,100]$ & per-$\ell$ witness, structural for fixed $L$ \\
+Augmented real per-degree rank $\ell \in [4, 30]$ & per-$\ell$ witness \\
+Uniform-in-$\ell$ bootstrap rank & \alert{open} \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\section{Part 4 --- Openings and what's left}
+
+\begin{frame}{Concrete things left to do}
+\textbf{Theory:}
+\begin{itemize}
+  \item \textbf{Uniform-in-$\ell$ bootstrap rank.}
+        Reduce $\det A_\ell \ne 0$ to a Wigner-3j non-vanishing identity
+        over the closed-form chain/offset/C-row family $\mathcal T_\ell$.
+        Current best lead: evaluate at $F_a^m = \zeta^{a+m}$ and study the
+        leading Laurent term in $\zeta$.
+  \item \textbf{Inversion algorithm for $\SO(3)$/$S^2$.}
+        Forward map exists; inversion does not. Closed form for $\ell=0,1$;
+        nonlinear for $\ell \in \{2,3\}$ (10:1 fibre); linear pseudoinverse
+        for $\ell \ge 4$.
+  \item \textbf{Octahedral no-go.}
+        Make the failure of bootstrap inversion on $O$ a theorem,
+        not a numerical observation.
+  \item \textbf{Conditioning bound.}
+        $\kappa(A_\ell)$ as a function of spectral decay of $f$.
+\end{itemize}
+\textbf{Library:}
+\begin{itemize}
+  \item Selective bispectrum for general homogeneous spaces $G/H$.
+  \item \texttt{escnn}/\texttt{e3nn} interop.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Where this could go}
+\begin{itemize}
+  \item \textbf{Cryo-EM.}
+        Single-particle reconstruction is exactly the
+        $\SO(3)$/$S^2$ orbit-recovery problem with noise.
+        $\Theta(L^2)$ invariant + provable completeness $\to$ candidate
+        loss / preprocessing layer.
+  \item \textbf{Molecular property prediction.}
+        Bispectral pooling over $\SO(3)$-equivariant features as
+        an alternative to gated nonlinearities; data-efficiency
+        story is the right one for medium-size datasets (QM9, MD17 small).
+  \item \textbf{Multi-reference alignment.}
+        Myers \& Miolane (2025) already do disk; sphere is the natural next step.
+  \item \textbf{Open question of independent interest:}
+        what is the smallest $L_0$ such that the full bispectrum at $L_0$
+        determines the orbit? Bandeira et al.\ verified $L_0 \le 15$;
+        can we get a closed-form $L_0$ as a function of any structural
+        parameter?
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Concrete asks for prospective collaborators}
+Pick whichever is closest to your taste:
+\begin{enumerate}
+  \item \textbf{(Algebra / rep-theory)}
+        Wigner-3j non-vanishing identity for the closed-form
+        bootstrap family $\mathcal T_\ell$. One identity, kills the only
+        remaining structural gap.
+  \item \textbf{(Numerical analysis)}
+        Conditioning bound for $A_\ell$ in terms of spectral decay.
+  \item \textbf{(Algorithms)}
+        Inversion for $\SO(3)$/$S^2$ from $\Phi_\mathrm{aug}$.
+  \item \textbf{(ML / applications)}
+        A real downstream task where bispectral invariance is the
+        bottleneck (cryo-EM, MRA, molecular). PCam / Spherical MNIST
+        are too easy; we need a benchmark where this matters.
+  \item \textbf{(Theory cleanup)}
+        Octahedral no-go theorem, or: extension of selective bispectrum
+        to a non-trivial $G/H$.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}[standout]
+Questions?
+\end{frame}
+
+\appendix
+
+\begin{frame}{References (selected)}
+\small
+\begin{itemize}
+  \item Kakarala (1992) \emph{Triple Correlation on Groups}, PhD thesis.
+  \item Kakarala (2012) JMIV --- Theorem 7, our seed.
+  \item Mataigne et al.\ (2024) NeurIPS --- selective bispectrum, finite groups.
+  \item Bandeira et al.\ (2017) arXiv:1712.10163 --- symbolic Jacobian
+        certificate for $L_0 \le 15$.
+  \item Edidin \& Satriano (2024) --- multi-shell completeness ($R \ge L+2$).
+  \item Cohen \& Welling (2016) --- $G$-equivariant CNNs.
+  \item Bonev et al.\ (2023) --- \texttt{torch\_harmonics}.
+\end{itemize}
+\end{frame}
+
+\end{document}

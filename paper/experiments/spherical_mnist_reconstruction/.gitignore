@@ -1,0 +1,5 @@
+figures/*
+!figures/paper_orbits.pdf
+__pycache__/
+*.json
+*.log

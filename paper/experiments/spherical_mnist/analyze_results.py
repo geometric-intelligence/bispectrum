@@ -29,22 +29,74 @@ import numpy as np
 MODEL_ORDER = ['standard', 'power_spectrum', 'power_spectrum_matched', 'bispectrum']
 MODEL_LABELS = {
     'standard': 'Std. CNN',
-    'power_spectrum': 'PowSpec 11K',
-    'power_spectrum_matched': 'PowSpec 166K',
+    'power_spectrum': 'PowSpec',
+    'power_spectrum_matched': 'PowSpec (matched)',
     'bispectrum': 'Bispectrum',
 }
 
 MODEL_LABELS_FULL = {
     'standard': 'Standard CNN',
-    'power_spectrum': 'Power Spectrum (11K)',
-    'power_spectrum_matched': 'Power Spectrum (166K)',
+    'power_spectrum': 'Power Spectrum',
+    'power_spectrum_matched': 'Power Spectrum (matched)',
     'bispectrum': 'Bispectrum (ours)',
 }
 
 COHEN_RESULTS = {
-    'Cohen planar CNN': {'NR/NR': 0.98, 'R/R': 0.23, 'NR/R': 0.11},
-    'Cohen spherical CNN': {'NR/NR': 0.96, 'R/R': 0.95, 'NR/R': 0.94},
+    'Cohen planar CNN (NR/X)': {'C/C': 0.98, 'R/R': 0.23, 'C/R': 0.11},
+    'Cohen spherical CNN (NR/X)': {'C/C': 0.96, 'R/R': 0.95, 'C/R': 0.94},
 }
+
+
+def _canonical_train_mode(mode: str) -> str:
+    """Map legacy `NR` to the canonical `C` mode."""
+    return 'C' if mode in {'C', 'NR'} else 'R'
+
+
+def _params_label(n_params: int) -> str:
+    """Format a parameter count as ``11K`` / ``1.6M`` for table labels."""
+    if n_params >= 1_000_000:
+        return f'{n_params / 1_000_000:.1f}M'
+    if n_params >= 1000:
+        return f'{n_params / 1000:.0f}K'
+    return f'{n_params}'
+
+
+def _full_label(model: str, n_params: int | None) -> str:
+    base = MODEL_LABELS_FULL.get(model, model)
+    if n_params is None:
+        return base
+    return f'{base} ({_params_label(n_params)})'
+
+
+def _short_label(model: str, n_params: int | None) -> str:
+    base = MODEL_LABELS.get(model, model)
+    if n_params is None:
+        return base
+    return f'{base} {_params_label(n_params)}'
+
+
+def _test_c(run: dict) -> dict:
+    return run.get('test_c') or run.get('test_nr') or run.get('test', {})
+
+
+def _test_r(run: dict) -> dict:
+    return run.get('test_r') or {}
+
+
+def _train_size_value(record: dict) -> int | None:
+    """Resolved train_size, or None for full-set runs."""
+    raw = record.get('train_size')
+    if raw is None:
+        return None
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
+def _is_full_train(record: dict) -> bool:
+    return _train_size_value(record) is None
 
 NEURIPS_RCPARAMS = {
     'font.family': 'serif',
@@ -80,9 +132,9 @@ COLORS = {
 }
 
 PROTOCOL_COLORS = {
-    'NR/NR': '#2D6A9F',
+    'C/C': '#2D6A9F',
     'R/R': '#4CAF50',
-    'NR/R': '#D4722A',
+    'C/R': '#D4722A',
 }
 
 
@@ -103,9 +155,10 @@ def load_results(
     for p in sorted(results_path.glob('*/results.json')):
         with open(p) as f:
             r = json.load(f)
-        if r.get('train_fraction', 1.0) != 1.0:
+        if not _is_full_train(r):
             continue
-        grouped[(r['model'], r['train_mode'])].append(r)
+        mode = _canonical_train_mode(r['train_mode'])
+        grouped[(r['model'], mode)].append(r)
 
     if matched_dir:
         matched_path = Path(matched_dir)
@@ -113,7 +166,8 @@ def load_results(
             for p in sorted(matched_path.glob('*/results.json')):
                 with open(p) as f:
                     r = json.load(f)
-                grouped[('power_spectrum_matched', r['train_mode'])].append(r)
+                mode = _canonical_train_mode(r['train_mode'])
+                grouped[('power_spectrum_matched', mode)].append(r)
 
     return grouped
 
@@ -139,46 +193,46 @@ def _latex_fmt(vals: list[float], bold: bool = False) -> str:
 
 
 def print_cohen_table(grouped: dict[tuple[str, str], list[dict]]):
-    """Print the NR/NR, R/R, NR/R accuracy table to console."""
-    print('\n' + '=' * 90)
-    print('ACCURACY TABLE (Cohen et al. 2018 protocol)')
-    print('Train/Test: X/Y = trained on X, evaluated on Y')
-    print('=' * 90)
-    hdr = f'{"Method":<28} {"Params":>8}  {"NR/NR":>12}  {"R/R":>12}  {"NR/R":>12}  {"Rot \u03c3":>10}'
+    """Print the C/C, R/R, C/R accuracy table to console."""
+    print('\n' + '=' * 100)
+    print('ACCURACY TABLE (Cohen et al. 2018 protocol, canonical/random)')
+    print('Train/Test: X/Y = trained on X, evaluated on Y. Cohen reference uses NR for canonical.')
+    print('=' * 100)
+    hdr = f'{"Method":<32} {"Params":>10}  {"C/C":>12}  {"R/R":>12}  {"C/R":>12}  {"Rot \u03c3":>10}'
     print(hdr)
-    print('-' * 90)
+    print('-' * 100)
 
     for method, accs in COHEN_RESULTS.items():
         print(
-            f'{method:<28} {"\u2014":>8}  '
-            f'{accs["NR/NR"]:>12.3f}  {accs["R/R"]:>12.3f}  {accs["NR/R"]:>12.3f}  '
+            f'{method:<32} {"\u2014":>10}  '
+            f'{accs["C/C"]:>12.3f}  {accs["R/R"]:>12.3f}  {accs["C/R"]:>12.3f}  '
             f'{"\u2014":>10}'
         )
 
-    print('-' * 90)
+    print('-' * 100)
 
     for model in MODEL_ORDER:
-        nr_runs = grouped.get((model, 'NR'), [])
+        c_runs = grouped.get((model, 'C'), [])
         r_runs = grouped.get((model, 'R'), [])
-        if not nr_runs and not r_runs:
+        if not c_runs and not r_runs:
             continue
 
-        n_params = (nr_runs or r_runs)[0]['n_params']
-        nr_nr = [r['test_nr']['accuracy'] for r in nr_runs]
-        nr_r = [r['test_r']['accuracy'] for r in nr_runs]
-        r_r = [r['test_r']['accuracy'] for r in r_runs]
+        n_params = (c_runs or r_runs)[0]['n_params']
+        c_c = [_test_c(r)['accuracy'] for r in c_runs]
+        c_r = [_test_r(r)['accuracy'] for r in c_runs if _test_r(r)]
+        r_r = [_test_r(r)['accuracy'] for r in r_runs if _test_r(r)]
 
         rot_stds = [
             r['rotation_robustness']['std_accuracy']
-            for r in nr_runs
+            for r in c_runs
             if r.get('rotation_robustness', {}).get('std_accuracy') is not None
         ]
         rot_str = f'{np.mean(rot_stds):.5f}' if rot_stds else '\u2014'
 
-        label = MODEL_LABELS_FULL.get(model, model)
+        label = _full_label(model, n_params)
         print(
-            f'{label:<28} {n_params:>8,}  '
-            f'{_fmt(nr_nr):>12}  {_fmt(r_r):>12}  {_fmt(nr_r):>12}  '
+            f'{label:<32} {n_params:>10,}  '
+            f'{_fmt(c_c):>12}  {_fmt(r_r):>12}  {_fmt(c_r):>12}  '
             f'{rot_str:>10}'
         )
 
@@ -186,31 +240,31 @@ def print_cohen_table(grouped: dict[tuple[str, str], list[dict]]):
 def print_latex_table(grouped: dict[tuple[str, str], list[dict]]):
     """Print LaTeX-formatted table rows for direct insertion into paper."""
     print('\n% LaTeX table rows for Spherical MNIST results')
-    print('% Paste into \\begin{tabular}{lrcccc}')
-    print(r'%   Model & Params & NR/NR & R/R & NR/R & Rot.\ $\sigma$ \\')
+    print(r'% Paste into \begin{tabular}{lrcccc}')
+    print(r'%   Model & Params & C/C & R/R & C/R & Rot.\ $\sigma$ \\')
 
     for method, accs in COHEN_RESULTS.items():
         print(
             f'    {method} & --- '
-            f'& ${accs["NR/NR"]:.2f}$ & ${accs["R/R"]:.2f}$ '
-            f'& ${accs["NR/R"]:.2f}$ & --- \\\\'
+            f'& ${accs["C/C"]:.2f}$ & ${accs["R/R"]:.2f}$ '
+            f'& ${accs["C/R"]:.2f}$ & --- \\\\'
         )
     print(r'    \midrule')
 
     for model in MODEL_ORDER:
-        nr_runs = grouped.get((model, 'NR'), [])
+        c_runs = grouped.get((model, 'C'), [])
         r_runs = grouped.get((model, 'R'), [])
-        if not nr_runs and not r_runs:
+        if not c_runs and not r_runs:
             continue
 
-        n_params = (nr_runs or r_runs)[0]['n_params']
-        nr_nr = [r['test_nr']['accuracy'] for r in nr_runs]
-        nr_r = [r['test_r']['accuracy'] for r in nr_runs]
-        r_r = [r['test_r']['accuracy'] for r in r_runs]
+        n_params = (c_runs or r_runs)[0]['n_params']
+        c_c = [_test_c(r)['accuracy'] for r in c_runs]
+        c_r = [_test_r(r)['accuracy'] for r in c_runs if _test_r(r)]
+        r_r = [_test_r(r)['accuracy'] for r in r_runs if _test_r(r)]
 
         rot_stds = [
             r['rotation_robustness']['std_accuracy']
-            for r in nr_runs
+            for r in c_runs
             if r.get('rotation_robustness', {}).get('std_accuracy') is not None
         ]
 
@@ -219,23 +273,30 @@ def print_latex_table(grouped: dict[tuple[str, str], list[dict]]):
         if is_bisp:
             label = f'\\textbf{{{label}}}'
 
-        params_str = f'{n_params // 1000}K'
+        params_str = _params_label(n_params)
         rot_val = f'{np.mean(rot_stds):.4f}' if rot_stds else '---'
 
         print(
             f'    {label} & {params_str} '
-            f'& {_latex_fmt(nr_nr, bold=is_bisp)} '
+            f'& {_latex_fmt(c_c, bold=is_bisp)} '
             f'& {_latex_fmt(r_r, bold=is_bisp)} '
-            f'& {_latex_fmt(nr_r, bold=is_bisp)} '
+            f'& {_latex_fmt(c_r, bold=is_bisp)} '
             f'& ${rot_val}$ \\\\'
         )
 
 
+SMNIST_FULL_TRAIN = 60_000
+
+
 def load_data_efficiency_results(
     results_dir: str,
-) -> dict[tuple[str, str, float], list[dict]]:
-    """Load all results, grouped by (model, train_mode, train_fraction)."""
-    grouped: dict[tuple[str, str, float], list[dict]] = defaultdict(list)
+) -> dict[tuple[str, str, int], list[dict]]:
+    """Load all results, grouped by (model, canonical train_mode, train_size).
+
+    ``train_size`` is the absolute number of training examples actually used.
+    Full-set runs are bucketed at ``SMNIST_FULL_TRAIN``.
+    """
+    grouped: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
     results_path = Path(results_dir)
     if not results_path.exists():
         return grouped
@@ -243,20 +304,22 @@ def load_data_efficiency_results(
     for p in sorted(results_path.glob('*/results.json')):
         with open(p) as f:
             r = json.load(f)
-        frac = r.get('train_fraction', 1.0)
-        grouped[(r['model'], r['train_mode'], frac)].append(r)
+        size = _train_size_value(r)
+        size_bucket = SMNIST_FULL_TRAIN if size is None else size
+        mode = _canonical_train_mode(r['train_mode'])
+        grouped[(r['model'], mode, size_bucket)].append(r)
 
     return grouped
 
 
 def plot_data_efficiency(
-    grouped: dict[tuple[str, str, float], list[dict]],
+    grouped: dict[tuple[str, str, int], list[dict]],
     output_path: str,
 ):
-    """Two-panel figure: NR/NR and NR/R accuracy vs training fraction."""
+    """Two-panel figure: C/C and C/R accuracy vs absolute training size."""
     plt.rcParams.update(NEURIPS_RCPARAMS)
 
-    fracs_to_plot = [0.01, 0.1, 1.0]
+    sizes_to_plot = [100, 500, 2500, 12500, SMNIST_FULL_TRAIN]
     models_to_plot = ['standard', 'power_spectrum', 'bispectrum']
     colors = {
         'standard': '#7f7f7f',
@@ -271,43 +334,45 @@ def plot_data_efficiency(
     }
 
     panels = [
-        ('NR', 'test_nr', '(a) NR/NR accuracy vs. data fraction'),
-        ('NR', 'test_r', '(b) NR/R accuracy vs. data fraction'),
+        ('C', _test_c, '(a) C/C accuracy vs. training examples'),
+        ('C', _test_r, '(b) C/R accuracy vs. training examples'),
     ]
 
     fig, axes = plt.subplots(1, 2, figsize=(6.5, 3.0), sharey=True)
 
-    for ax, (train_mode, test_key, title) in zip(axes, panels):
+    for ax, (train_mode, test_fn, title) in zip(axes, panels):
         for model in models_to_plot:
             means = []
             stds = []
-            valid_fracs = []
-            for frac in fracs_to_plot:
-                runs = grouped.get((model, train_mode, frac), [])
+            valid_sizes = []
+            for size in sizes_to_plot:
+                runs = grouped.get((model, train_mode, size), [])
                 if not runs:
                     continue
-                vals = [r[test_key]['accuracy'] for r in runs]
+                vals = [test_fn(r)['accuracy'] for r in runs if test_fn(r)]
+                if not vals:
+                    continue
                 means.append(np.mean(vals))
                 stds.append(np.std(vals) if len(vals) > 1 else 0.0)
-                valid_fracs.append(frac)
+                valid_sizes.append(size)
 
-            if not valid_fracs:
+            if not valid_sizes:
                 continue
 
             means_arr = np.array(means)
             stds_arr = np.array(stds)
 
             ax.errorbar(
-                valid_fracs, means_arr, yerr=stds_arr,
+                valid_sizes, means_arr, yerr=stds_arr,
                 marker=markers[model], color=colors[model],
                 label=labels[model], linewidth=1.2, markersize=5,
                 capsize=3, zorder=3,
             )
 
         ax.set_xscale('log')
-        ax.set_xlabel('Training data fraction')
-        ax.set_xticks(fracs_to_plot)
-        ax.set_xticklabels(['1%', '10%', '100%'])
+        ax.set_xlabel('Training examples (N)')
+        ax.set_xticks(sizes_to_plot)
+        ax.set_xticklabels([f'{s:,}' for s in sizes_to_plot])
         ax.set_title(title)
         ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f'{v:.0%}'))
         _clean_axes(ax)
@@ -326,30 +391,33 @@ def plot_data_efficiency(
 
 
 def print_data_efficiency_table(
-    grouped: dict[tuple[str, str, float], list[dict]],
+    grouped: dict[tuple[str, str, int], list[dict]],
 ):
     """Print data efficiency summary table."""
-    fracs = [0.01, 0.1, 1.0]
+    sizes = [100, 500, 2500, 12500, SMNIST_FULL_TRAIN]
     models = ['standard', 'power_spectrum', 'bispectrum']
 
     print('\n' + '=' * 90)
     print('DATA EFFICIENCY (Spherical MNIST)')
     print('=' * 90)
-    print(f'{"Model":<20} {"Mode":<5} {"Frac":>6} {"Test NR ACC":>15} {"Test R ACC":>15} {"Seeds":>6}')
-    print('-' * 75)
+    print(f'{"Model":<20} {"Mode":<5} {"N":>7} {"Test C ACC":>15} {"Test R ACC":>15} {"Seeds":>6}')
+    print('-' * 78)
 
     for model in models:
-        for mode in ['NR', 'R']:
-            for frac in fracs:
-                runs = grouped.get((model, mode, frac), [])
+        for mode in ['C', 'R']:
+            for size in sizes:
+                runs = grouped.get((model, mode, size), [])
                 if not runs:
                     continue
-                nr_accs = [r['test_nr']['accuracy'] for r in runs]
-                r_accs = [r['test_r']['accuracy'] for r in runs]
+                c_accs = [_test_c(r)['accuracy'] for r in runs]
+                r_accs = [_test_r(r)['accuracy'] for r in runs if _test_r(r)]
                 n = len(runs)
-                nr_str = f'{np.mean(nr_accs):.4f}\u00b1{np.std(nr_accs):.4f}' if n > 1 else f'{nr_accs[0]:.4f}'
-                r_str = f'{np.mean(r_accs):.4f}\u00b1{np.std(r_accs):.4f}' if n > 1 else f'{r_accs[0]:.4f}'
-                print(f'{model:<20} {mode:<5} {frac:>6.0%} {nr_str:>15} {r_str:>15} {n:>6}')
+                c_str = f'{np.mean(c_accs):.4f}\u00b1{np.std(c_accs):.4f}' if n > 1 else f'{c_accs[0]:.4f}'
+                if r_accs:
+                    r_str = f'{np.mean(r_accs):.4f}\u00b1{np.std(r_accs):.4f}' if len(r_accs) > 1 else f'{r_accs[0]:.4f}'
+                else:
+                    r_str = '\u2014'
+                print(f'{model:<20} {mode:<5} {size:>7d} {c_str:>15} {r_str:>15} {n:>6}')
 
 
 def _clean_axes(ax: plt.Axes):
@@ -368,7 +436,7 @@ def plot_combined_figure(
 
     models_with_data = [
         m for m in MODEL_ORDER
-        if grouped.get((m, 'NR')) or grouped.get((m, 'R'))
+        if grouped.get((m, 'C')) or grouped.get((m, 'R'))
     ]
     if not models_with_data:
         print('No data to plot.')
@@ -404,25 +472,25 @@ def _plot_cohen_panel(
     grouped: dict[tuple[str, str], list[dict]],
     models: list[str],
 ):
-    """Panel (a): Grouped bar chart of NR/NR, R/R, NR/R accuracy."""
+    """Panel (a): Grouped bar chart of C/C, R/R, C/R accuracy."""
     x = np.arange(len(models))
     width = 0.22
-    protocols = ['NR/NR', 'R/R', 'NR/R']
+    protocols = ['C/C', 'R/R', 'C/R']
 
     vals_prev: list[float] = []
     for i, proto in enumerate(protocols):
         vals = []
         errs = []
         for m in models:
-            if proto == 'NR/NR':
-                runs = grouped.get((m, 'NR'), [])
-                accs = [r['test_nr']['accuracy'] for r in runs]
+            if proto == 'C/C':
+                runs = grouped.get((m, 'C'), [])
+                accs = [_test_c(r)['accuracy'] for r in runs]
             elif proto == 'R/R':
                 runs = grouped.get((m, 'R'), [])
-                accs = [r['test_r']['accuracy'] for r in runs]
+                accs = [_test_r(r)['accuracy'] for r in runs if _test_r(r)]
             else:
-                runs = grouped.get((m, 'NR'), [])
-                accs = [r['test_r']['accuracy'] for r in runs]
+                runs = grouped.get((m, 'C'), [])
+                accs = [_test_r(r)['accuracy'] for r in runs if _test_r(r)]
             vals.append(np.mean(accs) if accs else 0)
             errs.append(np.std(accs) if len(accs) > 1 else 0)
 
@@ -451,21 +519,26 @@ def _plot_cohen_panel(
                 )
         vals_prev = vals
 
-    cohen_s2 = COHEN_RESULTS['Cohen spherical CNN']
+    cohen_s2 = COHEN_RESULTS['Cohen spherical CNN (NR/X)']
     ax.axhline(
-        cohen_s2['NR/NR'], color='#888888', linewidth=0.6,
+        cohen_s2['C/C'], color='#888888', linewidth=0.6,
         linestyle='--', zorder=2, alpha=0.6,
-        label=f'Cohen S\u00b2CNN NR/NR ({cohen_s2["NR/NR"]:.2f})',
+        label=f'Cohen S\u00b2CNN C/C ({cohen_s2["C/C"]:.2f})',
     )
     ax.axhline(
-        cohen_s2['NR/R'], color='#888888', linewidth=0.6,
+        cohen_s2['C/R'], color='#888888', linewidth=0.6,
         linestyle=':', zorder=2, alpha=0.6,
-        label=f'Cohen S\u00b2CNN NR/R ({cohen_s2["NR/R"]:.2f})',
+        label=f'Cohen S\u00b2CNN C/R ({cohen_s2["C/R"]:.2f})',
     )
+
+    def _label_for(m: str) -> str:
+        runs = grouped.get((m, 'C')) or grouped.get((m, 'R'))
+        n_params = runs[0]['n_params'] if runs else None
+        return _short_label(m, n_params)
 
     ax.set_xticks(x)
     ax.set_xticklabels(
-        [MODEL_LABELS.get(m, m) for m in models],
+        [_label_for(m) for m in models],
         rotation=20, ha='right',
     )
     ax.set_ylabel('Test accuracy')
@@ -487,13 +560,13 @@ def _plot_rotation_panel(
     grouped: dict[tuple[str, str], list[dict]],
     models: list[str],
 ):
-    """Panel (b): Strip plot of accuracy under random SO(3) rotations (NR-trained)."""
+    """Panel (b): Strip plot of accuracy under random SO(3) rotations (C-trained)."""
     rng = np.random.default_rng(42)
 
     for i, m in enumerate(models):
-        nr_runs = grouped.get((m, 'NR'), [])
+        c_runs = grouped.get((m, 'C'), [])
         all_rot_accs: list[float] = []
-        for run in nr_runs:
+        for run in c_runs:
             rob = run.get('rotation_robustness', {})
             for k, v in rob.items():
                 if k.startswith('rot_'):
@@ -525,9 +598,14 @@ def _plot_rotation_panel(
             fontsize=6.5, color=color, va='bottom', fontweight='medium',
         )
 
+    def _label_for(m: str) -> str:
+        runs = grouped.get((m, 'C')) or grouped.get((m, 'R'))
+        n_params = runs[0]['n_params'] if runs else None
+        return _short_label(m, n_params)
+
     ax.set_xticks(range(len(models)))
     ax.set_xticklabels(
-        [MODEL_LABELS.get(m, m) for m in models],
+        [_label_for(m) for m in models],
         rotation=20, ha='right',
     )
     ax.set_xlim(-0.6, len(models) - 0.4)

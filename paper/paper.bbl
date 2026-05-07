@@ -1,4 +1,4 @@
-\begin{thebibliography}{32}
+\begin{thebibliography}{36}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -25,12 +25,31 @@ Ilyes Batatia, G{\'a}bor Cs{\'a}nyi, D{\'a}vid~P. Kov{\'a}cs, Christoph Ortner,
 \newblock URL
   \url{https://proceedings.neurips.cc/paper_files/paper/2022/hash/4a36c3c51af11ed9f34615b81edb5bbc-Abstract-Conference.html}.
 
+\bibitem[Batatia et~al.(2023)Batatia, Geiger, Munoz, Smidt, Silberman, and
+  Ortner]{batatia2023general}
+Ilyes Batatia, Mario Geiger, Jose Munoz, Tess Smidt, Lior Silberman, and
+  Christoph Ortner.
+\newblock A general framework for equivariant neural networks on reductive
+  {L}ie groups, 2023.
+\newblock URL \url{https://arxiv.org/abs/2306.00091}.
+
 \bibitem[Bendory et~al.(2025)Bendory, Edidin, Katz, and
   Kreymer]{bendory2025orbit}
 Tamir Bendory, Dan Edidin, Josh Katz, and Shay Kreymer.
 \newblock Orbit recovery for spherical functions.
 \newblock \emph{arXiv preprint arXiv:2508.02674}, 2025.
 \newblock URL \url{https://arxiv.org/abs/2508.02674}.
+
+\bibitem[Binns et~al.(2025)Binns, Pellegrini, Jurhar, Nguyen, K{\"o}hler, and
+  Haufe]{binns2025pybispectra}
+Thomas~S. Binns, Franziska Pellegrini, Tin Jurhar, Tien~D. Nguyen, Richard~M.
+  K{\"o}hler, and Stefan Haufe.
+\newblock {PyBispectra}: A toolbox for advanced electrophysiological signal
+  processing using the bispectrum.
+\newblock \emph{Journal of Open Source Software}, 10\penalty0 (112):\penalty0
+  8504, 2025.
+\newblock \doi{10.21105/joss.08504}.
+\newblock URL \url{https://doi.org/10.21105/joss.08504}.
 
 \bibitem[Bonev et~al.(2023)Bonev, Kurth, Hundt, Pathak, Balu, Kashinath, and
   Anandkumar]{bonev2023spherical}
@@ -71,6 +90,15 @@ Taco~S. Cohen, Mario Geiger, Jonas K{\"o}hler, and Max Welling.
 \newblock In \emph{International Conference on Learning Representations
   (ICLR)}, 2018.
 
+\bibitem[Diaconis and Rockmore(1990)]{diaconis1990fourier}
+Persi Diaconis and Daniel Rockmore.
+\newblock Efficient computation of the {F}ourier transform on finite groups.
+\newblock \emph{Journal of the American Mathematical Society}, 3\penalty0
+  (2):\penalty0 297--332, April 1990.
+\newblock \doi{10.1090/S0894-0347-1990-1030655-4}.
+\newblock URL
+  \url{https://www.ams.org/journals/jams/1990-03-02/S0894-0347-1990-1030655-4/}.
+
 \bibitem[Edidin and Satriano(2024)]{edidin2024orbit}
 Dan Edidin and Matthew Satriano.
 \newblock Orbit recovery for band-limited functions.
@@ -103,6 +131,16 @@ Mario Geiger and Tess Smidt.
 \newblock e3nn: {E}uclidean neural networks.
 \newblock \emph{arXiv preprint arXiv:2207.09453}, 2022.
 \newblock URL \url{https://arxiv.org/abs/2207.09453}.
+
+\bibitem[Giannakis(1989)]{giannakis1989bispectrum}
+Georgios~B. Giannakis.
+\newblock Signal reconstruction from multiple correlations: frequency- and
+  time-domain approaches.
+\newblock \emph{Journal of the Optical Society of America A}, 6\penalty0
+  (5):\penalty0 682--697, May 1989.
+\newblock \doi{10.1364/JOSAA.6.000682}.
+\newblock URL
+  \url{https://opg.optica.org/josaa/abstract.cfm?URI=josaa-6-5-682}.
 
 \bibitem[Harris et~al.(2020)Harris, Millman, van~der Walt, Gommers, Virtanen,
   Cournapeau, Wieser, Taylor, Berg, Smith, et~al.]{harris2020numpy}

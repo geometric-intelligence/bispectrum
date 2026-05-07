@@ -12,6 +12,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import torch
@@ -171,10 +172,16 @@ def get_dataloaders(
     nlat: int = NLAT,
     nlon: int = NLON,
     train_rotated: bool = False,
-    train_fraction: float = 1.0,
+    train_size: int | None = None,
     seed: int = 42,
+    test_rotation_seed: int = 777,
+    subset_dir: str | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
     """Build train / val / test_NR / test_R data loaders.
+
+    Args:
+        train_size: Absolute number of training examples to use. ``None`` or
+            a value >= the full training set means use everything.
 
     Returns:
         (train_loader, val_loader, test_nr_loader, test_r_loader)
@@ -189,20 +196,24 @@ def get_dataloaders(
         'test', data_dir, nlat, nlon, rotated=False,
     )
     test_r_ds = SphericalMNISTDataset(
-        'test', data_dir, nlat, nlon, rotated=True, seed=seed,
+        'test', data_dir, nlat, nlon, rotated=True, seed=test_rotation_seed,
     )
 
-    if train_fraction < 1.0:
-        n = len(train_ds)
-        k = max(1, int(n * train_fraction))
+    n_full = len(train_ds)
+    if train_size is not None and 0 < train_size < n_full:
         rng = torch.Generator().manual_seed(seed)
-        indices = torch.randperm(n, generator=rng)[:k].tolist()
+        indices = torch.randperm(n_full, generator=rng)[:train_size].tolist()
+        if subset_dir is not None:
+            out_dir = Path(subset_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f'spherical_mnist_train_n{train_size}_seed{seed}.json'
+            out_path.write_text(json.dumps({'indices': indices}, indent=2))
         train_ds = Subset(train_ds, indices)
 
-    drop = len(train_ds) > batch_size
+    loader_rng = torch.Generator().manual_seed(seed)
     train_loader = DataLoader(
         train_ds, batch_size=min(batch_size, len(train_ds)), shuffle=True,
-        num_workers=0, pin_memory=True, drop_last=drop,
+        generator=loader_rng, num_workers=0, pin_memory=True, drop_last=False,
     )
     val_loader = DataLoader(
         val_ds, batch_size=batch_size, shuffle=False,

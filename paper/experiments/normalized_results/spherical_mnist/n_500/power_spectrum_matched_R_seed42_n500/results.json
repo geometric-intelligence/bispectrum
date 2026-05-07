@@ -1,0 +1,44 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "power_spectrum_matched",
+  "base_model": "power_spectrum",
+  "train_mode": "R",
+  "test_rotation_seed": 777,
+  "seed": 42,
+  "lmax": 15,
+  "n_params": 231906,
+  "invariant_dim": 16,
+  "train_size": 500,
+  "train_examples": 500,
+  "best_val_accuracy": 0.1742,
+  "test_c": {
+    "loss": 2.289428125,
+    "accuracy": 0.1768
+  },
+  "test": {
+    "loss": 2.289428125,
+    "accuracy": 0.1768
+  },
+  "test_nr": {
+    "loss": 2.289428125,
+    "accuracy": 0.1768
+  },
+  "test_r": {
+    "loss": 2.2895271484375,
+    "accuracy": 0.1763
+  },
+  "rotation_robustness": {
+    "rot_00": 0.1763,
+    "rot_01": 0.1763,
+    "rot_02": 0.1764,
+    "rot_03": 0.1763,
+    "rot_04": 0.1763,
+    "rot_05": 0.1763,
+    "rot_06": 0.1763,
+    "rot_07": 0.1762,
+    "rot_08": 0.1763,
+    "rot_09": 0.1762,
+    "mean_accuracy": 0.17629,
+    "std_accuracy": 5.3851648071348386e-05
+  }
+}

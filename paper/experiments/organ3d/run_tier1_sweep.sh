@@ -1,8 +1,8 @@
 #!/bin/bash
 # Tier 1 experiments: data efficiency + wider channels
 #
-# Part A: Data efficiency — train at {5%, 10%, 25%, 50%} of data
-#         (100% already done in the main sweep)
+# Part A: Data efficiency — train at N ∈ {50, 100, 250, 500} examples
+#         (full set already done in the main sweep, ~971 samples)
 #         Models: standard, max_pool, bispectrum (skip norm_pool — it's unstable)
 #         Single seed (42) for speed; rotation eval on all.
 #
@@ -43,16 +43,18 @@ batch_size_for() {
 }
 
 run_single() {
-    local model=$1 seed=$2 channels=$3 frac=$4
+    local model=$1 seed=$2 channels=$3 size=$4
     local ch_tag="${channels// /_}"
-    local frac_tag=""
-    if [[ "$frac" != "1.0" ]]; then
-        frac_tag="_frac${frac}"
+    local size_arg=()
+    local size_tag=""
+    if [[ "$size" != "full" ]]; then
+        size_arg=(--train_size "$size")
+        size_tag="_n${size}"
     fi
-    local out_dir="${OUTPUT_DIR}/${model}_ch${ch_tag}_seed${seed}${frac_tag}"
+    local out_dir="${OUTPUT_DIR}/${model}_ch${ch_tag}_seed${seed}${size_tag}"
 
     if [[ -f "${out_dir}/results.json" ]]; then
-        echo "SKIP (already done): model=$model seed=$seed channels=$channels frac=$frac"
+        echo "SKIP (already done): model=$model seed=$seed channels=$channels size=$size"
         return 0
     fi
 
@@ -61,19 +63,19 @@ run_single() {
 
     echo ""
     echo "============================================================"
-    echo "  model=$model  seed=$seed  channels=$channels  frac=$frac  bs=$bs  $(date)"
+    echo "  model=$model  seed=$seed  channels=$channels  size=$size  bs=$bs  $(date)"
     echo "============================================================"
     python train.py --model "$model" --channels $channels \
         --output_dir "$OUTPUT_DIR" --seed "$seed" --batch_size "$bs" \
-        --train_fraction "$frac" $COMMON
+        "${size_arg[@]}" $COMMON
 }
 
 echo "============================================================"
 echo "  PART A: Data efficiency sweep"
 echo "============================================================"
-for frac in 0.05 0.10 0.25 0.50; do
+for size in 50 100 250 500; do
     for model in standard max_pool bispectrum; do
-        run_single "$model" 42 "4 8" "$frac"
+        run_single "$model" 42 "4 8" "$size"
     done
 done
 
@@ -83,7 +85,7 @@ echo "  PART B: Wider channels sweep"
 echo "============================================================"
 for channels in "8 16" "16 32"; do
     for model in max_pool bispectrum; do
-        run_single "$model" 42 "$channels" "1.0"
+        run_single "$model" 42 "$channels" "full"
     done
 done
 

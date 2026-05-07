@@ -13,11 +13,14 @@ from __future__ import annotations
 
 import gzip
 import shutil
+import json
 from pathlib import Path
 
 import h5py
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset
+from torchvision.transforms import InterpolationMode
+import torchvision.transforms.functional as TF
 
 PCAM_URLS = {
     'train_x': 'https://zenodo.org/records/2546921/files/camelyonpatch_level_2_split_train_x.h5.gz',
@@ -99,9 +102,22 @@ _MEAN = [0.7008, 0.5384, 0.6916]
 _STD = [0.2350, 0.2774, 0.2129]
 
 
+def gpu_normalize_only(images: torch.Tensor) -> torch.Tensor:
+    """Apply only the PCam channel normalization (no augmentation).
+
+    Use on raw [0, 1] tensors at evaluation time so train/test rotation
+    pipelines see the same input space.
+    """
+    dev = images.device
+    mean = torch.tensor(_MEAN, device=dev).reshape(1, 3, 1, 1)
+    std = torch.tensor(_STD, device=dev).reshape(1, 3, 1, 1)
+    return (images - mean) / std
+
+
 def gpu_augment(
     images: torch.Tensor,
     augment_geometry: bool = False,
+    geometry_group: str = 'd4',
 ) -> torch.Tensor:
     """Apply augmentations as GPU batch operations on [0, 1] tensors, then normalize.
 
@@ -111,51 +127,84 @@ def gpu_augment(
     dev = images.device
 
     if augment_geometry:
-        # Random horizontal flip (per-sample).
-        mask = torch.rand(B, 1, 1, 1, device=dev) > 0.5
-        images = torch.where(mask, images.flip(-1), images)
+        images = apply_group_transform_batch(images, geometry_group=geometry_group)
 
-        # Random vertical flip (per-sample).
-        mask = torch.rand(B, 1, 1, 1, device=dev) > 0.5
-        images = torch.where(mask, images.flip(-2), images)
-
-        # Uniform random k×90° rotation (per-sample).
-        k = torch.randint(0, 4, (B,), device=dev)
-        for rot in range(1, 4):
-            rot_mask = (k == rot).reshape(B, 1, 1, 1)
-            images = torch.where(rot_mask, torch.rot90(images, rot, [-2, -1]), images)
-
-    # Brightness: multiply by uniform [1-b, 1+b].
     b = 0.1
     brightness = 1.0 + (torch.rand(B, 1, 1, 1, device=dev) * 2 * b - b)
     images = images * brightness
 
-    # Contrast: lerp toward per-image mean gray.
     c = 0.1
     gray_mean = images.mean(dim=(-3, -2, -1), keepdim=True)
     contrast = 1.0 + (torch.rand(B, 1, 1, 1, device=dev) * 2 * c - c)
     images = contrast * images + (1 - contrast) * gray_mean
 
-    # Saturation: lerp toward grayscale.
     s = 0.1
     gray = 0.2989 * images[:, 0:1] + 0.5870 * images[:, 1:2] + 0.1140 * images[:, 2:3]
     saturation = 1.0 + (torch.rand(B, 1, 1, 1, device=dev) * 2 * s - s)
     images = saturation * images + (1 - saturation) * gray
 
     images = images.clamp(0, 1)
+    return gpu_normalize_only(images)
 
-    # Normalize.
-    mean = torch.tensor(_MEAN, device=dev).reshape(1, 3, 1, 1)
-    std = torch.tensor(_STD, device=dev).reshape(1, 3, 1, 1)
-    return (images - mean) / std
+
+def apply_group_transform_batch(
+    images: torch.Tensor,
+    geometry_group: str = 'd4',
+    generator: torch.Generator | None = None,
+) -> torch.Tensor:
+    """Apply one random group element per image."""
+    B = images.shape[0]
+    dev = images.device
+    if geometry_group == 'c8':
+        idx = torch.randint(0, 8, (B,), device=dev, generator=generator)
+        out = images
+        for k in range(8):
+            mask = (idx == k).reshape(B, 1, 1, 1)
+            if not mask.any():
+                continue
+            angle = float(45 * k)
+            transformed = images if k == 0 else TF.rotate(
+                images, angle, interpolation=InterpolationMode.BILINEAR
+            )
+            out = torch.where(mask, transformed, out)
+        return out
+
+    if geometry_group != 'd4':
+        raise ValueError(f'Unsupported PCam geometry_group={geometry_group!r}')
+
+    out = images
+    flips = torch.rand(B, 1, 1, 1, device=dev, generator=generator) > 0.5
+    out = torch.where(flips, out.flip(-1), out)
+    k = torch.randint(0, 4, (B,), device=dev, generator=generator)
+    for rot in range(1, 4):
+        rot_mask = (k == rot).reshape(B, 1, 1, 1)
+        out = torch.where(rot_mask, torch.rot90(out, rot, [-2, -1]), out)
+    return out
+
+
+def apply_group_element(images: torch.Tensor, geometry_group: str, element_idx: int) -> torch.Tensor:
+    """Apply a deterministic group element to a batch."""
+    if geometry_group == 'c8':
+        if element_idx == 0:
+            return images
+        return TF.rotate(images, float(45 * element_idx), interpolation=InterpolationMode.BILINEAR)
+
+    if geometry_group != 'd4':
+        raise ValueError(f'Unsupported PCam geometry_group={geometry_group!r}')
+
+    rot = element_idx % 4
+    flipped = element_idx >= 4
+    out = images.flip(-1) if flipped else images
+    return torch.rot90(out, rot, [-2, -1]) if rot else out
 
 
 def get_dataloaders(
     data_dir: str,
     batch_size: int = 64,
     augment_geometry: bool = True,
-    train_fraction: float = 1.0,
+    train_size: int | None = None,
     seed: int = 42,
+    subset_dir: str | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Build train / val / test data loaders.
 
@@ -168,37 +217,41 @@ def get_dataloaders(
         augment_geometry: Whether to apply geometric augmentation (flips,
             90-degree rotations) to training data. Typically True for
             the standard CNN baseline and False for equivariant models.
-        train_fraction: Fraction of training data to use (for data-efficiency
-            experiments). 1.0 = full training set.
+        train_size: Absolute number of training examples to use. ``None`` or
+            a value >= the full training set means use everything.
         seed: Random seed for subsetting.
 
     Returns:
         (train_loader, val_loader, test_loader)
     """
-    # Download if needed.
     paths = {}
     for key, url in PCAM_URLS.items():
         paths[key] = _download_and_extract(url, data_dir)
 
     train_ds = PCamDataset(paths['train_x'], paths['train_y'], normalize=False)
-    val_ds = PCamDataset(paths['val_x'], paths['val_y'], normalize=True)
-    test_ds = PCamDataset(paths['test_x'], paths['test_y'], normalize=True)
+    val_ds = PCamDataset(paths['val_x'], paths['val_y'], normalize=False)
+    test_ds = PCamDataset(paths['test_x'], paths['test_y'], normalize=False)
 
-    # Optionally subset training data for data-efficiency experiments.
-    if train_fraction < 1.0:
-        n = len(train_ds)
-        k = max(1, int(n * train_fraction))
+    n_full = len(train_ds)
+    if train_size is not None and 0 < train_size < n_full:
         rng = torch.Generator().manual_seed(seed)
-        indices = torch.randperm(n, generator=rng)[:k].tolist()
+        indices = torch.randperm(n_full, generator=rng)[:train_size].tolist()
+        if subset_dir is not None:
+            out_dir = Path(subset_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f'pcam_train_n{train_size}_seed{seed}.json'
+            out_path.write_text(json.dumps({'indices': indices}, indent=2))
         train_ds = Subset(train_ds, indices)
 
+    loader_rng = torch.Generator().manual_seed(seed)
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
         shuffle=True,
+        generator=loader_rng,
         num_workers=0,
         pin_memory=True,
-        drop_last=True,
+        drop_last=False,
     )
     val_loader = DataLoader(
         val_ds,

@@ -1,0 +1,102 @@
+{
+  "dataset": "pcam",
+  "model": "standard",
+  "group": "c8",
+  "seed": 101112,
+  "train_mode": "C",
+  "geometry_group": "c8",
+  "growth_rate": 12,
+  "n_params": 101959,
+  "invariant_dim": 90,
+  "train_size": 100,
+  "train_examples": 100,
+  "best_val_auc": 0.8624625878560628,
+  "test": {
+    "loss": 0.6489507611840963,
+    "accuracy": 0.71636962890625,
+    "auc": 0.8319781600197026
+  },
+  "test_c": {
+    "loss": 0.6489507611840963,
+    "accuracy": 0.71636962890625,
+    "auc": 0.8319781600197026
+  },
+  "test_r": {
+    "loss": 0.0,
+    "accuracy": 0.7180824279785156,
+    "auc": 0.8107135970144207
+  },
+  "rotation_robustness": {
+    "g00": {
+      "accuracy": 0.71636962890625,
+      "auc": 0.8319781600197026
+    },
+    "g01": {
+      "accuracy": 0.7193603515625,
+      "auc": 0.794384032207793
+    },
+    "g02": {
+      "accuracy": 0.723052978515625,
+      "auc": 0.8311085467201427
+    },
+    "g03": {
+      "accuracy": 0.71575927734375,
+      "auc": 0.7877253279035579
+    },
+    "g04": {
+      "accuracy": 0.7181396484375,
+      "auc": 0.8302390749816398
+    },
+    "g05": {
+      "accuracy": 0.7191162109375,
+      "auc": 0.7927843252063987
+    },
+    "g06": {
+      "accuracy": 0.721527099609375,
+      "auc": 0.8307937261048428
+    },
+    "g07": {
+      "accuracy": 0.711334228515625,
+      "auc": 0.7866955829712882
+    },
+    "mean_auc": 0.8107135970144207,
+    "std_auc": 0.020451254475796394,
+    "mean_accuracy": 0.7180824279785156,
+    "std_accuracy": 0.003412222715563223
+  },
+  "wall_time_s": 331.34511852264404,
+  "epochs_run": 50,
+  "peak_train_alloc_bytes": 4888623104,
+  "peak_train_reserved_bytes": 10758389760,
+  "gpu_name": "NVIDIA A100-SXM4-80GB",
+  "cuda_total_memory_bytes": 85095874560,
+  "git_sha": "4f6f1351fe12ab869087e096175e97d4ada5c7e0",
+  "argv": [
+    "--model",
+    "standard",
+    "--group",
+    "c8",
+    "--geometry_group",
+    "c8",
+    "--growth_rate",
+    "12",
+    "--train_mode",
+    "C",
+    "--seed",
+    "101112",
+    "--batch_size",
+    "1024",
+    "--output_dir",
+    "/home/johmathe/bispectrum/paper/experiments/normalized_results/pcam/n_100",
+    "--data_dir",
+    "./pcam_data",
+    "--subset_dir",
+    "/home/johmathe/bispectrum/paper/experiments/normalized_results/subsets",
+    "--patience",
+    "10",
+    "--epochs",
+    "50",
+    "--train_size",
+    "100"
+  ]
+}
