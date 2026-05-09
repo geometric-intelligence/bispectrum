@@ -16,11 +16,11 @@ include = [
 
 [project]
 name = "bispectrum"
-version = "0.2.0"
+version = "0.3.0"
 description = "Bispectrum analysis for machine learning"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 authors = [{ name = "Johan Mathe", email = "johan.mathe@gmail.com" }]
 keywords = [
     "deep learning",
@@ -35,13 +35,14 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 dependencies = [
-  "torch==2.11.0",
+  "torch>=2.10",
   "numpy>=1.22.4",
-  "torch-harmonics",
+  "torch-harmonics>=0.9",
 ]
 
 optional-dependencies.dev = [
@@ -51,11 +52,14 @@ optional-dependencies.dev = [
   "ruff>=0.4.0",
   "mypy>=1.5.0",
   "pre-commit>=3.3.3",
-  "medmnist",
-  "h5py",
-  "torchvision",
 ]
-optional-dependencies.plotting = ["matplotlib>=3.7.0"]
+optional-dependencies.experiments = [
+  "matplotlib>=3.7.0",
+  "scipy>=1.10",
+  "torchvision",
+  "h5py",
+  "medmnist",
+]
 
 urls.Homepage = "https://github.com/geometric-intelligence/bispectrum"
 urls.Repository = "https://github.com/geometric-intelligence/bispectrum"
