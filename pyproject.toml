@@ -64,10 +64,6 @@ urls.Homepage = "https://github.com/geometric-intelligence/bispectrum"
 urls.Repository = "https://github.com/geometric-intelligence/bispectrum"
 urls.Issues = "https://github.com/geometric-intelligence/bispectrum/issues"
 
-# Pin torch and torchvision to the cu128 wheels so they match systems with
-# NVIDIA driver >= 12.8 (e.g. the local 8x H100 box). PyPI's default torch
-# wheels target a newer CUDA runtime and crash with
-# "NVIDIA driver on your system is too old (found version 12080)".
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
