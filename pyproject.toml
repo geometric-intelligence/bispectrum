@@ -16,7 +16,7 @@ include = [
 
 [project]
 name = "bispectrum"
-version = "0.3.2"
+version = "0.3.4"
 description = "Bispectrum analysis for machine learning"
 readme = "README.md"
 license = "MIT"
