@@ -16,11 +16,11 @@ include = [
 
 [project]
 name = "bispectrum"
-version = "0.3.0"
+version = "0.3.2"
 description = "Bispectrum analysis for machine learning"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 authors = [{ name = "Johan Mathe", email = "johan.mathe@gmail.com" }]
 keywords = [
     "deep learning",
@@ -35,7 +35,6 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
