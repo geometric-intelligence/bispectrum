@@ -2,8 +2,8 @@
 
 Release artifacts are published to [PyPI](https://pypi.org/project/bispectrum/)
 as a source distribution + universal wheel built by `hatchling`. Only files
-under `src/bispectrum/` are packaged; `paper/`, `benchmarks/`, `tests/`, and
-`docs/` are excluded.
+under `src/bispectrum/` are packaged; `experiments/`, `benchmarks/`, and `tests/`
+are excluded.
 
 The release pipeline is **automated** via GitHub Actions
 (`.github/workflows/publish.yml`). Pushing a tag matching `v*` triggers a
