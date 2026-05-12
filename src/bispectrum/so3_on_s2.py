@@ -1003,9 +1003,7 @@ class SO3onS2(nn.Module):
             NotImplementedError: Selective bispectrum and inversion for
                 continuous groups remain open mathematical problems.
         """
-        raise NotImplementedError(
-            'Inversion for SO(3) on S^2 is an open mathematical problem. See DESIGN.md TODO-M1 and TODO-M4.'
-        )
+        raise NotImplementedError('Inversion for SO(3) on S^2 is an open mathematical problem.')
 
     @property
     def output_size(self) -> int:
