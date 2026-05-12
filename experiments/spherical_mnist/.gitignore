@@ -1,0 +1,6 @@
+smnist_data/
+smnist_results/
+smnist_results_matched/
+*.png
+*.pdf
+__pycache__/
