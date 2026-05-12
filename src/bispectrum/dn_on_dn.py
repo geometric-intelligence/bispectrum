@@ -228,6 +228,8 @@ class DnonDn(nn.Module):
             Full bispectrum raises NotImplementedError.
     """
 
+    supports_inversion: bool = True
+
     def __init__(self, n: int, selective: bool = True) -> None:
         super().__init__()
         if n <= 2:
@@ -294,20 +296,18 @@ class DnonDn(nn.Module):
             for block in decomp:
                 if block.block_type == '2d':
                     r0, r1 = block.rows
-                    k = block.label
-                    assert isinstance(k, int)
+                    k_label = block.label
+                    assert isinstance(k_label, int)
                     # fhat[:, row, col, k] → flat idx = row*2*(n2d+1) + col*(n2d+1) + k
-                    fplus_src[m, r0, r0] = 0 * 2 * (n2d + 1) + 0 * (n2d + 1) + k
-                    fplus_src[m, r0, r1] = 0 * 2 * (n2d + 1) + 1 * (n2d + 1) + k
-                    fplus_src[m, r1, r0] = 1 * 2 * (n2d + 1) + 0 * (n2d + 1) + k
-                    fplus_src[m, r1, r1] = 1 * 2 * (n2d + 1) + 1 * (n2d + 1) + k
+                    fplus_src[m, r0, r0] = 0 * 2 * (n2d + 1) + 0 * (n2d + 1) + k_label
+                    fplus_src[m, r0, r1] = 0 * 2 * (n2d + 1) + 1 * (n2d + 1) + k_label
+                    fplus_src[m, r1, r0] = 1 * 2 * (n2d + 1) + 0 * (n2d + 1) + k_label
+                    fplus_src[m, r1, r1] = 1 * 2 * (n2d + 1) + 1 * (n2d + 1) + k_label
                 else:
                     r = block.rows[0]
                     lbl = block.label
                     assert isinstance(lbl, str)
-                    row, col = {'rho0': (0, 0), 'rho01': (1, 0), 'rho02': (0, 1), 'rho03': (1, 1)}[
-                        lbl
-                    ]
+                    row, col = {'rho0': (0, 0), 'rho01': (1, 0), 'rho02': (0, 1), 'rho03': (1, 1)}[lbl]
                     fplus_src[m, r, r] = row * 2 * (n2d + 1) + col * (n2d + 1) + 0
 
         self.register_buffer('_fplus_src', fplus_src)
@@ -321,7 +321,7 @@ class DnonDn(nn.Module):
             for r in range(4):
                 for c in range(4):
                     idx_map.append((1, k, r, c))
-        self._index_map: list[tuple[int, ...]] = idx_map
+        self._index_map: tuple[tuple[int, ...], ...] = tuple(idx_map)
 
     def _group_dft(self, f: torch.Tensor) -> torch.Tensor:
         """Forward DFT on D_n.
@@ -353,9 +353,7 @@ class DnonDn(nn.Module):
         if n2d > 0:
             rho_r = self._rho_rot.to(dtype)  # (n2d, 2, 2, n)
             rho_x = self._rho_ref.to(dtype)
-            fhat_2d = torch.einsum('bl,krcl->brck', f_rot, rho_r) + torch.einsum(
-                'bl,krcl->brck', f_ref, rho_x
-            )
+            fhat_2d = torch.einsum('bl,krcl->brck', f_rot, rho_r) + torch.einsum('bl,krcl->brck', f_ref, rho_x)
             fhat[:, :, :, 1:] = fhat_2d
 
         return fhat
@@ -470,9 +468,7 @@ class DnonDn(nn.Module):
 
         # Vectorized Fplus via precomputed gather indices
         fhat_flat = fhat.reshape(batch, -1)  # (batch, 4*(n2d+1))
-        fhat_padded = torch.cat(
-            [fhat_flat, torch.zeros(batch, 1, device=f.device, dtype=dtype)], dim=-1
-        )
+        fhat_padded = torch.cat([fhat_flat, torch.zeros(batch, 1, device=f.device, dtype=dtype)], dim=-1)
         src = self._fplus_src[:n3].reshape(-1)  # (n3*16,)
         all_fplus = fhat_padded[:, src].reshape(batch, n3, 4, 4)
 
@@ -580,9 +576,9 @@ class DnonDn(nn.Module):
         return len(self._index_map)
 
     @property
-    def index_map(self) -> list[tuple[int, ...]]:
+    def index_map(self) -> tuple[tuple[int, ...], ...]:
         """Maps flat output index -> (irrep pair, matrix entry) tuple."""
-        return list(self._index_map)
+        return self._index_map
 
     def extra_repr(self) -> str:
         return f'n={self.n}, selective={self.selective}, output_size={self.output_size}'

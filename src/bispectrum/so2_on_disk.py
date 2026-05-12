@@ -110,6 +110,8 @@ class SO2onDisk(nn.Module):
             If False, raises NotImplementedError.
     """
 
+    supports_inversion: bool = True
+
     def __init__(
         self,
         L: int,
@@ -258,7 +260,7 @@ class SO2onDisk(nn.Module):
                 type2_anp1k_idx.append(nonneg_to_idx[(n + 1, k)])
                 idx_map.append((2, n, k))
 
-        self._index_map_list = idx_map
+        self._index_map_list: tuple[tuple[int, int, int], ...] = tuple(idx_map)
 
         self.register_buffer(
             '_type0_a0k_idx',
@@ -347,9 +349,7 @@ class SO2onDisk(nn.Module):
             Complex bispectrum tensor. Shape: (batch, output_size).
         """
         if not self.selective:
-            raise NotImplementedError(
-                'Full disk bispectrum not yet implemented. Use selective=True.'
-            )
+            raise NotImplementedError('Full disk bispectrum not yet implemented. Use selective=True.')
 
         a = self._dht(f)  # (batch, m_nonneg)
 
@@ -386,9 +386,7 @@ class SO2onDisk(nn.Module):
             NotImplementedError: If selective=False.
         """
         if not self.selective:
-            raise NotImplementedError(
-                'Inversion only implemented for selective bispectrum. Use selective=True.'
-            )
+            raise NotImplementedError('Inversion only implemented for selective bispectrum. Use selective=True.')
 
         K = self._K
         N_m = self._N_m
@@ -442,12 +440,12 @@ class SO2onDisk(nn.Module):
         return len(self._index_map_list)
 
     @property
-    def index_map(self) -> list[tuple[int, int, int]]:
+    def index_map(self) -> tuple[tuple[int, int, int], ...]:
         """Maps flat output index -> (type, n, k) triple.
 
         type=0: b_{0,0,k} coefficient type=2: b_{2,n,k} coefficient
         """
-        return list(self._index_map_list)
+        return self._index_map_list
 
     def extra_repr(self) -> str:
         bl = f'{self._explicit_bandlimit:.2f}' if self._explicit_bandlimit is not None else 'auto'

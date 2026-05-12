@@ -1,5 +1,6 @@
 """Tests for rotation utilities."""
 
+import pytest
 import torch
 
 from bispectrum import random_rotation_matrix, rotate_spherical_function
@@ -14,9 +15,7 @@ class TestRandomRotationMatrix:
     def test_determinant_is_one(self):
         R = random_rotation_matrix()
         det = torch.det(R)
-        torch.testing.assert_close(
-            det, torch.tensor(1.0, dtype=torch.float64), atol=1e-10, rtol=1e-10
-        )
+        torch.testing.assert_close(det, torch.tensor(1.0, dtype=torch.float64), atol=1e-10, rtol=1e-10)
 
     def test_different_each_call(self):
         R1 = random_rotation_matrix()
@@ -25,17 +24,26 @@ class TestRandomRotationMatrix:
 
 
 class TestRotateSphericalFunction:
-    def test_identity_rotation(self):
+    def test_identity_rotation_fp32(self):
         nlat, nlon = 32, 64
-        f = torch.randn(2, nlat, nlon, dtype=torch.float64)
+        f = torch.randn(2, nlat, nlon)
         R = torch.eye(3, dtype=torch.float64)
         f_rotated = rotate_spherical_function(f, R)
         # Exclude poles where interpolation is unreliable
         torch.testing.assert_close(f_rotated[:, 1:-1, :], f[:, 1:-1, :], atol=0.01, rtol=0.01)
 
-    def test_output_shape(self):
+    def test_output_shape_fp32(self):
         nlat, nlon = 32, 64
-        f = torch.randn(3, nlat, nlon, dtype=torch.float64)
+        f = torch.randn(3, nlat, nlon)
         R = random_rotation_matrix()
         f_rotated = rotate_spherical_function(f, R)
         assert f_rotated.shape == f.shape
+
+    def test_fp64_input_warns_about_silent_downcast(self):
+        """Fp64 input should emit a UserWarning since interp runs at fp32."""
+        f = torch.randn(2, 32, 64, dtype=torch.float64)
+        R = torch.eye(3, dtype=torch.float64)
+        with pytest.warns(UserWarning, match='float64'):
+            f_rotated = rotate_spherical_function(f, R)
+        # Output dtype is preserved even though precision is fp32-bounded.
+        assert f_rotated.dtype == torch.float64

@@ -4,6 +4,8 @@ This module provides functions for rotating spherical functions in spatial domai
 random SO(3) rotation matrices.
 """
 
+import warnings
+
 import torch
 import torch.nn.functional as F
 
@@ -126,6 +128,16 @@ def rotate_spherical_function(
     2. Find the corresponding spherical coordinates (theta', phi')
     3. Interpolate f at (theta', phi')
 
+    .. note::
+        The bilinear interpolation step uses :func:`torch.nn.functional.grid_sample`,
+        which on most backends only accepts ``float32``. The function therefore
+        runs the actual interpolation in fp32 even when the input is fp64,
+        and casts back to the input dtype on return. If the input is
+        ``float64`` a :class:`UserWarning` is emitted because the precision
+        loss is silent and easy to miss in numerical reference / verification
+        workflows. Pass ``f_grid.float()`` explicitly to silence the warning
+        when fp32 is intentional.
+
     Args:
         f_grid: Function values on the sphere of shape (batch, nlat, nlon).
         rotation_matrix: 3x3 SO(3) rotation matrix.
@@ -137,6 +149,15 @@ def rotate_spherical_function(
     batch_size, nlat, nlon = f_grid.shape
     device = f_grid.device
     dtype = f_grid.dtype
+
+    if dtype == torch.float64:
+        warnings.warn(
+            'rotate_spherical_function received a float64 input but '
+            'grid_sample interpolation runs in float32; output is cast back '
+            'to float64 but precision is bounded by fp32. Cast the input to '
+            'float32 explicitly to silence this warning.',
+            stacklevel=2,
+        )
 
     # Create output grid coordinates
     theta_grid, phi_grid = create_spherical_grid(nlat, nlon, grid=grid, device=device)

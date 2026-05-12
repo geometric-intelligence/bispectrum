@@ -304,9 +304,7 @@ def _compute_cg_octa(
             actual_block = block_diag[r0:r1, r0:r1]
             err = (actual_block - expected_block).abs().max().item()
             if err > 1e-6:
-                raise RuntimeError(
-                    f'CG verification failed: irrep {irrep_k}, element {g}, max error {err:.2e}'
-                )
+                raise RuntimeError(f'CG verification failed: irrep {irrep_k}, element {g}, max error {err:.2e}')
 
     return C, block_info
 
@@ -347,6 +345,7 @@ class OctaonOcta(nn.Module):
     GROUP_ORDER = 24
     N_IRREPS = 5
     IRREP_DIMS = [1, 3, 3, 2, 1]
+    supports_inversion: bool = True
 
     def __init__(self, selective: bool = True) -> None:
         super().__init__()
@@ -426,7 +425,7 @@ class OctaonOcta(nn.Module):
         for r in range(9):
             for c in range(9):
                 idx_map.append((1, 2, r, c))
-        self._index_map = idx_map
+        self._index_map: tuple[tuple[int, ...], ...] = tuple(idx_map)
 
     def _get_irrep_mats(self, k: int) -> torch.Tensor:
         """Get irrep matrices for rho_k, shape (24, d_k, d_k)."""
@@ -590,9 +589,7 @@ class OctaonOcta(nn.Module):
         dtype = torch.float64
         beta_r = beta.real.to(dtype)
 
-        fhat: list[torch.Tensor] = [
-            torch.zeros(batch, d, d, dtype=dtype, device=device) for d in self._irrep_dims
-        ]
+        fhat: list[torch.Tensor] = [torch.zeros(batch, d, d, dtype=dtype, device=device) for d in self._irrep_dims]
 
         # F0 from beta_00 = F0^3
         b00 = beta_r[:, 0]
@@ -624,16 +621,12 @@ class OctaonOcta(nn.Module):
         F2TF2 = RRT[:, 4:7, 4:7]
         ev2, evec2 = torch.linalg.eigh(F2TF2)
         ev2 = torch.clamp(ev2, min=0.0)
-        fhat[2] = torch.bmm(
-            evec2, torch.bmm(torch.diag_embed(torch.sqrt(ev2)), evec2.transpose(-1, -2))
-        )
+        fhat[2] = torch.bmm(evec2, torch.bmm(torch.diag_embed(torch.sqrt(ev2)), evec2.transpose(-1, -2)))
 
         F3TF3 = RRT[:, 7:9, 7:9]
         ev3, evec3 = torch.linalg.eigh(F3TF3)
         ev3 = torch.clamp(ev3, min=0.0)
-        fhat[3] = torch.bmm(
-            evec3, torch.bmm(torch.diag_embed(torch.sqrt(ev3)), evec3.transpose(-1, -2))
-        )
+        fhat[3] = torch.bmm(evec3, torch.bmm(torch.diag_embed(torch.sqrt(ev3)), evec3.transpose(-1, -2)))
 
         b12 = beta_r[:, 91:172].reshape(batch, 9, 9)
         C12 = self._cg_12.to(dtype)
@@ -707,9 +700,7 @@ class OctaonOcta(nn.Module):
                     dk = self._irrep_dims[k]
                     if dk > 1:
                         Q = torch.linalg.qr(
-                            torch.randn(
-                                beta.shape[0], dk, dk, dtype=torch.float64, device=beta.device
-                            ),
+                            torch.randn(beta.shape[0], dk, dk, dtype=torch.float64, device=beta.device),
                         ).Q
                         fhat_pert[k] = Q @ fhat_pert[k]
                 f = self._inverse_dft(fhat_pert).to(beta.real.dtype)
@@ -778,9 +769,9 @@ class OctaonOcta(nn.Module):
         return len(self._index_map)
 
     @property
-    def index_map(self) -> list[tuple[int, ...]]:
+    def index_map(self) -> tuple[tuple[int, ...], ...]:
         """Maps flat output index -> (irrep pair, matrix entry) tuple."""
-        return list(self._index_map)
+        return self._index_map
 
     def extra_repr(self) -> str:
         return f'selective={self.selective}, output_size={self.output_size}'

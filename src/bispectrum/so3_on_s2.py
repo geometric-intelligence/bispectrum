@@ -46,9 +46,7 @@ from bispectrum._cg import (
 logger = logging.getLogger(__name__)
 
 
-def _build_full_index_map(
-    lmax: int, cg_data: dict[tuple[int, int], torch.Tensor]
-) -> list[tuple[int, int, int]]:
+def _build_full_index_map(lmax: int, cg_data: dict[tuple[int, int], torch.Tensor]) -> list[tuple[int, int, int]]:
     """Build the full O(L³) bispectrum index map."""
     index_map: list[tuple[int, int, int]] = []
     for l1 in range(lmax + 1):
@@ -376,6 +374,11 @@ class SO3onS2(nn.Module):
             If False, compute all O(L³) entries.
     """
 
+    #: SO(3)-on-S² inversion is an open mathematical problem; ``invert``
+    #: always raises NotImplementedError. See :attr:`supports_inversion`
+    #: across modules for a programmatic check.
+    supports_inversion: bool = False
+
     def __init__(
         self,
         lmax: int = 5,
@@ -390,19 +393,18 @@ class SO3onS2(nn.Module):
         self.selective = selective
 
         sht_lmax = lmax + 1
-        self._sht = RealSHT(
-            nlat, nlon, lmax=sht_lmax, mmax=sht_lmax, grid='equiangular', norm='ortho'
-        )
+        self._sht = RealSHT(nlat, nlon, lmax=sht_lmax, mmax=sht_lmax, grid='equiangular', norm='ortho')
 
         if selective:
-            self._index_map = _build_selective_index_map(lmax)
-            self._cg_power_map = _build_cg_power_index_map(lmax)
+            self._index_map: tuple[tuple[int, int, int], ...] = tuple(_build_selective_index_map(lmax))
+            self._cg_power_map: tuple[tuple[int, int, int], ...] = tuple(_build_cg_power_index_map(lmax))
         else:
             cg_data = load_cg_matrices(lmax)
-            self._index_map = _build_full_index_map(lmax, cg_data)
-            self._cg_power_map = []
+            self._index_map = tuple(_build_full_index_map(lmax, cg_data))
+            self._cg_power_map = ()
 
         all_triples = list(self._index_map) + list(self._cg_power_map)
+        self._index_map_combined: tuple[tuple[int, int, int], ...] = tuple(all_triples)
 
         self._has_dense = False
         self._has_sparse = False
@@ -435,6 +437,7 @@ class SO3onS2(nn.Module):
 
         cache_path = _CACHE_DIR / f'sparse_cg_lmax{self.lmax}_selective.pt'
         cached = self._load_sparse_cache(cache_path, entries_for_cg)
+        entry_meta: list[list[int]]
         if cached is not None:
             cg_vals_t, m1_idx_t, m_idx_t, offsets_t, entry_meta = cached
         else:
@@ -444,7 +447,7 @@ class SO3onS2(nn.Module):
             all_m: list[int] = []
             all_cg: list[float] = []
             offsets = [0]
-            entry_meta: list[list[int]] = []
+            entry_meta = []
 
             for (_out_idx, l1, l2, l_val, is_power), (m1_idx, m_idx, cg_vals) in zip(
                 entries_for_cg, sparse_results, strict=False
@@ -460,9 +463,7 @@ class SO3onS2(nn.Module):
             m_idx_t = torch.tensor(all_m, dtype=torch.int32)
             offsets_t = torch.tensor(offsets, dtype=torch.int64)
 
-            self._save_sparse_cache(
-                cache_path, cg_vals_t, m1_idx_t, m_idx_t, offsets_t, entry_meta
-            )
+            self._save_sparse_cache(cache_path, cg_vals_t, m1_idx_t, m_idx_t, offsets_t, entry_meta)
 
         self.register_buffer('_sparse_cg_vals', cg_vals_t)
         self.register_buffer('_sparse_m1_idx', m1_idx_t)
@@ -500,8 +501,13 @@ class SO3onS2(nn.Module):
                 path,
             )
             logger.info('Saved sparse CG cache to %s', path)
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning(
+                'Failed to write sparse CG cache to %s (%s); next import will recompute. '
+                'Set BISPECTRUM_CACHE_DIR to override the cache location.',
+                path,
+                exc,
+            )
 
     @staticmethod
     def _load_sparse_cache(
@@ -515,13 +521,16 @@ class SO3onS2(nn.Module):
             cached_meta = data['entry_meta']
             if len(cached_meta) != len(entries_for_cg):
                 return None
-            expected_meta = [
-                [l1, l2, l_val, int(is_power)] for _, l1, l2, l_val, is_power in entries_for_cg
-            ]
+            expected_meta = [[l1, l2, l_val, int(is_power)] for _, l1, l2, l_val, is_power in entries_for_cg]
             if cached_meta != expected_meta:
                 return None
             return data['cg_vals'], data['m1_idx'], data['m_idx'], data['offsets'], cached_meta
-        except (OSError, RuntimeError, KeyError, pickle.UnpicklingError):
+        except (OSError, RuntimeError, KeyError, pickle.UnpicklingError) as exc:
+            logger.warning(
+                'Failed to load sparse CG cache from %s (%s); recomputing. You may want to delete the corrupt file.',
+                path,
+                exc,
+            )
             return None
 
     def _build_group_tables(
@@ -595,7 +604,15 @@ class SO3onS2(nn.Module):
 
     @staticmethod
     def _load_or_compute_reduced_cg(
-        group_meta: list,
+        group_meta: list[
+            tuple[
+                int,
+                int,
+                list[tuple[int, int, int, int, bool]],
+                list[int],
+                list[int],
+            ]
+        ],
     ) -> dict[int, torch.Tensor]:
         """Load reduced CG from disk cache, or compute + save."""
         # Build a deterministic cache key from the group structure.
@@ -611,8 +628,13 @@ class SO3onS2(nn.Module):
             try:
                 data = torch.load(cache_path, weights_only=True)
                 return {int(k): v for k, v in data.items()}
-            except (OSError, RuntimeError):
-                pass
+            except (OSError, RuntimeError) as exc:
+                logger.warning(
+                    'Failed to load reduced CG cache from %s (%s); recomputing. '
+                    'You may want to delete the corrupt file.',
+                    cache_path,
+                    exc,
+                )
 
         # Compute in parallel.
         tasks = [(gid, l1, l2, l_vals) for gid, (l1, l2, _, _, l_vals) in enumerate(group_meta)]
@@ -622,8 +644,13 @@ class SO3onS2(nn.Module):
         try:
             _CACHE_DIR.mkdir(parents=True, exist_ok=True)
             torch.save({str(k): v for k, v in reduced_cgs.items()}, cache_path)
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning(
+                'Failed to write reduced CG cache to %s (%s); next import will recompute. '
+                'Set BISPECTRUM_CACHE_DIR to override the cache location.',
+                cache_path,
+                exc,
+            )
 
         return reduced_cgs
 
@@ -633,7 +660,12 @@ class SO3onS2(nn.Module):
         Dispatch priority (inference on CUDA, i.e. ``torch.no_grad()``):
           1. **CUDA Graph** — replays a captured graph of the sparse or
              Python-loop computation, eliminating kernel-launch overhead.
-             Works at any lmax and for a fixed batch size.
+             The cached graph is keyed on
+             ``(batch_size, dtype, device, grad_enabled)``; any mismatch
+             (or a non-contiguous input) bypasses the cache and falls back
+             to the eager path. Call :meth:`reset_cuda_graph_cache` to
+             force re-capture after deliberately changing one of those
+             dimensions.
           2. **Sparse** — vectorized gather-multiply-scatter using
              precomputed sparse CG indices. Default for selective=True.
           3. **Python loop** — always-available fallback for selective=False,
@@ -667,6 +699,11 @@ class SO3onS2(nn.Module):
         f_coeffs = _get_full_sh_coefficients(coeffs)
         return self._forward_python(f_coeffs, coeffs.dtype, f.device, batch_size, num_entries)
 
+    # Number of forward calls to wait before retrying CUDA graph capture
+    # after a previous capture failure. Prevents permanent disablement on
+    # transient errors (e.g. allocator pressure, transient stream conflicts).
+    _CUDA_GRAPH_RETRY_INTERVAL: int = 256
+
     def _forward_cuda_graph(
         self,
         f: torch.Tensor,
@@ -675,15 +712,36 @@ class SO3onS2(nn.Module):
     ) -> torch.Tensor | None:
         """Try the CUDA-graph path.
 
-        Returns None if capture fails or is skipped.
+        The cache is keyed on ``(batch_size, dtype, device, grad_enabled)``.
+        Any change to those — or a non-contiguous input — triggers a
+        recapture rather than silently returning a stale graph result.
+
+        After a failed capture the path is disabled for
+        ``_CUDA_GRAPH_RETRY_INTERVAL`` forward calls (counter, not a
+        permanent sentinel), so transient failures don't kill the fast
+        path forever.
+
+        Returns None if capture fails or is skipped (caller falls back).
         """
+        cache_key = (batch_size, f.dtype, f.device, torch.is_grad_enabled())
         cache = getattr(self, '_cuda_graph_cache', None)
-        if cache is not None and cache['batch_size'] == batch_size:
+
+        # Honor a cooldown after recent failure. Decrement on every call so
+        # the path naturally re-enables.
+        if cache is not None and cache.get('cooldown', 0) > 0:
+            cache['cooldown'] -= 1
+            return None
+
+        if cache is not None and cache.get('key') == cache_key and f.is_contiguous():
             cache['static_input'].copy_(f)
             cache['graph'].replay()
             return cache['static_output'].clone()
 
-        if cache is not None and cache['batch_size'] != batch_size:
+        # Key mismatch (different batch/dtype/device/grad-mode) — caller
+        # falls back to the eager path; we do not attempt recapture on the
+        # fly because that's expensive and the user can call
+        # ``reset_cuda_graph_cache`` if they actually want one.
+        if cache is not None and cache.get('key') is not None and cache.get('key') != cache_key:
             return None
 
         try:
@@ -700,9 +758,7 @@ class SO3onS2(nn.Module):
                 def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
                     coeffs = self._sht(inp)
                     f_coeffs = _get_full_sh_coefficients(coeffs)
-                    return self._forward_python(
-                        f_coeffs, coeffs.dtype, inp.device, batch_size, num_entries
-                    )
+                    return self._forward_python(f_coeffs, coeffs.dtype, inp.device, batch_size, num_entries)
 
             # Warmup run (required before capture to initialize cuDNN/cuBLAS plans)
             s = torch.cuda.Stream()
@@ -716,10 +772,11 @@ class SO3onS2(nn.Module):
                 static_output = _run_fwd(static_input)
 
             self._cuda_graph_cache = {
+                'key': cache_key,
                 'graph': g,
                 'static_input': static_input,
                 'static_output': static_output,
-                'batch_size': batch_size,
+                'cooldown': 0,
             }
 
             static_input.copy_(f)
@@ -728,7 +785,10 @@ class SO3onS2(nn.Module):
 
         except Exception:
             logger.debug('CUDA graph capture failed, disabling for this module', exc_info=True)
-            self._cuda_graph_cache = {'batch_size': -1}
+            self._cuda_graph_cache = {
+                'key': None,
+                'cooldown': self._CUDA_GRAPH_RETRY_INTERVAL,
+            }
             return None
 
     def _forward_python(
@@ -754,9 +814,7 @@ class SO3onS2(nn.Module):
             for out_idx, offset, size_l, l_val, is_power in extract_entries:
                 block = transformed[:, offset : offset + size_l]
                 if is_power:
-                    result[:, out_idx] = torch.sum(block.real**2 + block.imag**2, dim=-1).to(
-                        result.dtype
-                    )
+                    result[:, out_idx] = torch.sum(block.real**2 + block.imag**2, dim=-1).to(result.dtype)
                 else:
                     result[:, out_idx] = torch.sum(block * torch.conj(f_coeffs[l_val]), dim=-1)
 
@@ -881,9 +939,7 @@ class SO3onS2(nn.Module):
         if not hasattr(self, '_sparse_fl1_abs'):
             self._build_sparse_global_indices()
 
-        flat = torch.cat([f_coeffs[l] for l in range(self.lmax + 1)], dim=1).to(
-            dtype=dtype, device=device
-        )
+        flat = torch.cat([f_coeffs[l] for l in range(self.lmax + 1)], dim=1).to(dtype=dtype, device=device)
         return self._forward_sparse_from_flat(flat, dtype, device, batch_size, num_entries)
 
     def _forward_sparse_fast(
@@ -897,9 +953,7 @@ class SO3onS2(nn.Module):
             self._build_sparse_global_indices()
 
         flat = self._sht_to_flat(coeffs)
-        return self._forward_sparse_from_flat(
-            flat, coeffs.dtype, coeffs.device, batch_size, num_entries
-        )
+        return self._forward_sparse_from_flat(flat, coeffs.dtype, coeffs.device, batch_size, num_entries)
 
     def _ensure_precomputed_on_device(self, device: torch.device, dtype: torch.dtype) -> None:
         """Lazily cache precomputed bispec and power index arrays in working dtype."""
@@ -984,13 +1038,9 @@ class SO3onS2(nn.Module):
         if self._sc_pw_n_rows > 0:
             n_pw = self._sc_pw_n_rows
             mc = self._sc_pw_max_coupled
-            pw_prods = (
-                flat[:, self._sc_pw_fl1] * flat[:, self._sc_pw_fl2] * self._sc_pw_cg.unsqueeze(0)
-            )
+            pw_prods = flat[:, self._sc_pw_fl1] * flat[:, self._sc_pw_fl2] * self._sc_pw_cg.unsqueeze(0)
             coupled_flat = torch.zeros(batch_size, n_pw * mc, dtype=dtype, device=device)
-            coupled_flat.scatter_add_(
-                1, self._sc_pw_cidx.unsqueeze(0).expand(batch_size, -1), pw_prods
-            )
+            coupled_flat.scatter_add_(1, self._sc_pw_cidx.unsqueeze(0).expand(batch_size, -1), pw_prods)
             coupled_2d = coupled_flat.reshape(batch_size, n_pw, mc)
             norms = torch.sum(coupled_2d.real**2 + coupled_2d.imag**2, dim=-1).to(dtype)
             result[:, self._sc_pw_eids] = norms
@@ -1027,17 +1077,17 @@ class SO3onS2(nn.Module):
         return len(self._cg_power_map)
 
     @property
-    def index_map(self) -> list[tuple[int, int, int]]:
+    def index_map(self) -> tuple[tuple[int, int, int], ...]:
         """Maps flat output index -> (l1, l2, l) triple.
 
         First ``n_bispec`` entries are bispectral, remaining are CG power.
         """
-        return list(self._index_map) + list(self._cg_power_map)
+        return self._index_map_combined
 
     @property
-    def cg_power_map(self) -> list[tuple[int, int, int]]:
+    def cg_power_map(self) -> tuple[tuple[int, int, int], ...]:
         """Maps CG power output index -> (l1, l2, l_out) triple."""
-        return list(self._cg_power_map)
+        return self._cg_power_map
 
     def extra_repr(self) -> str:
         parts = [
@@ -1068,9 +1118,7 @@ def _get_full_sh_coefficients(
         signs = (-1.0) ** m_range.to(coeffs_positive_m.dtype)
         neg_m = signs.unsqueeze(0) * torch.conj(pos_m)
 
-        result[l_val] = torch.cat(
-            [neg_m.flip(-1), coeffs_positive_m[:, l_val, 0:1], pos_m], dim=-1
-        )
+        result[l_val] = torch.cat([neg_m.flip(-1), coeffs_positive_m[:, l_val, 0:1], pos_m], dim=-1)
 
     return result
 

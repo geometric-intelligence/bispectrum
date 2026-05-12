@@ -266,14 +266,10 @@ class TestSO2onDiskForward:
 
         angle = 0.5
         cos_a, sin_a = math.cos(angle), math.sin(angle)
-        theta_mat = torch.tensor(
-            [[[cos_a, sin_a, 0.0], [-sin_a, cos_a, 0.0]]], dtype=torch.float32
-        )
+        theta_mat = torch.tensor([[[cos_a, sin_a, 0.0], [-sin_a, cos_a, 0.0]]], dtype=torch.float32)
         grid = F.affine_grid(theta_mat, [1, 1, L, L], align_corners=False)
         f_rot = (
-            F.grid_sample(f.float().unsqueeze(1), grid, align_corners=False, padding_mode='zeros')
-            .squeeze(1)
-            .double()
+            F.grid_sample(f.float().unsqueeze(1), grid, align_corners=False, padding_mode='zeros').squeeze(1).double()
         )
         beta_rot = bsp(f_rot)
 
@@ -416,9 +412,7 @@ class TestSO2onDiskInvert:
             K_np1 = K.get(n_val + 1, 0)
             a_n1_r = a_rec[:, nti[(n_val, 1)]]
             for k in range(1, K_np1 + 1):
-                a_rec[:, nti[(n_val + 1, k)]] = (
-                    beta[:, offset + k - 1] / (a_11_r * a_n1_r)
-                ).conj()
+                a_rec[:, nti[(n_val + 1, k)]] = (beta[:, offset + k - 1] / (a_11_r * a_n1_r)).conj()
             offset += K_np1
 
         # Compare magnitudes (inversion is up to global rotation)

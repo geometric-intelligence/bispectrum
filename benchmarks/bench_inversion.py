@@ -260,9 +260,7 @@ def _write_latex_table(stats: dict, path: Path) -> None:
     lines.append(r'\midrule')
 
     for thresh_str, rate in stats['success_rates'].items():
-        lines.append(
-            rf'Success rate (error {thresh_str}) & \multicolumn{{2}}{{c}}{{{rate:.1%}}} \\'
-        )
+        lines.append(rf'Success rate (error {thresh_str}) & \multicolumn{{2}}{{c}}{{{rate:.1%}}} \\')
 
     lines.extend(
         [
@@ -353,9 +351,7 @@ def _plot_error_histogram(errors: np.ndarray, path: Path) -> None:
 def main():
     parser = argparse.ArgumentParser(description='Octahedral inversion benchmark')
     parser.add_argument('--n_signals', type=int, default=1000)
-    parser.add_argument(
-        '--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu'
-    )
+    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--n_corrections', type=int, default=10)
     parser.add_argument('--n_restarts', type=int, default=4)
     parser.add_argument('--batch_size', type=int, default=64)

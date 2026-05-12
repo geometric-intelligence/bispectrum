@@ -54,13 +54,13 @@ def bessel_jn(n: int, x: torch.Tensor) -> torch.Tensor:
 def _jn_scalar(n: int, x: float) -> float:
     """Fast scalar evaluation of J_n(x) using raw math."""
     if n == 0:
-        return torch.special.bessel_j0(torch.tensor(x, dtype=torch.float64)).item()
+        return float(torch.special.bessel_j0(torch.tensor(x, dtype=torch.float64)).item())
     if n == 1:
-        return torch.special.bessel_j1(torch.tensor(x, dtype=torch.float64)).item()
+        return float(torch.special.bessel_j1(torch.tensor(x, dtype=torch.float64)).item())
 
     xt = torch.tensor(x, dtype=torch.float64)
-    j_prev = torch.special.bessel_j0(xt).item()
-    j_curr = torch.special.bessel_j1(xt).item()
+    j_prev = float(torch.special.bessel_j0(xt).item())
+    j_curr = float(torch.special.bessel_j1(xt).item())
 
     if x == 0:
         return 0.0

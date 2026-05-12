@@ -161,12 +161,8 @@ def verify_bootstrap(lmax: int) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description='Verify linear bootstrap generic full-rank condition'
-    )
-    parser.add_argument(
-        '--lmax', type=int, default=100, help='Maximum degree to verify (default: 100)'
-    )
+    parser = argparse.ArgumentParser(description='Verify linear bootstrap generic full-rank condition')
+    parser.add_argument('--lmax', type=int, default=100, help='Maximum degree to verify (default: 100)')
     args = parser.parse_args()
 
     print(f'Verifying linear bootstrap for ell = 4 .. {args.lmax}')

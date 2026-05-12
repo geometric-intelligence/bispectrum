@@ -74,9 +74,7 @@ class TestGroupData:
             for j in range(5):
                 mult_str = _KRON_TABLE[i][j]
                 total = sum(int(mult_str[k]) * dims[k] for k in range(5))
-                assert total == dims[i] * dims[j], (
-                    f'rho{i} x rho{j}: decomp dims {total} != {dims[i] * dims[j]}'
-                )
+                assert total == dims[i] * dims[j], f'rho{i} x rho{j}: decomp dims {total} != {dims[i] * dims[j]}'
 
     def test_kronecker_table_symmetric(self):
         for i in range(5):
@@ -127,11 +125,7 @@ class TestIrrepMatrices:
         for k in range(5):
             mats = bsp._get_irrep_mats(k).to(torch.float64)
             for i in range(24):
-                err = (
-                    (mats[i] @ mats[i].T - torch.eye(mats.shape[1], dtype=torch.float64))
-                    .abs()
-                    .max()
-                )
+                err = (mats[i] @ mats[i].T - torch.eye(mats.shape[1], dtype=torch.float64)).abs().max()
                 assert err < 1e-10, f'rho{k}({i}) not orthogonal: {err}'
 
 
@@ -412,9 +406,7 @@ class TestOctaonOctaInvert:
         beta = bsp(f)
         f_init = bsp._bootstrap_init(beta)
         assert f_init.shape == (1, 24)
-        assert torch.isfinite(f_init).all(), (
-            'Bootstrap produced non-finite values for near-isotropic signal'
-        )
+        assert torch.isfinite(f_init).all(), 'Bootstrap produced non-finite values for near-isotropic signal'
 
 
 class TestOctaonOctaJacfwdCompatibility:
@@ -472,9 +464,7 @@ class TestOctaonOctaLmStepRobustness:
         beta = bsp(f)
         f_out = bsp._lm_step(f, beta)
         assert f_out.shape == (1, 24)
-        assert torch.isfinite(f_out).all(), (
-            'LM step produced non-finite values for constant signal'
-        )
+        assert torch.isfinite(f_out).all(), 'LM step produced non-finite values for constant signal'
 
     def test_lm_step_zero_signal(self):
         """LM step should handle zero signal gracefully."""
@@ -497,6 +487,4 @@ class TestOctaonOctaLmStepRobustness:
         f_after = bsp._lm_step(f, beta_target)
         loss_after = (bsp(f_after).real - beta_target.real).norm(dim=-1)
 
-        assert (loss_after <= loss_before + 1e-6).all(), (
-            f'LM step increased loss: {loss_before} -> {loss_after}'
-        )
+        assert (loss_after <= loss_before + 1e-6).all(), f'LM step increased loss: {loss_before} -> {loss_after}'
