@@ -910,7 +910,7 @@ class SO3onS2(nn.Module):
         fl_i = self._sparse_fl_abs
         eid = self._sparse_entry_ids
 
-        perm = torch.randperm(bi.numel())
+        perm = torch.randperm(bi.numel(), generator=torch.Generator().manual_seed(42))
         bi_perm = bi[perm]
         self._sc_bi_fl1 = fl1_i[bi_perm].to(device=device)
         self._sc_bi_fl2 = fl2_i[bi_perm].to(device=device)
