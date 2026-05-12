@@ -520,7 +520,7 @@ class SO3onS2(nn.Module):
             if cached_meta != expected_meta:
                 return None
             return data['cg_vals'], data['m1_idx'], data['m_idx'], data['offsets'], cached_meta
-        except (OSError, RuntimeError, KeyError):
+        except Exception:
             return None
 
     def _build_group_tables(

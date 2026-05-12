@@ -323,6 +323,152 @@ class TestSO3onS2EdgeCases:
         assert len(bsp.index_map) == bsp.output_size
 
 
+class TestSO3CudaGraphPaths:
+    """Cover CUDA graph code paths without requiring a GPU."""
+
+    def test_cuda_graph_cache_hit_replays(self):
+        """Cached graph with matching batch_size replays and returns clone."""
+        from unittest.mock import Mock
+
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        f = torch.randn(2, 16, 32)
+        fake_output = torch.randn(2, bsp.output_size)
+        mock_graph = Mock()
+        bsp._cuda_graph_cache = {
+            'graph': mock_graph,
+            'static_input': torch.empty_like(f),
+            'static_output': fake_output,
+            'batch_size': 2,
+        }
+        result = bsp._forward_cuda_graph(f, 2, bsp.output_size)
+        mock_graph.replay.assert_called_once()
+        assert result.shape == fake_output.shape
+        assert result is not fake_output
+
+    def test_cuda_graph_batch_size_mismatch_returns_none(self):
+        """Cache exists but batch_size differs -> returns None."""
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        bsp._cuda_graph_cache = {'batch_size': 8}
+        result = bsp._forward_cuda_graph(torch.randn(2, 16, 32), 2, bsp.output_size)
+        assert result is None
+
+    def test_cuda_graph_capture_failure_disables(self):
+        """Exception during graph capture sets sentinel and returns None."""
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        with patch('torch.cuda.Stream', side_effect=RuntimeError('no CUDA')):
+            result = bsp._forward_cuda_graph(torch.randn(2, 16, 32), 2, bsp.output_size)
+        assert result is None
+        assert bsp._cuda_graph_cache == {'batch_size': -1}
+
+    def test_reset_cuda_graph_cache(self):
+        """reset_cuda_graph_cache removes the cache attribute."""
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        bsp._cuda_graph_cache = {'batch_size': 2}
+        bsp.reset_cuda_graph_cache()
+        assert not hasattr(bsp, '_cuda_graph_cache')
+
+    def test_reset_cuda_graph_cache_noop_when_absent(self):
+        """reset_cuda_graph_cache is safe when no cache exists."""
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        bsp.reset_cuda_graph_cache()
+
+
+class TestSO3SparseCacheIO:
+    """Cover sparse CG cache save/load/validation paths."""
+
+    def test_save_sparse_cache_oserror_swallowed(self):
+        """OSError during save is silently swallowed."""
+        from bispectrum.so3_on_s2 import SO3onS2
+
+        with patch('bispectrum.so3_on_s2._CACHE_DIR', Path('/nonexistent/readonly')):
+            SO3onS2._save_sparse_cache(
+                Path('/nonexistent/readonly/foo.pt'),
+                torch.tensor([1.0]),
+                torch.tensor([0], dtype=torch.int32),
+                torch.tensor([0], dtype=torch.int32),
+                torch.tensor([0, 1], dtype=torch.int64),
+                [[1, 1, 0, 0]],
+            )
+
+    def test_load_sparse_cache_corrupt_file(self):
+        """Corrupt/unloadable file returns None."""
+        from bispectrum.so3_on_s2 import SO3onS2
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / 'corrupt.pt'
+            path.write_text('not a torch file')
+            result = SO3onS2._load_sparse_cache(path, [(0, 1, 1, 0, False)])
+            assert result is None
+
+    def test_load_sparse_cache_length_mismatch(self):
+        """Cache with wrong number of entries returns None."""
+        from bispectrum.so3_on_s2 import SO3onS2
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / 'test.pt'
+            torch.save(
+                {
+                    'cg_vals': torch.tensor([1.0]),
+                    'm1_idx': torch.tensor([0], dtype=torch.int32),
+                    'm_idx': torch.tensor([0], dtype=torch.int32),
+                    'offsets': torch.tensor([0, 1], dtype=torch.int64),
+                    'entry_meta': [[1, 1, 0, 0], [2, 2, 1, 0]],
+                },
+                path,
+            )
+            result = SO3onS2._load_sparse_cache(path, [(0, 1, 1, 0, False)])
+            assert result is None
+
+    def test_load_sparse_cache_meta_content_mismatch(self):
+        """Cache with matching length but different triples returns None."""
+        from bispectrum.so3_on_s2 import SO3onS2
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / 'test.pt'
+            torch.save(
+                {
+                    'cg_vals': torch.tensor([1.0]),
+                    'm1_idx': torch.tensor([0], dtype=torch.int32),
+                    'm_idx': torch.tensor([0], dtype=torch.int32),
+                    'offsets': torch.tensor([0, 1], dtype=torch.int64),
+                    'entry_meta': [[3, 3, 2, 0]],
+                },
+                path,
+            )
+            entries = [(0, 1, 1, 0, False)]
+            result = SO3onS2._load_sparse_cache(path, entries)
+            assert result is None
+
+    def test_load_sparse_cache_valid_roundtrip(self):
+        """Valid cache loads successfully."""
+        from bispectrum.so3_on_s2 import SO3onS2
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / 'test.pt'
+            meta = [[1, 1, 0, 0]]
+            cg = torch.tensor([0.5774], dtype=torch.float64)
+            m1 = torch.tensor([1], dtype=torch.int32)
+            m_idx = torch.tensor([0], dtype=torch.int32)
+            offsets = torch.tensor([0, 1], dtype=torch.int64)
+            SO3onS2._save_sparse_cache(path, cg, m1, m_idx, offsets, meta)
+            entries = [(0, 1, 1, 0, False)]
+            result = SO3onS2._load_sparse_cache(path, entries)
+            assert result is not None
+            loaded_cg, loaded_m1, loaded_m, loaded_off, loaded_meta = result
+            torch.testing.assert_close(loaded_cg, cg)
+            assert loaded_meta == meta
+
+
 class TestOctaOnOctaEdgeCases:
     """Cover edge cases in octa_on_octa.py."""
 
