@@ -69,10 +69,7 @@ def bench_forward_paths() -> None:
             if gr is not None:
                 t_graph = f'{_time_fn(lambda bsp=bsp, fv=f, b=batch, e=entries: bsp._forward_cuda_graph(fv, b, e)):.3f}'
 
-        _print(
-            f'{lmax:>5d}  {entries:>7d}  {t_sparse:>10.3f}  {t_graph:>10s}  '
-            f'{t_init:>10.2f}  {sp_mb:>8.1f}'
-        )
+        _print(f'{lmax:>5d}  {entries:>7d}  {t_sparse:>10.3f}  {t_graph:>10s}  {t_init:>10.2f}  {sp_mb:>8.1f}')
 
         del bsp, f
         if device.type == 'cuda':

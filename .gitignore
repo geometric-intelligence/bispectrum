@@ -87,7 +87,7 @@ dmypy.json
 Thumbs.db
 
 # uv
-uv.lock
+# uv.lock is tracked — see [tests.yml] lockfile job.
 
 # LaTeX build artifacts
 *.aux

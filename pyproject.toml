@@ -88,6 +88,30 @@ testpaths = ["tests"]
 python_version = "3.12"
 strict = true
 
+# torch_harmonics has no py.typed marker; treat as untyped.
+[[tool.mypy.overrides]]
+module = "torch_harmonics.*"
+ignore_missing_imports = true
+
+# nn.Module.register_buffer registers attributes as Tensor | Module in the
+# torch stubs, which forces a wall of false-positive index/operator/arg-type
+# errors at every buffer access. torch.special / torch.* return Any in the
+# stubs, triggering no-any-return everywhere. Disable those codes per-module
+# rather than papering the source with type: ignore comments.
+[[tool.mypy.overrides]]
+module = [
+  "bispectrum.so3_on_s2",
+  "bispectrum.so2_on_disk",
+  "bispectrum.octa_on_octa",
+  "bispectrum.dn_on_dn",
+  "bispectrum.torus_on_torus",
+  "bispectrum.cn_on_cn",
+  "bispectrum.rotation",
+  "bispectrum._bessel",
+  "bispectrum._cg",
+]
+disable_error_code = ["index", "operator", "arg-type", "no-untyped-call", "no-any-return"]
+
 [tool.coverage.run]
 source = ["src/bispectrum"]
 

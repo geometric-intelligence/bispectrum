@@ -3,15 +3,17 @@
 Computes CG matrices analytically via the Wigner 3j symbol (Racah formula).
 """
 
-from __future__ import annotations
-
+import logging
 import math
 import os
+import pickle  # nosec B403 — only used for UnpicklingError type reference
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 import torch
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Log-factorial table (precomputed up to a generous ceiling; extended lazily)
@@ -68,12 +70,7 @@ def wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
     _ensure_log_fact(max_fact + 1)
 
     # Triangle coefficient (log scale).
-    log_tri = (
-        _LOG_FACT[j1 + j2 - j3]
-        + _LOG_FACT[j1 - j2 + j3]
-        + _LOG_FACT[-j1 + j2 + j3]
-        - _LOG_FACT[j1 + j2 + j3 + 1]
-    )
+    log_tri = _LOG_FACT[j1 + j2 - j3] + _LOG_FACT[j1 - j2 + j3] + _LOG_FACT[-j1 + j2 + j3] - _LOG_FACT[j1 + j2 + j3 + 1]
 
     # Prefactor (log scale).
     log_pre = 0.5 * log_tri + 0.5 * (
@@ -192,12 +189,7 @@ def _compute_cg_matrix_fast(l1: int, l2: int) -> torch.Tensor:
     for l_val in range(abs(l1 - l2), l1 + l2 + 1):
         sqrt_2l1 = math.sqrt(2 * l_val + 1)
         # Triangle coefficient (log) for (l1, l2, l_val)
-        log_tri = (
-            lf[l1 + l2 - l_val]
-            + lf[l1 - l2 + l_val]
-            + lf[-l1 + l2 + l_val]
-            - lf[l1 + l2 + l_val + 1]
-        )
+        log_tri = lf[l1 + l2 - l_val] + lf[l1 - l2 + l_val] + lf[-l1 + l2 + l_val] - lf[l1 + l2 + l_val + 1]
         for m in range(-l_val, l_val + 1):
             neg_m = -m
             for im1, m1 in enumerate(range(-l1, l1 + 1)):
@@ -209,12 +201,7 @@ def _compute_cg_matrix_fast(l1: int, l2: int) -> torch.Tensor:
                 # Selection rule m1+m2+neg_m = m1+m2-m = 0 is guaranteed.
 
                 log_pre = 0.5 * log_tri + 0.5 * (
-                    lf[l1 + m1]
-                    + lf[l1 - m1]
-                    + lf[l2 + m2]
-                    + lf[l2 - m2]
-                    + lf[l_val + neg_m]
-                    + lf[l_val - neg_m]
+                    lf[l1 + m1] + lf[l1 - m1] + lf[l2 + m2] + lf[l2 - m2] + lf[l_val + neg_m] + lf[l_val - neg_m]
                 )
 
                 t_min = max(0, l2 - l_val - m1, l1 - l_val + m2)
@@ -278,12 +265,7 @@ def _compute_cg_columns_vectorized(l1: int, l2: int, l_vals: list[int]) -> torch
             continue
 
         sqrt_2l1 = math.sqrt(2 * l_val + 1)
-        log_tri = (
-            lf[l1 + l2 - l_val]
-            + lf[l1 - l2 + l_val]
-            + lf[-l1 + l2 + l_val]
-            - lf[l1 + l2 + l_val + 1]
-        )
+        log_tri = lf[l1 + l2 - l_val] + lf[l1 - l2 + l_val] + lf[-l1 + l2 + l_val] - lf[l1 + l2 + l_val + 1]
 
         for m in range(-l_val, l_val + 1):
             neg_m = -m
@@ -299,12 +281,7 @@ def _compute_cg_columns_vectorized(l1: int, l2: int, l_vals: list[int]) -> torch
             m2_v = m2_arr[valid]
 
             log_pre = 0.5 * log_tri + 0.5 * (
-                lf[l1 + m1_v]
-                + lf[l1 - m1_v]
-                + lf[l2 + m2_v]
-                + lf[l2 - m2_v]
-                + lf[l_val + neg_m]
-                + lf[l_val - neg_m]
+                lf[l1 + m1_v] + lf[l1 - m1_v] + lf[l2 + m2_v] + lf[l2 - m2_v] + lf[l_val + neg_m] + lf[l_val - neg_m]
             )
 
             t_min = np.maximum(0, np.maximum(l2 - l_val - m1_v, l1 - l_val + m2_v))
@@ -388,12 +365,7 @@ def compute_cg_columns(l1: int, l2: int, l_vals: list[int]) -> torch.Tensor:
         if l_val not in needed:
             continue
         sqrt_2l1 = math.sqrt(2 * l_val + 1)
-        log_tri = (
-            lf[l1 + l2 - l_val]
-            + lf[l1 - l2 + l_val]
-            + lf[-l1 + l2 + l_val]
-            - lf[l1 + l2 + l_val + 1]
-        )
+        log_tri = lf[l1 + l2 - l_val] + lf[l1 - l2 + l_val] + lf[-l1 + l2 + l_val] - lf[l1 + l2 + l_val + 1]
         for m in range(-l_val, l_val + 1):
             neg_m = -m
             for im1, m1 in enumerate(range(-l1, l1 + 1)):
@@ -402,12 +374,7 @@ def compute_cg_columns(l1: int, l2: int, l_vals: list[int]) -> torch.Tensor:
                     continue
 
                 log_pre = 0.5 * log_tri + 0.5 * (
-                    lf[l1 + m1]
-                    + lf[l1 - m1]
-                    + lf[l2 + m2]
-                    + lf[l2 - m2]
-                    + lf[l_val + neg_m]
-                    + lf[l_val - neg_m]
+                    lf[l1 + m1] + lf[l1 - m1] + lf[l2 + m2] + lf[l2 - m2] + lf[l_val + neg_m] + lf[l_val - neg_m]
                 )
 
                 t_min = max(0, l2 - l_val - m1, l1 - l_val + m2)
@@ -477,9 +444,7 @@ def compute_cg_matrices(lmax: int) -> dict[tuple[int, int], torch.Tensor]:
     return matrices
 
 
-def compute_sparse_cg_entry(
-    l1: int, l2: int, l_val: int
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def compute_sparse_cg_entry(l1: int, l2: int, l_val: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute sparse CG coefficients for a single (l1, l2, l_val) triple.
 
     Exploits the selection rule m1 + m2 = m to store only nonzero entries.
@@ -497,9 +462,7 @@ def compute_sparse_cg_entry(
 
     2 * l2 + 1
     sqrt_2l1 = math.sqrt(2 * l_val + 1)
-    log_tri = (
-        lf[l1 + l2 - l_val] + lf[l1 - l2 + l_val] + lf[-l1 + l2 + l_val] - lf[l1 + l2 + l_val + 1]
-    )
+    log_tri = lf[l1 + l2 - l_val] + lf[l1 - l2 + l_val] + lf[-l1 + l2 + l_val] - lf[l1 + l2 + l_val + 1]
 
     all_m1_idx: list[int] = []
     all_m_idx: list[int] = []
@@ -651,10 +614,7 @@ def compute_reduced_cg_parallel(
     groups_sorted = sorted(groups, key=lambda g: (2 * g[1] + 1) * (2 * g[2] + 1), reverse=True)
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {
-            pool.submit(_compute_cg_columns_vectorized, l1, l2, lv): gid
-            for gid, l1, l2, lv in groups_sorted
-        }
+        futures = {pool.submit(_compute_cg_columns_vectorized, l1, l2, lv): gid for gid, l1, l2, lv in groups_sorted}
         result = {}
         for fut in futures:
             gid = futures[fut]
@@ -666,7 +626,21 @@ def compute_reduced_cg_parallel(
 # Disk cache for CG matrices
 # ---------------------------------------------------------------------------
 
-_CACHE_DIR = Path.home() / '.cache' / 'bispectrum'
+
+def _resolve_cache_dir() -> Path:
+    """Return the on-disk cache directory.
+
+    Honors the ``BISPECTRUM_CACHE_DIR`` environment variable so users on
+    read-only home filesystems (CI, containers, HPC) can redirect
+    elsewhere. Falls back to ``~/.cache/bispectrum`` otherwise.
+    """
+    override = os.environ.get('BISPECTRUM_CACHE_DIR')
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / '.cache' / 'bispectrum'
+
+
+_CACHE_DIR = _resolve_cache_dir()
 
 
 def _cache_path(lmax: int) -> Path:
@@ -675,14 +649,20 @@ def _cache_path(lmax: int) -> Path:
 
 def _save_cache(lmax: int, matrices: dict[tuple[int, int], torch.Tensor]) -> None:
     """Persist CG matrices to disk."""
+    path = _cache_path(lmax)
     try:
         _CACHE_DIR.mkdir(parents=True, exist_ok=True)
         # Convert tuple keys to strings for torch.save compatibility.
         data = {f'{l1}_{l2}': m for (l1, l2), m in matrices.items()}
         data['__lmax__'] = torch.tensor(lmax)
-        torch.save(data, _cache_path(lmax))
-    except OSError:
-        pass  # Non-fatal: cache write failure is silently ignored.
+        torch.save(data, path)
+    except OSError as exc:
+        logger.warning(
+            'Failed to write CG cache to %s (%s); next import will recompute. '
+            'Set BISPECTRUM_CACHE_DIR to override the cache location.',
+            path,
+            exc,
+        )
 
 
 def _load_cache(lmax: int) -> dict[tuple[int, int], torch.Tensor] | None:
@@ -704,7 +684,12 @@ def _load_cache(lmax: int) -> dict[tuple[int, int], torch.Tensor] | None:
             l1, l2 = map(int, key.split('_'))
             matrices[(l1, l2)] = val
         return matrices
-    except (OSError, RuntimeError, ValueError, KeyError, Exception):
+    except (OSError, RuntimeError, ValueError, KeyError, pickle.UnpicklingError) as exc:
+        logger.warning(
+            'Failed to load CG cache from %s (%s); recomputing. You may want to delete the corrupt file.',
+            path,
+            exc,
+        )
         return None
 
 

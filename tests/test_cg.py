@@ -79,9 +79,7 @@ class TestWigner3j:
                         continue
                     lhs = wigner3j(j1, j2, j3, m1, m2, m3)
                     rhs = ((-1) ** (j1 + j2 + j3)) * wigner3j(j2, j1, j3, m2, m1, m3)
-                    assert abs(lhs - rhs) < 1e-12, (
-                        f'Symmetry failed for ({j1},{j2},{j3},{m1},{m2},{m3})'
-                    )
+                    assert abs(lhs - rhs) < 1e-12, f'Symmetry failed for ({j1},{j2},{j3},{m1},{m2},{m3})'
 
     def test_sign_flip_all_m(self):
         """(j1 j2 j3; -m1 -m2 -m3) = (-1)^{j1+j2+j3} (j1 j2 j3; m1 m2 m3)."""
@@ -134,9 +132,7 @@ class TestClebschGordan:
                     if abs(m2) > l2:
                         continue
                     total += clebsch_gordan(l1, m1, l2, m2, l_val, m) ** 2
-                assert abs(total - 1.0) < 1e-10, (
-                    f'Normalization failed for l1={l1}, l2={l2}, l={l_val}, m={m}: {total}'
-                )
+                assert abs(total - 1.0) < 1e-10, f'Normalization failed for l1={l1}, l2={l2}, l={l_val}, m={m}: {total}'
 
 
 class TestComputeCgMatrix:
@@ -152,9 +148,7 @@ class TestComputeCgMatrix:
     def test_orthogonality_rows(self, l1: int, l2: int):
         C = compute_cg_matrix(l1, l2)
         I = C @ C.T
-        torch.testing.assert_close(
-            I, torch.eye(C.shape[0], dtype=torch.float64), atol=1e-10, rtol=0
-        )
+        torch.testing.assert_close(I, torch.eye(C.shape[0], dtype=torch.float64), atol=1e-10, rtol=0)
 
     def test_shape(self):
         C = compute_cg_matrix(2, 3)
@@ -261,9 +255,7 @@ class TestComputeCgMatrices:
         matrices = compute_cg_matrices(2)
         for (_l1, _l2), C in matrices.items():
             d = C.shape[0]
-            torch.testing.assert_close(
-                C.T @ C, torch.eye(d, dtype=torch.float64), atol=1e-10, rtol=0
-            )
+            torch.testing.assert_close(C.T @ C, torch.eye(d, dtype=torch.float64), atol=1e-10, rtol=0)
 
     def test_lmax_zero(self):
         matrices = compute_cg_matrices(0)
@@ -356,9 +348,7 @@ class TestLoadCgMatrices:
         matrices = load_cg_matrices(2)
         for (_l1, _l2), C in matrices.items():
             d = C.shape[0]
-            torch.testing.assert_close(
-                C.T @ C, torch.eye(d, dtype=torch.float64), atol=1e-10, rtol=0
-            )
+            torch.testing.assert_close(C.T @ C, torch.eye(d, dtype=torch.float64), atol=1e-10, rtol=0)
 
     def test_uses_cache_on_second_call(self):
         with tempfile.TemporaryDirectory() as tmpdir:

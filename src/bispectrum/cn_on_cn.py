@@ -30,6 +30,13 @@ class CnonCn(nn.Module):
             If False, use full bispectrum (n(n+1)/2 upper-triangular coefficients).
     """
 
+    #: Whether the module's :meth:`invert` recovers the signal (up to the
+    #: group-action indeterminacy) for at least one valid configuration.
+    #: Modules that raise ``NotImplementedError`` unconditionally set this
+    #: to ``False``. Inversion of selective bispectra requires
+    #: ``selective=True``.
+    supports_inversion: bool = True
+
     def __init__(self, n: int, selective: bool = True) -> None:
         super().__init__()
         if n <= 0:
@@ -41,11 +48,13 @@ class CnonCn(nn.Module):
 
         if selective:
             # Selective indices: {(0,0), (0,1), (1,1), (1,2), ..., (1,n-2)}
-            self._index_map: list[tuple[int, int]] = [(0, 0), (0, 1)] + [
-                (1, k) for k in range(1, n - 1)
-            ]
+            self._index_map: tuple[tuple[int, int], ...] = (
+                (0, 0),
+                (0, 1),
+                *((1, k) for k in range(1, n - 1)),
+            )
         else:
-            self._index_map = [(k1, k2) for k1 in range(n) for k2 in range(k1, n)]
+            self._index_map = tuple((k1, k2) for k1 in range(n) for k2 in range(k1, n))
 
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the C_n-bispectrum of a signal on Z/nZ.
@@ -88,9 +97,7 @@ class CnonCn(nn.Module):
         for k1 in range(n):
             k2_range = torch.arange(k1, n, device=fhat.device)
             count = len(k2_range)
-            beta[:, idx : idx + count] = (
-                fhat[:, k1 : k1 + 1] * fhat[:, k1:n] * torch.conj(fhat[:, (k2_range + k1) % n])
-            )
+            beta[:, idx : idx + count] = fhat[:, k1 : k1 + 1] * fhat[:, k1:n] * torch.conj(fhat[:, (k2_range + k1) % n])
             idx += count
 
         return beta
@@ -118,9 +125,7 @@ class CnonCn(nn.Module):
             ValueError: If pivot Fourier coefficients are zero or near-zero.
         """
         if not self.selective:
-            raise NotImplementedError(
-                'Inversion is only implemented for the selective bispectrum. Use selective=True.'
-            )
+            raise NotImplementedError('Inversion is only implemented for the selective bispectrum. Use selective=True.')
         if beta.ndim != 2 or beta.shape[-1] != self.n:
             raise ValueError(f'Expected shape (batch, {self.n}), got {tuple(beta.shape)}')
 
@@ -155,9 +160,9 @@ class CnonCn(nn.Module):
         return len(self._index_map)
 
     @property
-    def index_map(self) -> list[tuple[int, int]]:
+    def index_map(self) -> tuple[tuple[int, int], ...]:
         """Maps flat output index -> (k1, k2) frequency pair."""
-        return list(self._index_map)
+        return self._index_map
 
     def extra_repr(self) -> str:
         return f'n={self.n}, selective={self.selective}, output_size={self.output_size}'

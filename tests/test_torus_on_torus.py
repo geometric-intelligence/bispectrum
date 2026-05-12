@@ -168,11 +168,7 @@ class TestTorusOnTorusForward:
         for i in range(min(8, bsp.output_size)):
             k1, k2 = bsp.index_map[i]
             k_sum = tuple((a + b) % n for a, b, n in zip(k1, k2, ns, strict=False))
-            expected = (
-                fhat[:, k1[0], k1[1]]
-                * fhat[:, k2[0], k2[1]]
-                * torch.conj(fhat[:, k_sum[0], k_sum[1]])
-            )
+            expected = fhat[:, k1[0], k1[1]] * fhat[:, k2[0], k2[1]] * torch.conj(fhat[:, k_sum[0], k_sum[1]])
             torch.testing.assert_close(beta[:, i], expected, atol=1e-6, rtol=1e-6)
 
     def test_batch_size_one(self):
@@ -223,11 +219,7 @@ class TestTorusOnTorusInvert:
         spatial_dims = tuple(range(1, 1 + bsp._d))
         fhat_rec = torch.fft.fftn(f_rec, dim=spatial_dims)
         fhat_flat = fhat_rec.reshape(f_rec.shape[0], -1)
-        beta_rec = (
-            fhat_flat[:, bsp._idx_k1]
-            * fhat_flat[:, bsp._idx_k2]
-            * fhat_flat[:, bsp._idx_k1pk2].conj()
-        )
+        beta_rec = fhat_flat[:, bsp._idx_k1] * fhat_flat[:, bsp._idx_k2] * fhat_flat[:, bsp._idx_k1pk2].conj()
         torch.testing.assert_close(beta, beta_rec, atol=ATOL, rtol=RTOL)
 
     def test_invert_not_implemented_full(self):

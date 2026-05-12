@@ -211,9 +211,7 @@ def main() -> None:
         targets_all_parts.append(cg_power_fast(Fs_w, *trip, cg_cache))
     targets_all = np.array(targets_all_parts)
 
-    print(
-        f'\nTarget values ({len(targets_bisp_d3)} bisp + {len(targets_cgp_d3)} CGP at degree 3):'
-    )
+    print(f'\nTarget values ({len(targets_bisp_d3)} bisp + {len(targets_cgp_d3)} CGP at degree 3):')
     for t, v in zip(BISP_D3_TRIPLES, targets_bisp_d3, strict=False):
         print(f'  Re β{t} = {v:.10f}')
     for t, v in zip(CGP_D3_TRIPLES, targets_cgp_d3, strict=False):
@@ -268,15 +266,12 @@ def main() -> None:
                 if is_new:
                     solutions.append(found.copy())
                     hit_counts.append(1)
-                    print(
-                        f'  Start {i:5d}: NEW solution #{len(solutions)} (cost={result.cost:.2e})'
-                    )
+                    print(f'  Start {i:5d}: NEW solution #{len(solutions)} (cost={result.cost:.2e})')
 
             if (i + 1) % 1000 == 0:
                 elapsed = time.time() - t0
                 print(
-                    f'  ... {i + 1}/{args.num_starts} '
-                    f'({elapsed:.1f}s, {len(solutions)} solutions)',
+                    f'  ... {i + 1}/{args.num_starts} ({elapsed:.1f}s, {len(solutions)} solutions)',
                     flush=True,
                 )
 
@@ -328,15 +323,12 @@ def main() -> None:
             if is_new:
                 full_solutions.append(found.copy())
                 full_hit_counts.append(1)
-                print(
-                    f'  Start {i:5d}: NEW solution #{len(full_solutions)} (cost={result.cost:.2e})'
-                )
+                print(f'  Start {i:5d}: NEW solution #{len(full_solutions)} (cost={result.cost:.2e})')
 
         if (i + 1) % 1000 == 0:
             elapsed = time.time() - t0
             print(
-                f'  ... {i + 1}/{args.num_starts} '
-                f'({elapsed:.1f}s, {len(full_solutions)} solutions)',
+                f'  ... {i + 1}/{args.num_starts} ({elapsed:.1f}s, {len(full_solutions)} solutions)',
                 flush=True,
             )
 

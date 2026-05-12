@@ -284,16 +284,12 @@ def bench_forward_pass(device: torch.device) -> plt.Figure:
                 f = _make_input(module_name, params, batch, device)
                 g = _group_order(module_name, params)
 
-                t = _time_fn(
-                    'bsp(f)', {'bsp': bsp, 'f': f}, f'{module_name}_{g}_{sel_label}', device
-                )
+                t = _time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'{module_name}_{g}_{sel_label}', device)
                 group_orders.append(g)
                 times_ms.append(t)
 
             if group_orders:
-                ax.plot(
-                    group_orders, times_ms, marker=mk, linestyle=ls, label=sel_label, linewidth=2
-                )
+                ax.plot(group_orders, times_ms, marker=mk, linestyle=ls, label=sel_label, linewidth=2)
                 print(f'\n{module_name} {sel_label} ({dev_name}):')
                 print(f'  {"|G|":>10s}  {"time_ms":>10s}')
                 for g, t in zip(group_orders, times_ms, strict=False):
@@ -644,9 +640,7 @@ def paper_figures(device: torch.device) -> None:
         all_gs_flat.extend(gs)
 
     bsp_octa = OctaonOcta(selective=True)
-    ax1.scatter(
-        [24], [bsp_octa.output_size], marker='*', s=80, color=c[5], zorder=5, label=r'$O$ sel.'
-    )
+    ax1.scatter([24], [bsp_octa.output_size], marker='*', s=80, color=c[5], zorder=5, label=r'$O$ sel.')
 
     x_lo, x_hi = 4, max(all_gs_flat) * 2
     xs = [x_lo, x_hi]
@@ -660,9 +654,7 @@ def paper_figures(device: torch.device) -> None:
         linewidth=0,
         label=r'full $O(|G|^2)$ region',
     )
-    ax1.plot(
-        xs, [x**2 for x in xs], color='0.55', linestyle='-.', linewidth=0.8, label=r'$O(|G|^2)$'
-    )
+    ax1.plot(xs, [x**2 for x in xs], color='0.55', linestyle='-.', linewidth=0.8, label=r'$O(|G|^2)$')
 
     ax1.set_xscale('log')
     ax1.set_yscale('log')
@@ -670,9 +662,7 @@ def paper_figures(device: torch.device) -> None:
     ylab = r'$\#$ coefficients' if plt.rcParams.get('text.usetex') else '# coefficients'
     ax1.set_ylabel(ylab)
     ax1.set_title('Bispectral coefficient count: selective vs. full')
-    ax1.legend(
-        fontsize=7, ncol=3, columnspacing=1.0, handlelength=1.5, loc='upper left', framealpha=0.9
-    )
+    ax1.legend(fontsize=7, ncol=3, columnspacing=1.0, handlelength=1.5, loc='upper left', framealpha=0.9)
     ax1.set_ylim(bottom=5)
     _grid(ax1)
 
@@ -781,9 +771,7 @@ def paper_figures(device: torch.device) -> None:
                 break
             throughputs.append(bs / (t / 1e3))
             valid_batches.append(bs)
-        ax_d.plot(
-            valid_batches, throughputs, marker=marker, color=color, label=rf'{label} ($|G|$={g})'
-        )
+        ax_d.plot(valid_batches, throughputs, marker=marker, color=color, label=rf'{label} ($|G|$={g})')
         print(f'  GPU scaling {mod_name}: max throughput = {max(throughputs):.0f} samples/s')
 
     ax_d.set_xscale('log')
@@ -818,9 +806,7 @@ def paper_figures(device: torch.device) -> None:
             g = _group_order(mod_name, params)
             with torch.no_grad():
                 beta = bsp(f)
-            t = _time_fn(
-                'bsp.invert(beta)', {'bsp': bsp, 'beta': beta}, f'{mod_name}_inv_{g}', device
-            )
+            t = _time_fn('bsp.invert(beta)', {'bsp': bsp, 'beta': beta}, f'{mod_name}_inv_{g}', device)
             gs.append(g)
             inv_times.append(t)
         ax_e.plot(gs, inv_times, marker=marker, color=color, label=label)

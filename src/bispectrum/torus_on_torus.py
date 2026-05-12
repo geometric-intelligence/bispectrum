@@ -59,6 +59,8 @@ class TorusOnTorus(nn.Module):
             If False, use full bispectrum (|G|*(|G|+1)/2 upper-triangular coefficients).
     """
 
+    supports_inversion: bool = True
+
     def __init__(self, ns: tuple[int, ...], selective: bool = True) -> None:
         super().__init__()
         if not ns:
@@ -76,8 +78,7 @@ class TorusOnTorus(nn.Module):
         if selective:
             idx_k1, idx_k2, idx_sum, index_map = self._build_selective_indices()
             self._generator_flat: list[int] = [
-                _ravel(tuple(1 if j == l else 0 for j in range(self._d)), self.ns)
-                for l in range(self._d)
+                _ravel(tuple(1 if j == l else 0 for j in range(self._d)), self.ns) for l in range(self._d)
             ]
         else:
             if self._group_order_val > 10_000:
@@ -92,7 +93,7 @@ class TorusOnTorus(nn.Module):
         self.register_buffer('_idx_k1', torch.tensor(idx_k1, dtype=torch.long))
         self.register_buffer('_idx_k2', torch.tensor(idx_k2, dtype=torch.long))
         self.register_buffer('_idx_k1pk2', torch.tensor(idx_sum, dtype=torch.long))
-        self._index_map: list[tuple[tuple[int, ...], tuple[int, ...]]] = index_map
+        self._index_map: tuple[tuple[tuple[int, ...], tuple[int, ...]], ...] = tuple(index_map)
 
     def _build_selective_indices(
         self,
@@ -172,10 +173,7 @@ class TorusOnTorus(nn.Module):
         if f.is_complex():
             raise TypeError('f must be a real-valued tensor, got complex dtype.')
         if f.ndim != 1 + self._d or tuple(f.shape[1:]) != self.ns:
-            raise ValueError(
-                f'Expected shape (batch, {", ".join(str(n) for n in self.ns)}), '
-                f'got {tuple(f.shape)}'
-            )
+            raise ValueError(f'Expected shape (batch, {", ".join(str(n) for n in self.ns)}), got {tuple(f.shape)}')
 
         spatial_dims = tuple(range(1, 1 + self._d))
         fhat = torch.fft.fftn(f, dim=spatial_dims)
@@ -220,9 +218,7 @@ class TorusOnTorus(nn.Module):
             TypeError: If beta is not complex.
         """
         if not self.selective:
-            raise NotImplementedError(
-                'Inversion is only implemented for the selective bispectrum. Use selective=True.'
-            )
+            raise NotImplementedError('Inversion is only implemented for the selective bispectrum. Use selective=True.')
         if not beta.is_complex():
             raise TypeError('beta must be a complex tensor.')
 
@@ -241,9 +237,7 @@ class TorusOnTorus(nn.Module):
         # Phase 1: recover |fhat[e_l]| for each generator, fix phase to 0
         gen_set = set(self._generator_flat)
         for _l, g_flat in enumerate(self._generator_flat):
-            fhat[:, g_flat] = torch.sqrt(
-                torch.abs(beta[:, g_flat] / self._safe_denom(fhat[:, 0], eps))
-            )
+            fhat[:, g_flat] = torch.sqrt(torch.abs(beta[:, g_flat] / self._safe_denom(fhat[:, 0], eps)))
 
         # Phases 2+3: sequential bootstrap
         # fhat[k] = conj(β_k / (fhat[e_l] · fhat[k - e_l]))
@@ -278,9 +272,9 @@ class TorusOnTorus(nn.Module):
         return self._d
 
     @property
-    def index_map(self) -> list[tuple[tuple[int, ...], tuple[int, ...]]]:
+    def index_map(self) -> tuple[tuple[tuple[int, ...], tuple[int, ...]], ...]:
         """Maps flat output index → (k1, k2) multi-index frequency pair."""
-        return list(self._index_map)
+        return self._index_map
 
     def extra_repr(self) -> str:
         return f'ns={self.ns}, selective={self.selective}, output_size={self.output_size}'

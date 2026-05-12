@@ -14,9 +14,7 @@ from bispectrum.so3_on_s2 import (
 )
 
 
-def _linear_rows_for_target(
-    index_map: list[tuple[int, int, int]], ell: int
-) -> list[tuple[int, int, int]]:
+def _linear_rows_for_target(index_map: list[tuple[int, int, int]], ell: int) -> list[tuple[int, int, int]]:
     rows: list[tuple[int, int, int]] = []
     for l1, l2, l_val in index_map:
         if l_val == ell and l1 < ell and l2 < ell:
@@ -279,12 +277,13 @@ class TestSO3onS2RotationInvariance:
         lmax = 4
         bsp = SO3onS2(lmax=lmax, nlat=nlat, nlon=nlon)
 
-        f = torch.randn(batch_size, nlat, nlon, dtype=torch.float64)
-        beta_f = bsp(f.float())
+        # Use fp32 throughout — grid_sample interpolation is fp32 anyway.
+        f = torch.randn(batch_size, nlat, nlon)
+        beta_f = bsp(f)
 
         R = random_rotation_matrix()
         f_rotated = rotate_spherical_function(f, R)
-        beta_f_rotated = bsp(f_rotated.float())
+        beta_f_rotated = bsp(f_rotated)
 
         torch.testing.assert_close(
             beta_f.abs(),
@@ -353,12 +352,12 @@ class TestSelectiveSO3onS2:
 
     def test_rotation_invariance(self):
         bsp = SO3onS2(lmax=4, nlat=64, nlon=128, selective=True)
-        f = torch.randn(2, 64, 128, dtype=torch.float64)
-        beta_f = bsp(f.float())
+        f = torch.randn(2, 64, 128)
+        beta_f = bsp(f)
 
         R = random_rotation_matrix()
         f_rot = rotate_spherical_function(f, R)
-        beta_rot = bsp(f_rot.float())
+        beta_rot = bsp(f_rot)
 
         torch.testing.assert_close(
             beta_f.abs(),
@@ -405,9 +404,7 @@ class TestBuildSelectiveIndexMap:
 
     def test_lmax_one(self):
         idx = _build_selective_index_map(1)
-        assert idx == [(0, 0, 0), (0, 1, 1)], (
-            f'lmax=1 should have exactly (0,0,0) and (0,1,1), got {idx}'
-        )
+        assert idx == [(0, 0, 0), (0, 1, 1)], f'lmax=1 should have exactly (0,0,0) and (0,1,1), got {idx}'
         assert (1, 1, 0) not in idx, 'beta_{1,1,0} is redundant and must be excluded'
 
     def test_no_beta_110(self):
@@ -438,9 +435,7 @@ class TestBuildSelectiveIndexMap:
             l4_entries = [t for t in idx if max(t) == 4]
             linear_entries = [t for t in l4_entries if not (t[0] == t[1] == 4 and t[2] <= 4)]
             sc_entries = [t for t in l4_entries if t[0] == t[1] == 4 and t[2] <= 4]
-            assert len(linear_entries) == 10, (
-                f'l=4 linear block should have 10 entries, got {len(linear_entries)}'
-            )
+            assert len(linear_entries) == 10, f'l=4 linear block should have 10 entries, got {len(linear_entries)}'
             assert (4, 4, 2) in sc_entries, f'(4,4,2) missing for lmax={lmax}'
             assert (4, 4, 4) in sc_entries, f'(4,4,4) missing for lmax={lmax}'
             assert (3, 4, 3) in idx, f'(3,4,3) missing for lmax={lmax}'
@@ -462,9 +457,7 @@ class TestBuildSelectiveIndexMap:
                 deg_entries = [t for t in idx if max(t) == deg]
                 linear = [t for t in deg_entries if not (t[0] == t[1] == deg and t[2] <= deg)]
                 budget = 10 if deg == 4 else 2 * deg + 1
-                assert len(linear) <= budget, (
-                    f'degree {deg} has {len(linear)} linear entries > budget {budget}'
-                )
+                assert len(linear) <= budget, f'degree {deg} has {len(linear)} linear entries > budget {budget}'
 
     def test_mandatory_self_coupling_present(self):
         """Even self-coupling entries β(ℓ,ℓ,l) must be present for global injectivity."""
@@ -472,9 +465,7 @@ class TestBuildSelectiveIndexMap:
             idx = _build_selective_index_map(lmax)
             for ell in range(4, lmax + 1):
                 for l_sc in range(2, ell + 1, 2):
-                    assert (ell, ell, l_sc) in idx, (
-                        f'β({ell},{ell},{l_sc}) missing for lmax={lmax}'
-                    )
+                    assert (ell, ell, l_sc) in idx, f'β({ell},{ell},{l_sc}) missing for lmax={lmax}'
 
     def test_linear_blocks_match_proved_family(self):
         for ell in range(4, 11):
@@ -495,9 +486,7 @@ class TestCGPowerIndexMap:
         expected_counts = {2: 1, 3: 5, 4: 10, 5: 17, 6: 22, 7: 29}
         for lmax, exp in expected_counts.items():
             entries = _build_cg_power_index_map(lmax)
-            assert len(entries) == exp, (
-                f'lmax={lmax}: got {len(entries)} CG power entries, expected {exp}'
-            )
+            assert len(entries) == exp, f'lmax={lmax}: got {len(entries)} CG power entries, expected {exp}'
 
     def test_triangle_inequality(self):
         for lmax in range(2, 8):
@@ -518,14 +507,14 @@ class TestCGPowerIndexMap:
     def test_cg_power_rotation_invariant(self):
         """CG power entries must be rotation-invariant (real, non-negative)."""
         bsp = SO3onS2(lmax=4, nlat=64, nlon=128, selective=True)
-        f = torch.randn(2, 64, 128, dtype=torch.float64)
-        beta_f = bsp(f.float())
+        f = torch.randn(2, 64, 128)
+        beta_f = bsp(f)
 
         R = random_rotation_matrix()
         from bispectrum import rotate_spherical_function
 
         f_rot = rotate_spherical_function(f, R)
-        beta_rot = bsp(f_rot.float())
+        beta_rot = bsp(f_rot)
 
         cg_start = bsp.n_bispec
         torch.testing.assert_close(
@@ -588,9 +577,7 @@ class TestBatchedForwardCorrectness:
         for j in range(bsp.n_cg_power):
             out_idx = bsp.n_bispec + j
             val = beta_batched[:, out_idx]
-            assert val.imag.abs().max() < 1e-6, (
-                f'CG power entry {j} should be real, got imag={val.imag.abs().max()}'
-            )
+            assert val.imag.abs().max() < 1e-6, f'CG power entry {j} should be real, got imag={val.imag.abs().max()}'
             assert val.real.min() >= -1e-6, f'CG power entry {j} should be non-negative'
 
     def test_output_nonzero(self):
@@ -656,12 +643,7 @@ class TestCompletenessNumerical:
 
         def _eval_bispec(p: torch.Tensor) -> torch.Tensor:
             fc = _params_to_coeffs(p)
-            return torch.stack(
-                [
-                    _bispectrum_entry(fc, l1, l2, lv, cg_data[(l1, l2)])[0].real
-                    for l1, l2, lv in idx_map
-                ]
-            )
+            return torch.stack([_bispectrum_entry(fc, l1, l2, lv, cg_data[(l1, l2)])[0].real for l1, l2, lv in idx_map])
 
         J = torch.autograd.functional.jacobian(_eval_bispec, params)
         sv = torch.linalg.svdvals(J)
@@ -914,9 +896,7 @@ class TestCUDAGraphParity:
         out2_python = _run_python_path(bsp, f2)
         torch.testing.assert_close(result, out2_python, atol=1e-5, rtol=1e-5)
 
-        assert not torch.allclose(out1_graph, result), (
-            'Different inputs should give different outputs'
-        )
+        assert not torch.allclose(out1_graph, result), 'Different inputs should give different outputs'
 
     def test_cuda_graph_batch_size_mismatch(self):
         """CUDA graph returns None for a different batch size."""
@@ -976,9 +956,7 @@ class TestCUDAGraphParity:
         with torch.no_grad():
             out = bsp(f)
 
-        assert (
-            not hasattr(bsp, '_cuda_graph_cache') or bsp._cuda_graph_cache.get('batch_size') == 2
-        )
+        assert not hasattr(bsp, '_cuda_graph_cache') or bsp._cuda_graph_cache.get('batch_size') == 2
         out_python = _run_python_path(bsp, f)
         torch.testing.assert_close(out, out_python, atol=1e-5, rtol=1e-5)
 

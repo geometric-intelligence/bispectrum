@@ -62,7 +62,7 @@ class TestCnonCnConstruction:
     def test_full_index_map_upper_triangular(self):
         bsp = CnonCn(n=4, selective=False)
         idx = bsp.index_map
-        assert idx == [
+        assert idx == (
             (0, 0),
             (0, 1),
             (0, 2),
@@ -73,7 +73,7 @@ class TestCnonCnConstruction:
             (2, 2),
             (2, 3),
             (3, 3),
-        ]
+        )
 
     def test_no_trainable_parameters(self):
         bsp = CnonCn(n=8)
