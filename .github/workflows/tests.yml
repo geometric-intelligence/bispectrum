@@ -7,12 +7,17 @@ on:
     branches: [main]
 
 jobs:
+  # NOTE: ubuntu-latest is the only supported runner. torch-harmonics 0.9
+  # only ships manylinux_x86_64 wheels — no macOS, no Windows, no Linux
+  # ARM. Adding macos-14 / windows-latest to this matrix will fail at the
+  # `uv pip install` step. See RELEASE.md "Supported runtime matrix" for
+  # the full ABI rationale. Revisit when torch-harmonics ships broader
+  # wheels OR when torch-harmonics is moved to an extras_require.
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14]
         python-version: ["3.12"]
 
     steps:
@@ -39,7 +44,6 @@ jobs:
             -v
 
       - name: Upload results to Codecov
-        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -54,9 +54,13 @@ Median wall-clock on a single NVIDIA H100 80 GB GPU (batch=16, `torch.utils.benc
 
 ## Compatibility
 
+- **Platform**: Linux x86_64 only. `torch_harmonics` 0.9 ships only
+  `manylinux_x86_64` wheels — no macOS, no Windows, no Linux ARM. The
+  rest of the package is platform-independent, but the install will fail
+  on anything else.
 - **Python**: 3.12 only. `torch_harmonics` 0.9 ships no cp310/cp311/cp313
-  wheel, so even though the bispectrum source itself is compatible with
-  3.10+, the install will fail outside of 3.12.
+  wheel either, so even though the bispectrum source itself is compatible
+  with 3.10+, the install will fail outside of 3.12.
 - **PyTorch**: `>=2.10`. `torch_harmonics` 0.9 links against
   `c10::TensorImpl::decref_pyobject`, a symbol that first appeared in
   torch 2.10. Older torch raises `ImportError` at
