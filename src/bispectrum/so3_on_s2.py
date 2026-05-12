@@ -514,6 +514,11 @@ class SO3onS2(nn.Module):
             cached_meta = data['entry_meta']
             if len(cached_meta) != len(entries_for_cg):
                 return None
+            expected_meta = [
+                [l1, l2, l_val, int(is_power)] for _, l1, l2, l_val, is_power in entries_for_cg
+            ]
+            if cached_meta != expected_meta:
+                return None
             return data['cg_vals'], data['m1_idx'], data['m_idx'], data['offsets'], cached_meta
         except (OSError, RuntimeError, KeyError):
             return None
@@ -910,7 +915,7 @@ class SO3onS2(nn.Module):
         fl_i = self._sparse_fl_abs
         eid = self._sparse_entry_ids
 
-        perm = torch.randperm(bi.numel(), generator=torch.Generator().manual_seed(42))
+        perm = torch.randperm(bi.numel())
         bi_perm = bi[perm]
         self._sc_bi_fl1 = fl1_i[bi_perm].to(device=device)
         self._sc_bi_fl2 = fl2_i[bi_perm].to(device=device)
