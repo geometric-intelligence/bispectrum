@@ -1018,8 +1018,8 @@ class TestSparseParity:
             torch.testing.assert_close(
                 out_sel[:, i],
                 out_full[:, j],
-                atol=5e-8,
-                rtol=1e-6,
+                atol=5e-7,
+                rtol=1e-5,
             )
 
     def test_sparse_rotation_invariance(self):

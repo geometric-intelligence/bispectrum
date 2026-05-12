@@ -63,15 +63,6 @@ urls.Homepage = "https://github.com/geometric-intelligence/bispectrum"
 urls.Repository = "https://github.com/geometric-intelligence/bispectrum"
 urls.Issues = "https://github.com/geometric-intelligence/bispectrum/issues"
 
-[[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu128" }
-torchvision = { index = "pytorch-cu128" }
-
 [tool.ruff]
 target-version = "py312"
 line-length = 120
