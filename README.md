@@ -1,3 +1,4 @@
+<img width="1374" height="431" alt="bispectrum_logo" src="https://github.com/user-attachments/assets/337d367b-9838-470e-89b8-057dba584bcd" />
 # bispectrum
 
 [![Tests](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml)
