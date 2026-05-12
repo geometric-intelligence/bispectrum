@@ -28,6 +28,7 @@ Reference: Kakarala (1992), Cohen et al.
 
 import hashlib
 import logging
+import pickle  # nosec B403 — only used for UnpicklingError type reference
 from collections import OrderedDict
 from pathlib import Path
 
@@ -520,7 +521,7 @@ class SO3onS2(nn.Module):
             if cached_meta != expected_meta:
                 return None
             return data['cg_vals'], data['m1_idx'], data['m_idx'], data['offsets'], cached_meta
-        except Exception:
+        except (OSError, RuntimeError, KeyError, pickle.UnpicklingError):
             return None
 
     def _build_group_tables(
