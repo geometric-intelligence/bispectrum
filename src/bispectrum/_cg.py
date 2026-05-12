@@ -1,7 +1,6 @@
 """Clebsch-Gordan coefficient utilities for SO(3).
 
-Computes CG matrices analytically via the Wigner 3j symbol (Racah formula). Also supports loading
-precomputed matrices from the bundled JSON file for validation.
+Computes CG matrices analytically via the Wigner 3j symbol (Racah formula).
 """
 
 from __future__ import annotations
@@ -13,8 +12,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-
-_DATA_PATH = Path(__file__).parent / 'data' / 'cg_lmax5.json'
 
 # ---------------------------------------------------------------------------
 # Log-factorial table (precomputed up to a generous ceiling; extended lazily)
