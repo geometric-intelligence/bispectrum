@@ -161,18 +161,61 @@ class TestDnonDnForward:
         torch.testing.assert_close(f_rec, f, atol=1e-10, rtol=1e-10)
 
 
+def _group_action(f: torch.Tensor, n: int, rot: int, refl: bool) -> torch.Tensor:
+    """Apply the D_n element a^rot x^refl to a batch of signals."""
+    idx = []
+    for m in (0, 1):
+        for pos in range(n):
+            if not refl:
+                lp, mp = (pos - rot) % n, m
+            else:
+                lp, mp = (rot - pos) % n, (m + 1) % 2
+            idx.append(mp * n + lp)
+    return f[:, idx]
+
+
 class TestDnonDnInvert:
+    @pytest.mark.parametrize('n', [3, 4, 5, 6, 7, 8, 9, 10, 12, 16])
+    def test_roundtrip_full_bispectrum(self, n: int):
+        """Forward(invert(beta)) == beta for the FULL selective bispectrum.
+
+        This is the completeness contract. The previous implementation failed it for even n and n=3
+        (relative errors of order 1).
+        """
+        torch.manual_seed(n + 42)
+        bsp = DnonDn(n=n)
+        f = torch.randn(8, 2 * n, dtype=torch.float64)
+        beta = bsp(f)
+        f_rec = bsp.invert(beta)
+        beta_rec = bsp(f_rec)
+        rel = ((beta_rec - beta).norm(dim=-1) / beta.norm(dim=-1)).max().item()
+        assert rel < 1e-6, f'n={n}: full bispectrum roundtrip rel err {rel:.3e}'
+
+    @pytest.mark.parametrize('n', [4, 6, 8, 10, 12])
+    def test_orbit_recovery_even_n(self, n: int):
+        """For even n the reconstruction lies in the D_n orbit of the input."""
+        torch.manual_seed(n + 7)
+        bsp = DnonDn(n=n)
+        f = torch.randn(4, 2 * n, dtype=torch.float64)
+        f_rec = bsp.invert(bsp(f))
+
+        best = None
+        for refl in (False, True):
+            for rot in range(n):
+                d = (_group_action(f_rec, n, rot, refl) - f).norm(dim=-1)
+                best = d if best is None else torch.minimum(best, d)
+        rel = (best / f.norm(dim=-1)).max().item()
+        assert rel < 1e-6, f'n={n}: orbit distance {rel:.3e}'
+
     @pytest.mark.parametrize('n', [3, 4, 5, 7, 8])
     def test_roundtrip_bispectrum(self, n: int):
-        """β_{00} and β_{01} must roundtrip exactly; β_{1k} up to O(2)."""
+        """β_{00} and β_{01} blocks roundtrip (subset of the full check)."""
         torch.manual_seed(n + 42)
         bsp = DnonDn(n=n)
         f = torch.randn(4, 2 * n, dtype=torch.float64)
         beta = bsp(f)
         f_rec = bsp.invert(beta)
         beta_rec = bsp(f_rec)
-        # β_{ρ0,ρ0} and β_{ρ0,ρ1} are determined by F_0 and F_1^T F_1
-        # which are recovered exactly (the O(2) ambiguity cancels).
         torch.testing.assert_close(beta[:, :5], beta_rec[:, :5], atol=ATOL, rtol=RTOL)
 
     @pytest.mark.parametrize('n', [3, 4, 5, 7, 8])
@@ -210,3 +253,17 @@ class TestDnonDnInvert:
         bsp = DnonDn(n=8, selective=False)
         with pytest.raises(NotImplementedError):
             bsp.invert(torch.randn(2, 4))
+
+
+class TestDnonDnValidation:
+    def test_complex_input_raises(self):
+        bsp = DnonDn(n=4)
+        with pytest.raises(TypeError, match='real-valued'):
+            bsp(torch.randn(2, 8, dtype=torch.complex128))
+
+    def test_wrong_shape_raises(self):
+        bsp = DnonDn(n=4)
+        with pytest.raises(ValueError, match='Expected shape'):
+            bsp(torch.randn(2, 7))
+        with pytest.raises(ValueError, match='Expected shape'):
+            bsp(torch.randn(8))

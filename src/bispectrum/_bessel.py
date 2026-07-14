@@ -15,13 +15,13 @@ import torch
 
 
 def bessel_jn(n: int, x: torch.Tensor) -> torch.Tensor:
-    """Compute J_n(x) for integer order n >= 0 via forward recurrence.
+    """Compute J_n(x) for integer order n >= 0.
 
-    Uses torch.special.bessel_j0 and bessel_j1 as base cases and the
-    standard recurrence J_{k+1}(x) = (2k/x)*J_k(x) - J_{k-1}(x).
-
-    Forward recurrence is stable when x >= n, which holds for our use
-    case (evaluating at Bessel root * r where r in [0, 1]).
+    Uses the forward recurrence J_{k+1}(x) = (2k/x)*J_k(x) - J_{k-1}(x)
+    where it is stable (x >= n) and Miller's backward recurrence where
+    the forward direction diverges (x < n).  The forward recurrence
+    amplifies the Y_n admixture exponentially for x < n, which matters
+    for disk harmonics: they evaluate J_n(lambda * r) with r near 0.
 
     Args:
         n: Non-negative integer order.
@@ -38,6 +38,16 @@ def bessel_jn(n: int, x: torch.Tensor) -> torch.Tensor:
     if n == 1:
         return torch.special.bessel_j1(x)
 
+    needs_backward = x.abs() < n
+    if not bool(needs_backward.any()):
+        return _bessel_jn_forward(n, x)
+    if bool(needs_backward.all()):
+        return _bessel_jn_miller(n, x)
+    return torch.where(needs_backward, _bessel_jn_miller(n, x), _bessel_jn_forward(n, x))
+
+
+def _bessel_jn_forward(n: int, x: torch.Tensor) -> torch.Tensor:
+    """Forward recurrence for J_n(x); stable only for |x| >= n."""
     j_prev = torch.special.bessel_j0(x)
     j_curr = torch.special.bessel_j1(x)
 
@@ -51,26 +61,53 @@ def bessel_jn(n: int, x: torch.Tensor) -> torch.Tensor:
     return j_curr
 
 
+def _bessel_jn_miller(n: int, x: torch.Tensor) -> torch.Tensor:
+    """Miller's backward recurrence for J_n(x); stable for |x| < n.
+
+    Recurs downward from a start order well above n with an arbitrary seed, then normalizes with
+    the identity J_0(x) + 2*sum_k J_{2k}(x) = 1.
+    """
+    ax = x.abs()
+    safe_x = torch.where(ax == 0, torch.ones_like(ax), ax)
+
+    m_start = n + int(math.sqrt(60.0 * (n + 1))) + 20
+    if m_start % 2 == 1:
+        m_start += 1
+
+    j_up = torch.zeros_like(ax)  # J_{k+1}
+    j_k = torch.full_like(ax, 1e-30)  # J_k, arbitrary seed normalized away
+    norm_even = torch.zeros_like(ax)  # 2 * sum of J_{2k}, k >= 1
+    result = torch.zeros_like(ax)
+
+    for k in range(m_start, 0, -1):
+        j_dn = (2.0 * k / safe_x) * j_k - j_up  # J_{k-1}
+        j_up = j_k
+        j_k = j_dn
+        if k - 1 == n:
+            result = j_k.clone()
+        if (k - 1) > 0 and (k - 1) % 2 == 0:
+            norm_even = norm_even + 2.0 * j_k
+        big = j_k.abs() > 1e250
+        if bool(big.any()):
+            scale = torch.where(big, torch.full_like(j_k, 1e-250), torch.ones_like(j_k))
+            j_k = j_k * scale
+            j_up = j_up * scale
+            norm_even = norm_even * scale
+            result = result * scale
+
+    out = result / (j_k + norm_even)  # j_k is now J_0
+    out = torch.where(ax == 0, torch.zeros_like(out), out)
+    if n % 2 == 1:
+        out = torch.where(x < 0, -out, out)
+    return out
+
+
 def _jn_scalar(n: int, x: float) -> float:
-    """Fast scalar evaluation of J_n(x) using raw math."""
-    if n == 0:
-        return torch.special.bessel_j0(torch.tensor(x, dtype=torch.float64)).item()
-    if n == 1:
-        return torch.special.bessel_j1(torch.tensor(x, dtype=torch.float64)).item()
-
-    xt = torch.tensor(x, dtype=torch.float64)
-    j_prev = torch.special.bessel_j0(xt).item()
-    j_curr = torch.special.bessel_j1(xt).item()
-
-    if x == 0:
+    """Scalar evaluation of J_n(x); delegates to the stable tensor path."""
+    if x == 0 and n >= 1:
         return 0.0
-
-    for k in range(1, n):
-        j_next = (2.0 * k / x) * j_curr - j_prev
-        j_prev = j_curr
-        j_curr = j_next
-
-    return j_curr
+    result: float = bessel_jn(n, torch.tensor(x, dtype=torch.float64)).item()
+    return result
 
 
 def _djn_scalar(n: int, x: float) -> float:
@@ -161,7 +198,13 @@ def _bisect_newton_batch(n: int, a: torch.Tensor, b: torch.Tensor) -> torch.Tens
     exact_b = fb.abs() < 1e-15
     no_sign_change = fa * fb > 0
 
-    x = (a + b) / 2.0
+    # Collapse brackets whose endpoint is already a root so the bisection
+    # below cannot walk away from it (fa*fx < 0 is False when fa == 0).
+    b = torch.where(exact_a, a, b)
+    a = torch.where(exact_b, b, a)
+
+    mid0 = (a + b) / 2.0
+    x = mid0.clone()
 
     for _ in range(80):
         fx = bessel_jn(n, x)
@@ -171,25 +214,32 @@ def _bisect_newton_batch(n: int, a: torch.Tensor, b: torch.Tensor) -> torch.Tens
             dfx = (bessel_jn(n - 1, x) - bessel_jn(n + 1, x)) / 2.0
 
         newton_ok = dfx.abs() > 1e-30
-        x_newton = torch.where(newton_ok, x - fx / dfx.clamp_min(1e-30).copysign(dfx), x)
+        safe_dfx = dfx.abs().clamp_min(1e-30).copysign(dfx)
+        x_newton = torch.where(newton_ok, x - fx / safe_dfx, x)
         in_bracket = (a < x_newton) & (x_newton < b)
         x = torch.where(in_bracket & newton_ok, x_newton, (a + b) / 2.0)
 
         fx = bessel_jn(n, x)
+
+        # If fx is exactly 0 the sign test below is ill-defined and the
+        # bisection would discard the root; pin the bracket at x instead.
+        hit = fx == 0
+        a = torch.where(hit, x, a)
+        b = torch.where(hit, x, b)
+
         go_left = fa * fx < 0
-        b = torch.where(go_left, x, b)
-        fb = torch.where(go_left, fx, fb)
-        a = torch.where(~go_left, x, a)
-        fa = torch.where(~go_left, fx, fa)
+        keep = ~hit
+        b = torch.where(keep & go_left, x, b)
+        fb = torch.where(keep & go_left, fx, fb)
+        a = torch.where(keep & ~go_left, x, a)
+        fa = torch.where(keep & ~go_left, fx, fa)
 
         converged = (b - a) < 1e-14 * a.abs().clamp(min=1.0)
         if converged.all():
             break
 
     result = (a + b) / 2.0
-    result = torch.where(exact_a, a, result)
-    result = torch.where(exact_b, b, result)
-    result = torch.where(no_sign_change & ~exact_a & ~exact_b, (a + b) / 2.0, result)
+    result = torch.where(no_sign_change & ~exact_a & ~exact_b, mid0, result)
     return result
 
 

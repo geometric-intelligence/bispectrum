@@ -445,6 +445,10 @@ class DnonDn(nn.Module):
         """
         if not self.selective:
             raise NotImplementedError('Full bispectrum not yet implemented for DnonDn.')
+        if f.is_complex():
+            raise TypeError('f must be a real-valued tensor, got complex dtype.')
+        if f.ndim != 2 or f.shape[-1] != 2 * self.n:
+            raise ValueError(f'Expected shape (batch, {2 * self.n}), got {tuple(f.shape)}')
 
         n3 = self._n3
         batch = f.shape[0]
@@ -488,13 +492,99 @@ class DnonDn(nn.Module):
             dim=-1,
         )
 
+    def _chain_extract(
+        self,
+        beta: torch.Tensor,
+        F0: torch.Tensor,
+        S: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        """Sequential 2D-coefficient recovery from beta_{rho1, rho_k}.
+
+        Given seeds F(rho_0) = *F0* and F(rho_1) = *S*, extracts F(rho_{k+1})
+        from beta_{rho1, rho_k} for k = 1..n3.  Only forward-chain 2D blocks
+        (label k+1) and the rho_01 entry are written: backward blocks
+        (label k-1) and the 1D rho_02/rho_03 fold entries are gauge-dependent
+        re-extractions that must not overwrite exact seeds.
+
+        Returns:
+            (fhat, last_block) where *last_block* is the raw 4x4
+            block-diagonal matrix of the final chain step (contains the
+            fold entries), or None if n3 == 0.
+        """
+        n2d = self._n2d
+        n3 = self._n3
+        batch = beta.shape[0]
+        dtype = beta.dtype
+        device = beta.device
+
+        fhat = torch.zeros(batch, 2, 2, n2d + 1, device=device, dtype=dtype)
+        fhat[:, 0, 0, 0] = F0
+        fhat[:, :, :, 1] = S
+
+        last_block: torch.Tensor | None = None
+        offset = 5
+        for m in range(n3):
+            k_prev = m + 1
+            b_1k = beta[:, offset : offset + 16].reshape(batch, 4, 4)
+            offset += 16
+
+            C = self._cg_matrices[m].to(dtype)
+            A = _batched_kron_2x2(fhat[:, :, :, 1], fhat[:, :, :, k_prev])
+            A_inv = torch.linalg.inv(A)
+
+            # beta = C (oplus F^T) C^T A  =>  oplus F = [C^T beta A^{-1} C]^T
+            temp = torch.matmul(b_1k, A_inv)
+            temp = torch.matmul(C.T, temp)
+            temp = torch.matmul(temp, C)
+            block_diag = temp.transpose(-1, -2)
+
+            for block in self._decompositions[m]:
+                if block.block_type == '2d':
+                    k_label = block.label
+                    assert isinstance(k_label, int)
+                    if k_label != k_prev + 1:
+                        continue
+                    r0, r1 = block.rows
+                    fhat[:, :, :, k_label] = block_diag[:, r0 : r1 + 1, r0 : r1 + 1]
+                elif block.label == 'rho01':
+                    fhat[:, 1, 0, 0] = block_diag[:, block.rows[0], block.rows[0]]
+            last_block = block_diag
+
+        return fhat, last_block
+
+    @staticmethod
+    def _givens_batch(theta: torch.Tensor) -> torch.Tensor:
+        """Batched 2x2 rotation matrices R(theta).
+
+        Shape (batch, 2, 2).
+        """
+        c, s = torch.cos(theta), torch.sin(theta)
+        return torch.stack([torch.stack([c, -s], -1), torch.stack([s, c], -1)], -2)
+
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
         """Recover a signal from its selective bispectrum.
 
-        Implements Algorithm 3 (Sec. 4.1.3) from Mataigne et al., ICML 2024.
-        Reconstruction has O(2) indeterminacy (continuous rotations and
-        reflections), so the recovered signal matches the original up to
-        a D_n group action.
+        Implements Algorithm 3 (Sec. 4.1.3) from Mataigne et al., ICML 2024,
+        with an explicit resolution of the O(2) gauge ambiguity.
+
+        The symmetric square root S of beta_{rho0,rho1}/F(rho0) determines
+        F(rho_1) only up to an O(2) twist Q (F_1 = Q S).  The chain
+        extraction of the 2D coefficients is consistent in any fixed twist
+        frame, but the *fold* entries — rho_02/rho_03 for even n (from
+        rho_1 x rho_{n/2 - 1}) and the folded rho_1 block at n = 3 — mix
+        components by a rotation R(h*theta) that depends on the twist angle.
+        This method measures that rotation from the fold block, corrects the
+        seed S by a finite candidate set of gauge angles (rotations and
+        reflection), and selects the candidate whose reconstruction
+        reproduces *beta* exactly (verified via :meth:`forward`).
+
+        For odd n >= 5 there is no fold and a single chain pass is exact.
+
+        The reconstruction satisfies ``forward(invert(beta)) == beta`` to
+        machine precision for generic signals.  The recovered signal is
+        determined up to the O(2) twist; degenerate inputs (F(rho_0) = 0 or
+        singular F(rho_1)) are outside the algorithm's domain and may
+        reconstruct inaccurately.
 
         Args:
             beta: Selective bispectrum, shape ``(batch, output_size)``.
@@ -505,74 +595,98 @@ class DnonDn(nn.Module):
         if not self.selective:
             raise NotImplementedError('Inversion only implemented for selective bispectrum.')
 
-        n2d = self._n2d
-        n3 = self._n3
+        n = self.n
         batch = beta.shape[0]
-        device = beta.device
         dtype = beta.dtype
-
-        fhat = torch.zeros(batch, 2, 2, n2d + 1, device=device, dtype=dtype)
+        device = beta.device
+        eps = 1e-12
 
         # Step 1 — F(rho_0) from beta_{rho0,rho0} = F(rho0)^3
         b00 = beta[:, 0]
-        fhat[:, 0, 0, 0] = torch.sign(b00) * torch.abs(b00) ** (1.0 / 3.0)
+        F0 = torch.sign(b00) * torch.abs(b00) ** (1.0 / 3.0)
 
-        # Step 2 — F(rho_1) via eigendecomposition of beta_{rho0,rho1}/F(rho0)
+        # Step 2 — F(rho_1) up to O(2): symmetric sqrt of beta_{rho0,rho1}/F0
         b01 = beta[:, 1:5].reshape(batch, 2, 2)
-        F0 = fhat[:, 0, 0, 0]
         M = b01 / F0[:, None, None]  # = F1^T @ F1,  positive semi-definite
         eigvals_M, eigvecs_M = torch.linalg.eigh(M)
         eigvals_M = torch.clamp(eigvals_M, min=0.0)
         S = eigvecs_M @ torch.diag_embed(torch.sqrt(eigvals_M)) @ eigvecs_M.transpose(-1, -2)
 
-        fhat[:, :, :, 1] = S
+        has_fold = n % 2 == 0 or n == 3
+        if not has_fold:
+            # Odd n >= 5: chain extraction is exact in the S frame.
+            fhat, _ = self._chain_extract(beta, F0, S)
+            return self._inverse_dft(fhat)
 
-        # Step 3 — sequential recovery from beta_{rho1, rho_k}.
-        # The extraction gives Fourier coefficients that are "twisted"
-        # by the O(2) ambiguity in F_1.  Fourier coefficient magnitudes
-        # (Frobenius norms) are always exact; the bispectrum of the
-        # recovered signal matches the original only up to O(2).
-        offset = 5
-        for m in range(n3):
-            k_prev = m + 1
-            b_1k = beta[:, offset : offset + 16].reshape(batch, 4, 4)
-            offset += 16
+        decomp_last = self._decompositions[self._n3 - 1]
+        if n % 2 == 0:
+            fold_1d = [
+                b for b in decomp_last if b.block_type == '1d' and b.label in ('rho02', 'rho03')
+            ]
+            fold_idx = torch.tensor([b.rows[0] for b in fold_1d], device=device)
+            fold_labels = [b.label for b in fold_1d]
+            fold_scale = float(n // 2)
+            n_shift = 2
+        else:  # n == 3: the rho_1 block folds back onto itself
+            fold_2d = next(b for b in decomp_last if b.block_type == '2d' and b.label == 1)
+            fold_scale = float(n)
+            n_shift = 6
 
-            C = self._cg_matrices[m].to(dtype)
-            F1 = fhat[:, :, :, 1]
-            Fkp = fhat[:, :, :, k_prev]
+        D_refl = torch.tensor([[1.0, 0.0], [0.0, -1.0]], device=device, dtype=dtype)
 
-            A = _batched_kron_2x2(F1, Fkp)
-            A_inv = torch.linalg.inv(A)
+        best_resid = torch.full((batch,), float('inf'), device=device, dtype=dtype)
+        best_f = torch.zeros(batch, 2 * n, device=device, dtype=dtype)
 
-            # beta = C (oplus F^T) C^T A  =>  oplus F = [C^T beta A^{-1} C]^T
-            temp = torch.matmul(b_1k, A_inv)
-            temp = torch.matmul(C.T, temp)
-            temp = torch.matmul(temp, C)
-            block_diag = temp.transpose(-1, -2)
+        def consider(f_rec: torch.Tensor) -> None:
+            nonlocal best_resid, best_f
+            resid = (self.forward(f_rec) - beta).norm(dim=-1)
+            better = resid < best_resid
+            best_f = torch.where(better.unsqueeze(-1), f_rec, best_f)
+            best_resid = torch.minimum(best_resid, resid)
 
-            decomp = self._decompositions[m]
-            for block in decomp:
-                if block.block_type == '2d':
-                    r0, r1 = block.rows
-                    k_label = block.label
-                    assert isinstance(k_label, int)
-                    fhat[:, :, :, k_label] = block_diag[:, r0 : r1 + 1, r0 : r1 + 1]
-                else:
-                    r = block.rows[0]
-                    lbl = block.label
-                    assert isinstance(lbl, str)
-                    val = block_diag[:, r, r]
-                    if lbl == 'rho0':
-                        fhat[:, 0, 0, 0] = val
-                    elif lbl == 'rho01':
-                        fhat[:, 1, 0, 0] = val
-                    elif lbl == 'rho02':
-                        fhat[:, 0, 1, 0] = val
-                    elif lbl == 'rho03':
-                        fhat[:, 1, 1, 0] = val
+        for refl in (False, True):
+            S_base = (D_refl @ S) if refl else S
+            _, lb = self._chain_extract(beta, F0, S_base)
+            assert lb is not None
 
-        return self._inverse_dft(fhat)
+            # Measure the fold rotation angle in this frame.
+            if n % 2 == 0:
+                W = lb[:, fold_idx][:, :, fold_idx]
+                # W = R(h*theta) @ diag(v): column norms are |v|, the
+                # normalized columns give the rotation (up to column signs,
+                # covered by the shift/sign candidates below).
+                cnorm = W.norm(dim=1).clamp_min(eps)
+                O = W / cnorm.unsqueeze(1)
+                phi = torch.atan2(O[:, 1, 0], O[:, 0, 0])
+            else:
+                r0, r1 = fold_2d.rows
+                W = lb[:, r0 : r1 + 1, r0 : r1 + 1]
+                Mw = W @ torch.linalg.inv(S_base)
+                U, _sv, Vh = torch.linalg.svd(Mw)
+                det = torch.linalg.det(U @ Vh)
+                U2 = U.clone()
+                U2[:, :, 1] = U2[:, :, 1] * det.unsqueeze(-1)
+                R = U2 @ Vh
+                phi = torch.atan2(R[:, 1, 0], R[:, 0, 0])
+
+            for mshift in range(n_shift):
+                for sign in (1.0, -1.0):
+                    theta_hat = sign * (-(phi + torch.pi * mshift) / fold_scale)
+                    S2 = self._givens_batch(theta_hat) @ S_base
+                    fhat2, lb2 = self._chain_extract(beta, F0, S2)
+                    assert lb2 is not None
+                    if n % 2 == 0:
+                        # Fold block is now diagonal: read rho_02/rho_03 off.
+                        W2 = lb2[:, fold_idx][:, :, fold_idx]
+                        for i, lbl in enumerate(fold_labels):
+                            val = W2[:, i, i]
+                            if lbl == 'rho02':
+                                fhat2[:, 0, 1, 0] = val
+                            else:
+                                fhat2[:, 1, 1, 0] = val
+                    consider(self._inverse_dft(fhat2))
+
+        return best_f
 
     @property
     def output_size(self) -> int:

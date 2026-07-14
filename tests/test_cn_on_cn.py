@@ -107,6 +107,13 @@ class TestCnonCnForward:
         out = bsp(f)
         assert out.is_complex()
 
+    def test_complex_input_accepted(self):
+        """Complex signals are part of the signal model: invert() returns
+        complex reconstructions that must be re-checkable via forward()."""
+        bsp = CnonCn(n=8)
+        out = bsp(torch.randn(2, 8, dtype=torch.complex128))
+        assert out.dtype == torch.complex128
+
     def test_output_dtype_float64(self):
         bsp = CnonCn(n=8)
         f = torch.randn(2, 8, dtype=torch.float64)

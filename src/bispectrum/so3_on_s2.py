@@ -916,7 +916,11 @@ class SO3onS2(nn.Module):
         fl_i = self._sparse_fl_abs
         eid = self._sparse_entry_ids
 
-        perm = torch.randperm(bi.numel())
+        # Use a private generator: this cache build must not perturb the
+        # user's global RNG stream, and the layout should be reproducible.
+        gen = torch.Generator()
+        gen.manual_seed(0x5CA77E12)
+        perm = torch.randperm(bi.numel(), generator=gen)
         bi_perm = bi[perm]
         self._sc_bi_fl1 = fl1_i[bi_perm].to(device=device)
         self._sc_bi_fl2 = fl2_i[bi_perm].to(device=device)

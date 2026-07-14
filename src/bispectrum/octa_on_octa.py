@@ -502,7 +502,6 @@ class OctaonOcta(nn.Module):
         Fplus = torch.zeros(batch, d, d, dtype=dtype, device=device)
 
         for irrep_k, r0, r1 in block_info:
-            r1 - r0
             block = fhat[irrep_k]
             padded = torch.nn.functional.pad(block, (r0, d - r1, r0, d - r1))
             Fplus = Fplus + padded
@@ -735,7 +734,6 @@ class OctaonOcta(nn.Module):
 
         Uses (J^T J + mu I)^{-1} J^T r with mu adapted per sample to ensure the residual decreases.
         """
-        f.shape[0]
         target_real = beta_target.real
 
         def fwd_single(x: torch.Tensor) -> torch.Tensor:

@@ -495,7 +495,6 @@ def compute_sparse_cg_entry(
     _ensure_log_fact(max_n)
     lf = np.array(_LOG_FACT[: max_n + 1])
 
-    2 * l2 + 1
     sqrt_2l1 = math.sqrt(2 * l_val + 1)
     log_tri = (
         lf[l1 + l2 - l_val] + lf[l1 - l2 + l_val] + lf[-l1 + l2 + l_val] - lf[l1 + l2 + l_val + 1]

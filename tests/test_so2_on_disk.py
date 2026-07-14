@@ -40,10 +40,76 @@ class TestBessel:
     )
     def test_known_roots(self, n: int, expected_first_root: float):
         roots = bessel_jn_zeros(n, 3)
-        # Forward recurrence has cancellation near J_n roots for n >= 2,
-        # giving ~1e-6 precision. Roots are self-consistent (bessel_jn
-        # at the root is ~0), which is what matters for the DHT.
+        # Root accuracy is limited (~1e-6) by torch.special.bessel_j0/j1,
+        # which have absolute error ~3e-7 near their zeros.
         assert roots[0].item() == pytest.approx(expected_first_root, abs=1e-5)
+
+    @pytest.mark.parametrize(
+        'n, x, expected',
+        [
+            # Reference values from mpmath (50 digits). The old forward-only
+            # recurrence returned ~1e+11 for J_20(0.5).
+            (10, 0.5, 2.6131773608228023e-13),
+            (20, 0.5, 3.7272019617047145e-31),
+            (20, 10.0, 1.1513369247813403e-05),
+            (30, 1.0, 3.4828697942514834e-42),
+            (40, 2.0, 1.1960774581136798e-48),
+            (60, 30.0, 9.8075576431286213e-14),
+        ],
+    )
+    def test_jn_small_argument_reference_values(self, n: int, x: float, expected: float):
+        """Backward (Miller) recurrence is accurate in the x < n regime."""
+        got = bessel_jn(n, torch.tensor([x], dtype=torch.float64)).item()
+        assert got == pytest.approx(expected, rel=1e-12)
+
+    def test_jn_continuous_across_regime_boundary(self):
+        """Forward/backward switch at |x| = n must not create a jump."""
+        for n in (5, 12, 25):
+            x = torch.linspace(n - 0.5, n + 0.5, 101, dtype=torch.float64)
+            vals = bessel_jn(n, x)
+            jumps = (vals[1:] - vals[:-1]).abs()
+            assert jumps.max().item() < 1e-2
+            assert torch.isfinite(vals).all()
+
+    def test_jn_odd_symmetry_negative_x(self):
+        """J_n(-x) = (-1)^n J_n(x)."""
+        x = torch.linspace(0.1, 10.0, 50, dtype=torch.float64)
+        for n in (3, 8):
+            sign = -1.0 if n % 2 == 1 else 1.0
+            torch.testing.assert_close(bessel_jn(n, -x), sign * bessel_jn(n, x))
+
+    @pytest.mark.parametrize(
+        'n, k, expected_root',
+        [
+            # mpmath besseljzero references, including cases where the old
+            # batch bisection walked away from an already-converged root
+            # (e.g. j_{6,5} came back as 25.43 instead of 23.586).
+            (6, 5, 23.586084435581391),
+            (10, 9, 42.004190236671805),
+            (20, 8, 51.860019928074567),
+        ],
+    )
+    def test_high_order_roots_match_reference(self, n: int, k: int, expected_root: float):
+        roots = bessel_jn_zeros(n, k)
+        assert roots[k - 1].item() == pytest.approx(expected_root, abs=1e-5)
+
+    def test_roots_interlace(self):
+        """j_{n-1,k} < j_{n,k} < j_{n-1,k+1} for all consecutive orders.
+
+        The old solver returned roots of J_{n-1} in J_n slots, which violates strict interlacing.
+        """
+        all_roots = compute_all_bessel_roots(20, 10)
+        for n in range(1, 21):
+            prev = all_roots[n - 1]
+            curr = all_roots[n]
+            for k in range(min(len(curr), len(prev) - 1)):
+                assert prev[k] < curr[k] < prev[k + 1], f'Interlacing violated at n={n}, k={k + 1}'
+
+    def test_root_residuals_high_orders(self):
+        all_roots = compute_all_bessel_roots(20, 10)
+        for n, roots in all_roots.items():
+            vals = bessel_jn(n, torch.tensor(roots, dtype=torch.float64))
+            assert vals.abs().max().item() < 1e-6, f'Large residual at order {n}'
 
     @pytest.mark.parametrize('n', [0, 1, 2, 5, 10])
     def test_jn_at_zeros_is_zero(self, n: int):
@@ -93,6 +159,19 @@ class TestBessel:
         """When fa * fb > 0, should return midpoint."""
         root = _bisect_newton(0, 0.1, 0.5)
         assert root == pytest.approx(0.3, abs=1e-6)
+
+
+class TestDiskBasisConditioning:
+    def test_basis_matrix_near_full_rank(self):
+        """The DHT basis must be well conditioned.
+
+        With the unstable forward-only Bessel recurrence the L=16 basis already lost rank (and L=32
+        collapsed to rank 5 of 804).
+        """
+        bsp = SO2onDisk(L=16)
+        rank = torch.linalg.matrix_rank(bsp._phi).item()
+        n_cols = bsp._phi.shape[1]
+        assert rank >= n_cols - 3, f'rank {rank} of {n_cols}'
 
 
 class TestRealComplexConversion:
