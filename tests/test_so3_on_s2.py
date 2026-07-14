@@ -125,6 +125,20 @@ class TestSO3onS2:
         bsp = SO3onS2(lmax=6, nlat=32, nlon=64)
         assert bsp.output_size > 0
 
+    def test_forward_does_not_perturb_global_rng(self):
+        """Building the internal device cache must not consume global RNG state."""
+        bsp = SO3onS2(lmax=3, nlat=32, nlon=64)
+        f = torch.randn(1, 32, 64, dtype=torch.float64)
+
+        torch.manual_seed(1234)
+        expected = torch.randn(5)
+
+        torch.manual_seed(1234)
+        bsp(f)  # first forward triggers the lazy cache build (randperm)
+        observed = torch.randn(5)
+
+        torch.testing.assert_close(observed, expected)
+
     def test_index_map_structure(self):
         bsp = SO3onS2(lmax=3, nlat=32, nlon=64)
         for l1, l2, l in bsp.index_map:
