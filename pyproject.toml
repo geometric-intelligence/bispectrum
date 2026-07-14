@@ -38,7 +38,10 @@ classifiers = [
 ]
 
 dependencies = [
-  "torch>=2.10",
+  # torch-harmonics 0.9.x ships C extensions built against the torch<2.12
+  # ABI; importing it under torch>=2.12 fails with undefined symbols.
+  # Lift the upper bound once torch-harmonics releases compatible wheels.
+  "torch>=2.10,<2.12",
   "numpy>=1.22.4",
   "torch-harmonics>=0.9",
 ]
