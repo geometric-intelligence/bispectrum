@@ -97,3 +97,7 @@ uv.lock
 *.snm
 *.toc
 *.vrb
+
+# Experiment figure outputs
+experiments/grid_mockup/
+experiments/grid_figure/

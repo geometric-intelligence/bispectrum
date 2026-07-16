@@ -1,6 +1,6 @@
 smnist_data/
 smnist_results/
-smnist_results_matched/
+smnist_results_capacity/
 *.png
 *.pdf
 __pycache__/
