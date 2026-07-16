@@ -11,10 +11,24 @@ Three benchmark experiments comparing G-bispectrum pooling against baseline inva
 
 ## Setup (on the GPU machine)
 
+Requires Python 3.12 (`requires-python = ">=3.12,<3.13"`). The simplest path is `uv`, which downloads 3.12 if the machine only has an older system Python:
+
 ```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # skip if uv is installed
+source ~/.local/bin/env
+
 git clone <repo-url> bispectrum && cd bispectrum
 git checkout <branch>
-python -m venv .venv && source .venv/bin/activate
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[dev,experiments]"
+```
+
+Without uv: create the venv with a real `python3.12` binary and upgrade pip **before** installing (stock Ubuntu pip leaks an old `packaging` into the build env and fails with `No module named 'packaging.licenses'`):
+
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -U pip
 pip install -e ".[dev,experiments]"
 ```
 
