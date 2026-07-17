@@ -32,6 +32,15 @@ pip install -U pip
 pip install -e ".[dev,experiments]"
 ```
 
+**CUDA check.** PyPI's default torch wheels are built against CUDA 13.0, which requires NVIDIA driver r580+. On older drivers (e.g. 575.x = CUDA 12.9) torch prints a "driver too old" warning, reports `cuda.is_available() == False`, and the sweeps silently run on CPU. Fix by swapping in the CUDA 12.8 wheels (driver ≥ 570, same torch version so the `torch-harmonics` ABI pin holds):
+
+```bash
+uv pip install --force-reinstall "torch==2.11.0" torchvision --index-url https://download.pytorch.org/whl/cu128
+python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available'; print(torch.cuda.get_device_name(0))"
+```
+
+Run the assert line before launching tmux — do not start sweeps on a machine where it fails.
+
 Datasets download automatically on first use (PCam from Zenodo ≈ 8 GB, OrganMNIST3D via `medmnist`, MNIST via `torchvision`).
 
 ## Run matrix
