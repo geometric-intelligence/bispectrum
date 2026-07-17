@@ -1,13 +1,19 @@
 #!/bin/bash
-# OrganMNIST3D sweep: run all 4 model variants x 3 seeds.
+# OrganMNIST3D main sweep: all 4 model variants x 3 seeds at channels (4,8).
+#
+# Protocol (consistent-comparison):
+#   - Invariant models (max_pool, norm_pool, bispectrum) are trained
+#     canonical (C).
+#   - The standard 3D CNN is trained with random octahedral augmentation (R)
+#     — it is the "Aug. 3D CNN" baseline in the figures.
+#   - Rotation (OOD) evaluation is always on: the figures plot rotated test
+#     accuracy next to canonical test accuracy.
 #
 # Param counts (default channels 4,8):
 #   standard:    ~16K
 #   max_pool:    ~374K
 #   norm_pool:   ~375K
 #   bispectrum:  ~463K
-#
-# Full sweep: 4 models x 3 seeds with rotation eval (~2 hours)
 #
 # Usage (run in tmux):
 #   ./run_sweep.sh
@@ -26,6 +32,15 @@ MODELS=(standard max_pool norm_pool bispectrum)
 OUTPUT_DIR="./organ3d_results"
 COMMON="--patience 15 --epochs 100 --data_dir ./organ3d_data"
 
+train_mode_for() {
+    local model=$1
+    if [[ "$model" == "standard" ]]; then
+        echo "R"
+    else
+        echo "C"
+    fi
+}
+
 batch_size_for() {
     local model=$1
     if [[ "$model" == "bispectrum" ]]; then
@@ -38,21 +53,23 @@ batch_size_for() {
 }
 
 run_single() {
-    local model=$1 seed=$2 extra=${3:-}
+    local model=$1 seed=$2
     local channels="4 8"
-    local out_dir="${OUTPUT_DIR}/${model}_ch4_8_seed${seed}"
+    local mode
+    mode=$(train_mode_for "$model")
+    local out_dir="${OUTPUT_DIR}/${model}_${mode}_ch4_8_seed${seed}"
     if [[ -f "${out_dir}/results.json" ]]; then
-        echo "SKIP (already done): model=$model seed=$seed"
+        echo "SKIP (already done): model=$model mode=$mode seed=$seed"
         return 0
     fi
     local bs
     bs=$(batch_size_for "$model")
     echo ""
     echo "============================================================"
-    echo "  model=$model  seed=$seed  bs=$bs  $(date)"
+    echo "  model=$model  mode=$mode  seed=$seed  bs=$bs  $(date)"
     echo "============================================================"
-    python train.py --model "$model" --channels $channels \
-        --output_dir "$OUTPUT_DIR" --seed "$seed" --batch_size "$bs" $COMMON $extra
+    python train.py --model "$model" --channels $channels --train_mode "$mode" \
+        --output_dir "$OUTPUT_DIR" --seed "$seed" --batch_size "$bs" $COMMON
 }
 
 echo "=== Full sweep: all seeds with rotation eval ==="

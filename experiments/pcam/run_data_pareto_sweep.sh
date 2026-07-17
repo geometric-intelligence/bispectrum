@@ -2,20 +2,25 @@
 # Data-efficiency Pareto sweep: run each model at matched ~100K params across
 # multiple training set fractions to build AUC-vs-data curves.
 #
+# Protocol (consistent-comparison):
+#   - Invariant models are trained in canonical mode (C).
+#   - The standard CNN is trained with rotation augmentation (R) — it is the
+#     "Aug. CNN" baseline in the figures.
+#   - Rotation (OOD) evaluation is always on: the figure curves plot rotated
+#     test AUC.
+#
 # Matched growth rates (from find_growth_rates.py, target ~100K params):
 #   standard:    gr=12 → 102K
 #   norm:        gr=4  → 110K
 #   gate:        gr=3  → 136K
 #   fourier_elu: gr=4  → 110K
+#   norm_pool:   gr=4  → ~110K (same backbone as fourier_elu, paramless pool)
 #   bispectrum:  gr=4  → 128K
 #   so2_disk:    bl=30 → ~100K (MLP auto-sized)
 #
-# Phase A (36 runs, single seed, skip rotation): ~4-6 hours
-# Phase B (72 runs, 2 more seeds, with rotation): ~10-15 hours
-#
 # Usage (run in tmux):
-#   ./run_data_pareto_sweep.sh              # Phase A
-#   ./run_data_pareto_sweep.sh --phase-b    # Phase B
+#   ./run_data_pareto_sweep.sh              # Phase A (seed 42)
+#   ./run_data_pareto_sweep.sh --phase-b    # Phase B (seeds 123, 456)
 
 set -euo pipefail
 
@@ -32,15 +37,25 @@ MODEL_GR[standard]=12
 MODEL_GR[norm]=4
 MODEL_GR[gate]=3
 MODEL_GR[fourier_elu]=4
+MODEL_GR[norm_pool]=4
 MODEL_GR[bispectrum]=4
 
-MODELS=(standard norm gate fourier_elu bispectrum)
+MODELS=(standard norm gate fourier_elu norm_pool bispectrum)
 # Absolute training-set sizes; "full" maps to PCam's 262144 examples.
 SIZES=(100 500 2500 12500 full)
-SO2_DISK_BL=10
+SO2_DISK_BL=30
 
 BASE_OUTPUT_DIR="./pcam_results_data_pareto"
 COMMON="--patience 10 --epochs 50"
+
+train_mode_for() {
+    local model=$1
+    if [[ "$model" == "standard" ]]; then
+        echo "R"
+    else
+        echo "C"
+    fi
+}
 
 size_args() {
     local size=$1
@@ -61,20 +76,23 @@ size_tag() {
 }
 
 batch_size_for() {
-    local model=$1 gr=$2
+    local model=$1
     case "$model" in
         standard)    echo 1024 ;;
         norm)        echo 128 ;;
         gate)        echo 128 ;;
         fourier_elu) echo 64 ;;
+        norm_pool)   echo 128 ;;
         bispectrum)  echo 128 ;;
         *)           echo 128 ;;
     esac
 }
 
 run_single() {
-    local model=$1 size=$2 seed=$3 extra=${4:-}
+    local model=$1 size=$2 seed=$3
     local gr=${MODEL_GR[$model]}
+    local mode
+    mode=$(train_mode_for "$model")
     local tag
     tag=$(size_tag "$size")
     local output_dir="${BASE_OUTPUT_DIR}/${tag}"
@@ -82,26 +100,26 @@ run_single() {
     if [[ "$size" != "full" ]]; then
         suffix="_n${size}"
     fi
-    local out_dir="${output_dir}/${model}_c8_gr${gr}_seed${seed}${suffix}"
+    local out_dir="${output_dir}/${model}_c8_gr${gr}_${mode}_seed${seed}${suffix}"
     if [[ -f "${out_dir}/results.json" ]]; then
         echo "SKIP (already done): model=$model size=$size seed=$seed"
         return 0
     fi
     local bs
-    bs=$(batch_size_for "$model" "$gr")
+    bs=$(batch_size_for "$model")
     local size_arg
     size_arg=$(size_args "$size")
     echo ""
     echo "============================================================"
-    echo "  model=$model  gr=$gr  size=$size  seed=$seed  bs=$bs  $(date)"
+    echo "  model=$model  gr=$gr  mode=$mode  size=$size  seed=$seed  bs=$bs  $(date)"
     echo "============================================================"
-    python train.py --model "$model" --growth_rate "$gr" \
+    python train.py --model "$model" --growth_rate "$gr" --train_mode "$mode" \
         --output_dir "$output_dir" --seed "$seed" --batch_size "$bs" \
-        $size_arg $COMMON $extra
+        $size_arg $COMMON
 }
 
 run_so2_disk() {
-    local size=$1 seed=$2 extra=${3:-}
+    local size=$1 seed=$2
     local tag
     tag=$(size_tag "$size")
     local output_dir="${BASE_OUTPUT_DIR}/${tag}"
@@ -109,7 +127,7 @@ run_so2_disk() {
     if [[ "$size" != "full" ]]; then
         suffix="_n${size}"
     fi
-    local out_dir="${output_dir}/so2_disk_bl${SO2_DISK_BL}_seed${seed}${suffix}"
+    local out_dir="${output_dir}/so2_disk_bl${SO2_DISK_BL}_C_seed${seed}${suffix}"
     if [[ -f "${out_dir}/results.json" ]]; then
         echo "SKIP (already done): model=so2_disk size=$size seed=$seed"
         return 0
@@ -120,13 +138,13 @@ run_so2_disk() {
     echo "============================================================"
     echo "  model=so2_disk  bl=$SO2_DISK_BL  size=$size  seed=$seed  $(date)"
     echo "============================================================"
-    python train.py --model so2_disk --bandlimit "$SO2_DISK_BL" \
+    python train.py --model so2_disk --bandlimit "$SO2_DISK_BL" --train_mode C \
         --output_dir "$output_dir" --seed "$seed" --batch_size 256 \
-        $size_arg $COMMON $extra
+        $size_arg $COMMON
 }
 
 if [[ "${1:-}" == "--phase-b" ]]; then
-    echo "=== PHASE B: remaining seeds (123, 456) with rotation eval ==="
+    echo "=== PHASE B: remaining seeds (123, 456) ==="
     for size in "${SIZES[@]}"; do
         for seed in 123 456; do
             for model in "${MODELS[@]}"; do
@@ -136,12 +154,12 @@ if [[ "${1:-}" == "--phase-b" ]]; then
         done
     done
 else
-    echo "=== PHASE A: single seed (42), skip rotation ==="
+    echo "=== PHASE A: seed 42 ==="
     for size in "${SIZES[@]}"; do
         for model in "${MODELS[@]}"; do
-            run_single "$model" "$size" 42 "--skip_rotation"
+            run_single "$model" "$size" 42
         done
-        run_so2_disk "$size" 42 "--skip_rotation"
+        run_so2_disk "$size" 42
     done
 fi
 

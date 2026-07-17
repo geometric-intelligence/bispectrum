@@ -1,0 +1,108 @@
+# Experiments
+
+Three benchmark experiments comparing G-bispectrum pooling against baseline invariant/equivariant pooling strategies, plus the reconstruction demo. Results feed the 3x3 grid figure built by `make_grid_figure.py`.
+
+## Comparison protocol (all experiments)
+
+- Invariant models are trained on canonical (non-augmented) data (`train_mode C`).
+- The non-equivariant CNN baseline is trained with G-augmentation (`train_mode R`) and labeled "Aug. CNN" in the figures.
+- Every run records both the canonical test metric and the rotated (OOD) test metric; line plots report the rotated metric, mean ± std over seeds 42/123/456.
+- Cohen et al. (2018) S²CNN appears in the Spherical MNIST row as a published-reference dashed line (cited, not re-run).
+
+## Setup (on the GPU machine)
+
+Requires Python 3.12 (`requires-python = ">=3.12,<3.13"`). The simplest path is `uv`, which downloads 3.12 if the machine only has an older system Python:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # skip if uv is installed
+source ~/.local/bin/env
+
+git clone <repo-url> bispectrum && cd bispectrum
+git checkout <branch>
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[dev,experiments]"
+```
+
+Without uv: create the venv with a real `python3.12` binary and upgrade pip **before** installing (stock Ubuntu pip leaks an old `packaging` into the build env and fails with `No module named 'packaging.licenses'`):
+
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -U pip
+pip install -e ".[dev,experiments]"
+```
+
+**CUDA check.** PyPI's default torch wheels are built against CUDA 13.0, which requires NVIDIA driver r580+. On older drivers (e.g. 575.x = CUDA 12.9) torch prints a "driver too old" warning, reports `cuda.is_available() == False`, and the sweeps silently run on CPU. Fix by swapping in the CUDA 12.8 wheels (driver ≥ 570, same torch version so the `torch-harmonics` ABI pin holds):
+
+```bash
+uv pip install --force-reinstall "torch==2.11.0" torchvision --index-url https://download.pytorch.org/whl/cu128
+python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available'; print(torch.cuda.get_device_name(0))"
+```
+
+Run the assert line before launching tmux — do not start sweeps on a machine where it fails.
+
+Datasets download automatically on first use (PCam from Zenodo ≈ 8 GB, OrganMNIST3D via `medmnist`, MNIST via `torchvision`).
+
+## Run matrix
+
+Each script is resumable: completed runs (existing `results.json`) are skipped, so re-running after an interruption is safe.
+
+| # | Experiment | Script | Runs | Feeds |
+|---|------------|--------|------|-------|
+| 1 | PCam | `pcam/run_matched_sweep.sh` (then `--phase-b`) | 5 CNN configs (R) + 5x5 equivariant (C) + 7 so2_disk, x3 seeds | row 1 params |
+| 2 | PCam | `pcam/run_data_pareto_sweep.sh` (then `--phase-b`) | 6 models x 5 sizes x 3 seeds at ~100K params | row 1 bars + data |
+| 3 | Organ3D | `organ3d/run_sweep.sh` | 4 models x 3 seeds at channels (4,8) | row 2 bars + curve anchors |
+| 4 | Organ3D | `organ3d/run_wider_multiseed.sh` | 4 models x 2 wider channel configs x 3 seeds | row 2 params |
+| 5 | Organ3D | `organ3d/run_dataeff_multiseed.sh` | 4 models x 4 sizes x 3 seeds | row 2 data |
+| 6 | SMNIST | `spherical_mnist/run_sweep.sh` | 3 models x 2 modes x 3 seeds | row 3 bars + Cohen table |
+| 7 | SMNIST | `spherical_mnist/run_capacity_sweep.sh` | 2 models x 5 widths x 3 seeds (C) | row 3 params |
+| 8 | SMNIST | `spherical_mnist/run_data_efficiency.sh` | 3 models x 4 sizes x 3 seeds | row 3 data |
+
+Expected results directories (created next to each script):
+
+```
+pcam/pcam_results_pareto/            # 1
+pcam/pcam_results_data_pareto/       # 2 (n_100/ ... n_full/ subdirs)
+organ3d/organ3d_results/             # 3, 4, 5 (shared)
+spherical_mnist/smnist_results/      # 6, 8 (shared)
+spherical_mnist/smnist_results_capacity/  # 7
+```
+
+## Running on the GPU machine (tmux)
+
+One detached session per experiment family; each logs to a file. The three families are independent — run them on separate GPUs/machines if available (`CUDA_VISIBLE_DEVICES=<n>` before `bash` to pin a GPU).
+
+```bash
+cd ~/bispectrum/experiments
+
+tmux new-session -d -s pcam 'cd pcam && { bash run_matched_sweep.sh && bash run_matched_sweep.sh --phase-b && bash run_data_pareto_sweep.sh && bash run_data_pareto_sweep.sh --phase-b; } 2>&1 | tee pcam_sweeps.log'
+
+tmux new-session -d -s organ3d 'cd organ3d && { bash run_sweep.sh && bash run_wider_multiseed.sh && bash run_dataeff_multiseed.sh; } 2>&1 | tee organ3d_sweeps.log'
+
+tmux new-session -d -s smnist 'cd spherical_mnist && { bash run_sweep.sh && bash run_capacity_sweep.sh && bash run_data_efficiency.sh; } 2>&1 | tee smnist_sweeps.log'
+```
+
+Monitor with `tmux attach -t pcam` (detach: `Ctrl-b d`) or `tail -f <experiment>/<name>_sweeps.log`.
+
+## Pulling results back and building the figure
+
+From the analysis machine:
+
+```bash
+REMOTE=user@gpu-machine:~/bispectrum/experiments
+rsync -avz --include='*/' --include='results.json' --exclude='*' \
+    "$REMOTE/pcam/pcam_results_pareto/"        experiments/pcam/pcam_results_pareto/
+rsync -avz --include='*/' --include='results.json' --exclude='*' \
+    "$REMOTE/pcam/pcam_results_data_pareto/"   experiments/pcam/pcam_results_data_pareto/
+rsync -avz --include='*/' --include='results.json' --exclude='*' \
+    "$REMOTE/organ3d/organ3d_results/"         experiments/organ3d/organ3d_results/
+rsync -avz --include='*/' --include='results.json' --exclude='*' \
+    "$REMOTE/spherical_mnist/smnist_results/"  experiments/spherical_mnist/smnist_results/
+rsync -avz --include='*/' --include='results.json' --exclude='*' \
+    "$REMOTE/spherical_mnist/smnist_results_capacity/" experiments/spherical_mnist/smnist_results_capacity/
+
+python experiments/make_grid_figure.py           # real data -> experiments/grid_figure/
+python experiments/make_grid_figure.py --mock    # layout preview -> experiments/grid_mockup/
+```
+
+Outputs: per-panel PDFs (`grid_r{row}c{col}_*.pdf`), per-row legends, an assembled contact sheet (PNG + PDF), and `caption.txt` with the figure caption including the S²CNN justification.

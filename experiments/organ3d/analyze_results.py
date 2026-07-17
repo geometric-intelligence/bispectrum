@@ -23,7 +23,7 @@ import numpy as np
 
 MODEL_ORDER = ['standard', 'norm_pool', 'max_pool', 'bispectrum']
 MODEL_LABELS = {
-    'standard': 'Standard 3D CNN',
+    'standard': 'Aug. 3D CNN',
     'max_pool': 'O-Equiv + Max Pool',
     'norm_pool': 'O-Equiv + Norm Pool',
     'bispectrum': 'O-Equiv + Bispectrum',
@@ -42,6 +42,11 @@ def _canonical_train_mode(mode: str) -> str:
 
 def _result_train_mode(record: dict) -> str:
     return _canonical_train_mode(record.get('train_mode', DEFAULT_TRAIN_MODE))
+
+
+def _expected_train_mode(model: str) -> str:
+    """Protocol mode per model: Aug. CNN baseline is R-trained, invariants C."""
+    return 'R' if model == 'standard' else 'C'
 
 
 def _test_c(record: dict) -> dict:
@@ -147,9 +152,7 @@ def _baseline_runs(
         f = [
             r
             for r in runs
-            if r.get('channels', [4, 8]) == [4, 8]
-            and _is_full_train(r)
-            and _result_train_mode(r) == train_mode
+            if r.get('channels', [4, 8]) == [4, 8] and _is_full_train(r) and _result_train_mode(r) == train_mode
         ]
         if f:
             filtered[model] = f
@@ -162,10 +165,7 @@ def print_our_results(grouped: dict[str, list[dict]]):
     print('\n' + '=' * 90)
     print('OUR RESULTS (controlled ablation — same backbone, different pooling, C-trained)')
     print('=' * 90)
-    header = (
-        f'{"Model":<25} {"Params":>8} {"Test ACC":>12} {"Test AUC":>12} '
-        f'{"Rot ACC":>12} {"Rot \u03c3_ACC":>10}'
-    )
+    header = f'{"Model":<25} {"Params":>8} {"Test ACC":>12} {"Test AUC":>12} {"Rot ACC":>12} {"Rot \u03c3_ACC":>10}'
     print(header)
     print('-' * 90)
 
@@ -215,9 +215,7 @@ def print_published_baselines():
     print('-' * 80)
     for b in PUBLISHED_BASELINES:
         auc_str = f'{b["auc"]:.3f}' if b['auc'] is not None else '—'
-        print(
-            f'{b["method"]:<30} {b["venue"]:<25} {b["params"]:>8} {b["acc"]:.3f}    {auc_str:>8}'
-        )
+        print(f'{b["method"]:<30} {b["venue"]:<25} {b["params"]:>8} {b["acc"]:.3f}    {auc_str:>8}')
 
 
 def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
@@ -246,7 +244,7 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
     )
 
     PLOT_LABELS = {
-        'standard': 'Standard',
+        'standard': 'Aug. 3D CNN',
         'max_pool': 'Max Pool',
         'norm_pool': 'Norm Pool',
         'bispectrum': 'Bispectrum',
@@ -381,10 +379,20 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
 
     organ_full = 971
     sizes = [100, 500, organ_full]
-    models_to_plot = ['standard', 'max_pool', 'bispectrum']
-    colors = {'standard': '#888888', 'max_pool': '#2D6A9F', 'bispectrum': '#C44E52'}
-    markers = {'standard': 's', 'max_pool': 'D', 'bispectrum': 'o'}
-    labels = {'standard': 'Standard CNN', 'max_pool': 'Max Pool', 'bispectrum': 'Bispectrum'}
+    models_to_plot = ['standard', 'norm_pool', 'max_pool', 'bispectrum']
+    colors = {
+        'standard': '#888888',
+        'norm_pool': '#5C6BC0',
+        'max_pool': '#2D6A9F',
+        'bispectrum': '#C44E52',
+    }
+    markers = {'standard': 's', 'norm_pool': 'v', 'max_pool': 'D', 'bispectrum': 'o'}
+    labels = {
+        'standard': 'Aug. 3D CNN',
+        'norm_pool': 'Norm Pool',
+        'max_pool': 'Max Pool',
+        'bispectrum': 'Bispectrum',
+    }
 
     fig, ax = plt.subplots(figsize=(5.5, 3.5))
 
@@ -398,7 +406,7 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
                 for r in grouped.get(model, [])
                 if _train_size_value(r) == target
                 and r.get('channels', [4, 8]) == [4, 8]
-                and _result_train_mode(r) == 'C'
+                and _result_train_mode(r) == _expected_train_mode(model)
             ]
             if runs:
                 vals = [_test_c(r).get('accuracy', 0.0) for r in runs]
@@ -472,9 +480,7 @@ def print_tier1_summary(grouped: dict[str, list[dict]]):
     print('\n' + '=' * 90)
     print('DATA EFFICIENCY (channels [4,8], C-trained)')
     print('=' * 90)
-    print(
-        f'{"Model":<15} {"N":>6} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}'
-    )
+    print(f'{"Model":<15} {"N":>6} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}')
     print('-' * 85)
 
     for model in models:
@@ -485,7 +491,7 @@ def print_tier1_summary(grouped: dict[str, list[dict]]):
                 for r in grouped.get(model, [])
                 if _train_size_value(r) == target
                 and r.get('channels', [4, 8]) == [4, 8]
-                and _result_train_mode(r) == 'C'
+                and _result_train_mode(r) == _expected_train_mode(model)
             ]
             if runs:
                 accs = [_test_c(r).get('accuracy', 0.0) for r in runs]
@@ -502,9 +508,7 @@ def print_tier1_summary(grouped: dict[str, list[dict]]):
     print('\n' + '=' * 90)
     print('WIDER CHANNELS (full training set)')
     print('=' * 90)
-    print(
-        f'{"Model":<15} {"Channels":>10} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}'
-    )
+    print(f'{"Model":<15} {"Channels":>10} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}')
     print('-' * 85)
 
     for ch in [[4, 8], [8, 16], [16, 32]]:
@@ -512,9 +516,7 @@ def print_tier1_summary(grouped: dict[str, list[dict]]):
             runs = [
                 r
                 for r in grouped.get(model, [])
-                if r.get('channels', [4, 8]) == ch
-                and _is_full_train(r)
-                and _result_train_mode(r) == 'C'
+                if r.get('channels', [4, 8]) == ch and _is_full_train(r) and _result_train_mode(r) == 'C'
             ]
             if runs:
                 accs = [_test_c(r).get('accuracy', 0.0) for r in runs]
