@@ -91,22 +91,41 @@ run_so2_disk() {
         --output_dir "$OUTPUT_DIR" --seed "$seed" --batch_size 256 $COMMON
 }
 
-run_all_for_seed() {
-    local seed=$1
-    for gr in "${STANDARD_GRS[@]}"; do
-        run_single standard "$gr" "$seed" R
-    done
-    for model in "${EQUIVARIANT_MODELS[@]}"; do
-        for gr in "${EQUIVARIANT_GRS[@]}"; do
-            run_single "$model" "$gr" "$seed" C
-        done
-    done
-    for bl in "${SO2_DISK_BLS[@]}"; do
-        run_so2_disk "$bl" "$seed"
-    done
+# Optional env override to run a disjoint subset of models in a parallel
+# stream (skip logic keys on output dirs, so streams must not overlap):
+#   MODELS_FILTER="standard norm gate"  bash run_matched_sweep.sh --seed 42
+MODELS_FILTER="${MODELS_FILTER:-standard ${EQUIVARIANT_MODELS[*]} so2_disk}"
+
+in_filter() {
+    local needle=$1
+    [[ " $MODELS_FILTER " == *" $needle "* ]]
 }
 
-if [[ "${1:-}" == "--phase-b" ]]; then
+run_all_for_seed() {
+    local seed=$1
+    if in_filter standard; then
+        for gr in "${STANDARD_GRS[@]}"; do
+            run_single standard "$gr" "$seed" R
+        done
+    fi
+    for model in "${EQUIVARIANT_MODELS[@]}"; do
+        if in_filter "$model"; then
+            for gr in "${EQUIVARIANT_GRS[@]}"; do
+                run_single "$model" "$gr" "$seed" C
+            done
+        fi
+    done
+    if in_filter so2_disk; then
+        for bl in "${SO2_DISK_BLS[@]}"; do
+            run_so2_disk "$bl" "$seed"
+        done
+    fi
+}
+
+if [[ "${1:-}" == "--seed" ]]; then
+    echo "=== SINGLE SEED: ${2} ==="
+    run_all_for_seed "$2"
+elif [[ "${1:-}" == "--phase-b" ]]; then
     echo "=== PHASE B: remaining seeds (123, 456) ==="
     for seed in 123 456; do
         run_all_for_seed "$seed"
