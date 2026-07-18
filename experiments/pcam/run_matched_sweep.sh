@@ -52,7 +52,10 @@ batch_size_for() {
         if (( gr >= 8 )); then echo 64
         else echo 128
         fi
-    elif [[ "$model" == "gate" ]] && (( gr >= 8 )); then
+    elif [[ "$model" == "gate" ]] && (( gr >= 12 )); then
+        echo 64
+    elif [[ "$model" == "gate" ]] && (( gr >= 6 )); then
+        # gate gr=6 at bs=256 needs >52 GB and OOMs when sharing a GPU.
         echo 128
     else
         echo 256
