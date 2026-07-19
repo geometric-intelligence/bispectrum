@@ -48,7 +48,13 @@ N_TAG="_n${TRAIN_SIZE}"
 
 batch_size_for() {
     local model=$1 gr=$2
-    if [[ "$model" == "fourier_elu" || "$model" == "bispectrum" || "$model" == "norm" || "$model" == "norm_pool" ]]; then
+    if [[ "$model" == "fourier_elu" ]]; then
+        # Fourier-ELU's irfft upsample is memory-hungry; gr=6 at bs=128
+        # OOMs when sharing a GPU.
+        if (( gr >= 6 )); then echo 64
+        else echo 128
+        fi
+    elif [[ "$model" == "bispectrum" || "$model" == "norm" || "$model" == "norm_pool" ]]; then
         if (( gr >= 8 )); then echo 64
         else echo 128
         fi
