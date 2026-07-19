@@ -46,7 +46,19 @@ SIZES=(100 500 2500 12500 full)
 SO2_DISK_BL=30
 
 BASE_OUTPUT_DIR="./pcam_results_data_pareto"
-COMMON="--patience 10 --epochs 50"
+COMMON="--epochs 50"
+
+# Full-data runs converge in <20 epochs (~30 min/epoch for equivariant
+# models); patience 5 keeps the n_full panel uniform while cutting ~40%
+# of wall time. Smaller sizes keep patience 10.
+patience_for() {
+    local size=$1
+    if [[ "$size" == "full" ]]; then
+        echo 5
+    else
+        echo 10
+    fi
+}
 
 train_mode_for() {
     local model=$1
@@ -115,6 +127,7 @@ run_single() {
     echo "============================================================"
     python train.py --model "$model" --growth_rate "$gr" --train_mode "$mode" \
         --output_dir "$output_dir" --seed "$seed" --batch_size "$bs" \
+        --patience "$(patience_for "$size")" \
         $size_arg $COMMON
 }
 
@@ -140,6 +153,7 @@ run_so2_disk() {
     echo "============================================================"
     python train.py --model so2_disk --bandlimit "$SO2_DISK_BL" --train_mode C \
         --output_dir "$output_dir" --seed "$seed" --batch_size 256 \
+        --patience "$(patience_for "$size")" \
         $size_arg $COMMON
 }
 
