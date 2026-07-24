@@ -315,6 +315,7 @@ class Organ3DResNet(nn.Module):
             ``"bispectrum"``.
         channels: Tuple of (C0, C1) channel widths for stages.
         head_dim: Output dim of bispectral pool projection.
+        dropout: Dropout probability before the final classifier.
     """
 
     def __init__(
@@ -322,7 +323,8 @@ class Organ3DResNet(nn.Module):
         nonlin_type: NonlinType = 'bispectrum',
         channels: tuple[int, int] = (4, 8),
         head_dim: int = 64,
-    ):
+        dropout: float = 0.0,
+    ) -> None:
         super().__init__()
         self.nonlin_type = nonlin_type
         self.equivariant = nonlin_type != 'standard'
@@ -375,6 +377,7 @@ class Organ3DResNet(nn.Module):
             self.invariant_pool = nn.Identity()
             self._fc_in = C1
 
+        self.head_dropout = nn.Dropout(p=dropout)
         self.classifier = nn.Linear(self._fc_in, 11)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -416,17 +419,19 @@ class Organ3DResNet(nn.Module):
         else:
             x = x.mean(dim=tuple(range(2, x.ndim)))
 
-        return self.classifier(x)
+        return self.classifier(self.head_dropout(x))
 
 
 def build_model(
     nonlin_type: str,
     channels: tuple[int, int] = (4, 8),
     head_dim: int = 64,
+    dropout: float = 0.0,
 ) -> Organ3DResNet:
     """Build an Organ3DResNet with the specified configuration."""
     return Organ3DResNet(
         nonlin_type=nonlin_type,
         channels=channels,
         head_dim=head_dim,
+        dropout=dropout,
     )

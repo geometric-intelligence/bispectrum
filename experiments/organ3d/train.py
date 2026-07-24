@@ -239,14 +239,16 @@ def memory_check(args: argparse.Namespace) -> dict:
         nonlin_type=args.model,
         channels=channels,
         head_dim=args.head_dim,
+        dropout=args.dropout,
     ).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     dim_info = _invariant_dim_info(model)
     invariant_dim = dim_info.get('projected_dim') or dim_info.get('raw_invariant_dim')
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
+    run_label = args.run_label or args.model
     output_dir = (
         Path(args.output_dir)
-        / f'{args.model}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
+        / f'{run_label}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
     )
     train_loader, _, _ = get_dataloaders(
         data_dir=args.data_dir,
@@ -296,6 +298,7 @@ def memory_check(args: argparse.Namespace) -> dict:
     record = {
         'dataset': 'organ3d',
         'model': args.model,
+        'run_label': run_label,
         'train_mode': args.train_mode,
         'train_size': args.train_size,
         'train_examples': len(train_loader.dataset),
@@ -304,6 +307,8 @@ def memory_check(args: argparse.Namespace) -> dict:
         'effective_batch_size': args.batch_size,
         'channels': list(channels),
         'head_dim': args.head_dim,
+        'weight_decay': args.weight_decay,
+        'dropout': args.dropout,
         'output_dir': str(output_dir),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
@@ -337,9 +342,10 @@ def train_one_epoch(
     device: torch.device,
     scaler: torch.amp.GradScaler,
     augment_geometry: bool = False,
-) -> float:
+) -> dict[str, float]:
     model.train()
     total_loss = 0.0
+    correct = 0
     n = 0
     num_batches = len(loader)
     t_epoch = time.time()
@@ -358,6 +364,7 @@ def train_one_epoch(
         scheduler.step()
 
         total_loss += loss.item() * labels.shape[0]
+        correct += (logits.argmax(dim=-1) == labels).sum().item()
         n += labels.shape[0]
 
         if (step + 1) % 10 == 0 or step == 0:
@@ -373,7 +380,7 @@ def train_one_epoch(
             )
 
     print(' ' * 80, end='\r')
-    return total_loss / n
+    return {'loss': total_loss / n, 'accuracy': correct / n}
 
 
 def train(args: argparse.Namespace) -> dict:
@@ -392,6 +399,7 @@ def train(args: argparse.Namespace) -> dict:
         nonlin_type=args.model,
         channels=channels,
         head_dim=args.head_dim,
+        dropout=args.dropout,
     )
     model = model.to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -406,6 +414,9 @@ def train(args: argparse.Namespace) -> dict:
                     'model': args.model,
                     'train_mode': args.train_mode,
                     'channels': list(channels),
+                    'run_label': args.run_label or args.model,
+                    'weight_decay': args.weight_decay,
+                    'dropout': args.dropout,
                     'n_params': n_params,
                     'invariant_dim': invariant_dim,
                     'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
@@ -446,9 +457,10 @@ def train(args: argparse.Namespace) -> dict:
     best_auc = 0.0
     patience_counter = 0
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
+    run_label = args.run_label or args.model
     out_dir = (
         Path(args.output_dir)
-        / f'{args.model}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
+        / f'{run_label}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
     )
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -456,9 +468,10 @@ def train(args: argparse.Namespace) -> dict:
         torch.cuda.reset_peak_memory_stats(device)
     t_start = time.time()
     epochs_run = 0
+    history: list[dict[str, float | int]] = []
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
-        train_loss = train_one_epoch(
+        train_metrics = train_one_epoch(
             model,
             train_loader,
             optimizer,
@@ -467,13 +480,26 @@ def train(args: argparse.Namespace) -> dict:
             scaler,
             augment_geometry=augment_geo,
         )
+        train_eval_metrics = compute_metrics(model, train_loader, device)
         val_metrics = compute_metrics(model, val_loader, device)
         elapsed = time.time() - t0
         epochs_run = epoch
+        history.append(
+            {
+                'epoch': epoch,
+                'train_loss': train_metrics['loss'],
+                'train_accuracy': train_eval_metrics['accuracy'],
+                'train_auc': train_eval_metrics['auc'],
+                'val_loss': val_metrics['loss'],
+                'val_accuracy': val_metrics['accuracy'],
+                'val_auc': val_metrics['auc'],
+            }
+        )
 
         print(
             f'Epoch {epoch:3d}/{args.epochs} | '
-            f'train_loss={train_loss:.4f} | '
+            f'train_loss={train_metrics["loss"]:.4f} | '
+            f'train_acc={train_eval_metrics["accuracy"]:.4f} | '
             f'val_loss={val_metrics["loss"]:.4f} | '
             f'val_acc={val_metrics["accuracy"]:.4f} | '
             f'val_auc={val_metrics["auc"]:.4f} | '
@@ -513,10 +539,13 @@ def train(args: argparse.Namespace) -> dict:
     results = {
         'dataset': 'organ3d',
         'model': args.model,
+        'run_label': run_label,
         'train_mode': args.train_mode,
         'seed': args.seed,
         'channels': list(channels),
         'head_dim': args.head_dim,
+        'weight_decay': args.weight_decay,
+        'dropout': args.dropout,
         'n_params': n_params,
         'invariant_dim': invariant_dim,
         'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
@@ -528,6 +557,7 @@ def train(args: argparse.Namespace) -> dict:
         'test_c': test_c,
         'test_r': test_r,
         'rotation_robustness': rot_metrics,
+        'history': history,
         **cost,
     }
     with open(out_dir / 'results.json', 'w') as f:
@@ -606,6 +636,12 @@ def main():
         default='bispectrum',
         help='Model variant / pooling method.',
     )
+    parser.add_argument(
+        '--run_label',
+        type=str,
+        default=None,
+        help='Optional unique label used in the output directory for hyperparameter sweeps.',
+    )
     parser.add_argument('--data_dir', '--data-dir', type=str, default='./organ3d_data')
     parser.add_argument('--output_dir', '--output-dir', type=str, default='./organ3d_results')
     parser.add_argument('--epochs', type=int, default=100)
@@ -622,6 +658,12 @@ def main():
         help='Channel widths (C0, C1) for stages.',
     )
     parser.add_argument('--head_dim', type=int, default=64)
+    parser.add_argument(
+        '--dropout',
+        type=float,
+        default=0.0,
+        help='Dropout probability immediately before the final classifier.',
+    )
     parser.add_argument(
         '--train_size',
         type=int,

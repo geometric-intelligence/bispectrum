@@ -92,6 +92,11 @@ def _invariant_dim(model: torch.nn.Module) -> int | None:
     return None
 
 
+def _active_invariant_dim(model: torch.nn.Module) -> int | None:
+    active = getattr(model, 'active_feature_count', None)
+    return int(active) * 2 if isinstance(active, int) else _invariant_dim(model)
+
+
 def compute_metrics(
     model: torch.nn.Module,
     loader: torch.utils.data.DataLoader,
@@ -240,9 +245,11 @@ def memory_check(args: argparse.Namespace) -> dict:
         nlon=args.nlon,
         selective=not args.full_bispectrum,
         hidden=args.hidden,
+        bispectrum_features=args.bispectrum_features,
     ).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     invariant_dim = _invariant_dim(model)
+    active_invariant_dim = _active_invariant_dim(model)
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
     run_label = args.run_label or args.model
     output_dir = Path(args.output_dir) / f'{run_label}_{train_mode}_seed{args.seed}{n_tag}'
@@ -295,6 +302,8 @@ def memory_check(args: argparse.Namespace) -> dict:
         'output_dir': str(output_dir),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
+        'active_invariant_dim': active_invariant_dim,
+        'bispectrum_features': args.bispectrum_features,
         'test_rotation_seed': args.test_rotation_seed,
         'cuda_available': torch.cuda.is_available(),
         'gpu_name': torch.cuda.get_device_name(device) if torch.cuda.is_available() else None,
@@ -334,10 +343,12 @@ def train(args: argparse.Namespace) -> dict:
         nlon=args.nlon,
         selective=not args.full_bispectrum,
         hidden=args.hidden,
+        bispectrum_features=args.bispectrum_features,
     )
     model = model.to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     invariant_dim = _invariant_dim(model)
+    active_invariant_dim = _active_invariant_dim(model)
     print(f'Model: {args.model} (lmax={args.lmax}), {n_params:,} params')
 
     if args.dry_run:
@@ -350,6 +361,8 @@ def train(args: argparse.Namespace) -> dict:
                     'train_mode': _canonical_train_mode(args.train_mode),
                     'n_params': n_params,
                     'invariant_dim': invariant_dim,
+                    'active_invariant_dim': active_invariant_dim,
+                    'bispectrum_features': args.bispectrum_features,
                 }
             )
         )
@@ -469,6 +482,8 @@ def train(args: argparse.Namespace) -> dict:
         'lmax': args.lmax,
         'n_params': n_params,
         'invariant_dim': invariant_dim,
+        'active_invariant_dim': active_invariant_dim,
+        'bispectrum_features': args.bispectrum_features,
         'train_size': args.train_size,
         'train_examples': len(train_loader.dataset),
         'best_val_accuracy': best_val_acc,
@@ -599,6 +614,13 @@ def main():
         '--full_bispectrum',
         action='store_true',
         help='Use full O(L^3) bispectrum instead of selective O(L^2).',
+    )
+    parser.add_argument(
+        '--bispectrum_features',
+        choices=['bootstrap', 'bootstrap_self', 'bootstrap_self_cg', 'full'],
+        default='full',
+        help='Cumulative SO3 invariant ablation. Masked features remain zero so all variants '
+        'use the same MLP width and parameter count.',
     )
     parser.add_argument(
         '--sweep',

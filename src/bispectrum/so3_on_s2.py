@@ -8,20 +8,14 @@ where F_l are the degree-l SH coefficient vectors and C denotes the
 Clebsch-Gordan matrices for SO(3).
 
 Supports a **selective** mode that reduces the output from O(L³) to O(L²)
-entries while preserving completeness for generic signals, using an
-augmented invariant that combines scalar bispectral entries with
-CG power spectrum entries P_{l1,l2,l} = ||(F_{l1} ⊗ F_{l2})|_l||^2.
+entries, using an augmented invariant that combines scalar bispectral entries
+with CG power spectrum entries
+P_{l1,l2,l} = ||(F_{l1} ⊗ F_{l2})|_l||^2.
 See ``_build_selective_index_map`` and ``_build_cg_power_index_map``.
 
-**Completeness** (``proof_completeness.tex``): for band-limits L ≥ 4, the
-augmented selective bispectrum is a complete SO(3)-invariant on generic
-real-valued signals (those satisfying a_0^0 ≠ 0, ||F_1|| ≠ 0, and
-a_2^1 ≠ 0 after gauge-fixing).  The proof uses:
-  - Seed recovery at degrees 0–3 (finite fibre, Jacobian rank 11/11),
-  - Degree-4 fibre reduction via parity-breaking entries β_{2,3,4} etc.,
-  - Linear bootstrap at ℓ ≥ 4 (verified ℓ ≤ 100, closed-form for ℓ ≥ 8).
-For L ≤ 3, the invariant separates O(3)-orbits but cannot resolve the
-T_R (azimuthal reflection) ambiguity.
+Generic completeness of this augmented selective invariant is conjectured and
+supported by Jacobian-rank and reconstruction experiments; a global
+orbit-separation proof is not currently known.
 
 Reference: Kakarala (1992), Cohen et al.
 """
@@ -31,6 +25,7 @@ import logging
 import pickle  # nosec B403 — only used for UnpicklingError type reference
 from collections import OrderedDict
 from pathlib import Path
+from typing import Literal
 
 import torch
 import torch.nn as nn
@@ -44,6 +39,13 @@ from bispectrum._cg import (
 )
 
 logger = logging.getLogger(__name__)
+
+SelectiveFeatureTag = Literal[
+    'bootstrap',
+    'power',
+    'budget_self_coupling',
+    'mandatory_even_self',
+]
 
 
 def _build_full_index_map(
@@ -304,6 +306,37 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
     return index_map
 
 
+def _build_selective_feature_tags(
+    index_map: list[tuple[int, int, int]],
+) -> list[SelectiveFeatureTag]:
+    """Classify selective bispectral entries by construction stage.
+
+    Entries are ordered by target degree. Within each degree, the budgeted
+    bootstrap block comes first and mandatory even self-couplings are appended.
+    """
+    positions: dict[int, int] = {}
+    tags: list[SelectiveFeatureTag] = []
+    for l1, l2, l_out in index_map:
+        target = max(l1, l2, l_out)
+        position = positions.get(target, 0)
+        positions[target] = position + 1
+        budget = 10 if target == 4 else 2 * target + 1
+
+        if position >= budget:
+            if not (l1 == l2 == target and 2 <= l_out <= target and l_out % 2 == 0):
+                raise RuntimeError(
+                    f'Unexpected post-budget selective entry {(l1, l2, l_out)} at degree {target}'
+                )
+            tags.append('mandatory_even_self')
+        elif target > 0 and (l1, l2, l_out) == (0, target, target):
+            tags.append('power')
+        elif l1 == l2 == target:
+            tags.append('budget_self_coupling')
+        else:
+            tags.append('bootstrap')
+    return tags
+
+
 def _build_cg_power_index_map(lmax: int) -> list[tuple[int, int, int]]:
     """Build the CG power spectrum augmentation entries.
 
@@ -363,10 +396,9 @@ class SO3onS2(nn.Module):
     and returns the bispectrum coefficients.
 
     When ``selective=True``, outputs O(L²) augmented selective entries
-    (scalar bispectral + CG power spectrum) that form a complete
-    SO(3)-invariant for generic real signals when lmax ≥ 4
-    (see ``proof_completeness.tex``).  When ``selective=False``, computes
-    all O(L³) scalar bispectral entries.
+    (scalar bispectral + CG power spectrum). Generic completeness is
+    conjectured and supported empirically, not proved. When
+    ``selective=False``, computes all O(L³) scalar bispectral entries.
 
     Args:
         lmax: Maximum spherical harmonic degree.
@@ -394,12 +426,15 @@ class SO3onS2(nn.Module):
             nlat, nlon, lmax=sht_lmax, mmax=sht_lmax, grid='equiangular', norm='ortho'
         )
 
+        self._bispec_feature_tags: list[str]
         if selective:
             self._index_map = _build_selective_index_map(lmax)
+            self._bispec_feature_tags = _build_selective_feature_tags(self._index_map)
             self._cg_power_map = _build_cg_power_index_map(lmax)
         else:
             cg_data = load_cg_matrices(lmax)
             self._index_map = _build_full_index_map(lmax, cg_data)
+            self._bispec_feature_tags = ['full'] * len(self._index_map)
             self._cg_power_map = []
 
         all_triples = list(self._index_map) + list(self._cg_power_map)
@@ -1042,6 +1077,11 @@ class SO3onS2(nn.Module):
     def cg_power_map(self) -> list[tuple[int, int, int]]:
         """Maps CG power output index -> (l1, l2, l_out) triple."""
         return list(self._cg_power_map)
+
+    @property
+    def bispec_feature_tags(self) -> list[str]:
+        """Construction-stage tag for each scalar bispectral output entry."""
+        return list(self._bispec_feature_tags)
 
     def extra_repr(self) -> str:
         parts = [

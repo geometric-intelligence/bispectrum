@@ -9,6 +9,7 @@ from bispectrum.so3_on_s2 import (
     _bispectrum_entry,
     _build_cg_power_index_map,
     _build_full_index_map,
+    _build_selective_feature_tags,
     _build_selective_index_map,
     _get_full_sh_coefficients,
 )
@@ -463,6 +464,15 @@ class TestBuildSelectiveIndexMap:
         for lmax in range(6):
             idx = _build_selective_index_map(lmax)
             assert len(idx) == len(set(idx)), f'duplicates for lmax={lmax}'
+
+    def test_l15_feature_tag_counts(self):
+        idx = _build_selective_index_map(15)
+        tags = _build_selective_feature_tags(idx)
+        assert len(tags) == len(idx) == 307
+        assert tags.count('bootstrap') == 248
+        assert tags.count('mandatory_even_self') == 54
+        assert tags.count('power') == 3
+        assert tags.count('budget_self_coupling') == 2
 
     def test_budget_respected(self):
         """The linear block at each degree must not exceed its budget.

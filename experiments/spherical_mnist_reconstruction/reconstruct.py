@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Reconstruct spherical MNIST digits from their SO(3)-bispectrum.
 
-Demonstrates that the SO(3) bispectrum is a complete SO(3)-invariant on S^2:
-the original signal can be recovered up to an SO(3) "phase change" (the
-Wigner-D action on spherical-harmonic coefficients), which is exactly the
-group-orbit indeterminacy of any complete invariant.
+Probes whether the augmented selective SO(3) invariant preserves enough orbit
+information to reconstruct signals up to an SO(3) "phase change" (the Wigner-D
+action on spherical-harmonic coefficients). Successful recovery is empirical
+evidence, not a global completeness proof.
 
 Pipeline per digit ``f``:
 
@@ -105,7 +105,7 @@ def load_digits(
     if not cache_path.exists():
         raise FileNotFoundError(
             f'Spherical MNIST cache missing: {cache_path}. '
-            f'Run paper/experiments/spherical_mnist/data.py first.'
+            f'Build it with experiments/spherical_mnist/data.py first.'
         )
 
     blob = torch.load(cache_path, weights_only=True)
@@ -137,6 +137,37 @@ def load_digits(
 
     chosen_t = torch.tensor(chosen[:n_digits], dtype=torch.long)
     return images[chosen_t].clone(), labels[chosen_t].clone()
+
+
+def make_random_bandlimited_signals(
+    n_signals: int,
+    lmax: int,
+    isht: InverseRealSHT,
+    seed: int,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Generate isotropic Gaussian real signals directly in SH coefficient space."""
+    generator = torch.Generator(device='cpu').manual_seed(seed)
+    coeffs = torch.zeros(
+        n_signals,
+        lmax + 1,
+        lmax + 1,
+        dtype=torch.complex64,
+        device=device,
+    )
+    for ell in range(lmax + 1):
+        coeffs[:, ell, 0] = torch.randn(n_signals, generator=generator).to(device)
+        if ell > 0:
+            real = torch.randn(n_signals, ell, generator=generator).to(device)
+            imag = torch.randn(n_signals, ell, generator=generator).to(device)
+            coeffs[:, ell, 1 : ell + 1] = (real + 1j * imag) / np.sqrt(2.0)
+
+    with torch.no_grad():
+        images = isht(coeffs)
+        rms = images.square().mean(dim=(-2, -1), keepdim=True).sqrt().clamp_min(1e-12)
+        images = images / rms
+    labels = torch.arange(n_signals, device=device, dtype=torch.long)
+    return images, labels
 
 
 def make_rotation_stack(
@@ -449,16 +480,13 @@ def run_demo(
     align_n_steps: int,
     align_lr: float,
     n_recon_restarts: int = 1,
+    signal_source: str = 'smnist',
 ) -> tuple[list[ReconResult], dict[str, object]]:
     """End-to-end reconstruction sweep.
 
     Returns per-(digit, rot) records + meta.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    logger.info('Loading %d digits from cached spherical MNIST ...', n_digits)
-    images, labels = load_digits(data_dir, n_digits, nlat, nlon, seed=seed)
-    logger.info('  shapes: images=%s labels=%s', tuple(images.shape), tuple(labels.shape))
 
     logger.info('Building SO3onS2(lmax=%d, selective=%s) on %s', lmax, selective, device)
     bsp = SO3onS2(lmax=lmax, nlat=nlat, nlon=nlon, selective=selective).to(device)
@@ -469,6 +497,16 @@ def run_demo(
         nlat, nlon, lmax=lmax + 1, mmax=lmax + 1, grid='equiangular', norm='ortho'
     ).to(device)
     logger.info('  bispectrum output_size=%d', bsp.output_size)
+
+    if signal_source == 'smnist':
+        logger.info('Loading %d digits from cached spherical MNIST ...', n_digits)
+        images, labels = load_digits(data_dir, n_digits, nlat, nlon, seed=seed)
+    elif signal_source == 'random':
+        logger.info('Generating %d random band-limited signals ...', n_digits)
+        images, labels = make_random_bandlimited_signals(n_digits, lmax, isht, seed, device)
+    else:
+        raise ValueError(f'Unknown signal source: {signal_source}')
+    logger.info('  shapes: images=%s labels=%s', tuple(images.shape), tuple(labels.shape))
 
     dtype = torch.float32
     results: list[ReconResult] = []
@@ -625,6 +663,7 @@ def run_demo(
         'align_lr': align_lr,
         'device': str(device),
         'seed': seed,
+        'signal_source': signal_source,
         'sweep_seconds': sweep_seconds,
     }
     logger.info('Sweep done in %.1fs', sweep_seconds)
@@ -1209,6 +1248,12 @@ def parse_args() -> argparse.Namespace:
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--n_digits', type=int, default=8)
+    parser.add_argument(
+        '--signal_source',
+        choices=['smnist', 'random'],
+        default='smnist',
+        help='Use cached Spherical MNIST images or random real band-limited signals.',
+    )
     parser.add_argument('--n_rotations', type=int, default=2)
     parser.add_argument(
         '--lmax',
@@ -1308,6 +1353,11 @@ def parse_args() -> argparse.Namespace:
         'Use this to iterate on figure aesthetics in seconds.',
     )
     parser.add_argument(
+        '--skip_figures',
+        action='store_true',
+        help='Write state/results metrics without rendering PDF/PNG figures.',
+    )
+    parser.add_argument(
         '--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu'
     )
     parser.add_argument('--seed', type=int, default=0)
@@ -1381,6 +1431,7 @@ def main() -> int:
             align_n_steps=args.align_n_steps,
             align_lr=args.align_lr,
             n_recon_restarts=args.n_recon_restarts,
+            signal_source=args.signal_source,
         )
         torch.save({'results': results, 'meta': meta}, state_path)
         logger.info('Cached state to %s for fast --replot iterations', state_path)
@@ -1400,6 +1451,9 @@ def main() -> int:
         return 0
 
     dump_results_json(results, meta, args.output_dir / 'results.json')
+    if args.skip_figures:
+        print_summary(results)
+        return 0
     make_orbits_figure(
         results,
         n_digits=n_digits_run,
