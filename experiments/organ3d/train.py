@@ -28,7 +28,13 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from data import apply_octahedral_element, get_dataloaders, gpu_augment_3d
+from data import (
+    DATASET_MEAN,
+    DATASET_STD,
+    apply_octahedral_element,
+    get_dataloaders,
+    gpu_augment_3d,
+)
 from model import build_model
 
 NUM_CLASSES = 11
@@ -78,8 +84,13 @@ def compute_metrics(
     model: torch.nn.Module,
     loader: torch.utils.data.DataLoader,
     device: torch.device,
+    normalize: bool = False,
 ) -> dict:
-    """Compute accuracy, macro AUC, and loss on a dataset."""
+    """Compute accuracy, macro AUC, and loss on a dataset.
+
+    Set ``normalize=True`` for loaders built with ``normalize=False`` (the train
+    loader, which is normalized on GPU inside ``gpu_augment_3d`` during training).
+    """
     model.eval()
     all_probs = []
     all_labels = []
@@ -89,6 +100,8 @@ def compute_metrics(
     with torch.no_grad(), torch.amp.autocast('cuda'):
         for images, labels in loader:
             images = images.to(device, non_blocking=True)
+            if normalize:
+                images = (images - DATASET_MEAN) / DATASET_STD
             labels = labels.to(device, non_blocking=True)
             logits = model(images)
             loss = F.cross_entropy(logits, labels, reduction='sum')
@@ -480,7 +493,7 @@ def train(args: argparse.Namespace) -> dict:
             scaler,
             augment_geometry=augment_geo,
         )
-        train_eval_metrics = compute_metrics(model, train_loader, device)
+        train_eval_metrics = compute_metrics(model, train_loader, device, normalize=True)
         val_metrics = compute_metrics(model, val_loader, device)
         elapsed = time.time() - t0
         epochs_run = epoch

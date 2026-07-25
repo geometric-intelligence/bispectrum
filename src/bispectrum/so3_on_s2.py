@@ -330,7 +330,8 @@ def _build_selective_feature_tags(
             tags.append('mandatory_even_self')
         elif target > 0 and (l1, l2, l_out) == (0, target, target):
             tags.append('power')
-        elif l1 == l2 == target:
+        elif l1 == l2 == target and target > 0:
+            # (0,0,0) is the degree-0 bootstrap seed, not a self-coupling.
             tags.append('budget_self_coupling')
         else:
             tags.append('bootstrap')
