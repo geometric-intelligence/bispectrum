@@ -88,12 +88,10 @@ completeness” explicitly.
 We agree that the published S2CNN values should appear in Table 4 rather than
 only in prose, and will move them there. We did not run S2CNN in the submitted
 experiments, so we cannot infer an apples-to-apples speed advantage from its
-published accuracies. [[E6: report matched hardware/batch S2CNN and
-bispectrum+MLP latency, including whether SHT time is included. If not run,
-replace with: “A reliable matched re-run was not feasible during the response
-window; we will retain the accuracy comparison, explicitly label it as
-published, and remove any implication of a measured speed advantage over
-S2CNN.”]]
+published accuracies. A reliable matched re-run was not feasible during the
+response window; we will retain the accuracy comparison, explicitly label it
+as published, and remove any implication of a measured speed advantage over
+S2CNN.
 
 ## Corrections
 

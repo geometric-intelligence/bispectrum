@@ -17,17 +17,34 @@ the distinction unambiguous:
   component is supplemented by degree-4 CG-power scalars to repair the rank
   deficit on real signals.
 
-During the response period we are also running the targeted experiments
-requested by the reviewers:
+During the response period we ran the targeted experiments requested by the
+reviewers:
 
-1. reconstruction at the classifier's deployed band-limit $L=15$ and on
-   random band-limited signals: [[E2: reconstruction summary]];
-2. an ablation of bootstrap triples, even self-couplings, and CG-power
-   augmentation: [[E3: classification-ablation summary]];
-3. CPU/consumer-GPU/H100 timings and backend versions:
-   [[E1: portability summary]]; and
-4. training/validation curves, final test results, and regularization controls
-   for the 6.3M-parameter OrganMNIST3D model: [[E4: overfitting summary]].
+1. reconstruction at the classifier's deployed band-limit $L=15$ (128x256
+   grid): all 16 Spherical MNIST signals recovered in feature space (median
+   residual $1.4\times10^{-3}$, 100% under the pre-registered $10^{-2}$
+   threshold) with 62.5% joint success after SO(3) alignment; on 16 random
+   band-limited signals the optimizer plateaued just above the feature
+   threshold (median $1.4\times10^{-2}$) and alignment did not succeed, which
+   we report as-is—empirical evidence on natural signals, inconclusive on
+   random ones (details in the response to Reviewer yWuC);
+2. a parameter-matched ablation of bootstrap triples, even self-couplings,
+   and CG-power augmentation on Spherical MNIST: 94.09% $\to$ 94.48% $\to$
+   95.00% (each step exceeding cross-seed variability), with the CG-power
+   scalars contributing the largest gain and rotated-test accuracy identical
+   to unrotated within noise at every stage;
+3. timings on an NVIDIA A100 (PyTorch 2.11, CUDA 13.0) and its x86-64 host
+   CPU at batch 16, float32: all seven modules run in 0.10--0.81 ms per batch
+   on the GPU; on CPU, times range from 0.08 ms (cyclic) to 402 ms
+   (SO(3)-on-$S^2$), so we will scope the "sub-millisecond" claim to GPU
+   execution; and
+4. training/validation curves, final test results, and a regularization sweep
+   for the high-capacity OrganMNIST3D model (21 runs): no overfitting
+   signature—train accuracy tracks validation for both poolings (train-test
+   gap $\approx$0.07--0.08)—and the best regularization improves bispectral
+   test accuracy from 66.8% to 72.5% without closing the gap to max pooling
+   (76.7%), supporting an optimization/capacity diagnosis rather than
+   memorization.
 
 We will also correct the finite-group complexity statement (selectivity reduces
 the **coefficient count** from $O(|G|^2)$ to $O(|G|)$; the selective forward

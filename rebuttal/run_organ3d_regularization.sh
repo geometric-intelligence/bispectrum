@@ -6,6 +6,9 @@ PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 TRAIN="$REPO_ROOT/experiments/organ3d/train.py"
 DATA_DIR="${ORGAN3D_DATA_DIR:-$REPO_ROOT/experiments/organ3d/organ3d_data}"
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/rebuttal/results/organ3d_regularization}"
+# Optional space-separated list of config labels to run (for splitting the
+# sweep across GPUs). Empty means run everything.
+CONFIG_LABELS="${CONFIG_LABELS:-}"
 
 CONFIGS=(
   "max_base|max_pool|1e-4|0.0"
@@ -19,6 +22,9 @@ CONFIGS=(
 
 for config in "${CONFIGS[@]}"; do
   IFS='|' read -r label model weight_decay dropout <<<"$config"
+  if [[ -n "$CONFIG_LABELS" && " $CONFIG_LABELS " != *" $label "* ]]; then
+    continue
+  fi
   if [[ "$model" == "bispectrum" ]]; then
     batch_size=4
   else
@@ -48,6 +54,13 @@ for config in "${CONFIGS[@]}"; do
   done
 done
 
-"$PYTHON" "$REPO_ROOT/rebuttal/analyze_organ3d_regularization.py" \
-  --results-dir "$OUTPUT_DIR" \
-  --output-dir "$OUTPUT_DIR/analysis"
+# Only analyze once all 21 runs exist (relevant when the sweep is split
+# across GPUs: the last finisher triggers the analysis).
+n_done="$(find "$OUTPUT_DIR" -name results.json | wc -l)"
+if [[ "$n_done" -eq 21 ]]; then
+  "$PYTHON" "$REPO_ROOT/rebuttal/analyze_organ3d_regularization.py" \
+    --results-dir "$OUTPUT_DIR" \
+    --output-dir "$OUTPUT_DIR/analysis"
+else
+  echo "Skipping analysis: $n_done/21 results present."
+fi
