@@ -72,20 +72,23 @@ We agree that one H100 is insufficient for a library claim. We benchmarked the
 same public implementation (paper-scale selective configurations, batch 16,
 float32, 10 warm-up iterations, median synchronized wall-clock over 600 timed
 forwards, including the SHT inside SO(3)-on-$S^2$) on an NVIDIA A100 80GB
-(PyTorch 2.11.0, CUDA 13.0) and its x86-64 host CPU (same PyTorch build):
+(PyTorch 2.11.0, CUDA 13.0), its x86-64 host CPU, and an Apple M5 Pro
+(PyTorch 2.11.0, MPS and CPU):
 
 | Device/backend | Fastest module | SO(3)-on-$S^2$ ($L=16$) | Slowest module |
 |---|---:|---:|---:|
 | A100, CUDA 13.0 | 0.098 ms (torus) | 0.232 ms | 0.812 ms (octahedral) |
 | x86-64 CPU | 0.082 ms (cyclic) | 402 ms | 402 ms (SO(3)-on-$S^2$) |
+| M5 Pro, MPS | 0.062 ms (torus) | 0.641 ms | 0.719 ms (disk) |
+| M5 Pro, CPU | 0.016 ms (cyclic) | 1.811 ms | 1.811 ms (SO(3)-on-$S^2$) |
 
-All seven modules execute correctly on both backends with no unsupported
-operations. "Sub-millisecond" survives on the GPU for every module at batch
-16; on CPU only the small finite-group modules are sub-millisecond, while
-grid-based modules run at 58--402 ms per batch. We will therefore scope the
-abstract's claim to GPU execution, limit it to the devices/settings actually
-measured, and add the full per-module compatibility matrix (including
-consumer-GPU and Apple-silicon numbers) to the appendix and documentation.
+All six benchmarked configurations execute correctly on CUDA, MPS, and both
+CPUs with no unsupported operations. "Sub-millisecond" holds for every
+configuration on both tested GPU backends at batch 16. On the M5 Pro CPU,
+five modules are sub-millisecond and the spherical module takes 1.811 ms; the
+x86 host is substantially slower on grid-based modules. We will scope the
+abstract's claim to the tested GPU settings and add the full per-module timing
+and compatibility matrix to the appendix and documentation.
 
 ## High-capacity OrganMNIST3D result
 

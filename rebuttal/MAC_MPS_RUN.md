@@ -13,9 +13,16 @@ git checkout neurips-2026-rebuttal   # must include the tagger/train-metric fix 
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev,experiments]"
+python -m pip install "torch>=2.10,<2.12" "numpy>=1.22.4"
+python -m pip install --no-build-isolation \
+  "https://github.com/NVIDIA/torch-harmonics/archive/refs/tags/v0.9.1.tar.gz"
+python -m pip install --no-deps -e .
 python -c "import torch; print(torch.__version__, 'mps:', torch.backends.mps.is_available())"
 ```
+
+`torch-harmonics>=0.9` has no macOS wheel, so the normal extras install cannot
+resolve on Apple silicon. The tagged source build above provides its CPU/MPS
+implementation without requiring CUDA.
 
 ## 2. Run the benchmarks
 
@@ -33,11 +40,10 @@ Notes:
 
 - Expected runtime: roughly 5–20 minutes per device; first-time CG/Bessel
   cache construction can dominate.
-- Unsupported MPS operations are retained as **explicit errors** in the JSON
-  rather than silently dropped. Errors are expected output, not a broken run —
-  we report them honestly in the compatibility matrix.
-- The environment (PyTorch version, chip name, dtype, batch 16) is recorded
-  inside each JSON automatically.
+- Unsupported operations, if any, are retained as **explicit errors** in the
+  JSON rather than silently dropped.
+- The environment (platform, PyTorch/backend version, dtype, batch 16) is
+  recorded inside each JSON automatically.
 
 ## 3. Copy results back to the GPU machine
 

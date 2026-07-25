@@ -270,6 +270,19 @@ class TestSO2onDiskForward:
         out = bsp(f)
         assert out.dtype == torch.complex128
 
+    def test_float32_module_output_dtype(self):
+        bsp = SO2onDisk(L=8).float()
+        f = torch.randn(2, 8, 8, dtype=torch.float32)
+        out = bsp(f)
+        assert out.dtype == torch.complex64
+
+    def test_float32_module_matches_float64(self):
+        torch.manual_seed(2718)
+        f = torch.randn(2, 8, 8, dtype=torch.float32)
+        reference = SO2onDisk(L=8)(f.to(torch.float64))
+        actual = SO2onDisk(L=8).float()(f)
+        torch.testing.assert_close(actual.to(torch.complex128), reference, atol=2e-5, rtol=1e-5)
+
     def test_deterministic(self):
         bsp = SO2onDisk(L=8)
         f = torch.randn(2, 8, 8, dtype=torch.float64)
@@ -516,6 +529,13 @@ class TestSO2onDiskInvert:
         beta = bsp(f)
         f_rec = bsp.invert(beta)
         assert f_rec.dtype == torch.float64
+
+    def test_float32_invert_output_dtype_is_real(self):
+        bsp = SO2onDisk(L=8).float()
+        f = torch.randn(2, 8, 8, dtype=torch.float32)
+        beta = bsp(f)
+        f_rec = bsp.invert(beta)
+        assert f_rec.dtype == torch.float32
 
     def test_invert_not_implemented_full(self):
         bsp = SO2onDisk(L=8, selective=False)

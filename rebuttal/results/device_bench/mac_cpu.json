@@ -1,0 +1,76 @@
+{
+  "environment": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "torch": "2.11.0",
+    "device": "cpu",
+    "cuda_runtime": null,
+    "cudnn": null,
+    "mps_available": true,
+    "batch_size": 16,
+    "warmup": 10,
+    "repeats": 30,
+    "inner_loops": 20,
+    "dtype": "float32",
+    "device_name": "arm",
+    "torch_num_threads": 6
+  },
+  "results": [
+    {
+      "module": "CnonCn",
+      "settings": "n=128",
+      "output_size": 128,
+      "median_ms": 0.015588524547638372,
+      "p25_ms": 0.015361449550255202,
+      "p75_ms": 0.01566926257510204,
+      "error": null
+    },
+    {
+      "module": "TorusOnTorus",
+      "settings": "ns=(32,32)",
+      "output_size": 1024,
+      "median_ms": 0.13578229991253465,
+      "p25_ms": 0.13381668723013718,
+      "p75_ms": 0.1396625131746987,
+      "error": null
+    },
+    {
+      "module": "DnonDn",
+      "settings": "n=32",
+      "output_size": 245,
+      "median_ms": 0.12851979990955442,
+      "p25_ms": 0.1270666496566264,
+      "p75_ms": 0.13020312508160714,
+      "error": null
+    },
+    {
+      "module": "SO2onDisk",
+      "settings": "L=16",
+      "output_size": 105,
+      "median_ms": 0.06265417468966916,
+      "p25_ms": 0.06151299967314117,
+      "p75_ms": 0.06413227492885198,
+      "error": null
+    },
+    {
+      "module": "SO3onS2",
+      "settings": "lmax=16, grid=64x128",
+      "output_size": 430,
+      "median_ms": 1.8106843759596813,
+      "p25_ms": 1.7743453125149244,
+      "p75_ms": 1.8557807248726021,
+      "error": null
+    },
+    {
+      "module": "OctaonOcta",
+      "settings": "|O|=24",
+      "output_size": 172,
+      "median_ms": 0.11973855071119033,
+      "p25_ms": 0.11771665012929589,
+      "p75_ms": 0.12117919977754354,
+      "error": null
+    }
+  ]
+}

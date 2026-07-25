@@ -33,11 +33,12 @@ reviewers:
    95.00% (each step exceeding cross-seed variability), with the CG-power
    scalars contributing the largest gain and rotated-test accuracy identical
    to unrotated within noise at every stage;
-3. timings on an NVIDIA A100 (PyTorch 2.11, CUDA 13.0) and its x86-64 host
-   CPU at batch 16, float32: all seven modules run in 0.10--0.81 ms per batch
-   on the GPU; on CPU, times range from 0.08 ms (cyclic) to 402 ms
-   (SO(3)-on-$S^2$), so we will scope the "sub-millisecond" claim to GPU
-   execution; and
+3. timings at batch 16, float32 on an NVIDIA A100 (PyTorch 2.11, CUDA 13.0),
+   its x86-64 host CPU, and an Apple M5 Pro (CPU and MPS): the six benchmarked
+   configurations run in 0.10--0.81 ms on the A100, 0.08--402 ms on x86 CPU,
+   0.016--1.811 ms on the M5 Pro CPU, and 0.062--0.719 ms on MPS. All six
+   configurations execute on every backend, so "sub-millisecond" holds for
+   both tested GPU backends and we will scope the claim to those settings; and
 4. training/validation curves, final test results, and a regularization sweep
    for the high-capacity OrganMNIST3D model (21 runs): no overfitting
    signature—train accuracy tracks validation for both poolings (train-test

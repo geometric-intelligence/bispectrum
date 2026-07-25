@@ -50,7 +50,8 @@
 \begin{metacomment}
 \textbf{Status and logistics (read first).}
 All four rebuttal experiments (E1--E4) completed on the 2$\times$A100 machine
-on July 24; every number below is measured, not projected. Raw results:
+on July 24, and E1 was additionally run on an Apple M5 Pro (MPS and CPU);
+every number below is measured, not projected. Raw A100 results:
 \texttt{rebuttal\_results\_10902.tar.gz} (831\,MB, sha256
 \texttt{5dfeee8e\ldots92e6c967}); reproduction instructions in
 \texttt{rebuttal/EXPERIMENTS.md}. Two code fixes were required during the runs
@@ -60,14 +61,9 @@ OrganMNIST3D) --- \emph{please commit these before we cite the git SHA
 anywhere}.
 
 \textbf{Character counts} (markdown, before OpenReview formatting): global
-3{,}745; yWuC 8{,}182; LgCU 3{,}101; AZ1B 5{,}819. The rebuttal limit is
+3{,}895; yWuC 8{,}339; LgCU 3{,}101; AZ1B 5{,}819. The rebuttal limit is
 10{,}000 characters per response, so all four fit as-is; the tightest is
-yWuC with $\sim$1.8k headroom for edits.
-
-\textbf{Review transcripts.} The quoted reviews below (including all inline
-math, which the original copy-paste had dropped) were verified against
-OpenReview screenshots on July 24 and match the posted reviews; they are safe
-to quote in replies.
+yWuC with $\sim$1.7k headroom for edits.
 
 \textbf{Decisions needed from the group:}
 (1) yWuC/global assert the hidden-PDF-text phrases are a NeurIPS watermark
@@ -82,13 +78,9 @@ pre-registered thresholds --- current draft reports it transparently and
 attributes it to ``optimization difficulty vs.\ genuine failure mode,
 undetermined''; decide if anyone wants a clearly-labeled post-hoc secondary
 analysis (more alignment restarts) before the discussion deadline;
-(4) E1 has no consumer-GPU numbers yet (only A100 + host CPU); Johan is
-running the Apple-silicon numbers locally
-(\texttt{rebuttal/benchmark\_devices.py --device mps} and \texttt{--device
-cpu}, writing \texttt{mac\_mps.json}/\texttt{mac\_cpu.json} per the runbook,
-then rerun \texttt{analyze\_device\_benchmarks.py} with all JSONs to refresh
-\texttt{combined.md}); a consumer-GPU volunteer is still needed before the
-camera-ready.
+(4) E1 now includes A100, x86-64 host CPU, Apple M5 Pro CPU, and MPS. All six
+benchmarked configurations run on MPS in 0.062--0.719\,ms. A consumer-GPU
+volunteer is still needed before the camera-ready.
 \end{metacomment}
 
 \tableofcontents
@@ -155,11 +147,13 @@ reviewers:
   95.00\% (each step exceeding cross-seed variability), with the CG-power
   scalars contributing the largest gain and rotated-test accuracy identical to
   unrotated within noise at every stage;
-\item timings on an NVIDIA A100 (PyTorch 2.11, CUDA 13.0) and its x86-64 host
-  CPU at batch 16, float32: all seven modules run in 0.10--0.81\,ms per batch
-  on the GPU; on CPU, times range from 0.08\,ms (cyclic) to 402\,ms
-  ($\mathrm{SO}(3)$-on-$S^2$), so we will scope the ``sub-millisecond'' claim
-  to GPU execution; and
+\item timings at batch 16, float32 on an NVIDIA A100 (PyTorch 2.11, CUDA
+  13.0), its x86-64 host CPU, and an Apple M5 Pro (CPU and MPS): the six
+  benchmarked configurations run in 0.10--0.81\,ms on the A100,
+  0.08--402\,ms on x86 CPU, 0.016--1.811\,ms on the M5 Pro CPU, and
+  0.062--0.719\,ms on MPS. All six configurations execute on every backend,
+  so ``sub-millisecond'' holds for both tested GPU backends and we will scope
+  the claim to those settings; and
 \item training/validation curves, final test results, and a regularization
   sweep for the high-capacity OrganMNIST3D model (21 runs): no overfitting
   signature---train accuracy tracks validation for both poolings (train--test
@@ -461,8 +455,8 @@ We agree that one H100 is insufficient for a library claim. We benchmarked
 the same public implementation (paper-scale selective configurations, batch
 16, float32, 10 warm-up iterations, median synchronized wall-clock over 600
 timed forwards, including the SHT inside $\mathrm{SO}(3)$-on-$S^2$) on an
-NVIDIA A100 80GB (PyTorch 2.11.0, CUDA 13.0) and its x86-64 host CPU (same
-PyTorch build):
+NVIDIA A100 80GB (PyTorch 2.11.0, CUDA 13.0), its x86-64 host CPU, and an
+Apple M5 Pro (PyTorch 2.11.0, MPS and CPU):
 
 \begin{center}
 \begin{tabular}{lrrr}
@@ -471,17 +465,19 @@ Device/backend & Fastest module & $\mathrm{SO}(3)$-on-$S^2$ ($L=16$) & Slowest m
 \midrule
 A100, CUDA 13.0 & 0.098\,ms (torus)  & 0.232\,ms & 0.812\,ms (octahedral) \\
 x86-64 CPU      & 0.082\,ms (cyclic) & 402\,ms   & 402\,ms ($\mathrm{SO}(3)$-on-$S^2$) \\
+M5 Pro, MPS     & 0.062\,ms (torus)  & 0.641\,ms & 0.719\,ms (disk) \\
+M5 Pro, CPU     & 0.016\,ms (cyclic) & 1.811\,ms & 1.811\,ms ($\mathrm{SO}(3)$-on-$S^2$) \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-All seven modules execute correctly on both backends with no unsupported
-operations. ``Sub-millisecond'' survives on the GPU for every module at batch
-16; on CPU only the small finite-group modules are sub-millisecond, while
-grid-based modules run at 58--402\,ms per batch. We will therefore scope the
-abstract's claim to GPU execution, limit it to the devices/settings actually
-measured, and add the full per-module compatibility matrix (including
-consumer-GPU and Apple-silicon numbers) to the appendix and documentation.
+All six benchmarked configurations execute correctly on CUDA, MPS, and both
+CPUs with no unsupported operations. ``Sub-millisecond'' holds for every
+configuration on both tested GPU backends at batch 16. On the M5 Pro CPU,
+five modules are sub-millisecond and the spherical module takes 1.811\,ms;
+the x86 host is substantially slower on grid-based modules. We will scope the
+abstract's claim to the tested GPU settings and add the full per-module timing
+and compatibility matrix to the appendix and documentation.
 
 \subsubsection*{High-capacity OrganMNIST3D result}
 
@@ -548,14 +544,12 @@ Q5 (e3nn/scattering baseline) uses the agreed fallback. Three watch-items:
 push on it, our line is that the pre-registered feature threshold was nearly
 met (median $1.4\times10^{-2}$) and alignment on high-frequency random
 signals is a separate optimization problem; do not promise a proof;
-(b) the portability table now says A100, not H100/consumer GPU as the draft
-skeleton assumed --- the H100 numbers exist in the paper itself, and Johan is
-running the Apple-silicon (MPS + Mac CPU) benchmark locally, so the combined
-revision table will have H100 + A100 + x86 CPU + MPS; if the Mac numbers land
-before the discussion deadline we can post them as a follow-up comment to
-yWuC's Q4;
-(c) at 8{,}182 characters this response fits the 10{,}000-character limit
-with $\sim$1.8k headroom; if edits (e.g.\ adding the Mac MPS numbers) push it
+(b) the portability table now includes A100, x86 CPU, M5 Pro CPU, and MPS;
+all six configurations run on MPS and are sub-millisecond. The H100 numbers
+remain in the paper itself, and a consumer-GPU volunteer is still needed; the
+Mac results can be posted as a follow-up comment to yWuC's Q4;
+(c) at 8{,}339 characters this response fits the 10{,}000-character limit
+with $\sim$1.7k headroom; if further edits push it
 over, the ``Baselines and scope'' and ``Corrections'' sections compress best
 (the corrections are repeated in the global response).
 \end{metacomment}

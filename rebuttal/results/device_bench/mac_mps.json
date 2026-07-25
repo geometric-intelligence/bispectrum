@@ -1,0 +1,75 @@
+{
+  "environment": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "torch": "2.11.0",
+    "device": "mps",
+    "cuda_runtime": null,
+    "cudnn": null,
+    "mps_available": true,
+    "batch_size": 16,
+    "warmup": 10,
+    "repeats": 30,
+    "inner_loops": 20,
+    "dtype": "float32",
+    "device_name": "Apple Metal Performance Shaders"
+  },
+  "results": [
+    {
+      "module": "CnonCn",
+      "settings": "n=128",
+      "output_size": 128,
+      "median_ms": 0.09066874990821816,
+      "p25_ms": 0.08524844997737091,
+      "p75_ms": 0.1050953385856701,
+      "error": null
+    },
+    {
+      "module": "TorusOnTorus",
+      "settings": "ns=(32,32)",
+      "output_size": 1024,
+      "median_ms": 0.062411474937107414,
+      "p25_ms": 0.05930417428317014,
+      "p75_ms": 0.06957499972486403,
+      "error": null
+    },
+    {
+      "module": "DnonDn",
+      "settings": "n=32",
+      "output_size": 245,
+      "median_ms": 0.29879060020903125,
+      "p25_ms": 0.29394060038612224,
+      "p75_ms": 0.31024218806123827,
+      "error": null
+    },
+    {
+      "module": "SO2onDisk",
+      "settings": "L=16",
+      "output_size": 105,
+      "median_ms": 0.7187146009528078,
+      "p25_ms": 0.7101572995452443,
+      "p75_ms": 0.7299827877432108,
+      "error": null
+    },
+    {
+      "module": "SO3onS2",
+      "settings": "lmax=16, grid=64x128",
+      "output_size": 430,
+      "median_ms": 0.6406250002328306,
+      "p25_ms": 0.6372583498887252,
+      "p75_ms": 0.6422130380087765,
+      "error": null
+    },
+    {
+      "module": "OctaonOcta",
+      "settings": "|O|=24",
+      "output_size": 172,
+      "median_ms": 0.4117021002457477,
+      "p25_ms": 0.4088004869117867,
+      "p75_ms": 0.4173057499428978,
+      "error": null
+    }
+  ]
+}

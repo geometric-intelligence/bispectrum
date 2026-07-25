@@ -1010,7 +1010,18 @@ class SO3onS2(nn.Module):
         """Core sparse computation from flat coefficient array."""
         self._ensure_precomputed_on_device(device, dtype)
 
-        result = torch.zeros(batch_size, num_entries, dtype=dtype, device=device)
+        use_split_complex_scatter = device.type == 'mps'
+        if use_split_complex_scatter:
+            result_real = torch.zeros(
+                batch_size,
+                num_entries,
+                dtype=flat.real.dtype,
+                device=device,
+            )
+            result_imag = torch.zeros_like(result_real)
+        else:
+            result = torch.zeros(batch_size, num_entries, dtype=dtype, device=device)
+
         bi_fl1 = self._sc_bi_fl1
         if bi_fl1.numel() > 0:
             prods = (
@@ -1019,7 +1030,12 @@ class SO3onS2(nn.Module):
                 * self._sc_bi_cg.unsqueeze(0)
                 * torch.conj(flat[:, self._sc_bi_fl])
             )
-            result.scatter_add_(1, self._sc_bi_eid.unsqueeze(0).expand(batch_size, -1), prods)
+            bispec_index = self._sc_bi_eid.unsqueeze(0).expand(batch_size, -1)
+            if use_split_complex_scatter:
+                result_real.scatter_add_(1, bispec_index, prods.real)
+                result_imag.scatter_add_(1, bispec_index, prods.imag)
+            else:
+                result.scatter_add_(1, bispec_index, prods)
 
         if self._sc_pw_n_rows > 0:
             n_pw = self._sc_pw_n_rows
@@ -1027,14 +1043,30 @@ class SO3onS2(nn.Module):
             pw_prods = (
                 flat[:, self._sc_pw_fl1] * flat[:, self._sc_pw_fl2] * self._sc_pw_cg.unsqueeze(0)
             )
-            coupled_flat = torch.zeros(batch_size, n_pw * mc, dtype=dtype, device=device)
-            coupled_flat.scatter_add_(
-                1, self._sc_pw_cidx.unsqueeze(0).expand(batch_size, -1), pw_prods
-            )
-            coupled_2d = coupled_flat.reshape(batch_size, n_pw, mc)
-            norms = torch.sum(coupled_2d.real**2 + coupled_2d.imag**2, dim=-1).to(dtype)
-            result[:, self._sc_pw_eids] = norms
+            power_index = self._sc_pw_cidx.unsqueeze(0).expand(batch_size, -1)
+            if use_split_complex_scatter:
+                coupled_real = torch.zeros(
+                    batch_size,
+                    n_pw * mc,
+                    dtype=flat.real.dtype,
+                    device=device,
+                )
+                coupled_imag = torch.zeros_like(coupled_real)
+                coupled_real.scatter_add_(1, power_index, pw_prods.real)
+                coupled_imag.scatter_add_(1, power_index, pw_prods.imag)
+                coupled_real = coupled_real.reshape(batch_size, n_pw, mc)
+                coupled_imag = coupled_imag.reshape(batch_size, n_pw, mc)
+                norms = torch.sum(coupled_real**2 + coupled_imag**2, dim=-1)
+                result_real[:, self._sc_pw_eids] = norms
+            else:
+                coupled_flat = torch.zeros(batch_size, n_pw * mc, dtype=dtype, device=device)
+                coupled_flat.scatter_add_(1, power_index, pw_prods)
+                coupled_2d = coupled_flat.reshape(batch_size, n_pw, mc)
+                norms = torch.sum(coupled_2d.real**2 + coupled_2d.imag**2, dim=-1).to(dtype)
+                result[:, self._sc_pw_eids] = norms
 
+        if use_split_complex_scatter:
+            return torch.complex(result_real, result_imag)
         return result
 
     def reset_cuda_graph_cache(self) -> None:
