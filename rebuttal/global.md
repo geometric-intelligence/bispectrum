@@ -1,8 +1,10 @@
-# Global response synthesis (INTERNAL — not posted)
+# Global response synthesis (internal checklist)
 
-OpenReview provides no global/all-reviewer comment field this year, so this
-document is not posted. It is kept as the internal consistency checklist. Its
-content is distributed into the per-reviewer responses as follows:
+Update (July 28): the Program Chairs re-opened the global Official Comment.
+The posted version is the GLOBAL block in `openreview_paste.md`, which
+supersedes the body below. The per-reviewer responses remain self-contained.
+This file stays the internal consistency checklist. Its content is
+distributed into the per-reviewer responses as follows:
 
 - completeness status distinction: yWuC ("Status of the spherical invariant"),
   LgCU (closing paragraph), AZ1B (Q2).
