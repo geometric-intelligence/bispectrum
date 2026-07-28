@@ -2,9 +2,9 @@
 
 Thank you for the careful, technically precise review and for recognizing the
 value of the uniform tested interface, the optimal-order coefficient count,
-and the low-data results. We agree that the original text did not separate the
-theoretical status of the finite-group construction from that of the spherical
-construction sharply enough.
+and the low-data results. You are right that the original text did not
+separate the theoretical status of the finite-group construction from that of
+the spherical construction sharply enough.
 
 ## Status of the spherical invariant
 
@@ -15,7 +15,7 @@ use “augmented selective invariant” for the full output
 $\Phi_{\mathrm{sel}}$ and reserve “selective bispectrum” for its degree-3
 bispectral subset. The distinction matters because the bootstrap bispectral
 block has generic rank approximately $\ell+2$, rather than $2\ell+1$, on the
-real-signal slice; even self-couplings and degree-4 CG-power scalars provide
+real-signal slice. Even self-couplings and degree-4 CG-power scalars provide
 the additional independent constraints.
 
 This status differs from the finite-group and disk modules, whose generic
@@ -39,15 +39,15 @@ features are masked to zero, so all four variants share the identical
 
 Each augmentation stage changes accuracy by more than cross-seed variability:
 the Jacobian-motivated even self-couplings add $+0.4$ points and the CG-power
-scalars a further $+0.5$; the five auxiliary entries of the production model
+scalars a further $+0.5$. The five auxiliary entries of the production model
 are not needed for accuracy ($-0.2$). NR/R equals NR/NR at every stage, so
 rotation invariance holds regardless of feature set. This directly tests
 whether the Jacobian-motivated augmentation also matters for classification
 rather than only for reconstruction—it does.
 
-**Band-limit and out-of-dataset reconstruction.** We agree that validating only
-at $L=12$ while classifying at $L=15$ was a gap. We repeated the reconstruction
-at $L=15$ (128x256 grid) with the classifier's feature construction, 4
+**Band-limit and out-of-dataset reconstruction.** Validating only at $L=12$
+while classifying at $L=15$ was a real gap. We repeated the reconstruction
+at $L=15$ ($128\times256$ grid) with the classifier's feature construction, 4
 optimization restarts per signal and 12 alignment restarts, on 16 Spherical
 MNIST signals (8 digits, identity + one random rotation each) and 16 random
 Gaussian band-limited signals. With pre-registered thresholds (feature residual
@@ -55,13 +55,14 @@ $\le 10^{-2}$, aligned image residual $\le 0.3$): on MNIST signals, all 16
 recoveries converged in feature space (median residual $1.4\times10^{-3}$, IQR
 $[1.2, 3.5]\times10^{-3}$), the invariance residual under rotation was
 $1.9\times10^{-3}$ (median), and 62.5% additionally passed the aligned-image
-threshold (median aligned residual 0.27, IQR $[0.21, 0.52]$; successful cases
-sit at the SHT discretization floor). On random signals the optimizer plateaued
-just above the feature threshold (median $1.4\times10^{-2}$, IQR
-$[1.1, 1.7]\times10^{-2}$; 3/16 below threshold) and no case passed alignment
-(median aligned residual 1.19), so the joint success rate is 0% and we report
-it as such rather than adjusting thresholds post hoc; we cannot currently
-distinguish optimization difficulty from a genuine failure mode on this family.
+threshold (median aligned residual 0.27, IQR $[0.21, 0.52]$, with successful
+cases sitting at the SHT discretization floor). On random signals the optimizer
+plateaued just above the feature threshold (median $1.4\times10^{-2}$, IQR
+$[1.1, 1.7]\times10^{-2}$, only 3/16 below threshold) and no case passed
+alignment (median aligned residual 1.19), so the joint success rate is 0% and
+we report it as such rather than adjusting thresholds post hoc. We cannot
+currently distinguish optimization difficulty from a genuine failure mode on
+this family.
 We will add both results and replace the current $L=12/L=15$ limitation with
 the measured $L=15$ scope. These experiments remain evidence, not a proof, and
 do not rule out exceptional signals or near-collisions.
@@ -83,44 +84,49 @@ forwards, including the SHT inside SO(3)-on-$S^2$) on an NVIDIA A100 80GB
 | M5 Pro, CPU | 0.016 ms (cyclic) | 1.811 ms | 1.811 ms (SO(3)-on-$S^2$) |
 
 All six benchmarked configurations execute correctly on CUDA, MPS, and both
-CPUs with no unsupported operations. "Sub-millisecond" holds for every
+CPUs with no unsupported operations. The seventh module, SO(2)-on-$S^1$, is a
+thin wrapper that inherits the cyclic module's computation exactly, so the
+cyclic row covers it. "Sub-millisecond" holds for every
 configuration on both tested GPU backends at batch 16. On the M5 Pro CPU,
-five modules are sub-millisecond and the spherical module takes 1.811 ms; the
+five modules are sub-millisecond and the spherical module takes 1.811 ms. The
 x86 host is substantially slower on grid-based modules. We will scope the
 abstract's claim to the tested GPU settings and add the full per-module timing
 and compatibility matrix to the appendix and documentation.
 
 ## High-capacity OrganMNIST3D result
 
-We agree that “likely overfits” was not established by test accuracy alone. At
+“Likely overfits” was indeed not established by test accuracy alone. At
 $(16,32)$ channels we now report train/validation curves, final test results,
 and a controlled regularization sweep: 7 configurations $\times$ 3 seeds = 21
-runs (max and bispectral baselines at weight decay $10^{-4}$; bispectral with
-weight decay $10^{-3}$/$10^{-2}$, dropout 0.2/0.5, and $10^{-3}$+0.2),
+runs (max and bispectral baselines at weight decay $10^{-4}$, plus bispectral
+with weight decay $10^{-3}$/$10^{-2}$, dropout 0.2/0.5, and $10^{-3}$+0.2),
 validation-AUC model selection, test evaluated once after training. At the
 best-validation epoch, max pooling reaches $84.9\pm9.7$% train /
-$76.7\pm5.8$% test; the bispectral baseline $73.7\pm6.3$% train /
-$66.8\pm4.9$% test; the best regularized bispectral model (weight decay
-$10^{-3}$) $80.5\pm3.7$% train / $72.5\pm1.0$% test. Train-test gaps are
-small and uniform (0.067--0.087) for every configuration. The curves do not
+$76.7\pm5.8$% test, the bispectral baseline $73.7\pm6.3$% train /
+$66.8\pm4.9$% test, and the best regularized bispectral model (weight decay
+$10^{-3}$) $80.5\pm3.7$% train / $72.5\pm1.0$% test. The submitted
+single-seed Table 11 values (68.5% and 78.5%) fall within these cross-seed
+ranges. Train-test gaps are
+small and uniform (0.067–0.087) for every configuration. The curves do not
 show the overfitting signature: bispectral train accuracy is *lower* than max
 pooling's, train tracks validation throughout, and stronger regularization
 raises train and test together without closing the gap to max pooling. The
 supported diagnosis is an optimization/capacity limitation of the bispectral
-head at this width, not memorization; we will replace the speculative sentence
-in the paper with this evidence. This experiment is also reported in our
+model at this width rather than memorization. We will replace the speculative
+sentence in the paper with this evidence. This experiment is also reported in our
 response to Reviewer LgCU.
 
 ## Baselines and scope
 
-We agree that a stronger spherical invariant baseline would improve the
-evaluation. Implementing and tuning a new tensor-product or scattering
-pipeline reliably during the response window was not feasible. We will add
-this comparison in the revision and retain the missing-baseline limitation;
-we do not claim superiority to those methods.
+A stronger spherical invariant baseline would clearly improve the
+evaluation. Within the response window we prioritized the ablation and
+reconstruction experiments requested above, and could not also tune a new
+tensor-product or scattering pipeline to a fair standard. We commit to adding
+this tuned comparison to the camera-ready and retain the missing-baseline
+limitation until then. We do not claim superiority to those methods.
 The revised related-work discussion will also distinguish our construction
-from the complete but cubic-size invariants of Edidin--Satriano and the
-three-shell frequency-marching result of Bendory et al.; the current comparison
+from the complete but cubic-size invariants of Edidin–Satriano and the
+three-shell frequency-marching result of Bendory et al. The current comparison
 table already records their completeness and scaling.
 
 ## Corrections to claims
@@ -129,17 +135,17 @@ We accept the reviewer's corrections:
 
 - “selectivity reduces computational cost from $O(|G|^2)$ to $O(|G|)$” will
   become “selectivity reduces the **coefficient count** from
-  $O(|G|^2)$ to $O(|G|)$”; Table 1's selective forward cost is
-  $O(|G|^2)$;
+  $O(|G|^2)$ to $O(|G|)$” (Table 1's selective forward cost is
+  $O(|G|^2)$).
 - “consistently outperform” will be replaced by the narrower observed claim:
   bispectral pooling improves data efficiency in the tested low-data,
   moderate-capacity settings, while matching or trailing alternatives
-  elsewhere;
-- coverage will be reported consistently as 96.8%; and
-- the checklist references to the Section 5 construction will be corrected.
+  elsewhere.
+- Coverage will be reported consistently as 96.8%.
+- The checklist references to the Section 5 construction will be corrected.
 
 Finally, the hidden phrases noted under “Paper Formatting Concerns” were not
 inserted by the authors. They are a NeurIPS-generated watermark placed in
-reviewer-facing PDFs to detect prohibited LLM-assisted reviewing; identical
+reviewer-facing PDFs to detect prohibited LLM-assisted reviewing. Identical
 text and placement occur across NeurIPS 2026 submissions. The Program Chairs
 can confirm this, and our author PDF/LaTeX sources do not contain the text.

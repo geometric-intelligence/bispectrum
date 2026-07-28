@@ -2,19 +2,19 @@
 
 Thank you for recognizing that the package fills an unavailable capability,
 could broaden adoption of bispectra, and is well written and thoroughly
-evaluated. We agree that most group-specific formulas build on prior theory;
-the contribution is to make them usable together as tested, differentiable
+evaluated. We agree that most group-specific formulas build on prior theory.
+The contribution is to make them usable together as tested, differentiable
 PyTorch components. We respectfully disagree, however, that the paper lacks a
 substantive algorithmic or empirical contribution.
 
 The work contributes more than a repackaging of formulas: (i) one uniform
 autograd-compatible implementation for seven group/domain pairs, including
-precomputed CG/DFT/Bessel buffers and selective sparse contractions; (ii) an
-optimized and profiled implementation reducing full representations by up to
-$512\times$; (iii) a new augmented selective $\mathrm{SO}(3)$-on-$S^2$
+precomputed CG/DFT/Bessel buffers and selective sparse contractions, (ii)
+profiled kernel-level optimizations that shrink the full representations by up
+to $512\times$, (iii) a new augmented selective $\mathrm{SO}(3)$-on-$S^2$
 construction with an asymptotically optimal $\Theta(L^2)$ coefficient count,
 an $\Omega(L^2)$ lower bound, a parity/vanishing analysis, and an explicit
-diagnosis and repair of the real-signal rank deficit; and (iv) the first
+diagnosis and repair of the real-signal rank deficit, and (iv) the first
 controlled evaluation of these invariants as pooling layers across planar,
 volumetric, and spherical tasks.
 
@@ -27,6 +27,16 @@ capacity. The low-data gains are where completeness helps most, but not the
 only demonstrated functionality: the library also provides near-exact
 invariance without augmentation and preserves orbit information that norm/max
 pooling discards.
+
+During the response period we added two measurements that bear directly on
+the contribution's substance. A parameter-matched feature ablation on
+Spherical MNIST shows each component of the augmented construction adds
+accuracy beyond cross-seed variability (three seeds: bootstrap triples 94.09%,
++ even self-couplings 94.48%, + CG-power scalars 95.00%), so each component of
+the augmentation is functionally necessary. We also benchmarked six
+paper-scale module configurations on an NVIDIA A100, an x86-64 CPU, and an
+Apple M5 Pro (CPU and MPS): every configuration runs on every backend,
+sub-millisecond on both GPUs. Details are in our response to Reviewer yWuC.
 
 ## Q1: What made the spherical extension technically difficult?
 
@@ -42,7 +52,7 @@ finite irrep index with $\ell$:
 2. **A linear chain is dimensionally insufficient.** A band-limited real
    spherical signal has $(L+1)^2$ degrees of freedom modulo three rotational
    degrees. We prove that every smooth/polynomial complete invariant therefore
-   needs at least $(L+1)^2-3=\Omega(L^2)$ live components; an $O(L)$
+   needs at least $(L+1)^2-3=\Omega(L^2)$ live components, so an $O(L)$
    Mataigne-style frequency chain cannot be complete.
 3. **Reality and parity break the naive bootstrap.** On real signals, each
    scalar bispectrum entry is either real or purely imaginary, and every
@@ -60,17 +70,18 @@ this technical chain in Section 5.
 
 ## Q2: What would a completeness proof require?
 
-We conjecture generic completeness; the current Jacobian and reconstruction
-tests are evidence, not a proof. A proof would require:
+We conjecture generic completeness. The current Jacobian and reconstruction
+tests provide evidence but fall short of a proof. A proof would proceed in
+four steps:
 
-1. prove that the full low-degree seed separates a generic orbit and fixes a
+1. Prove that the full low-degree seed separates a generic orbit and fixes a
    common rotational gauge (including orientation, using a nonzero odd-parity
-   triple);
-2. induct on $\ell$, assuming all lower-degree coefficients have been recovered
-   in that common gauge;
-3. prove that the selected bootstrap, self-coupling, and CG-power equations
-   have a **unique generic real solution** for $\mathbf F_\ell$; and
-4. characterize the algebraic exceptional set where a seed coefficient
+   triple).
+2. Induct on $\ell$, assuming all lower-degree coefficients have been recovered
+   in that common gauge.
+3. Prove that the selected bootstrap, self-coupling, and CG-power equations
+   have a **unique generic real solution** for $\mathbf F_\ell$.
+4. Characterize the algebraic exceptional set where a seed coefficient
    vanishes, a rank drops, or a nontrivial stabilizer remains.
 
 The unresolved conceptual step is (3). Full generic Jacobian rank gives local
@@ -85,13 +96,16 @@ completeness” explicitly.
 
 ## Q3: S2CNN baseline and inference
 
-We agree that the published S2CNN values should appear in Table 4 rather than
-only in prose, and will move them there. We did not run S2CNN in the submitted
+The published S2CNN values should indeed appear in Table 4 rather than only
+in prose, and we will move them there. We did not run S2CNN in the submitted
 experiments, so we cannot infer an apples-to-apples speed advantage from its
-published accuracies. A reliable matched re-run was not feasible during the
-response window; we will retain the accuracy comparison, explicitly label it
-as published, and remove any implication of a measured speed advantage over
-S2CNN.
+published accuracies, and porting the original implementation to a current
+PyTorch/CUDA stack was not achievable within the response window. We commit to
+a matched S2CNN re-run for the camera-ready, on the same hardware, precision,
+and measurement protocol as our timing benchmarks, and will report the
+resulting accuracy and measured inference times. Until then we will label the
+accuracy comparison as published and remove any implication of a measured
+speed advantage over S2CNN.
 
 ## Corrections
 

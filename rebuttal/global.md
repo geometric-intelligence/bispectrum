@@ -1,4 +1,18 @@
-# Global response
+# Global response synthesis (INTERNAL — not posted)
+
+OpenReview provides no global/all-reviewer comment field this year, so this
+document is not posted. It is kept as the internal consistency checklist. Its
+content is distributed into the per-reviewer responses as follows:
+
+- completeness status distinction: yWuC ("Status of the spherical invariant"),
+  LgCU (closing paragraph), AZ1B (Q2).
+- response-period experiments: reconstruction, ablation, and timings detailed
+  in yWuC, OrganMNIST3D in LgCU and yWuC, compact summary in AZ1B.
+- paper corrections: yWuC ("Corrections to claims"), AZ1B ("Corrections").
+- hidden-PDF-text watermark clarification: yWuC only (the reviewer who
+  raised it).
+
+---
 
 We thank the reviewers and Area Chair for the careful assessment. The reviews
 agree that the library is well engineered, clearly presented, and fills a
@@ -9,10 +23,10 @@ and the breadth of its empirical validation. We will revise the paper to make
 the distinction unambiguous:
 
 - completeness of the finite-group and disk constructions follows from prior
-  theory under their stated genericity assumptions;
+  theory under their stated genericity assumptions.
 - generic completeness of our augmented selective
   $\mathrm{SO}(3)$-on-$S^2$ invariant is a **conjecture**, supported—but not
-  proved—by reconstruction and Jacobian-rank evidence; and
+  proved—by reconstruction and Jacobian-rank evidence.
 - the $\mathrm{SO}(3)$ output is an *augmented invariant*: its bispectral
   component is supplemented by degree-4 CG-power scalars to repair the rank
   deficit on real signals.
@@ -23,22 +37,22 @@ reviewers:
 1. reconstruction at the classifier's deployed band-limit $L=15$ (128x256
    grid): all 16 Spherical MNIST signals recovered in feature space (median
    residual $1.4\times10^{-3}$, 100% under the pre-registered $10^{-2}$
-   threshold) with 62.5% joint success after SO(3) alignment; on 16 random
+   threshold) with 62.5% joint success after SO(3) alignment. On 16 random
    band-limited signals the optimizer plateaued just above the feature
    threshold (median $1.4\times10^{-2}$) and alignment did not succeed, which
    we report as-is—empirical evidence on natural signals, inconclusive on
-   random ones (details in the response to Reviewer yWuC);
+   random ones (details in the response to Reviewer yWuC).
 2. a parameter-matched ablation of bootstrap triples, even self-couplings,
    and CG-power augmentation on Spherical MNIST: 94.09% $\to$ 94.48% $\to$
    95.00% (each step exceeding cross-seed variability), with the CG-power
    scalars contributing the largest gain and rotated-test accuracy identical
-   to unrotated within noise at every stage;
+   to unrotated within noise at every stage.
 3. timings at batch 16, float32 on an NVIDIA A100 (PyTorch 2.11, CUDA 13.0),
    its x86-64 host CPU, and an Apple M5 Pro (CPU and MPS): the six benchmarked
    configurations run in 0.10--0.81 ms on the A100, 0.08--402 ms on x86 CPU,
    0.016--1.811 ms on the M5 Pro CPU, and 0.062--0.719 ms on MPS. All six
    configurations execute on every backend, so "sub-millisecond" holds for
-   both tested GPU backends and we will scope the claim to those settings; and
+   both tested GPU backends and we will scope the claim to those settings.
 4. training/validation curves, final test results, and a regularization sweep
    for the high-capacity OrganMNIST3D model (21 runs): no overfitting
    signature—train accuracy tracks validation for both poolings (train-test
@@ -48,8 +62,8 @@ reviewers:
    memorization.
 
 We will also correct the finite-group complexity statement (selectivity reduces
-the **coefficient count** from $O(|G|^2)$ to $O(|G|)$; the selective forward
-cost in Table 1 is $O(|G|^2)$), use 96.8% consistently for coverage, soften the
+the **coefficient count** from $O(|G|^2)$ to $O(|G|)$, while the selective
+forward cost in Table 1 stays $O(|G|^2)$), use 96.8% consistently for coverage, soften the
 abstract's empirical claim, fix the checklist cross-references and reported
 typos, and move the published S2CNN results into the Spherical MNIST table.
 
@@ -58,7 +72,7 @@ typos, and move the published S2CNN results into the Spherical MNIST table.
 The hidden phrases reported by Reviewer yWuC were not inserted by the authors.
 They are a NeurIPS-generated watermark added to reviewer-facing PDFs as part of
 the venue's detection of prohibited LLM-assisted reviewing. The same phrases
-and placements occur across NeurIPS 2026 submissions; the Program Chairs can
-confirm this. Our author-generated PDF and LaTeX sources do not contain this
+and placements occur across NeurIPS 2026 submissions, and the Program Chairs
+can confirm this. Our author-generated PDF and LaTeX sources do not contain this
 text. We respectfully ask that this venue-added watermark not be treated as an
 author formatting or integrity concern.

@@ -60,15 +60,17 @@ bootstrap seed; unnormalized inputs in the new per-epoch train-metric pass for
 OrganMNIST3D) --- \emph{please commit these before we cite the git SHA
 anywhere}.
 
-\textbf{Character counts} (markdown, before OpenReview formatting): global
-3{,}895; yWuC 8{,}339; LgCU 3{,}101; AZ1B 5{,}819. The rebuttal limit is
-10{,}000 characters per response, so all four fit as-is; the tightest is
-yWuC with $\sim$1.7k headroom for edits.
+\textbf{Character counts} (markdown, before OpenReview formatting): yWuC
+8{,}691; LgCU 3{,}258; AZ1B 6{,}760. The global response is no longer posted
+(no global comment field this year); its content is distributed into the
+per-reviewer responses. The rebuttal limit is 10{,}000 characters per
+response, so all three fit as-is; the tightest is yWuC with $\sim$1.3k
+headroom for edits.
 
 \textbf{Decisions needed from the group:}
-(1) yWuC/global assert the hidden-PDF-text phrases are a NeurIPS watermark
-inserted in reviewer-facing PDFs --- we should confirm this with the Program
-Chairs \emph{before} posting, since we state it as fact;
+(1) the yWuC response asserts the hidden-PDF-text phrases are a NeurIPS
+watermark inserted in reviewer-facing PDFs --- we should confirm this with
+the Program Chairs \emph{before} posting, since we state it as fact;
 (2) E3 shows the production ``full'' feature set is 0.2 points \emph{below}
 the CG-power variant (94.78 vs.\ 95.00, seed std 0.06) --- current draft
 states this honestly; decide if we keep the framing and whether the library
@@ -80,7 +82,10 @@ undetermined''; decide if anyone wants a clearly-labeled post-hoc secondary
 analysis (more alignment restarts) before the discussion deadline;
 (4) E1 now includes A100, x86-64 host CPU, Apple M5 Pro CPU, and MPS. All six
 benchmarked configurations run on MPS in 0.062--0.719\,ms. A consumer-GPU
-volunteer is still needed before the camera-ready.
+volunteer is still needed before the camera-ready;
+(5) the yWuC and AZ1B responses now \emph{commit} to E5 (tuned
+tensor-product/scattering baseline) and E6 (matched S2CNN re-run) for the
+camera-ready --- confirm the group accepts these as binding before posting.
 \end{metacomment}
 
 \tableofcontents
@@ -107,8 +112,19 @@ LgCU 5 (Accept, conf.\ 2), yWuC 4 (Borderline Accept, conf.\ 3), AZ1B 2
 \end{metacomment}
 
 %=====================================================================
-\section{Global response (post to all reviewers and AC)}
+\section{Global response synthesis (internal --- not posted)}
 %=====================================================================
+
+\begin{metacomment}
+OpenReview provides no global/all-reviewer comment field this year, so this
+section is \textbf{not posted}. It is retained as the internal consistency
+checklist; its content is distributed into the per-reviewer responses:
+completeness status $\to$ yWuC (``Status of the spherical invariant''), LgCU
+(closing paragraph), AZ1B (Q2); response-period experiments $\to$ detailed in
+yWuC, OrganMNIST3D in LgCU, compact summary in AZ1B; paper corrections $\to$
+yWuC and AZ1B; watermark clarification $\to$ yWuC only (the reviewer who
+raised it).
+\end{metacomment}
 
 We thank the reviewers and Area Chair for the careful assessment. The reviews
 agree that the library is well engineered, clearly presented, and fills a
@@ -120,11 +136,10 @@ the distinction unambiguous:
 
 \begin{itemize}
 \item completeness of the finite-group and disk constructions follows from
-  prior theory under their stated genericity assumptions;
+  prior theory under their stated genericity assumptions.
 \item generic completeness of our augmented selective
   $\mathrm{SO}(3)$-on-$S^2$ invariant is a \textbf{conjecture},
-  supported---but not proved---by reconstruction and Jacobian-rank evidence;
-  and
+  supported---but not proved---by reconstruction and Jacobian-rank evidence.
 \item the $\mathrm{SO}(3)$ output is an \emph{augmented invariant}: its
   bispectral component is supplemented by degree-4 CG-power scalars to repair
   the rank deficit on real signals.
@@ -138,22 +153,22 @@ reviewers:
   ($128\times256$ grid): all 16 Spherical MNIST signals recovered in feature
   space (median residual $1.4\times10^{-3}$, 100\% under the pre-registered
   $10^{-2}$ threshold) with 62.5\% joint success after $\mathrm{SO}(3)$
-  alignment; on 16 random band-limited signals the optimizer plateaued just
+  alignment. On 16 random band-limited signals the optimizer plateaued just
   above the feature threshold (median $1.4\times10^{-2}$) and alignment did
   not succeed, which we report as-is---empirical evidence on natural signals,
-  inconclusive on random ones (details in the response to Reviewer yWuC);
+  inconclusive on random ones (details in the response to Reviewer yWuC).
 \item a parameter-matched ablation of bootstrap triples, even self-couplings,
   and CG-power augmentation on Spherical MNIST: 94.09\% $\to$ 94.48\% $\to$
   95.00\% (each step exceeding cross-seed variability), with the CG-power
   scalars contributing the largest gain and rotated-test accuracy identical to
-  unrotated within noise at every stage;
+  unrotated within noise at every stage.
 \item timings at batch 16, float32 on an NVIDIA A100 (PyTorch 2.11, CUDA
   13.0), its x86-64 host CPU, and an Apple M5 Pro (CPU and MPS): the six
   benchmarked configurations run in 0.10--0.81\,ms on the A100,
   0.08--402\,ms on x86 CPU, 0.016--1.811\,ms on the M5 Pro CPU, and
   0.062--0.719\,ms on MPS. All six configurations execute on every backend,
   so ``sub-millisecond'' holds for both tested GPU backends and we will scope
-  the claim to those settings; and
+  the claim to those settings.
 \item training/validation curves, final test results, and a regularization
   sweep for the high-capacity OrganMNIST3D model (21 runs): no overfitting
   signature---train accuracy tracks validation for both poolings (train--test
@@ -164,8 +179,8 @@ reviewers:
 \end{enumerate}
 
 We will also correct the finite-group complexity statement (selectivity
-reduces the \textbf{coefficient count} from $O(|G|^2)$ to $O(|G|)$; the
-selective forward cost in Table~1 is $O(|G|^2)$), use 96.8\% consistently for
+reduces the \textbf{coefficient count} from $O(|G|^2)$ to $O(|G|)$, while the
+selective forward cost in Table~1 stays $O(|G|^2)$), use 96.8\% consistently for
 coverage, soften the abstract's empirical claim, fix the checklist
 cross-references and reported typos, and move the published S2CNN results into
 the Spherical MNIST table.
@@ -175,7 +190,7 @@ the Spherical MNIST table.
 The hidden phrases reported by Reviewer yWuC were not inserted by the authors.
 They are a NeurIPS-generated watermark added to reviewer-facing PDFs as part
 of the venue's detection of prohibited LLM-assisted reviewing. The same
-phrases and placements occur across NeurIPS 2026 submissions; the Program
+phrases and placements occur across NeurIPS 2026 submissions, and the Program
 Chairs can confirm this. Our author-generated PDF and LaTeX sources do not
 contain this text. We respectfully ask that this venue-added watermark not be
 treated as an author formatting or integrity concern.
@@ -223,8 +238,8 @@ attribution to ``likely overfitting.''
 We reran the $(16,32)$-channel max-pooling and bispectral models with
 identical data splits and three seeds, logging train/validation curves and
 final test results, and swept regularization while holding the backbone and
-optimizer schedule fixed (7 configurations $\times$ 3 seeds; validation-AUC
-model selection; accuracy \% at the best-validation epoch, mean $\pm$ std):
+optimizer schedule fixed (7 configurations $\times$ 3 seeds, validation-AUC
+model selection, accuracy \% at the best-validation epoch, mean $\pm$ std):
 
 \begin{center}
 \begin{tabular}{llrrr}
@@ -238,7 +253,9 @@ bispectrum & best: $10^{-3}$ / 0     & $80.5 \pm 3.7$ & $81.0 \pm 2.0$ & $72.5 \
 \end{tabular}
 \end{center}
 
-A train/validation gap never opens: train accuracy stays at or below
+The submitted single-seed Table~11 values (68.5\% and 78.5\%) fall within
+these cross-seed ranges. A train/validation gap never opens: train accuracy
+stays at or below
 validation accuracy for both poolings across all 100 epochs, and the
 train--test gap is small and uniform (0.067--0.087) in every one of the seven
 configurations (the remaining four---weight decay $10^{-2}$, dropout 0.2/0.5,
@@ -250,10 +267,11 @@ optimization/capacity limitation of the bispectral model at this width.
 
 We will add the curves and sweep to the appendix and replace ``likely
 overfits'' with the optimization/capacity conclusion supported by these
-measurements. We will also make the scope explicit: at $(8,16)$ channels the
-methods are statistically equivalent ($74.5\pm0.6\%$ bispectrum versus
-$74.3\pm1.5\%$ max), whereas the submitted high-capacity result is not
-evidence for a universal advantage of complete pooling.
+measurements. The revision will also state the scope plainly: at $(8,16)$
+channels the methods are statistically equivalent ($74.5\pm0.6\%$ bispectrum
+versus $74.3\pm1.5\%$ max), and the high-capacity result identifies a regime
+where max pooling is stronger. We do not claim a universal advantage for
+complete pooling.
 
 \subsubsection*{Terminology}
 
@@ -261,22 +279,22 @@ We also accept the clarity suggestion. Section~2 will add short operational
 definitions before the formulas:
 
 \begin{itemize}
-\item a \textbf{Wigner-$D$ matrix} is the matrix representing a 3D rotation
-  on the degree-$\ell$ spherical-harmonic coefficients;
+\item A \textbf{Wigner-$D$ matrix} is the matrix representing a 3D rotation
+  on the degree-$\ell$ spherical-harmonic coefficients.
 \item \textbf{Clebsch--Gordan coefficients} give the change of basis
-  decomposing the tensor product of two irreducible representations;
-  contracting with them is what makes each bispectral scalar rotation
-  invariant; and
-\item the \textbf{parity rule} states that, for real spherical signals, a
+  decomposing the tensor product of two irreducible representations.
+  Contracting with them is what makes each bispectral scalar rotation
+  invariant.
+\item The \textbf{parity rule} states that, for real spherical signals, a
   scalar bispectrum entry is real at even total degree and purely imaginary
-  at odd total degree; odd-parity entries with a repeated degree vanish
+  at odd total degree. Odd-parity entries with a repeated degree vanish
   identically.
 \end{itemize}
 
-Finally, we will sharpen the status statement throughout: generic completeness
-of the finite-group construction is theoretically supported, while generic
-completeness of our augmented $\mathrm{SO}(3)$-on-$S^2$ invariant is
-conjectured and supported empirically, not proved.
+Finally, the revision will sharpen the status statement throughout: generic
+completeness of the finite-group construction is theoretically supported,
+while generic completeness of our augmented $\mathrm{SO}(3)$-on-$S^2$
+invariant is conjectured and supported empirically rather than proved.
 
 \begin{metacomment}
 Friendly reviewer; the response answers their single question directly with
@@ -284,7 +302,7 @@ the new E4 evidence. The per-epoch curves figure
 (\texttt{rebuttal/results/organ3d\_regularization/analysis/curves\_and\_sweep.pdf})
 is ready if the discussion allows attachments or if we want to embed it in
 the revision immediately. Note the diagnosis wording (``optimization/capacity
-limitation'') is deliberately identical in the yWuC response and the global
+limitation'') is deliberately identical in this response and the yWuC
 response --- keep them synchronized if anyone edits one.
 \end{metacomment}
 
@@ -378,9 +396,9 @@ end of the NeurIPS checklist on p.~30.
 
 Thank you for the careful, technically precise review and for recognizing the
 value of the uniform tested interface, the optimal-order coefficient count,
-and the low-data results. We agree that the original text did not separate
-the theoretical status of the finite-group construction from that of the
-spherical construction sharply enough.
+and the low-data results. You are right that the original text did not
+separate the theoretical status of the finite-group construction from that of
+the spherical construction sharply enough.
 
 \subsubsection*{Status of the spherical invariant}
 
@@ -391,7 +409,7 @@ We will also use ``augmented selective invariant'' for the full output
 $\Phi_{\mathrm{sel}}$ and reserve ``selective bispectrum'' for its degree-3
 bispectral subset. The distinction matters because the bootstrap bispectral
 block has generic rank approximately $\ell+2$, rather than $2\ell+1$, on the
-real-signal slice; even self-couplings and degree-4 CG-power scalars provide
+real-signal slice. Even self-couplings and degree-4 CG-power scalars provide
 the additional independent constraints.
 
 This status differs from the finite-group and disk modules, whose generic
@@ -421,14 +439,14 @@ full model (+ 5 auxiliary bispectral entries, 768) & $94.78 \pm 0.06$ & $94.76 \
 
 Each augmentation stage changes accuracy by more than cross-seed variability:
 the Jacobian-motivated even self-couplings add $+0.4$ points and the CG-power
-scalars a further $+0.5$; the five auxiliary entries of the production model
+scalars a further $+0.5$. The five auxiliary entries of the production model
 are not needed for accuracy ($-0.2$). NR/R equals NR/NR at every stage, so
 rotation invariance holds regardless of feature set. This directly tests
 whether the Jacobian-motivated augmentation also matters for classification
 rather than only for reconstruction---it does.
 
-\textbf{Band-limit and out-of-dataset reconstruction.} We agree that
-validating only at $L=12$ while classifying at $L=15$ was a gap. We repeated
+\textbf{Band-limit and out-of-dataset reconstruction.} Validating only at
+$L=12$ while classifying at $L=15$ was a real gap. We repeated
 the reconstruction at $L=15$ ($128\times256$ grid) with the classifier's
 feature construction, 4 optimization restarts per signal and 12 alignment
 restarts, on 16 Spherical MNIST signals (8 digits, identity + one random
@@ -438,12 +456,12 @@ residual $\le 0.3$): on MNIST signals, all 16 recoveries converged in feature
 space (median residual $1.4\times10^{-3}$, IQR $[1.2, 3.5]\times10^{-3}$),
 the invariance residual under rotation was $1.9\times10^{-3}$ (median), and
 62.5\% additionally passed the aligned-image threshold (median aligned
-residual 0.27, IQR $[0.21, 0.52]$; successful cases sit at the SHT
+residual 0.27, IQR $[0.21, 0.52]$, with successful cases sitting at the SHT
 discretization floor). On random signals the optimizer plateaued just above
 the feature threshold (median $1.4\times10^{-2}$, IQR
-$[1.1, 1.7]\times10^{-2}$; 3/16 below threshold) and no case passed alignment
-(median aligned residual 1.19), so the joint success rate is 0\% and we
-report it as such rather than adjusting thresholds post hoc; we cannot
+$[1.1, 1.7]\times10^{-2}$, only 3/16 below threshold) and no case passed
+alignment (median aligned residual 1.19), so the joint success rate is 0\%
+and we report it as such rather than adjusting thresholds post hoc. We cannot
 currently distinguish optimization difficulty from a genuine failure mode on
 this family. We will add both results and replace the current $L=12/L=15$
 limitation with the measured $L=15$ scope. These experiments remain evidence,
@@ -472,44 +490,49 @@ M5 Pro, CPU     & 0.016\,ms (cyclic) & 1.811\,ms & 1.811\,ms ($\mathrm{SO}(3)$-o
 \end{center}
 
 All six benchmarked configurations execute correctly on CUDA, MPS, and both
-CPUs with no unsupported operations. ``Sub-millisecond'' holds for every
+CPUs with no unsupported operations. The seventh module, SO(2)-on-$S^1$, is a
+thin wrapper that inherits the cyclic module's computation exactly, so the
+cyclic row covers it. ``Sub-millisecond'' holds for every
 configuration on both tested GPU backends at batch 16. On the M5 Pro CPU,
-five modules are sub-millisecond and the spherical module takes 1.811\,ms;
-the x86 host is substantially slower on grid-based modules. We will scope the
+five modules are sub-millisecond and the spherical module takes 1.811\,ms.
+The x86 host is substantially slower on grid-based modules. We will scope the
 abstract's claim to the tested GPU settings and add the full per-module timing
 and compatibility matrix to the appendix and documentation.
 
 \subsubsection*{High-capacity OrganMNIST3D result}
 
-We agree that ``likely overfits'' was not established by test accuracy alone.
+``Likely overfits'' was indeed not established by test accuracy alone.
 At $(16,32)$ channels we now report train/validation curves, final test
 results, and a controlled regularization sweep: 7 configurations $\times$ 3
-seeds $=$ 21 runs (max and bispectral baselines at weight decay $10^{-4}$;
-bispectral with weight decay $10^{-3}$/$10^{-2}$, dropout 0.2/0.5, and
+seeds $=$ 21 runs (max and bispectral baselines at weight decay $10^{-4}$,
+plus bispectral with weight decay $10^{-3}$/$10^{-2}$, dropout 0.2/0.5, and
 $10^{-3}$+0.2), validation-AUC model selection, test evaluated once after
 training. At the best-validation epoch, max pooling reaches $84.9\pm9.7$\%
-train / $76.7\pm5.8$\% test; the bispectral baseline $73.7\pm6.3$\% train /
-$66.8\pm4.9$\% test; the best regularized bispectral model (weight decay
-$10^{-3}$) $80.5\pm3.7$\% train / $72.5\pm1.0$\% test. Train--test gaps are
+train / $76.7\pm5.8$\% test, the bispectral baseline $73.7\pm6.3$\% train /
+$66.8\pm4.9$\% test, and the best regularized bispectral model (weight decay
+$10^{-3}$) $80.5\pm3.7$\% train / $72.5\pm1.0$\% test. The submitted
+single-seed Table~11 values (68.5\% and 78.5\%) fall within these cross-seed
+ranges. Train--test gaps are
 small and uniform (0.067--0.087) for every configuration. The curves do not
 show the overfitting signature: bispectral train accuracy is \emph{lower}
 than max pooling's, train tracks validation throughout, and stronger
 regularization raises train and test together without closing the gap to max
 pooling. The supported diagnosis is an optimization/capacity limitation of
-the bispectral head at this width, not memorization; we will replace the
-speculative sentence in the paper with this evidence. This experiment is also
+the bispectral model at this width rather than memorization. We will replace
+the speculative sentence in the paper with this evidence. This experiment is also
 reported in our response to Reviewer LgCU.
 
 \subsubsection*{Baselines and scope}
 
-We agree that a stronger spherical invariant baseline would improve the
-evaluation. Implementing and tuning a new tensor-product or scattering
-pipeline reliably during the response window was not feasible. We will add
-this comparison in the revision and retain the missing-baseline limitation;
-we do not claim superiority to those methods. The revised related-work
+A stronger spherical invariant baseline would clearly improve the
+evaluation. Within the response window we prioritized the ablation and
+reconstruction experiments requested above, and could not also tune a new
+tensor-product or scattering pipeline to a fair standard. We commit to adding
+this tuned comparison to the camera-ready and retain the missing-baseline
+limitation until then. We do not claim superiority to those methods. The revised related-work
 discussion will also distinguish our construction from the complete but
 cubic-size invariants of Edidin--Satriano and the three-shell
-frequency-marching result of Bendory et al.; the current comparison table
+frequency-marching result of Bendory et al. The current comparison table
 already records their completeness and scaling.
 
 \subsubsection*{Corrections to claims}
@@ -519,19 +542,19 @@ We accept the reviewer's corrections:
 \begin{itemize}
 \item ``selectivity reduces computational cost from $O(|G|^2)$ to $O(|G|)$''
   will become ``selectivity reduces the \textbf{coefficient count} from
-  $O(|G|^2)$ to $O(|G|)$''; Table~1's selective forward cost is $O(|G|^2)$;
+  $O(|G|^2)$ to $O(|G|)$'' (Table~1's selective forward cost is $O(|G|^2)$).
 \item ``consistently outperform'' will be replaced by the narrower observed
   claim: bispectral pooling improves data efficiency in the tested low-data,
   moderate-capacity settings, while matching or trailing alternatives
-  elsewhere;
-\item coverage will be reported consistently as 96.8\%; and
-\item the checklist references to the Section~5 construction will be
+  elsewhere.
+\item Coverage will be reported consistently as 96.8\%.
+\item The checklist references to the Section~5 construction will be
   corrected.
 \end{itemize}
 
 Finally, the hidden phrases noted under ``Paper Formatting Concerns'' were
 not inserted by the authors. They are a NeurIPS-generated watermark placed in
-reviewer-facing PDFs to detect prohibited LLM-assisted reviewing; identical
+reviewer-facing PDFs to detect prohibited LLM-assisted reviewing. Identical
 text and placement occur across NeurIPS 2026 submissions. The Program Chairs
 can confirm this, and our author PDF/LaTeX sources do not contain the text.
 
@@ -545,13 +568,15 @@ push on it, our line is that the pre-registered feature threshold was nearly
 met (median $1.4\times10^{-2}$) and alignment on high-frequency random
 signals is a separate optimization problem; do not promise a proof;
 (b) the portability table now includes A100, x86 CPU, M5 Pro CPU, and MPS;
-all six configurations run on MPS and are sub-millisecond. The H100 numbers
-remain in the paper itself, and a consumer-GPU volunteer is still needed; the
-Mac results can be posted as a follow-up comment to yWuC's Q4;
-(c) at 8{,}339 characters this response fits the 10{,}000-character limit
-with $\sim$1.7k headroom; if further edits push it
-over, the ``Baselines and scope'' and ``Corrections'' sections compress best
-(the corrections are repeated in the global response).
+all six configurations run on MPS and are sub-millisecond, and the response
+now explains that SO(2)-on-$S^1$ inherits the cyclic module's computation.
+The H100 numbers remain in the paper itself, and a consumer-GPU volunteer is
+still needed before the camera-ready;
+(c) at 8{,}691 characters this response fits the 10{,}000-character limit
+with $\sim$1.3k headroom; if further edits push it over, the ``Baselines and
+scope'' section compresses best. The ``Corrections'' section must stay: with
+no global response posted this year, it is the only place the corrections
+appear.
 \end{metacomment}
 
 %=====================================================================
@@ -611,19 +636,19 @@ Section~2; Table~2: \texttt{TorusDnTorus} should be \texttt{TorusOnTorus}.
 
 Thank you for recognizing that the package fills an unavailable capability,
 could broaden adoption of bispectra, and is well written and thoroughly
-evaluated. We agree that most group-specific formulas build on prior theory;
-the contribution is to make them usable together as tested, differentiable
+evaluated. We agree that most group-specific formulas build on prior theory.
+The contribution is to make them usable together as tested, differentiable
 PyTorch components. We respectfully disagree, however, that the paper lacks a
 substantive algorithmic or empirical contribution.
 
 The work contributes more than a repackaging of formulas: (i) one uniform
 autograd-compatible implementation for seven group/domain pairs, including
-precomputed CG/DFT/Bessel buffers and selective sparse contractions; (ii) an
-optimized and profiled implementation reducing full representations by up to
-$512\times$; (iii) a new augmented selective $\mathrm{SO}(3)$-on-$S^2$
+precomputed CG/DFT/Bessel buffers and selective sparse contractions, (ii)
+profiled kernel-level optimizations that shrink the full representations by
+up to $512\times$, (iii) a new augmented selective $\mathrm{SO}(3)$-on-$S^2$
 construction with an asymptotically optimal $\Theta(L^2)$ coefficient count,
 an $\Omega(L^2)$ lower bound, a parity/vanishing analysis, and an explicit
-diagnosis and repair of the real-signal rank deficit; and (iv) the first
+diagnosis and repair of the real-signal rank deficit, and (iv) the first
 controlled evaluation of these invariants as pooling layers across planar,
 volumetric, and spherical tasks.
 
@@ -636,6 +661,16 @@ moderate capacity. The low-data gains are where completeness helps most, but
 not the only demonstrated functionality: the library also provides near-exact
 invariance without augmentation and preserves orbit information that norm/max
 pooling discards.
+
+During the response period we added two measurements that bear directly on
+the contribution's substance. A parameter-matched feature ablation on
+Spherical MNIST shows each component of the augmented construction adds
+accuracy beyond cross-seed variability (three seeds: bootstrap triples
+94.09\%, + even self-couplings 94.48\%, + CG-power scalars 95.00\%), so each
+component of the augmentation is functionally necessary. We also benchmarked
+six paper-scale module configurations on an NVIDIA A100, an x86-64 CPU, and
+an Apple M5 Pro (CPU and MPS): every configuration runs on every backend,
+sub-millisecond on both GPUs. Details are in our response to Reviewer yWuC.
 
 \subsubsection*{Q1: What made the spherical extension technically difficult?}
 
@@ -652,8 +687,8 @@ finite irrep index with $\ell$:
 \item \textbf{A linear chain is dimensionally insufficient.} A band-limited
   real spherical signal has $(L+1)^2$ degrees of freedom modulo three
   rotational degrees. We prove that every smooth/polynomial complete
-  invariant therefore needs at least $(L+1)^2-3=\Omega(L^2)$ live components;
-  an $O(L)$ Mataigne-style frequency chain cannot be complete.
+  invariant therefore needs at least $(L+1)^2-3=\Omega(L^2)$ live components,
+  so an $O(L)$ Mataigne-style frequency chain cannot be complete.
 \item \textbf{Reality and parity break the naive bootstrap.} On real
   signals, each scalar bispectrum entry is either real or purely imaginary,
   and every odd-parity entry with a repeated index vanishes identically.
@@ -672,19 +707,20 @@ foreground this technical chain in Section~5.
 
 \subsubsection*{Q2: What would a completeness proof require?}
 
-We conjecture generic completeness; the current Jacobian and reconstruction
-tests are evidence, not a proof. A proof would require:
+We conjecture generic completeness. The current Jacobian and reconstruction
+tests provide evidence but fall short of a proof. A proof would proceed in
+four steps:
 
 \begin{enumerate}
-\item prove that the full low-degree seed separates a generic orbit and fixes
+\item Prove that the full low-degree seed separates a generic orbit and fixes
   a common rotational gauge (including orientation, using a nonzero
-  odd-parity triple);
-\item induct on $\ell$, assuming all lower-degree coefficients have been
-  recovered in that common gauge;
-\item prove that the selected bootstrap, self-coupling, and CG-power
+  odd-parity triple).
+\item Induct on $\ell$, assuming all lower-degree coefficients have been
+  recovered in that common gauge.
+\item Prove that the selected bootstrap, self-coupling, and CG-power
   equations have a \textbf{unique generic real solution} for
-  $\mathbf F_\ell$; and
-\item characterize the algebraic exceptional set where a seed coefficient
+  $\mathbf F_\ell$.
+\item Characterize the algebraic exceptional set where a seed coefficient
   vanishes, a rank drops, or a nontrivial stabilizer remains.
 \end{enumerate}
 
@@ -700,13 +736,16 @@ orbit-separating field. We will add this proof roadmap and state
 
 \subsubsection*{Q3: S2CNN baseline and inference}
 
-We agree that the published S2CNN values should appear in Table~4 rather than
-only in prose, and will move them there. We did not run S2CNN in the
+The published S2CNN values should indeed appear in Table~4 rather than only
+in prose, and we will move them there. We did not run S2CNN in the
 submitted experiments, so we cannot infer an apples-to-apples speed advantage
-from its published accuracies. A reliable matched re-run was not feasible
-during the response window; we will retain the accuracy comparison,
-explicitly label it as published, and remove any implication of a measured
-speed advantage over S2CNN.
+from its published accuracies, and porting the original implementation to a
+current PyTorch/CUDA stack was not achievable within the response window. We
+commit to a matched S2CNN re-run for the camera-ready, on the same hardware,
+precision, and measurement protocol as our timing benchmarks, and will report
+the resulting accuracy and measured inference times. Until then we will
+label the accuracy comparison as published and remove any implication of a
+measured speed advantage over S2CNN.
 
 \subsubsection*{Corrections}
 
@@ -724,7 +763,11 @@ metareview. The response therefore concedes nothing false, lists the four
 concrete contributions, and rebuts the ``only very low data'' claim with
 full-data numbers already in the paper. We deliberately did not run the S2CNN
 speed benchmark (E6) --- claiming a measured speed advantage from a rushed
-re-run would be less credible than the explicit scope statement. If AZ1B
+re-run would be less credible than the explicit scope statement. Note the
+response now \emph{commits} to a matched S2CNN re-run (E6) for the
+camera-ready. The 2018 codebase needs a nontrivial port (removed
+\texttt{torch.fft} function API, cupy kernels, \texttt{lie\_learn}), so budget
+about a week and gate on reproducing the published accuracy. If AZ1B
 engages further, the highest-yield move is Q1/Q2: they asked genuine
 technical questions, and a reviewer who accepts the four-step proof roadmap
 has implicitly accepted that the spherical construction is a real research
