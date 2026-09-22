@@ -97,3 +97,10 @@ uv.lock
 *.snm
 *.toc
 *.vrb
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+neurips_2026/bispectrum.pdf
+iclr_2027/bispectrum.pdf

@@ -1,6 +1,6 @@
 default_stages: [pre-commit]
 fail_fast: false
-exclude: ^(docs/|paper/|experiments/)
+exclude: ^(docs/|paper/|experiments/|neurips_2026/|iclr_2027/)
 
 default_language_version:
   python: python3
