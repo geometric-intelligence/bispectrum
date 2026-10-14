@@ -43,7 +43,7 @@ Median wall-clock on a single NVIDIA H100 80 GB GPU (batch=16, `torch.utils.benc
 | `CnonCn`       | C_128       | 128           | 128          | 8,256        | 0.14          | 8.53          |
 | `TorusOnTorus` | C_32 × C_32 | 1,024         | 1,024        | 524,800      | 0.07          | 0.31          |
 | `DnonDn`       | D_32        | 64            | 245          | —            | 0.57          | —             |
-| `SO2onDisk`    | SO(2)       | L=16          | 105          | —            | 0.22          | —             |
+| `SO2onDisk`    | SO(2)       | L=16          | 76           | —            | 0.22          | —             |
 | `SO3onS2`      | SO(3)       | L=16          | 430          | —            | 0.48          | —             |
 | `OctaonOcta`   | O           | 24            | 172          | —            | 0.68          | —             |
 
