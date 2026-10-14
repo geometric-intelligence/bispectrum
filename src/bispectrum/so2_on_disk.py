@@ -23,19 +23,31 @@ import torch.nn as nn
 from bispectrum._bessel import bessel_jn, compute_all_bessel_roots
 
 
+def default_bandlimit(L: int) -> float:
+    """Default radial band-limit for an ``L x L`` image: the grid Nyquist rate ``pi * L / 2``.
+
+    The disk harmonic ``J_n(lambda r) e^{i n theta}`` oscillates radially with wavenumber
+    ``lambda`` on the unit disk, which is sampled with pixel pitch ``2 / L``; the Nyquist bound is
+    therefore ``lambda <= pi * L / 2``.  Up to this frequency the basis is close to orthogonal on
+    the pixel set (``cond(Phi) ~ 2``), so analysis by least squares is exact to machine precision.
+
+    The fle_2d convention of Marshall et al. (2023), ``ne = floor(pi L^2 / 4)`` basis functions
+    (one per disk pixel), is *not* used as a default: it admits radial frequencies ~25% beyond
+    Nyquist, makes ``Phi`` nearly square with ``cond ~ 1e16``, and the truncated pseudo-inverse
+    then silently drops directions (roundtrip errors of O(1)).  Pass ``bandlimit`` explicitly to
+    reproduce that count.
+    """
+    return math.pi * L / 2
+
+
 def _build_truncated_indices(
     L: int,
     bandlimit: float | None,
 ) -> tuple[list[tuple[int, int]], dict[int, int], int]:
     """Build the truncated DH coefficient index set.
 
-    Following the convention of Marshall et al. (2023, fle_2d), the number
-    of basis functions equals ne = floor(L^2 * pi / 4), approximately the
-    number of pixels inside the unit disk. Coefficients are sorted by
-    ascending Bessel root and the first ne are kept.
-
-    If bandlimit is provided explicitly, it is used as a threshold on the
-    Bessel root instead.
+    Keeps every ``(n, k)`` whose Bessel root ``lambda_{n,k}`` is at most ``bandlimit``
+    (default: :func:`default_bandlimit`, the grid Nyquist rate).
 
     Returns:
         indices: list of (n, k) pairs sorted by ascending Bessel root,
@@ -43,12 +55,7 @@ def _build_truncated_indices(
         K: dict mapping angular order |n| -> max radial index K_n.
         N_m: maximum angular frequency (max |n|).
     """
-    if bandlimit is not None:
-        ne = None
-        lam_max = bandlimit
-    else:
-        ne = int(L * L * math.pi / 4)
-        lam_max = math.sqrt(math.pi * ne) * 1.5 + 10
+    lam_max = default_bandlimit(L) if bandlimit is None else bandlimit
 
     n_max_search = int(lam_max) + 2
     k_max_search = int(lam_max / math.pi) + 3
@@ -66,18 +73,6 @@ def _build_truncated_indices(
                 nk_lambda.append((lam, -abs_n, k))
 
     nk_lambda.sort(key=lambda t: t[0])
-
-    if ne is not None and len(nk_lambda) >= ne:
-        nk_lambda = nk_lambda[:ne]
-        # Ensure complete conjugate pairs: if the last entry has n != 0
-        # and its partner (-n, k) was cut off, remove it.
-        if nk_lambda:
-            _, last_n, last_k = nk_lambda[-1]
-            if last_n != 0:
-                partner = (-last_n, last_k)
-                partner_present = any(n == partner[0] and k == partner[1] for _, n, k in nk_lambda)
-                if not partner_present:
-                    nk_lambda.pop()
 
     indices = [(n, k) for _, n, k in nk_lambda]
 
@@ -104,8 +99,10 @@ class SO2onDisk(nn.Module):
 
     Args:
         L: Image side length (input shape is (batch, L, L)).
-        bandlimit: Maximum Bessel root frequency to include.
-            Defaults to the fle_2d convention ne = floor(L^2 * pi / 4).
+        bandlimit: Maximum Bessel root frequency ``lambda_{n,k}`` to include.
+            Defaults to the grid Nyquist rate ``pi * L / 2`` (see
+            :func:`default_bandlimit`), which keeps the analysis operator
+            well conditioned (``cond(Phi) ~ 2``).
         selective: If True (default), compute O(m) selective bispectrum.
             If False, raises NotImplementedError.
     """
@@ -225,9 +222,9 @@ class SO2onDisk(nn.Module):
         self.register_buffer('_bessel_roots', bessel_roots_nonneg)
         self.register_buffer('_phi', phi)
 
-        # Analysis: x_real = pinv(Φ) @ f_disk (real least-squares)
-        # Regularize by zeroing singular values below 1e-10 * max_sv
-        # to handle basis functions that are unresolvable on the grid.
+        # Analysis: x_real = pinv(Φ) @ f_disk (real least-squares).  With the
+        # default Nyquist truncation Φ has cond ~ 2 and the rcond cutoff is
+        # inactive; it only guards explicit super-Nyquist band-limits.
         phi_pinv = torch.linalg.pinv(phi, rcond=1e-10)  # (d_real, p_disk)
         self.register_buffer('_phi_pinv', phi_pinv)
 

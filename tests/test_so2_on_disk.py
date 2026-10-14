@@ -238,16 +238,31 @@ class TestBessel:
 
 
 class TestDiskBasisConditioning:
-    def test_basis_matrix_near_full_rank(self):
-        """The DHT basis must be well conditioned.
+    @pytest.mark.parametrize('L', [16, 32])
+    def test_basis_matrix_full_rank(self, L: int):
+        """The DHT basis must have full column rank.
 
         With the unstable forward-only Bessel recurrence the L=16 basis already lost rank (and L=32
         collapsed to rank 5 of 804).
         """
-        bsp = SO2onDisk(L=16)
+        bsp = SO2onDisk(L=L)
         rank = torch.linalg.matrix_rank(bsp._phi).item()
         n_cols = bsp._phi.shape[1]
-        assert rank >= n_cols - 3, f'rank {rank} of {n_cols}'
+        assert rank == n_cols, f'rank {rank} of {n_cols}'
+
+    @pytest.mark.parametrize('L', [16, 32, 64])
+    def test_default_basis_well_conditioned(self, L: int):
+        """The default truncation must give a well-conditioned analysis operator.
+
+        The former default (fle_2d count ``ne = floor(pi L^2 / 4)``, about one basis function per
+        disk pixel) made Phi nearly square with cond ~1e16; ``pinv(rcond=1e-10)`` then silently
+        discarded directions and every roundtrip was only accurate to O(1).  Sampling theory bounds
+        the resolvable radial frequency on an L x L grid by the Nyquist rate pi * L / 2, where the
+        basis is close to orthogonal on the pixel set.
+        """
+        bsp = SO2onDisk(L=L)
+        cond = torch.linalg.cond(bsp._phi).item()
+        assert cond < 10.0, f'L={L}: cond(Phi) = {cond:.3e}'
 
 
 class TestRealComplexConversion:
@@ -313,18 +328,20 @@ class TestSO2onDiskConstruction:
             assert k >= 1
 
     @pytest.mark.parametrize(
-        'L, expected',
-        [(8, 27), (16, 105), (28, 315)],
+        'L, expected_m, expected_out',
+        [(8, 34, 19), (16, 144, 76), (28, 462, 238)],
     )
-    def test_coefficient_count_matches_paper(self, L: int, expected: int):
-        """Coefficient counts match Table 1 of Myers & Miolane 2025."""
+    def test_coefficient_count_nyquist(self, L: int, expected_m: int, expected_out: int):
+        """Default truncation keeps every (n, k) with Bessel root lambda_{n,k} <= pi * L / 2."""
         bsp = SO2onDisk(L=L)
-        assert bsp.output_size == expected
+        assert bsp._m == expected_m
+        assert bsp.output_size == expected_out
+        assert bsp._bessel_roots.max().item() <= math.pi * L / 2
 
     def test_explicit_bandlimit(self):
         bsp = SO2onDisk(L=8, bandlimit=10.0)
         assert bsp.output_size > 0
-        assert bsp.output_size < 27
+        assert bsp.output_size < SO2onDisk(L=8).output_size
 
     def test_full_not_implemented(self):
         bsp = SO2onDisk(L=8, selective=False)
@@ -409,39 +426,58 @@ class TestSO2onDiskForward:
         torch.testing.assert_close(beta_orig, beta_rot, atol=1e-10, rtol=1e-10)
 
     @pytest.mark.parametrize('L', [16, 28])
-    def test_spatial_rotation_invariance(self, L: int):
-        """Verify invariance to actual image rotation (includes discretization error).
-
-        The error should be moderate for small L and decrease with L.
-        """
+    def test_rot90_invariance(self, L: int):
+        """A 90 degree rotation maps the pixel grid onto itself, so invariance must be exact."""
         bsp = SO2onDisk(L=L)
         torch.manual_seed(123)
-        f = torch.randn(1, L, L, dtype=torch.float64)
+        f = torch.randn(2, L, L, dtype=torch.float64)
+        beta = bsp(f)
+        for k in (1, 2, 3):
+            beta_rot = bsp(torch.rot90(f, k, dims=(1, 2)))
+            rel_err = (beta - beta_rot).abs().max().item() / beta.abs().max().item()
+            assert rel_err < 1e-12, f'L={L}, k={k}: rot90 invariance error {rel_err:.2e}'
+
+    @pytest.mark.parametrize('L', [16, 28])
+    def test_spatial_rotation_invariance(self, L: int):
+        """Invariance to an arbitrary-angle image rotation of a smooth, band-limited image.
+
+        This is bounded by the bicubic interpolation error of ``grid_sample`` (measured ~2e-2 for
+        content below a quarter of the Nyquist rate), not by the transform; white-noise images are
+        not meaningfully rotatable by interpolation at all.
+        """
+        bsp = SO2onDisk(L=L)
+        torch.manual_seed(7)
+        a = torch.randn(1, bsp._m_nonneg, dtype=torch.complex128)
+        for j, (n, _k) in enumerate(bsp._nonneg_indices):
+            if n == 0:
+                a[:, j] = a[:, j].real + 0j
+        a[:, bsp._bessel_roots > math.pi * L / 8] = 0
+        f = bsp._idht(a).reshape(1, L, L)
         beta = bsp(f)
 
         angle = 0.5
         cos_a, sin_a = math.cos(angle), math.sin(angle)
         theta_mat = torch.tensor(
-            [[[cos_a, sin_a, 0.0], [-sin_a, cos_a, 0.0]]], dtype=torch.float32
+            [[[cos_a, sin_a, 0.0], [-sin_a, cos_a, 0.0]]], dtype=torch.float64
         )
         grid = F.affine_grid(theta_mat, [1, 1, L, L], align_corners=False)
-        f_rot = (
-            F.grid_sample(f.float().unsqueeze(1), grid, align_corners=False, padding_mode='zeros')
-            .squeeze(1)
-            .double()
-        )
+        f_rot = F.grid_sample(
+            f.unsqueeze(1), grid, mode='bicubic', align_corners=False, padding_mode='zeros'
+        ).squeeze(1)
         beta_rot = bsp(f_rot)
 
         rel_err = (beta - beta_rot).abs().max().item() / beta.abs().max().item()
-        assert rel_err < 1.5, f'Rotation invariance error too large: {rel_err:.4f}'
+        assert rel_err < 0.1, f'Rotation invariance error too large: {rel_err:.4f}'
 
 
 class TestSO2onDiskDHTRoundtrip:
-    @pytest.mark.parametrize('L', [8, 16])
+    @pytest.mark.parametrize('L', [8, 16, 32])
     def test_dht_roundtrip_bandlimited(self, L: int):
-        """DHT roundtrip for a signal synthesized from DH coefficients.
+        """DHT roundtrip for a signal synthesized from DH coefficients is exact.
 
-        Error comes from unresolvable basis functions on the discrete grid.
+        Every retained basis function is resolvable on the grid (the default truncation is the
+        Nyquist rate), so analysis after synthesis must return the coefficients to machine
+        precision.
         """
         bsp = SO2onDisk(L=L)
         torch.manual_seed(L)
@@ -454,10 +490,8 @@ class TestSO2onDiskDHTRoundtrip:
         f = bsp._idht(a)
         a_rec = bsp._dht(f)
 
-        # Most coefficients should be recovered well; allow tolerance for
-        # the 1-2 unresolvable basis functions per grid
         rel_err = (a - a_rec).abs().max().item() / a.abs().max().item()
-        assert rel_err < 0.5, f'DHT roundtrip error too large: {rel_err}'
+        assert rel_err < 1e-12, f'DHT roundtrip error too large: {rel_err:.2e}'
 
     @pytest.mark.parametrize('L', [8, 16])
     def test_single_harmonic_roundtrip(self, L: int):
@@ -473,20 +507,21 @@ class TestSO2onDiskDHTRoundtrip:
         a_rec = bsp._dht(f)
 
         # The (0,1) coefficient should be ~1, others ~0
-        assert a_rec[0, j].real.item() == pytest.approx(1.0, abs=1e-6)
+        assert a_rec[0, j].real.item() == pytest.approx(1.0, abs=1e-12)
         other_mask = torch.ones(bsp._m_nonneg, dtype=torch.bool)
         other_mask[j] = False
-        assert a_rec[0, other_mask].abs().max().item() < 1e-4
+        assert a_rec[0, other_mask].abs().max().item() < 1e-12
 
 
 class TestSO2onDiskInvert:
-    def test_invert_exact_coefficients(self):
-        """Inversion from exact bispectrum recovers DH magnitude for resolvable coefficients.
+    @pytest.mark.parametrize('L', [16, 32])
+    def test_invert_exact_coefficients(self, L: int):
+        """Inversion from an exact bispectrum recovers every DH coefficient magnitude.
 
-        Some high-frequency coefficients may be unresolvable on the discrete grid (rank deficient
-        in the real basis matrix). We check that the MAJORITY of well-resolved coefficients match.
+        Goes through the full pipeline (coefficients -> bispectrum -> invert -> image -> DHT), so
+        it also exercises the conditioning of the analysis operator.
         """
-        bsp = SO2onDisk(L=16)
+        bsp = SO2onDisk(L=L)
         torch.manual_seed(42)
         a = torch.randn(1, bsp._m_nonneg, dtype=torch.complex128) + 0.5
         a = a.clone()
@@ -507,21 +542,8 @@ class TestSO2onDiskInvert:
         f_rec = bsp.invert(beta)
         a_rec = bsp._dht(f_rec)
 
-        n_checked = 0
-        n_good = 0
-        for j, (_n, _k) in enumerate(bsp._nonneg_indices):
-            orig_mag = a[0, j].abs().item()
-            if orig_mag > 0.01:
-                n_checked += 1
-                rec_mag = a_rec[0, j].abs().item()
-                rel_err = abs(orig_mag - rec_mag) / orig_mag
-                if rel_err < 0.2:
-                    n_good += 1
-
-        fraction_good = n_good / n_checked if n_checked > 0 else 1.0
-        assert fraction_good > 0.85, (
-            f'Only {n_good}/{n_checked} coefficients recovered within 20% ({fraction_good:.1%})'
-        )
+        # Inversion is up to a global rotation, so compare magnitudes.
+        torch.testing.assert_close(a_rec.abs(), a.abs(), atol=1e-9, rtol=0)
 
     def test_invert_direct_bispectrum_roundtrip(self):
         """Inversion at the coefficient level is exact (no DHT involved)."""
@@ -598,9 +620,9 @@ class TestSO2onDiskInvert:
         with pytest.raises(NotImplementedError):
             bsp.invert(torch.randn(2, 27, dtype=torch.complex128))
 
-    @pytest.mark.parametrize('L', [8, 16])
+    @pytest.mark.parametrize('L', [8, 16, 32])
     def test_invert_bispectrum_roundtrip(self, L: int):
-        """Bsp(invert(bsp(f))) ≈ bsp(f) within discretization tolerance."""
+        """Bsp(invert(bsp(f))) == bsp(f) to machine precision, even for white-noise images."""
         bsp = SO2onDisk(L=L)
         torch.manual_seed(L)
         f = torch.randn(2, L, L, dtype=torch.float64)
@@ -609,4 +631,4 @@ class TestSO2onDiskInvert:
         beta_rec = bsp(f_rec)
 
         rel_err = (beta - beta_rec).abs().max().item() / beta.abs().max().item()
-        assert rel_err < 0.5, f'L={L}: bispectrum roundtrip rel err {rel_err:.4f}'
+        assert rel_err < 1e-10, f'L={L}: bispectrum roundtrip rel err {rel_err:.2e}'
