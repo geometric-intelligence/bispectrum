@@ -105,6 +105,13 @@ class SO2onDisk(nn.Module):
             well conditioned (``cond(Phi) ~ 2``).
         selective: If True (default), compute O(m) selective bispectrum.
             If False, raises NotImplementedError.
+
+    .. versionchanged:: 0.4.0
+        The default ``bandlimit`` is the grid Nyquist rate instead of the
+        fle_2d coefficient count ``floor(pi L^2 / 4)``, whose analysis matrix
+        had ``cond ~ 1e16``.  The default ``output_size`` and feature layout
+        change (e.g. 76 instead of 105 at ``L=16``).  Pass ``bandlimit``
+        explicitly to reproduce a specific truncation.
     """
 
     def __init__(

@@ -226,6 +226,12 @@ class DnonDn(nn.Module):
         n: Polygon order (|D_n| = 2n).  Must be > 2.
         selective: If True (default), compute the selective bispectrum.
             Full bispectrum raises NotImplementedError.
+
+    .. versionchanged:: 0.4.0
+        For odd ``n >= 5`` the fold block beta_{rho_1, rho_n2d} is now
+        included (it was dropped in 0.3.x, leaving the invariant incomplete).
+        ``output_size`` grows by 16 and the feature layout changes for those
+        ``n``; even ``n`` and ``n = 3`` are unchanged.
     """
 
     def __init__(self, n: int, selective: bool = True) -> None:
@@ -259,27 +265,22 @@ class DnonDn(nn.Module):
 
         self.register_buffer('_cg_matrices', cg_buf)
 
-        if n2d > 0:
-            i_range = torch.arange(1, n2d + 1, dtype=torch.float64)
-            j_range = torch.arange(n, dtype=torch.float64)
-            omega = 2 * math.pi * i_range[:, None] * j_range[None, :] / n
+        # n >= 3 guarantees n2d >= 1, so there is always at least one 2D irrep.
+        i_range = torch.arange(1, n2d + 1, dtype=torch.float64)
+        j_range = torch.arange(n, dtype=torch.float64)
+        omega = 2 * math.pi * i_range[:, None] * j_range[None, :] / n
 
-            rho_rot = torch.zeros(n2d, 2, 2, n, dtype=torch.float64)
-            rho_rot[:, 0, 0] = torch.cos(omega)
-            rho_rot[:, 0, 1] = -torch.sin(omega)
-            rho_rot[:, 1, 0] = torch.sin(omega)
-            rho_rot[:, 1, 1] = torch.cos(omega)
+        rho_rot = torch.zeros(n2d, 2, 2, n, dtype=torch.float64)
+        rho_rot[:, 0, 0] = torch.cos(omega)
+        rho_rot[:, 0, 1] = -torch.sin(omega)
+        rho_rot[:, 1, 0] = torch.sin(omega)
+        rho_rot[:, 1, 1] = torch.cos(omega)
 
-            rho_ref = rho_rot.clone()
-            rho_ref[:, :, 1, :] *= -1
+        rho_ref = rho_rot.clone()
+        rho_ref[:, :, 1, :] *= -1
 
-            cos_table = torch.cos(omega)
-            sin_table = torch.sin(omega)
-        else:
-            rho_rot = torch.zeros(0, 2, 2, n, dtype=torch.float64)
-            rho_ref = rho_rot.clone()
-            cos_table = torch.zeros(0, n, dtype=torch.float64)
-            sin_table = torch.zeros(0, n, dtype=torch.float64)
+        cos_table = torch.cos(omega)
+        sin_table = torch.sin(omega)
 
         self.register_buffer('_rho_rot', rho_rot)
         self.register_buffer('_rho_ref', rho_ref)
@@ -469,10 +470,7 @@ class DnonDn(nn.Module):
         F_rho1 = fhat[:, :, :, 1]
         beta_01 = F_rho0[:, None, None] * torch.bmm(F_rho1.transpose(-1, -2), F_rho1)
 
-        if n3 == 0:
-            return torch.cat([beta_00, beta_01.reshape(batch, 4)], dim=-1)
-
-        # Batched kron: all n3 products at once
+        # Batched kron: all n3 >= 1 products at once
         # F_rho1: (batch, 2, 2), F_all_k: (batch, 2, 2, n3)
         F_all_k = fhat[:, :, :, 1 : n3 + 1]
         all_kron = torch.einsum('bij,bklm->bmikjl', F_rho1, F_all_k).reshape(batch, n3, 4, 4)

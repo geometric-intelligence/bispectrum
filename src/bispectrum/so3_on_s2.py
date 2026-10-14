@@ -407,6 +407,14 @@ class SO3onS2(nn.Module):
         nlon: Number of longitude grid points.
         selective: If True, use the O(L²) augmented selective bispectrum.
             If False, compute all O(L³) entries.
+
+    .. versionchanged:: 0.4.0
+        The selective index map was redesigned (distinct-pair linear block
+        for l >= 8, identically-zero entries dropped).  ``output_size`` and the
+        feature layout differ from 0.3.x for every ``lmax >= 3`` (e.g. 426
+        instead of 430 at ``lmax=16``); cached features and downstream heads
+        trained on the old layout must be recomputed.  The on-disk sparse CG
+        cache is invalidated automatically.
     """
 
     def __init__(
@@ -648,7 +656,7 @@ class SO3onS2(nn.Module):
             try:
                 data = torch.load(cache_path, weights_only=True)
                 return {int(k): v for k, v in data.items()}
-            except (OSError, RuntimeError):
+            except (OSError, EOFError, RuntimeError, pickle.UnpicklingError):
                 pass
 
         # Compute in parallel.
@@ -987,11 +995,11 @@ class SO3onS2(nn.Module):
             pw_cidx_parts: list[torch.Tensor] = []
             pw_eids: list[int] = []
             row = 0
+            # Entries without CG terms are never flagged as power in
+            # _build_sparse_global_indices, so every slice here is non-empty.
             for eidx in power_indices:
                 start = int(offsets[eidx].item())
                 end = int(offsets[eidx + 1].item())
-                if start == end:
-                    continue
                 pw_fl1_parts.append(fl1_i[start:end])
                 pw_fl2_parts.append(fl2_i[start:end])
                 pw_cg_parts.append(self._sparse_cg_vals[start:end])

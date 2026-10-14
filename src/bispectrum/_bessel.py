@@ -109,67 +109,6 @@ def _bessel_jn_multi(orders: tuple[int, ...], x: torch.Tensor) -> list[torch.Ten
     return out
 
 
-def _jn_scalar(n: int, x: float) -> float:
-    """Scalar evaluation of J_n(x); delegates to the stable tensor path."""
-    result: float = bessel_jn(n, torch.tensor(x, dtype=torch.float64)).item()
-    return result
-
-
-def _djn_scalar(n: int, x: float) -> float:
-    """Scalar J_n'(x) = (J_{n-1}(x) - J_{n+1}(x)) / 2."""
-    xt = torch.tensor(x, dtype=torch.float64)
-    if n == 0:
-        return -float(_bessel_jn_multi((1,), xt)[0].item())
-    j_lo, j_hi = _bessel_jn_multi((n - 1, n + 1), xt)
-    return float((j_lo - j_hi).item()) / 2.0
-
-
-def _bisect_newton(n: int, a: float, b: float) -> float:
-    """Find root of J_n in bracket [a, b] using Newton + bisection."""
-    fa = _jn_scalar(n, a)
-    fb = _jn_scalar(n, b)
-
-    if abs(fa) < 1e-15:
-        return a
-    if abs(fb) < 1e-15:
-        return b
-    if fa * fb > 0:
-        return (a + b) / 2.0
-
-    x = (a + b) / 2.0
-    for _ in range(80):
-        fx = _jn_scalar(n, x)
-        if abs(fx) < 1e-15:
-            return x
-
-        dfx = _djn_scalar(n, x)
-
-        if abs(dfx) > 1e-30:
-            x_new = x - fx / dfx
-            if abs(x_new - x) <= 1e-15 * max(abs(x), 1.0):
-                return min(max(x_new, a), b)
-        else:
-            x_new = x
-
-        if a < x_new < b:
-            x = x_new
-        else:
-            x = (a + b) / 2.0
-
-        fx = _jn_scalar(n, x)
-        if fa * fx < 0:
-            b = x
-            fb = fx
-        else:
-            a = x
-            fa = fx
-
-        if (b - a) < 1e-14 * max(abs(a), 1.0):
-            return (a + b) / 2.0
-
-    return (a + b) / 2.0
-
-
 def _mcmahon_zeros_j0(num_zeros: int) -> list[float]:
     """McMahon expansion for J_0 roots — highly accurate for all k."""
     if num_zeros <= 0:
@@ -282,13 +221,11 @@ def compute_all_bessel_roots(n_max: int, k_max: int) -> dict[int, list[float]]:
 
     prev_roots = torch.tensor(prev_roots_list, dtype=torch.float64)
 
+    # Each order consumes one bracket: order n has k_max + (n_max - n) + 3
+    # roots available, so the bracket count never drops below k_max + 3.
     for order in range(1, n_max + 1):
         num_needed = k_max + (n_max - order) + 3
         num_brackets = min(num_needed, len(prev_roots) - 1)
-        if num_brackets <= 0:
-            all_roots[order] = []
-            prev_roots = torch.tensor([], dtype=torch.float64)
-            continue
         a = prev_roots[:num_brackets]
         b = prev_roots[1 : num_brackets + 1]
         curr_roots = _bisect_newton_batch(order, a, b)

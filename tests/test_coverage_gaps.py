@@ -14,8 +14,8 @@ import pytest
 import torch
 
 from bispectrum._bessel import (
-    _bisect_newton,
-    _jn_scalar,
+    _bessel_jn_multi,
+    _bisect_newton_batch,
     _mcmahon_zeros_j0,
     bessel_jn,
     bessel_jn_zeros,
@@ -27,42 +27,59 @@ from bispectrum._cg import (
     compute_reduced_cg_parallel,
     compute_sparse_cg_entry,
     compute_sparse_cg_parallel,
+    load_cg_matrices,
 )
 from bispectrum.dn_on_dn import DnonDn, _compute_cg
 from bispectrum.rotation import create_spherical_grid
 from bispectrum.torus_on_torus import TorusOnTorus
 
 
+class TestPackageVersion:
+    def test_version_is_string(self):
+        import bispectrum
+
+        assert isinstance(bispectrum.__version__, str)
+        assert bispectrum.__version__
+
+    def test_version_fallback_when_not_installed(self):
+        """Importing from a source tree without metadata yields the sentinel version."""
+        import importlib
+        import importlib.metadata
+
+        import bispectrum
+
+        def _missing(name: str) -> str:
+            raise importlib.metadata.PackageNotFoundError(name)
+
+        with patch('importlib.metadata.version', _missing):
+            importlib.reload(bispectrum)
+            assert bispectrum.__version__ == '0.0.0+unknown'
+        importlib.reload(bispectrum)
+        assert bispectrum.__version__ != '0.0.0+unknown'
+
+
 class TestBesselEdgeCases:
     """Cover edge cases in _bessel.py."""
 
-    def test_jn_scalar_zero_input(self):
-        """_jn_scalar(n>=2, 0) returns 0 (line 66)."""
-        assert _jn_scalar(3, 0.0) == 0.0
-        assert _jn_scalar(5, 0.0) == 0.0
+    def test_jn_multi_no_orders(self):
+        """An empty order tuple returns an empty list without touching x."""
+        assert _bessel_jn_multi((), torch.tensor([1.0])) == []
 
-    def test_bisect_newton_exact_at_a(self):
-        """When f(a) is already zero, return a immediately (line 89)."""
+    def test_bisect_newton_batch_exact_endpoints(self):
+        """Brackets whose endpoint is already a root return that endpoint."""
         root = bessel_jn_zeros(0, 1)[0].item()
-        result = _bisect_newton(0, root, root + 1.0)
-        assert abs(result - root) < 1e-12
+        a = torch.tensor([root, root - 1.0], dtype=torch.float64)
+        b = torch.tensor([root + 1.0, root], dtype=torch.float64)
+        result = _bisect_newton_batch(0, a, b)
+        torch.testing.assert_close(
+            result, torch.tensor([root, root], dtype=torch.float64), atol=1e-12, rtol=0.0
+        )
 
-    def test_bisect_newton_exact_at_b(self):
-        """When f(b) is already zero, return b immediately (line 91)."""
-        root = bessel_jn_zeros(0, 1)[0].item()
-        result = _bisect_newton(0, root - 1.0, root)
-        assert abs(result - root) < 1e-12
-
-    def test_bisect_newton_no_sign_change(self):
-        """Fa * fb > 0 returns midpoint (line 92-93)."""
-        result = _bisect_newton(0, 0.1, 0.5)
-        assert abs(result - 0.3) < 1e-10
-
-    def test_bisect_newton_convergence(self):
-        """Exercise the full Newton-bisection loop (lines 96-124)."""
-        root = _bisect_newton(0, 2.0, 3.0)
-        expected = bessel_jn_zeros(0, 1)[0].item()
-        assert abs(root - expected) < 1e-10
+    def test_bisect_newton_batch_no_sign_change(self):
+        """Fa * fb > 0 returns the midpoint."""
+        a = torch.tensor([0.1], dtype=torch.float64)
+        b = torch.tensor([0.5], dtype=torch.float64)
+        assert abs(_bisect_newton_batch(0, a, b).item() - 0.3) < 1e-10
 
     def test_mcmahon_zeros_empty(self):
         """_mcmahon_zeros_j0(0) returns [] (line 130)."""
@@ -192,6 +209,28 @@ class TestCGCache:
                 loaded = _load_cache(5)
                 assert loaded is not None
                 torch.testing.assert_close(loaded[(1, 1)], matrices[(1, 1)])
+
+    def test_save_cache_oserror_swallowed(self):
+        """A failing cache write must not break CG computation."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch('bispectrum._cg._CACHE_DIR', Path(tmpdir)),
+                patch('torch.save', side_effect=OSError('disk full')),
+            ):
+                _save_cache(5, {(1, 1): torch.eye(3)})
+            assert not list(Path(tmpdir).iterdir())
+
+
+class TestCGSelectionRules:
+    """Triples outside the triangle inequality produce no CG terms."""
+
+    def test_sparse_entry_triangle_violation_is_empty(self):
+        m1_idx, m_idx, cg_vals = compute_sparse_cg_entry(1, 1, 3)
+        assert len(m1_idx) == len(m_idx) == len(cg_vals) == 0
+
+    def test_sparse_entry_valid_triple_is_nonempty(self):
+        _, _, cg_vals = compute_sparse_cg_entry(1, 1, 2)
+        assert len(cg_vals) > 0
 
 
 class TestDnonDnEdgeCases:
@@ -416,6 +455,163 @@ class TestSO3CudaGraphPaths:
 
         bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
         bsp.reset_cuda_graph_cache()
+
+    @pytest.mark.parametrize('selective', [True, False])
+    def test_cuda_graph_capture_wiring_on_cpu(self, selective: bool):
+        """Run the capture path with torch.cuda stream/graph APIs stubbed out.
+
+        The forward captured inside the (mocked) graph context runs eagerly on CPU, so this checks
+        that the static input/output buffers are wired to the right forward and that the first call
+        returns the captured output.
+        """
+        from unittest.mock import MagicMock
+
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=selective)
+        f = torch.randn(2, 16, 32)
+        expected = bsp(f)
+
+        graph = MagicMock()
+        with (
+            patch('torch.cuda.Stream', return_value=MagicMock()),
+            patch('torch.cuda.current_stream', return_value=MagicMock()),
+            patch('torch.cuda.stream', return_value=MagicMock()),
+            patch('torch.cuda.CUDAGraph', return_value=graph),
+            patch('torch.cuda.graph', return_value=MagicMock()),
+        ):
+            out = bsp._forward_cuda_graph(f, 2, bsp.output_size)
+
+        assert out is not None
+        torch.testing.assert_close(out, expected)
+        cache = bsp._cuda_graph_cache
+        assert cache['key'] == SO3onS2._cuda_graph_key(f)
+        assert cache['static_input'].shape == f.shape
+        torch.testing.assert_close(cache['static_output'], expected)
+        graph.replay.assert_called_once()
+
+        # A second call with the same signature replays instead of re-capturing.
+        out2 = bsp._forward_cuda_graph(f.clone(), 2, bsp.output_size)
+        assert graph.replay.call_count == 2
+        torch.testing.assert_close(out2, expected)
+
+
+def _dense_forward(bsp, f: torch.Tensor, num_entries: int) -> torch.Tensor:
+    """Run the dense (reduced-CG) forward of an SO3onS2 module on ``f``."""
+    from bispectrum.so3_on_s2 import _get_full_sh_coefficients
+
+    coeffs = bsp._sht(f)
+    f_coeffs = _get_full_sh_coefficients(coeffs)
+    return bsp._forward_python(f_coeffs, coeffs.dtype, f.device, f.shape[0], num_entries)
+
+
+class TestSO3TablePaths:
+    """Exercise the dense-table and lazy-index code paths of SO3onS2 on CPU.
+
+    Dense tables are built on *selective* modules (which only carry sparse
+    tables) so each build is the first registration of the ``_cg_red_*``
+    buffers; results are checked against the sparse forward.
+    """
+
+    def test_build_group_tables_defaults_to_index_map(self):
+        """all_triples=None means 'the bispectral entries only' (no CG power)."""
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        f = torch.randn(2, 16, 32, dtype=torch.float64)
+        bsp._build_group_tables(load_cg_matrices(3))
+        dense = _dense_forward(bsp, f, bsp.n_bispec)
+        torch.testing.assert_close(dense, bsp(f)[:, : bsp.n_bispec], atol=1e-10, rtol=1e-10)
+
+    def test_dense_tables_match_sparse_for_selective_map(self):
+        """The dense forward agrees with the sparse one, CG power entries included."""
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=4, nlat=16, nlon=32, selective=True)
+        f = torch.randn(2, 16, 32, dtype=torch.float64)
+        bsp._build_group_tables(load_cg_matrices(4), bsp.index_map)
+        dense = _dense_forward(bsp, f, bsp.output_size)
+        torch.testing.assert_close(dense, bsp(f), atol=1e-10, rtol=1e-10)
+
+    def test_reduced_cg_disk_cache_roundtrip(self):
+        """cg_data=None computes reduced CG blocks, caches them, and reloads on the next build."""
+        from bispectrum import SO3onS2
+
+        def fresh():
+            return SO3onS2(lmax=2, nlat=16, nlon=32, selective=True)
+
+        f = torch.randn(1, 16, 32, dtype=torch.float64)
+        expected = fresh()(f)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch('bispectrum.so3_on_s2._CACHE_DIR', Path(tmpdir)):
+                bsp = fresh()
+                bsp._build_group_tables(None, bsp.index_map)
+                files = list(Path(tmpdir).glob('cg_reduced_*.pt'))
+                assert len(files) == 1
+                torch.testing.assert_close(_dense_forward(bsp, f, bsp.output_size), expected)
+
+                # Second build hits the cache file instead of recomputing.
+                bsp = fresh()
+                with patch('bispectrum.so3_on_s2.compute_reduced_cg_parallel') as never:
+                    bsp._build_group_tables(None, bsp.index_map)
+                never.assert_not_called()
+                torch.testing.assert_close(_dense_forward(bsp, f, bsp.output_size), expected)
+
+                # A corrupt cache file is ignored and recomputed.
+                files[0].write_text('not a torch file')
+                bsp = fresh()
+                bsp._build_group_tables(None, bsp.index_map)
+                torch.testing.assert_close(_dense_forward(bsp, f, bsp.output_size), expected)
+
+    def test_reduced_cg_cache_write_failure_is_nonfatal(self):
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=2, nlat=16, nlon=32, selective=True)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch('bispectrum.so3_on_s2._CACHE_DIR', Path(tmpdir)),
+                patch('torch.save', side_effect=OSError('disk full')),
+            ):
+                bsp._build_group_tables(None, bsp.index_map)
+            assert not list(Path(tmpdir).iterdir())
+        f = torch.randn(1, 16, 32, dtype=torch.float64)
+        torch.testing.assert_close(_dense_forward(bsp, f, bsp.output_size), bsp(f))
+
+    def test_lazy_sparse_indices_from_sht_to_flat(self):
+        """_sht_to_flat and the dict-based _forward_sparse build the gather tables on demand."""
+        from bispectrum import SO3onS2
+        from bispectrum.so3_on_s2 import _get_full_sh_coefficients
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        f = torch.randn(2, 16, 32, dtype=torch.float64)
+        coeffs = bsp._sht(f)
+        assert not hasattr(bsp, '_flat_src_l')
+        flat = bsp._sht_to_flat(coeffs)
+        assert flat.shape == (2, (bsp.lmax + 1) ** 2)
+
+        bsp2 = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        f_coeffs = _get_full_sh_coefficients(coeffs)
+        out = bsp2._forward_sparse(f_coeffs, coeffs.dtype, f.device, 2, bsp2.output_size)
+        torch.testing.assert_close(out, bsp(f), atol=1e-12, rtol=1e-12)
+
+    def test_entries_without_cg_terms_evaluate_to_zero(self):
+        """Triples violating the triangle inequality have no CG terms and give exactly 0."""
+        from bispectrum import SO3onS2
+
+        triples = [(1, 1, 2), (1, 1, 3)]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch('bispectrum.so3_on_s2._CACHE_DIR', Path(tmpdir)),
+                patch('bispectrum.so3_on_s2._build_selective_index_map', return_value=triples),
+                patch('bispectrum.so3_on_s2._build_cg_power_index_map', return_value=triples),
+            ):
+                bsp = SO3onS2(lmax=2, nlat=16, nlon=32, selective=True)
+        assert bsp.index_map == triples + triples
+        out = bsp(torch.randn(3, 16, 32, dtype=torch.float64))
+        assert out.shape == (3, 4)
+        assert torch.all(out[:, 1] == 0) and torch.all(out[:, 3] == 0)
+        assert torch.all(out[:, 0] != 0) and torch.all(out[:, 2] != 0)
 
 
 class TestSO3SparseCacheIO:
