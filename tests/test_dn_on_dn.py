@@ -1,5 +1,7 @@
 """Tests for DnonDn bispectrum module."""
 
+import math
+
 import pytest
 import torch
 
@@ -49,8 +51,8 @@ class TestDnonDnConstruction:
         [
             (3, 1 + 4 + 16 * 1),
             (4, 1 + 4 + 16 * 1),
-            (5, 1 + 4 + 16 * 1),
-            (7, 1 + 4 + 16 * 2),
+            (5, 1 + 4 + 16 * 2),
+            (7, 1 + 4 + 16 * 3),
             (8, 1 + 4 + 16 * 3),
             (16, 1 + 4 + 16 * 7),
         ],
@@ -191,9 +193,14 @@ class TestDnonDnInvert:
         rel = ((beta_rec - beta).norm(dim=-1) / beta.norm(dim=-1)).max().item()
         assert rel < 1e-6, f'n={n}: full bispectrum roundtrip rel err {rel:.3e}'
 
-    @pytest.mark.parametrize('n', [4, 6, 8, 10, 12])
-    def test_orbit_recovery_even_n(self, n: int):
-        """For even n the reconstruction lies in the D_n orbit of the input."""
+    @pytest.mark.parametrize('n', [3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    def test_orbit_recovery(self, n: int):
+        """The reconstruction lies in the D_n orbit of the input (completeness, all n >= 3).
+
+        Before the fold block beta_{rho1, rho_n2d} was restored for odd n >= 5, the invariant was
+        blind to the continuous twist F_k -> R(k theta) F_k and the reconstruction landed on a
+        different point of that one-parameter family.
+        """
         torch.manual_seed(n + 7)
         bsp = DnonDn(n=n)
         f = torch.randn(4, 2 * n, dtype=torch.float64)
@@ -205,7 +212,55 @@ class TestDnonDnInvert:
                 d = (_group_action(f_rec, n, rot, refl) - f).norm(dim=-1)
                 best = d if best is None else torch.minimum(best, d)
         rel = (best / f.norm(dim=-1)).max().item()
-        assert rel < 1e-6, f'n={n}: orbit distance {rel:.3e}'
+        assert rel < 1e-8, f'n={n}: orbit distance {rel:.3e}'
+
+
+def _twist(bsp: DnonDn, f: torch.Tensor, theta: float) -> torch.Tensor:
+    """Apply the continuous twist F_k -> R(k theta) F_k to the 2D Fourier blocks of f."""
+    fhat = bsp._group_dft(f).clone()
+    for k in range(1, bsp._n2d + 1):
+        c, s = math.cos(k * theta), math.sin(k * theta)
+        R = torch.tensor([[c, -s], [s, c]], dtype=fhat.dtype)
+        fhat[:, :, :, k] = R @ fhat[:, :, :, k]
+    return bsp._inverse_dft(fhat)
+
+
+class TestDnonDnCompleteness:
+    @pytest.mark.parametrize('n', list(range(3, 13)))
+    def test_jacobian_full_rank(self, n: int):
+        """D_n is finite, so a complete invariant has a full-rank Jacobian (rank 2n) generically.
+
+        With the fold block dropped for odd n >= 5 the rank was 2n - 1: the missing direction is the
+        continuous twist F_k -> R(k theta) F_k.
+        """
+        torch.manual_seed(n)
+        bsp = DnonDn(n=n)
+        f = torch.randn(2 * n, dtype=torch.float64)
+        J = torch.autograd.functional.jacobian(lambda v: bsp(v.unsqueeze(0)).squeeze(0), f)
+        sv = torch.linalg.svdvals(J)
+        rank = int((sv > 1e-9 * sv[0]).sum())
+        assert rank == 2 * n, f'n={n}: Jacobian rank {rank} < {2 * n}; sv tail {sv[-3:].tolist()}'
+
+    @pytest.mark.parametrize('n', [3, 4, 5, 6, 7, 9, 11])
+    def test_continuous_twist_changes_bispectrum(self, n: int):
+        """A generic twist angle leaves the D_n orbit, so the bispectrum must change."""
+        torch.manual_seed(n + 1)
+        bsp = DnonDn(n=n)
+        f = torch.randn(3, 2 * n, dtype=torch.float64)
+        beta = bsp(f)
+        beta_tw = bsp(_twist(bsp, f, 0.731))
+        rel = ((beta_tw - beta).norm(dim=-1) / beta.norm(dim=-1)).min().item()
+        assert rel > 1e-3, f'n={n}: twisted signal has the same bispectrum (rel diff {rel:.2e})'
+
+    @pytest.mark.parametrize('n', [5, 7, 9])
+    def test_twist_by_group_angle_is_invariant(self, n: int):
+        """Theta = 2 pi m / n is a genuine rotation a^m, so it must remain invariant."""
+        torch.manual_seed(n + 2)
+        bsp = DnonDn(n=n)
+        f = torch.randn(3, 2 * n, dtype=torch.float64)
+        beta = bsp(f)
+        beta_tw = bsp(_twist(bsp, f, 2 * math.pi / n))
+        torch.testing.assert_close(beta_tw, beta, atol=1e-10, rtol=1e-10)
 
     @pytest.mark.parametrize('n', [3, 4, 5, 7, 8])
     def test_roundtrip_bispectrum(self, n: int):
