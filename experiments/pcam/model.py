@@ -3,14 +3,15 @@
 No escnn dependency — group-equivariant convolutions are implemented from
 scratch following Cohen & Welling (2016).
 
-Six model variants:
+Seven model variants:
 
     1. ``standard``   — vanilla DenseNet + data augmentation (no group structure)
     2. ``norm``       — equivariant DenseNet + NormReLU nonlinearity
     3. ``gate``       — equivariant DenseNet + gated nonlinearity
     4. ``fourier_elu``— equivariant DenseNet + FFT→ELU→IFFT nonlinearity
-    5. ``bispectrum`` — equivariant DenseNet + bispectral invariant pooling
-    6. ``so2_disk``   — SO2onDisk disk bispectrum on raw patches + MLP (no backbone)
+    5. ``norm_pool``  — equivariant DenseNet + norm (power-spectrum-like) pooling
+    6. ``bispectrum`` — equivariant DenseNet + bispectral invariant pooling
+    7. ``so2_disk``   — SO2onDisk disk bispectrum on raw patches + MLP (no backbone)
 """
 
 from __future__ import annotations
@@ -125,9 +126,7 @@ class LiftingConv2d(nn.Module):
         self.register_buffer('inverses', inverses)
         self.group_order = elements.shape[0]
 
-        self.weight = nn.Parameter(
-            torch.empty(out_channels, in_channels, kernel_size, kernel_size)
-        )
+        self.weight = nn.Parameter(torch.empty(out_channels, in_channels, kernel_size, kernel_size))
         nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         self.padding = padding
 
@@ -174,9 +173,7 @@ class GroupConv2d(nn.Module):
         self.out_channels = out_channels
         self.kernel_size = kernel_size
 
-        self.weight = nn.Parameter(
-            torch.empty(out_channels, in_channels, self.group_order, kernel_size, kernel_size)
-        )
+        self.weight = nn.Parameter(torch.empty(out_channels, in_channels, self.group_order, kernel_size, kernel_size))
         nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         self.padding = padding
 
@@ -398,9 +395,7 @@ class _DenseLayer(nn.Module):
 
             self.bn2 = EquivBatchNorm(inter)
             self.conv2 = GroupConv2d(inter, growth_rate * gate_factor, 3, group, padding='same')
-            self.nonlin2 = _make_nonlinearity(
-                nonlin_type, growth_rate * gate_factor, group_order, growth_rate
-            )
+            self.nonlin2 = _make_nonlinearity(nonlin_type, growth_rate * gate_factor, group_order, growth_rate)
         else:
             self.bn1 = nn.BatchNorm2d(in_channels)
             self.conv1 = nn.Conv2d(in_channels, inter, 1, bias=False)
@@ -428,9 +423,7 @@ class _DenseBlock(nn.Module):
         super().__init__()
         layers = []
         for i in range(num_layers):
-            layers.append(
-                _DenseLayer(in_channels + i * growth_rate, growth_rate, group, nonlin_type)
-            )
+            layers.append(_DenseLayer(in_channels + i * growth_rate, growth_rate, group, nonlin_type))
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
@@ -457,9 +450,7 @@ class _Transition(nn.Module):
             gate_factor = 2 if nonlin_type == 'gate' else 1
             self.bn = EquivBatchNorm(in_channels)
             self.conv = GroupConv2d(in_channels, out_channels * gate_factor, 1, group, padding=0)
-            self.nonlin = _make_nonlinearity(
-                nonlin_type, out_channels * gate_factor, group_order, out_channels
-            )
+            self.nonlin = _make_nonlinearity(nonlin_type, out_channels * gate_factor, group_order, out_channels)
         else:
             self.bn = nn.BatchNorm2d(in_channels)
             self.conv = nn.Conv2d(in_channels, out_channels, 1, bias=False)
@@ -487,9 +478,11 @@ def _make_nonlinearity(
         return GatedNonlinearity(out_channels or in_channels // 2)
     elif nonlin_type == 'fourier_elu':
         return FourierELU(group_order)
-    elif nonlin_type == 'bispectrum':
+    elif nonlin_type in ('bispectrum', 'norm_pool'):
         # For intermediate layers, use ReLU (equivariant for regular repr).
-        # Bispectrum is applied only as the final invariant pool.
+        # The invariant map (bispectrum or group norm) is applied only as the
+        # final pool, making the two variants a matched-architecture ablation:
+        # complete (bispectrum) vs incomplete (norm/power-spectrum) invariant.
         return _RegularReLU()
     else:
         raise ValueError(f'Unknown nonlinearity: {nonlin_type}')
@@ -506,7 +499,7 @@ class _RegularReLU(nn.Module):
         return F.relu(x)
 
 
-NonlinType = Literal['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum']
+NonlinType = Literal['standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum']
 
 
 class PCamDenseNet(nn.Module):
@@ -514,7 +507,7 @@ class PCamDenseNet(nn.Module):
 
     Args:
         nonlin_type: One of ``"standard"``, ``"norm"``, ``"gate"``,
-            ``"fourier_elu"``, ``"bispectrum"``.
+            ``"fourier_elu"``, ``"norm_pool"``, ``"bispectrum"``.
         group: ``"c8"`` or ``"d4"``.  Ignored when ``nonlin_type="standard"``.
         growth_rate: DenseNet growth rate *k*.
         block_config: Number of layers in each dense block.
@@ -563,6 +556,8 @@ class PCamDenseNet(nn.Module):
 
         if nonlin_type == 'bispectrum':
             self.invariant_pool = BispectrumPool(group, channels)
+        elif nonlin_type == 'norm_pool':
+            self.invariant_pool = GroupNormPool()
         elif self.equivariant:
             self.invariant_pool = GroupMaxPool()
         else:

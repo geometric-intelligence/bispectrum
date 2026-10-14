@@ -18,7 +18,7 @@ Usage examples:
     # SO2onDisk disk bispectrum baseline (no backbone)
     python train.py --model so2_disk --bandlimit 30 --data_dir ./pcam_data
 
-    # Run all 6 baselines × 3 seeds (full sweep)
+    # Run all 6 model variants × 2 train modes × 3 seeds (full sweep)
     python train.py --sweep --data_dir ./pcam_data
 """
 
@@ -177,9 +177,7 @@ def evaluate_rotation_robustness(
     results['mean_auc'] = sum(aucs) / len(aucs)
     results['std_auc'] = (sum((a - results['mean_auc']) ** 2 for a in aucs) / len(aucs)) ** 0.5
     results['mean_accuracy'] = sum(accs) / len(accs)
-    results['std_accuracy'] = (
-        sum((a - results['mean_accuracy']) ** 2 for a in accs) / len(accs)
-    ) ** 0.5
+    results['std_accuracy'] = (sum((a - results['mean_accuracy']) ** 2 for a in accs) / len(accs)) ** 0.5
 
     return results
 
@@ -378,9 +376,7 @@ def train(args: argparse.Namespace) -> dict:
     if args.model == 'so2_disk':
         print(f'Model: {args.model} (bandlimit={args.bandlimit}), {n_params:,} params')
     else:
-        print(
-            f'Model: {args.model} (group={args.group}, gr={args.growth_rate}), {n_params:,} params'
-        )
+        print(f'Model: {args.model} (group={args.group}, gr={args.growth_rate}), {n_params:,} params')
 
     if args.dry_run:
         info: dict = {
@@ -408,10 +404,7 @@ def train(args: argparse.Namespace) -> dict:
         seed=args.seed,
         subset_dir=args.subset_dir,
     )
-    print(
-        f'Data: train={len(train_loader.dataset)}, '
-        f'val={len(val_loader.dataset)}, test={len(test_loader.dataset)}'
-    )
+    print(f'Data: train={len(train_loader.dataset)}, val={len(val_loader.dataset)}, test={len(test_loader.dataset)}')
 
     if args.compile:
         model = torch.compile(model)
@@ -428,8 +421,7 @@ def train(args: argparse.Namespace) -> dict:
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
     if args.model == 'so2_disk':
         out_dir = (
-            Path(args.output_dir)
-            / f'{args.model}_bl{args.bandlimit:.0f}_{args.train_mode}_seed{args.seed}{n_tag}'
+            Path(args.output_dir) / f'{args.model}_bl{args.bandlimit:.0f}_{args.train_mode}_seed{args.seed}{n_tag}'
         )
     else:
         out_dir = (
@@ -486,10 +478,7 @@ def train(args: argparse.Namespace) -> dict:
 
     if not args.skip_rotation:
         rot_metrics = evaluate_rotation_robustness(model, test_loader, device, geometry_group)
-        print(
-            f'Rotation robustness: mean_auc={rot_metrics["mean_auc"]:.4f}, '
-            f'std_auc={rot_metrics["std_auc"]:.4f}'
-        )
+        print(f'Rotation robustness: mean_auc={rot_metrics["mean_auc"]:.4f}, std_auc={rot_metrics["std_auc"]:.4f}')
         test_r = _mean_group_metrics(rot_metrics)
     else:
         rot_metrics = {}
@@ -524,7 +513,7 @@ def train(args: argparse.Namespace) -> dict:
 
 def run_sweep(args: argparse.Namespace):
     """Run the full experimental sweep."""
-    models = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum']
+    models = ['standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum']
     train_modes = ['C', 'R']
     seeds = [42, 123, 456]
     all_results = []
@@ -536,10 +525,7 @@ def run_sweep(args: argparse.Namespace):
                 args.train_mode = train_mode
                 args.seed = seed
                 print(f'\n{"=" * 60}')
-                print(
-                    f'Running: model={model_name}, group={args.group}, '
-                    f'train_mode={train_mode}, seed={seed}'
-                )
+                print(f'Running: model={model_name}, group={args.group}, train_mode={train_mode}, seed={seed}')
                 print(f'{"=" * 60}')
                 results = train(args)
                 all_results.append(results)
@@ -560,11 +546,7 @@ def run_sweep(args: argparse.Namespace):
             runs = grouped[(model_name, train_mode)]
             aucs = [r['test_c']['auc'] for r in runs]
             accs = [r['test_c']['accuracy'] for r in runs]
-            rot_stds = [
-                r['rotation_robustness'].get('std_auc', 0.0)
-                for r in runs
-                if r.get('rotation_robustness')
-            ]
+            rot_stds = [r['rotation_robustness'].get('std_auc', 0.0) for r in runs if r.get('rotation_robustness')]
             n_params = runs[0]['n_params']
 
             mean_auc = sum(aucs) / len(aucs)
@@ -593,7 +575,7 @@ def main():
     )
     parser.add_argument(
         '--model',
-        choices=['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum', 'so2_disk'],
+        choices=['standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum', 'so2_disk'],
         default='bispectrum',
         help='Nonlinearity / model variant.',
     )
@@ -648,7 +630,7 @@ def main():
     parser.add_argument(
         '--sweep',
         action='store_true',
-        help='Run all 6 baselines × 3 seeds.',
+        help='Run all 6 model variants × 2 train modes × 3 seeds.',
     )
     parser.add_argument(
         '--dry_run',
