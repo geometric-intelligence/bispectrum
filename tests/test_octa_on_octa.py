@@ -500,3 +500,49 @@ class TestOctaonOctaLmStepRobustness:
         assert (loss_after <= loss_before + 1e-6).all(), (
             f'LM step increased loss: {loss_before} -> {loss_after}'
         )
+
+    @staticmethod
+    def _first_lm_candidate(
+        bsp: OctaonOcta, f: torch.Tensor, beta_target: torch.Tensor
+    ) -> torch.Tensor:
+        """Replicate the first damped Gauss-Newton candidate evaluated by ``_lm_step``."""
+
+        def fwd_single(x: torch.Tensor) -> torch.Tensor:
+            return bsp(x.unsqueeze(0)).squeeze(0).real
+
+        J = torch.vmap(torch.func.jacfwd(fwd_single))(f)
+        r = beta_target.real - torch.vmap(fwd_single)(f)
+        JTJ = J.transpose(-1, -2) @ J
+        JTr = (J.transpose(-1, -2) @ r.unsqueeze(-1)).squeeze(-1)
+        mu = torch.clamp(1e-3 * JTJ.diagonal(dim1=-2, dim2=-1).max(dim=-1).values, min=1e-8)
+        eye = torch.eye(bsp.GROUP_ORDER, dtype=J.dtype)
+        return f + torch.linalg.solve(JTJ + mu[:, None, None] * eye, JTr)
+
+    @pytest.mark.parametrize('seed', [35, 0, 1, 2, 3])
+    def test_lm_step_never_worse_than_accepted_candidate(self, seed: int):
+        """Once a candidate is accepted, later candidates may only replace it if better.
+
+        The damping loop used to compare each new candidate against the loss at the *starting*
+        point, so a later (less damped) step that was better than the start but worse than an
+        already-accepted step overwrote it.  Seed 35 is a concrete instance where the returned
+        residual was ~19 above the accepted one.
+        """
+        g = torch.Generator().manual_seed(seed)
+        bsp = OctaonOcta()
+        f_target = torch.randn(4, 24, generator=g, dtype=torch.float64)
+        f0 = f_target + 2.0 * torch.randn(4, 24, generator=g, dtype=torch.float64)
+        beta = bsp(f_target)
+        target = beta.real
+
+        def loss(x: torch.Tensor) -> torch.Tensor:
+            return (bsp(x).real - target).norm(dim=-1)
+
+        loss0 = loss(f0)
+        loss_first = loss(self._first_lm_candidate(bsp, f0, beta))
+        loss_out = loss(bsp._lm_step(f0, beta))
+
+        accepted_first = loss_first < loss0
+        assert (loss_out <= loss0 + 1e-9).all()
+        assert (loss_out[accepted_first] <= loss_first[accepted_first] + 1e-9).all(), (
+            f'seed {seed}: returned {loss_out.tolist()} vs first accepted {loss_first.tolist()}'
+        )

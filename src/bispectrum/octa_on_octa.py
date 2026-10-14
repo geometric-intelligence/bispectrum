@@ -732,7 +732,12 @@ class OctaonOcta(nn.Module):
     ) -> torch.Tensor:
         """One Levenberg-Marquardt step with adaptive damping.
 
-        Uses (J^T J + mu I)^{-1} J^T r with mu adapted per sample to ensure the residual decreases.
+        Uses (J^T J + mu I)^{-1} J^T r with mu adapted per sample.  Up to ten
+        damping values are tried from the same starting point: mu grows x5 until
+        a candidate beats the starting residual, then shrinks x0.5 while each
+        retry keeps improving on the best candidate so far, and the sample stops
+        at its first stalled retry.  Each sample returns the best candidate it
+        evaluated (never worse than the starting point).
         """
         target_real = beta_target.real
 
@@ -751,6 +756,9 @@ class OctaonOcta(nn.Module):
 
         eye = torch.eye(self.GROUP_ORDER, dtype=J_batch.dtype, device=J_batch.device)
         f_best = f.clone()
+        best_loss = current_loss.clone()
+        accepted = torch.zeros_like(current_loss, dtype=torch.bool)
+        done = torch.zeros_like(accepted)
 
         for _ in range(10):
             A = JTJ + mu[:, None, None] * eye.unsqueeze(0)
@@ -759,14 +767,22 @@ class OctaonOcta(nn.Module):
             new_pred = torch.vmap(fwd_single)(f_new)
             new_loss = (target_real - new_pred).norm(dim=-1)
 
-            improved = new_loss < current_loss
-            if improved.any():
-                f_best = torch.where(improved.unsqueeze(-1), f_new, f_best)
-                mu = torch.where(improved, torch.clamp(mu * 0.5, min=1e-10), mu * 5.0)
-                if improved.all():
-                    break
-            else:
-                mu = mu * 5.0
+            # Compare against the best candidate so far, not the starting point:
+            # a less-damped retry that beats the start but not the accepted step
+            # must not overwrite it.
+            improved = (new_loss < best_loss) & ~done
+            f_best = torch.where(improved.unsqueeze(-1), f_new, f_best)
+            best_loss = torch.where(improved, new_loss, best_loss)
+
+            # Per-sample schedule: not yet accepted -> increase damping; accepted
+            # and still improving -> keep decreasing; accepted but stalled -> stop.
+            done |= accepted & ~improved
+            accepted |= improved
+            mu = torch.where(
+                improved, torch.clamp(mu * 0.5, min=1e-10), torch.where(done, mu, mu * 5.0)
+            )
+            if done.all():
+                break
 
         return f_best
 
