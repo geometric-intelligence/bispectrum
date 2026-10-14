@@ -1,7 +1,9 @@
 """Internal Bessel function utilities.
 
-Pure torch implementation — no scipy. Used by SO2onDisk for disk harmonic
-computations. Not part of the public API.
+Pure torch implementation — no scipy, and no ``torch.special.bessel_j0/j1``
+(which are only ~5e-7 accurate in float64 on parts of the real line).  All
+orders are evaluated with Miller's backward recurrence.  Used by SO2onDisk
+for disk harmonic computations. Not part of the public API.
 
 Provides:
   bessel_jn       — J_n(x) for integer order n >= 0 (torch tensor)
@@ -15,13 +17,16 @@ import torch
 
 
 def bessel_jn(n: int, x: torch.Tensor) -> torch.Tensor:
-    """Compute J_n(x) for integer order n >= 0.
+    """Compute J_n(x) for integer order n >= 0 to double precision.
 
-    Uses the forward recurrence J_{k+1}(x) = (2k/x)*J_k(x) - J_{k-1}(x)
-    where it is stable (x >= n) and Miller's backward recurrence where
-    the forward direction diverges (x < n).  The forward recurrence
-    amplifies the Y_n admixture exponentially for x < n, which matters
-    for disk harmonics: they evaluate J_n(lambda * r) with r near 0.
+    Every order, including n = 0 and n = 1, is evaluated with Miller's
+    backward recurrence (see :func:`_bessel_jn_multi`).  The recurrence is
+    started above both ``n`` and ``max|x|`` so it is stable in the
+    ``x < n`` regime (where the forward recurrence diverges) and in the
+    oscillatory regime alike.  ``torch.special.bessel_j0/j1`` are
+    deliberately not used: in float64 they are only ~5e-7 accurate on
+    x in [2.8, 14.5], and any recurrence seeded with them inherits that
+    error.
 
     Args:
         n: Non-negative integer order.
@@ -32,89 +37,91 @@ def bessel_jn(n: int, x: torch.Tensor) -> torch.Tensor:
     """
     if n < 0:
         raise ValueError(f'Order n must be >= 0, got {n}')
-
-    if n == 0:
-        return torch.special.bessel_j0(x)
-    if n == 1:
-        return torch.special.bessel_j1(x)
-
-    needs_backward = x.abs() < n
-    if not bool(needs_backward.any()):
-        return _bessel_jn_forward(n, x)
-    if bool(needs_backward.all()):
-        return _bessel_jn_miller(n, x)
-    return torch.where(needs_backward, _bessel_jn_miller(n, x), _bessel_jn_forward(n, x))
+    return _bessel_jn_multi((n,), x)[0]
 
 
-def _bessel_jn_forward(n: int, x: torch.Tensor) -> torch.Tensor:
-    """Forward recurrence for J_n(x); stable only for |x| >= n."""
-    j_prev = torch.special.bessel_j0(x)
-    j_curr = torch.special.bessel_j1(x)
-
-    for k in range(1, n):
-        safe_x = torch.where(x == 0, torch.ones_like(x), x)
-        j_next = (2.0 * k / safe_x) * j_curr - j_prev
-        j_next = torch.where(x == 0, torch.zeros_like(j_next), j_next)
-        j_prev = j_curr
-        j_curr = j_next
-
-    return j_curr
-
-
-def _bessel_jn_miller(n: int, x: torch.Tensor) -> torch.Tensor:
-    """Miller's backward recurrence for J_n(x); stable for |x| < n.
-
-    Recurs downward from a start order well above n with an arbitrary seed, then normalizes with
-    the identity J_0(x) + 2*sum_k J_{2k}(x) = 1.
-    """
-    ax = x.abs()
-    safe_x = torch.where(ax == 0, torch.ones_like(ax), ax)
-
-    m_start = n + int(math.sqrt(60.0 * (n + 1))) + 20
+def _miller_start_order(n_max: int, x_max: float) -> int:
+    """Even start order for Miller's recurrence covering orders <= n_max and |x| <= x_max."""
+    base = max(n_max, int(math.ceil(x_max)))
+    m_start = base + int(math.sqrt(60.0 * (base + 1))) + 20
     if m_start % 2 == 1:
         m_start += 1
+    return m_start
 
+
+def _bessel_jn_multi(orders: tuple[int, ...], x: torch.Tensor) -> list[torch.Tensor]:
+    """Evaluate J_n(x) for several non-negative orders in one Miller pass.
+
+    Recurs ``J_{k-1} = (2k/x) J_k - J_{k+1}`` downward from an arbitrary seed at a start order well
+    above ``max(orders)`` and ``max|x|``, then normalizes with the identity ``J_0(x) + 2 *
+    sum_{k>=1} J_{2k}(x) = 1``.  The downward direction is minimal-solution stable for every x
+    below the start order, which gives ~1e-16 relative accuracy throughout.  Computation is done in
+    float64 and cast back to ``x.dtype``.
+    """
+    if not orders:
+        return []
+    n_max = max(orders)
+    in_dtype = x.dtype
+    xw = x.to(torch.float64)
+    ax = xw.abs()
+    # |x| below 1e-30 is treated as 0 (J_0 = 1, J_n = 0): the recurrence
+    # ratio 2k/x would overflow between two rescales otherwise.
+    is_zero = ax < 1e-30
+    inv_x = torch.where(is_zero, torch.ones_like(ax), ax).reciprocal()
+    x_max = float(ax.max()) if ax.numel() > 0 else 0.0
+    m_start = _miller_start_order(n_max, x_max)
+
+    wanted = set(orders)
     j_up = torch.zeros_like(ax)  # J_{k+1}
     j_k = torch.full_like(ax, 1e-30)  # J_k, arbitrary seed normalized away
     norm_even = torch.zeros_like(ax)  # 2 * sum of J_{2k}, k >= 1
-    result = torch.zeros_like(ax)
+    captured: dict[int, torch.Tensor] = {}
 
     for k in range(m_start, 0, -1):
-        j_dn = (2.0 * k / safe_x) * j_k - j_up  # J_{k-1}
+        j_dn = inv_x * j_k
+        j_dn.mul_(2.0 * k).sub_(j_up)  # J_{k-1} = (2k/x) J_k - J_{k+1}
         j_up = j_k
         j_k = j_dn
-        if k - 1 == n:
-            result = j_k.clone()
-        if (k - 1) > 0 and (k - 1) % 2 == 0:
-            norm_even = norm_even + 2.0 * j_k
-        big = j_k.abs() > 1e250
-        if bool(big.any()):
-            scale = torch.where(big, torch.full_like(j_k, 1e-250), torch.ones_like(j_k))
+        km1 = k - 1
+        if km1 in wanted:
+            captured[km1] = j_k
+        if km1 > 0 and km1 % 2 == 0:
+            norm_even.add_(j_k, alpha=2.0)
+        if k % 8 == 0:
+            # Periodic renormalization keeps the dominant solution below
+            # overflow; the common factor cancels in the final division.
+            scale = torch.maximum(j_k.abs(), j_up.abs()).clamp_min(1.0).reciprocal()
             j_k = j_k * scale
             j_up = j_up * scale
             norm_even = norm_even * scale
-            result = result * scale
+            captured = {m: v * scale for m, v in captured.items()}
 
-    out = result / (j_k + norm_even)  # j_k is now J_0
-    out = torch.where(ax == 0, torch.zeros_like(out), out)
-    if n % 2 == 1:
-        out = torch.where(x < 0, -out, out)
+    norm = j_k + norm_even  # j_k is now J_0
+
+    out: list[torch.Tensor] = []
+    for n in orders:
+        val = captured[n] / norm
+        at_zero = torch.ones_like(val) if n == 0 else torch.zeros_like(val)
+        val = torch.where(is_zero, at_zero, val)
+        if n % 2 == 1:
+            val = torch.where(xw < 0, -val, val)
+        out.append(val.to(in_dtype))
     return out
 
 
 def _jn_scalar(n: int, x: float) -> float:
     """Scalar evaluation of J_n(x); delegates to the stable tensor path."""
-    if x == 0 and n >= 1:
-        return 0.0
     result: float = bessel_jn(n, torch.tensor(x, dtype=torch.float64)).item()
     return result
 
 
 def _djn_scalar(n: int, x: float) -> float:
     """Scalar J_n'(x) = (J_{n-1}(x) - J_{n+1}(x)) / 2."""
+    xt = torch.tensor(x, dtype=torch.float64)
     if n == 0:
-        return -_jn_scalar(1, x)
-    return (_jn_scalar(n - 1, x) - _jn_scalar(n + 1, x)) / 2.0
+        return -float(_bessel_jn_multi((1,), xt)[0].item())
+    j_lo, j_hi = _bessel_jn_multi((n - 1, n + 1), xt)
+    return float((j_lo - j_hi).item()) / 2.0
 
 
 def _bisect_newton(n: int, a: float, b: float) -> float:
@@ -139,6 +146,8 @@ def _bisect_newton(n: int, a: float, b: float) -> float:
 
         if abs(dfx) > 1e-30:
             x_new = x - fx / dfx
+            if abs(x_new - x) <= 1e-15 * max(abs(x), 1.0):
+                return min(max(x_new, a), b)
         else:
             x_new = x
 
@@ -169,8 +178,8 @@ def _mcmahon_zeros_j0(num_zeros: int) -> list[float]:
     beta = math.pi * (s - 0.25)
     z = beta - 1.0 / (8.0 * beta)
     for _ in range(10):
-        fz = bessel_jn(0, z)
-        dfz = -bessel_jn(1, z)
+        fz, j1 = _bessel_jn_multi((0, 1), z)
+        dfz = -j1
         safe_dfz = torch.where(dfz.abs() < 1e-30, torch.ones_like(dfz), dfz)
         dz = fz / safe_dfz
         dz = torch.where(dfz.abs() < 1e-30, torch.zeros_like(dz), dz)
@@ -207,23 +216,30 @@ def _bisect_newton_batch(n: int, a: torch.Tensor, b: torch.Tensor) -> torch.Tens
     x = mid0.clone()
 
     for _ in range(80):
-        fx = bessel_jn(n, x)
         if n == 0:
-            dfx = -bessel_jn(1, x)
+            fx, j1 = _bessel_jn_multi((0, 1), x)
+            dfx = -j1
         else:
-            dfx = (bessel_jn(n - 1, x) - bessel_jn(n + 1, x)) / 2.0
+            j_lo, fx, j_hi = _bessel_jn_multi((n - 1, n, n + 1), x)
+            dfx = (j_lo - j_hi) / 2.0
 
         newton_ok = dfx.abs() > 1e-30
         safe_dfx = dfx.abs().clamp_min(1e-30).copysign(dfx)
         x_newton = torch.where(newton_ok, x - fx / safe_dfx, x)
+        # A Newton step below machine precision means x is converged to a
+        # simple root.  Pin the bracket there: otherwise the iterate sits on
+        # a bracket endpoint, the next Newton step falls outside by rounding,
+        # and the solver degrades to ~45 pure bisection iterations.
+        step_tiny = newton_ok & ((x_newton - x).abs() <= 1e-15 * x.abs().clamp(min=1.0))
         in_bracket = (a < x_newton) & (x_newton < b)
         x = torch.where(in_bracket & newton_ok, x_newton, (a + b) / 2.0)
+        x = torch.where(step_tiny, torch.minimum(torch.maximum(x_newton, a), b), x)
 
         fx = bessel_jn(n, x)
 
         # If fx is exactly 0 the sign test below is ill-defined and the
         # bisection would discard the root; pin the bracket at x instead.
-        hit = fx == 0
+        hit = (fx == 0) | step_tiny
         a = torch.where(hit, x, a)
         b = torch.where(hit, x, b)
 
