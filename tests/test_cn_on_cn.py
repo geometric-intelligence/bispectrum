@@ -251,6 +251,29 @@ class TestCnonCnInvert:
         with pytest.raises(ValueError, match=r'fhat\[1\]'):
             bsp.invert(beta)
 
+    def test_invert_raises_on_zero_intermediate_pivot(self):
+        """The recursion fhat[k+1] = conj(beta/(fhat[1] fhat[k])) divides by every fhat[k].
+
+        A signal with fhat[0], fhat[1] != 0 but fhat[2] = 0 cannot be inverted by Algorithm 1 and
+        must raise rather than silently return inf/nan.
+        """
+        n = 8
+        fhat = torch.ones(1, n, dtype=torch.complex128)
+        fhat[0, 2] = 0.0
+        f = torch.fft.ifft(fhat, dim=-1)
+        bsp = CnonCn(n=n, selective=True)
+        beta = bsp(f)
+        with pytest.raises(ValueError, match=r'fhat\[2\]'):
+            bsp.invert(beta)
+
+    def test_invert_rejects_nonfinite_beta(self):
+        """Non-finite bispectrum entries are rejected up front."""
+        bsp = CnonCn(n=8, selective=True)
+        beta = bsp(torch.randn(2, 8))
+        beta[0, 3] = float('nan')
+        with pytest.raises(ValueError, match='finite'):
+            bsp.invert(beta)
+
     def test_invert_output_is_complex(self):
         """Result is complex: reconstruction lives in the complex signal model."""
         bsp = CnonCn(n=8, selective=True)

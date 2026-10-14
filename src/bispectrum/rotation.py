@@ -160,8 +160,11 @@ def rotate_spherical_function(
 
     # Pad the function for periodic boundary conditions in phi
     # Wrap around by appending first columns to the end and last columns to the beginning
+    # Interpolate in the input precision (float64 stays float64; grid_sample
+    # has no half/bfloat16 CPU kernels, so those are promoted to float32).
+    work_dtype = dtype if dtype in (torch.float32, torch.float64) else torch.float32
     pad_width = 4
-    f_input = f_grid.to(torch.float64).unsqueeze(1)  # (batch, 1, nlat, nlon)
+    f_input = f_grid.to(work_dtype).unsqueeze(1)  # (batch, 1, nlat, nlon)
     f_padded = F.pad(f_input, (pad_width, pad_width, 0, 0), mode='circular')
 
     # Adjust phi to account for padding
@@ -188,10 +191,11 @@ def rotate_spherical_function(
     sample_grid = torch.stack([phi_norm, theta_norm], dim=-1)
     sample_grid = sample_grid.unsqueeze(0).expand(batch_size, -1, -1, -1)
 
-    # Use grid_sample for bilinear interpolation
+    # Bilinear interpolation in the working precision; the sampling grid was
+    # built in float64 so an identity rotation hits the nodes exactly.
     f_rotated = F.grid_sample(
-        f_padded.float(),
-        sample_grid.float(),
+        f_padded,
+        sample_grid.to(work_dtype),
         mode='bilinear',
         padding_mode='border',
         align_corners=True,
