@@ -87,21 +87,86 @@ def _expected_linear_block(ell: int) -> list[tuple[int, int, int]]:
         ],
     }
     if ell in explicit_blocks:
-        return explicit_blocks[ell]
+        return [t for t in explicit_blocks[ell] if not _is_identically_zero(*t)]
 
+    # ell >= 8: distinct unordered pairs {a, b}, a <= b < ell, a + b >= ell,
+    # ordered by a + b then a; (a, a, odd ell) vanishes identically.
     block: list[tuple[int, int, int]] = []
-    for a in range(1, ell):
-        block.append((a, ell, ell - a))
-    skip_a = (ell + 1) // 2 if ell % 2 == 1 else None
-    for a in range(2, ell):
-        if a == skip_a:
-            continue
-        block.append((a, ell, ell - a + 1))
-    for a in range(1, 5):
-        block.append((a, ell - a, ell))
-    if ell % 2 == 1:
-        block.append((2, ell - 1, ell))
-    return block
+    for s in range(ell, 2 * ell - 1):
+        for a in range(max(1, s - (ell - 1)), s // 2 + 1):
+            b = s - a
+            if a == b and ell % 2 == 1:
+                continue
+            block.append((a, b, ell))
+    return block[: 2 * ell + 1]
+
+
+def _is_identically_zero(l1: int, l2: int, l_val: int) -> bool:
+    """True if beta_{l1,l2,l} vanishes for every real signal.
+
+    (l, l, odd) vanishes by exchange antisymmetry of F_l (x) F_l for any signal; an odd-parity
+    triple with any repeated index vanishes on real signals via beta_{l1,l2,l} = (-1)^{l1}
+    sqrt((2l+1)/(2l2+1)) beta_{l1,l,l2} and its permutations.
+    """
+    parity_odd = (l1 + l2 + l_val) % 2 == 1
+    repeated = len({l1, l2, l_val}) < 3
+    return parity_odd and repeated
+
+
+def _real_to_coeffs(x: torch.Tensor, lmax: int) -> torch.Tensor:
+    """Real parametrization -> flat complex SH coefficients in the module's layout.
+
+    Per degree l the real dof are ``[a^0, Re a^1, Im a^1, ..., Re a^l, Im a^l]`` (2l+1 numbers);
+    the output lists m = -l..l with ``a^{-m} = (-1)^m conj(a^m)``.
+    """
+    out: list[torch.Tensor] = []
+    pos = 0
+    for l_val in range(lmax + 1):
+        blk = x[pos : pos + 2 * l_val + 1]
+        pos += 2 * l_val + 1
+        coeffs: list[torch.Tensor] = [torch.zeros((), dtype=torch.complex128)] * (2 * l_val + 1)
+        coeffs[l_val] = torch.complex(blk[0], torch.zeros_like(blk[0]))
+        for m in range(1, l_val + 1):
+            am = torch.complex(blk[2 * m - 1], blk[2 * m])
+            coeffs[l_val + m] = am
+            coeffs[l_val - m] = ((-1.0) ** m) * torch.conj(am)
+        out.append(torch.stack(coeffs))
+    return torch.cat(out)
+
+
+def _invariant_real(mod: SO3onS2, x: torch.Tensor) -> torch.Tensor:
+    """Real-valued selective invariant through the production sparse path.
+
+    Each bispectral entry of a real signal is a single real number: real for even parity
+    l1+l2+l, imaginary for odd parity. CG power entries are real.
+    """
+    flat = _real_to_coeffs(x, mod.lmax)[None]
+    beta = mod._forward_sparse_from_flat(flat, flat.dtype, flat.device, 1, mod.output_size)[0]
+    parts: list[torch.Tensor] = []
+    for i, (l1, l2, l_val) in enumerate(mod.index_map):
+        if i >= mod.n_bispec or (l1 + l2 + l_val) % 2 == 0:
+            parts.append(beta[i].real)
+        else:
+            parts.append(beta[i].imag)
+    return torch.stack(parts)
+
+
+def _numerical_rank(J: torch.Tensor, rtol: float = 1e-9) -> tuple[int, float]:
+    """(rank, SVD gap at the rank cut)."""
+    sv = torch.linalg.svdvals(J)
+    rank = int((sv > rtol * sv[0]).sum())
+    gap = (sv[rank - 1] / sv[rank]).item() if rank < sv.numel() else float('inf')
+    return rank, gap
+
+
+def _entry_degree(triple: tuple[int, int, int], is_power: bool) -> int:
+    """Highest SH degree whose coefficients enter the entry.
+
+    A bispectral entry (l1, l2, l) involves F_l1, F_l2 and F_l; a CG power entry (l1, l2, l_out) =
+    ||(F_l1 (x) F_l2)|_{l_out}||^2 involves only F_l1 and F_l2.
+    """
+    l1, l2, l3 = triple
+    return max(l1, l2) if is_power else max(l1, l2, l3)
 
 
 class TestSO3onS2:
@@ -314,7 +379,9 @@ class TestSelectiveSO3onS2:
 
     def test_output_size_is_quadratic(self):
         """Augmented selective output: bispec + CG power entries, all O(L²)."""
-        expected_total = {0: 1, 1: 2, 2: 6, 3: 17, 4: 34, 5: 54, 6: 75}
+        # (2,2,3)/(2,3,2) at L=3 and (4,5,4), (6,7,6) at L=5, 7 are identically
+        # zero on real signals and are no longer selected.
+        expected_total = {0: 1, 1: 2, 2: 6, 3: 15, 4: 32, 5: 52, 6: 73, 7: 98, 8: 124, 16: 426}
         for lmax, exp in expected_total.items():
             bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
             assert bsp.output_size == exp, f'lmax={lmax}: got {bsp.output_size}, expected {exp}'
@@ -490,12 +557,34 @@ class TestBuildSelectiveIndexMap:
                         f'β({ell},{ell},{l_sc}) missing for lmax={lmax}'
                     )
 
-    def test_linear_blocks_match_proved_family(self):
-        for ell in range(4, 11):
+    def test_linear_blocks_match_closed_form(self):
+        for ell in range(4, 21):
             idx = _build_selective_index_map(ell)
             actual = _linear_rows_for_target(idx, ell)
             expected = _expected_linear_block(ell)
-            assert actual == expected
+            assert actual == expected, f'ell={ell}: {actual} != {expected}'
+
+    @pytest.mark.parametrize('lmax', [3, 5, 7, 8, 12, 20])
+    def test_no_identically_zero_entries(self, lmax: int):
+        """Entries that vanish for every real signal carry no information and must not be selected.
+
+        The previous map contained (2,2,3), (2,3,2), (4,5,4) and (6,7,6).
+        """
+        zeros = [t for t in _build_selective_index_map(lmax) if _is_identically_zero(*t)]
+        assert zeros == [], f'identically-zero entries selected: {zeros}'
+
+    @pytest.mark.parametrize('ell', list(range(8, 21)))
+    def test_linear_rows_are_distinct_equations(self, ell: int):
+        """For real signals beta_{l1,l2,l} = (-1)^{l1} sqrt((2l+1)/(2l2+1)) beta_{l1,l,l2}.
+
+        Rows at degree ell that are the same unordered triple are therefore the same real linear
+        equation in F_ell; the old closed-form block listed every chain row (a, ell-a, ell) again
+        as the cross row (a, ell, ell-a).
+        """
+        rows = _linear_rows_for_target(_build_selective_index_map(ell), ell)
+        unordered = [tuple(sorted(t)) for t in rows]
+        assert len(set(unordered)) == len(unordered), f'ell={ell}: duplicate equations in {rows}'
+        assert len(rows) >= min(2 * ell + 1, len(set(unordered)))
 
 
 class TestCGPowerIndexMap:
@@ -631,63 +720,80 @@ class TestCompletenessNumerical:
         diff = (beta1 - beta2).abs().max()
         assert diff > 1e-6, 'Two random signals gave the same bispectrum'
 
-    @pytest.mark.parametrize('lmax', [3, 4])
-    def test_jacobian_rank_finite_diff(self, lmax: int):
-        """Jacobian of the selective bispectrum w.r.t. real SH coefficient parameters should have
-        well-defined numerical rank.
-
-        Uses autograd for exact Jacobian computation. The generic rank of
-        the scalar bispectrum for real-valued signals on S^2 is lower than
-        (L+1)^2 - 3 because the conjugacy constraint f_l^{-m} = (-1)^m
-        conj(f_l^m) introduces polynomial identities among bispectral
-        entries. The full bispectrum rank follows:
-          even L = 2K:  (K+1)(K+2)(2K+3) / 6
-          odd  L = 2K+1: (K+1)(K+2)(K+3) / 3
-        """
-        cg_data = load_cg_matrices(lmax)
-        idx_map = _build_selective_index_map(lmax)
-        torch.manual_seed(42)
-
-        n_params = (lmax + 1) ** 2
-        params = torch.randn(n_params, dtype=torch.float64)
-
-        def _params_to_coeffs(p: torch.Tensor) -> dict[int, torch.Tensor]:
-            f_coeffs: dict[int, torch.Tensor] = {}
-            idx = 0
-            for l_val in range(lmax + 1):
-                neg_parts: list[torch.Tensor] = []
-                pos_parts: list[torch.Tensor] = []
-                for m in range(1, l_val + 1):
-                    re, im = p[idx], p[idx + 1]
-                    pos_parts.append(torch.complex(re, im))
-                    neg_parts.append(((-1.0) ** m) * torch.complex(re, -im))
-                    idx += 2
-                m0 = torch.complex(p[idx], torch.zeros_like(p[idx]))
-                idx += 1
-                coeffs = list(reversed(neg_parts)) + [m0] + pos_parts
-                f_coeffs[l_val] = torch.stack(coeffs).unsqueeze(0)
-            return f_coeffs
-
-        def _eval_bispec(p: torch.Tensor) -> torch.Tensor:
-            fc = _params_to_coeffs(p)
-            return torch.stack(
-                [
-                    _bispectrum_entry(fc, l1, l2, lv, cg_data[(l1, l2)])[0].real
-                    for l1, l2, lv in idx_map
-                ]
+    def test_real_invariant_matches_forward(self):
+        """The real-valued test harness agrees with the public forward pass on a grid signal."""
+        lmax = 6
+        bsp = SO3onS2(lmax=lmax, nlat=32, nlon=64, selective=True)
+        torch.manual_seed(3)
+        f = torch.randn(1, 32, 64, dtype=torch.float64)
+        beta = bsp(f)[0]
+        coeffs = bsp._sht(f)
+        full = _get_full_sh_coefficients(coeffs)
+        x_parts: list[torch.Tensor] = []
+        for l_val in range(lmax + 1):
+            c = full[l_val][0]
+            blk = [c[l_val].real]
+            for m in range(1, l_val + 1):
+                blk += [c[l_val + m].real, c[l_val + m].imag]
+            x_parts.append(torch.stack(blk))
+        x = torch.cat(x_parts)
+        inv = _invariant_real(bsp, x)
+        for i, (l1, l2, l_val) in enumerate(bsp.index_map):
+            ref = (
+                beta[i].real if (i >= bsp.n_bispec or (l1 + l2 + l_val) % 2 == 0) else beta[i].imag
+            )
+            other = (
+                beta[i].imag if (i >= bsp.n_bispec or (l1 + l2 + l_val) % 2 == 0) else beta[i].real
+            )
+            torch.testing.assert_close(inv[i], ref, atol=1e-10, rtol=1e-10)
+            assert other.abs().item() < 1e-10 * max(1.0, beta.abs().max().item()), (
+                f'entry {i} {(l1, l2, l_val)} is not a single real number: {beta[i]}'
             )
 
-        J = torch.autograd.functional.jacobian(_eval_bispec, params)
-        sv = torch.linalg.svdvals(J)
+    @pytest.mark.parametrize('lmax', [4, 5, 6, 7, 8, 9, 10, 12, 16])
+    def test_selective_jacobian_full_rank(self, lmax: int):
+        """Generic local completeness: real Jacobian rank == (L+1)^2 - 3 (dim minus dim SO(3)).
 
-        ratios = sv[:-1] / torch.clamp(sv[1:], min=1e-20)
-        rank = int(ratios.argmax()) + 1
-        gap = ratios.max().item()
+        Before the degree >= 8 block was rebuilt from distinct unordered triples, the rank was
+        short by floor((ell-6)/2) at every degree ell >= 8 (20 dimensions at L = 15).
+        """
+        bsp = SO3onS2(lmax=lmax, nlat=40, nlon=80, selective=True)
+        n = (lmax + 1) ** 2
+        torch.manual_seed(100 + lmax)
+        x = torch.randn(n, dtype=torch.float64)
+        J = torch.autograd.functional.jacobian(lambda v: _invariant_real(bsp, v), x)
+        rank, gap = _numerical_rank(J)
+        assert rank == n - 3, f'lmax={lmax}: rank {rank} != {n - 3} (outputs {bsp.output_size})'
+        assert gap > 1e6, f'lmax={lmax}: no clean SVD gap at the rank cut ({gap:.2e})'
 
-        assert gap > 1e6, f'No clean SVD gap for lmax={lmax}: max ratio={gap:.2e} at rank={rank}'
-        assert rank >= lmax + 1, (
-            f'Rank {rank} too low for lmax={lmax} (must exceed power-spectrum contribution of {lmax + 1})'
+    @pytest.mark.parametrize('ell', list(range(4, 21)))
+    def test_per_degree_block_full_rank(self, ell: int):
+        """Bootstrap step: entries of degree ell determine F_ell locally given lower degrees.
+
+        The Jacobian of the degree-ell entries (bispectral entries with max index ell and CG
+        power entries with max(l1, l2) == ell) w.r.t. the 2 ell + 1 real dof of F_ell must have
+        full rank at a generic point. Built with lmax == ell, which is the smallest entry set this
+        degree ever gets.
+        """
+        bsp = SO3onS2(lmax=ell, nlat=48, nlon=96, selective=True)
+        n = (ell + 1) ** 2
+        n_lower = n - (2 * ell + 1)
+        sel = torch.tensor(
+            [i for i, t in enumerate(bsp.index_map) if _entry_degree(t, i >= bsp.n_bispec) == ell]
         )
+        torch.manual_seed(200 + ell)
+        x_lower = torch.randn(n_lower, dtype=torch.float64)
+        y = torch.randn(2 * ell + 1, dtype=torch.float64)
+
+        def block(yy: torch.Tensor) -> torch.Tensor:
+            return _invariant_real(bsp, torch.cat([x_lower, yy]))[sel]
+
+        J = torch.autograd.functional.jacobian(block, y)
+        rank, gap = _numerical_rank(J)
+        assert rank == 2 * ell + 1, (
+            f'ell={ell}: degree block rank {rank} / {2 * ell + 1} from {len(sel)} entries'
+        )
+        assert gap > 1e6, f'ell={ell}: no clean SVD gap ({gap:.2e})'
 
 
 class TestBuildFullIndexMap:
@@ -932,6 +1038,20 @@ class TestCUDAGraphParity:
             'Different inputs should give different outputs'
         )
 
+    def test_cuda_graph_dtype_change_matches_eager(self):
+        """Float32 then float64 at the same batch size must each match the eager path."""
+        bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True).cuda()
+        f32 = torch.randn(2, 32, 64, device='cuda', dtype=torch.float32)
+        torch.testing.assert_close(
+            _run_cuda_graph_path(bsp, f32), _run_python_path(bsp, f32), atol=1e-5, rtol=1e-5
+        )
+        f64 = torch.randn(2, 32, 64, device='cuda', dtype=torch.float64)
+        with torch.no_grad():
+            out64 = bsp(f64)
+        ref64 = _run_python_path(bsp, f64)
+        assert out64.dtype == ref64.dtype
+        torch.testing.assert_close(out64, ref64, atol=1e-10, rtol=1e-10)
+
     def test_cuda_graph_batch_size_mismatch(self):
         """CUDA graph returns None for a different batch size."""
         bsp = SO3onS2(lmax=3, nlat=32, nlon=64, selective=True).cuda()
@@ -990,9 +1110,9 @@ class TestCUDAGraphParity:
         with torch.no_grad():
             out = bsp(f)
 
-        assert (
-            not hasattr(bsp, '_cuda_graph_cache') or bsp._cuda_graph_cache.get('batch_size') == 2
-        )
+        assert not hasattr(bsp, '_cuda_graph_cache') or bsp._cuda_graph_cache.get(
+            'key'
+        ) == SO3onS2._cuda_graph_key(f)
         out_python = _run_python_path(bsp, f)
         torch.testing.assert_close(out, out_python, atol=1e-5, rtol=1e-5)
 

@@ -326,24 +326,29 @@ class TestSO3onS2EdgeCases:
 class TestSO3CudaGraphPaths:
     """Cover CUDA graph code paths without requiring a GPU."""
 
-    def test_cuda_graph_cache_hit_replays(self):
-        """Cached graph with matching batch_size replays and returns clone."""
+    @staticmethod
+    def _fake_cache(f: torch.Tensor, output: torch.Tensor) -> dict:
         from unittest.mock import Mock
 
+        from bispectrum.so3_on_s2 import SO3onS2
+
+        return {
+            'graph': Mock(),
+            'static_input': torch.empty_like(f),
+            'static_output': output,
+            'key': SO3onS2._cuda_graph_key(f),
+        }
+
+    def test_cuda_graph_cache_hit_replays(self):
+        """Cached graph with matching (shape, dtype, device) replays and returns clone."""
         from bispectrum import SO3onS2
 
         bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
         f = torch.randn(2, 16, 32)
         fake_output = torch.randn(2, bsp.output_size)
-        mock_graph = Mock()
-        bsp._cuda_graph_cache = {
-            'graph': mock_graph,
-            'static_input': torch.empty_like(f),
-            'static_output': fake_output,
-            'batch_size': 2,
-        }
+        bsp._cuda_graph_cache = self._fake_cache(f, fake_output)
         result = bsp._forward_cuda_graph(f, 2, bsp.output_size)
-        mock_graph.replay.assert_called_once()
+        bsp._cuda_graph_cache['graph'].replay.assert_called_once()
         assert result.shape == fake_output.shape
         assert result is not fake_output
 
@@ -352,8 +357,36 @@ class TestSO3CudaGraphPaths:
         from bispectrum import SO3onS2
 
         bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
-        bsp._cuda_graph_cache = {'batch_size': 8}
+        f8 = torch.randn(8, 16, 32)
+        bsp._cuda_graph_cache = self._fake_cache(f8, torch.randn(8, bsp.output_size))
         result = bsp._forward_cuda_graph(torch.randn(2, 16, 32), 2, bsp.output_size)
+        assert result is None
+        bsp._cuda_graph_cache['graph'].replay.assert_not_called()
+
+    def test_cuda_graph_dtype_mismatch_returns_none(self):
+        """A graph captured for float32 must not be replayed on a float64 input of the same shape.
+
+        ``static_input.copy_(f)`` would silently downcast and the replay would return a float32
+        result computed from truncated data; the cache was previously keyed on batch size only.
+        """
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        f32 = torch.randn(2, 16, 32, dtype=torch.float32)
+        bsp._cuda_graph_cache = self._fake_cache(f32, torch.randn(2, bsp.output_size))
+        f64 = torch.randn(2, 16, 32, dtype=torch.float64)
+        result = bsp._forward_cuda_graph(f64, 2, bsp.output_size)
+        assert result is None
+        bsp._cuda_graph_cache['graph'].replay.assert_not_called()
+
+    def test_cuda_graph_grid_shape_mismatch_returns_none(self):
+        """Same batch size but a different (nlat, nlon) must not hit the cache."""
+        from bispectrum import SO3onS2
+
+        bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
+        f = torch.randn(2, 16, 32)
+        bsp._cuda_graph_cache = self._fake_cache(f, torch.randn(2, bsp.output_size))
+        result = bsp._forward_cuda_graph(torch.randn(2, 32, 64), 2, bsp.output_size)
         assert result is None
 
     def test_cuda_graph_capture_failure_disables(self):
@@ -364,14 +397,16 @@ class TestSO3CudaGraphPaths:
         with patch('torch.cuda.Stream', side_effect=RuntimeError('no CUDA')):
             result = bsp._forward_cuda_graph(torch.randn(2, 16, 32), 2, bsp.output_size)
         assert result is None
-        assert bsp._cuda_graph_cache == {'batch_size': -1}
+        assert bsp._cuda_graph_cache == {'key': None}
+        # Sentinel stays disabled on the next call too.
+        assert bsp._forward_cuda_graph(torch.randn(2, 16, 32), 2, bsp.output_size) is None
 
     def test_reset_cuda_graph_cache(self):
         """reset_cuda_graph_cache removes the cache attribute."""
         from bispectrum import SO3onS2
 
         bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
-        bsp._cuda_graph_cache = {'batch_size': 2}
+        bsp._cuda_graph_cache = {'key': None}
         bsp.reset_cuda_graph_cache()
         assert not hasattr(bsp, '_cuda_graph_cache')
 
