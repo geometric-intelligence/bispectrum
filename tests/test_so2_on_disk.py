@@ -15,34 +15,110 @@ from bispectrum._bessel import (
     compute_all_bessel_roots,
 )
 
+# mpmath (40 digits) reference values for J_n(x).  Covers x = 3.5, 8, 12
+# where torch.special.bessel_j0/j1 are only ~5e-7 accurate in float64.
+_JN_REFERENCE: list[tuple[int, float, float]] = [
+    (0, 0.5, 0.9384698072408129),
+    (0, 3.5, -0.38012773998726338),
+    (0, 8.0, 0.17165080713755391),
+    (0, 12.0, 0.047689310796833537),
+    (0, 40.0, 0.0073668905842372896),
+    (0, 150.0, -0.00077409037539429125),
+    (1, 0.5, 0.24226845767487389),
+    (1, 3.5, 0.13737752736232719),
+    (1, 8.0, 0.23463634685391462),
+    (1, 12.0, -0.22344710449062761),
+    (1, 40.0, 0.126038318037585),
+    (1, 150.0, -0.06514516365772736),
+    (2, 0.5, 0.030604023458682641),
+    (2, 3.5, 0.45862918419430748),
+    (2, 8.0, -0.11299172042407525),
+    (2, 12.0, -0.084930494878604805),
+    (2, 40.0, -0.0010649746823580396),
+    (2, 150.0, -9.4511806708740224e-5),
+    (5, 0.5, 8.0536272413574741e-6),
+    (5, 3.5, 0.080441986647991782),
+    (5, 8.0, 0.18577477219056331),
+    (5, 12.0, -0.073470963101658581),
+    (5, 40.0, 0.12257346597711779),
+    (5, 150.0, -0.064998631740725847),
+    (20, 0.5, 3.7272019617047145e-31),
+    (20, 3.5, 2.5768553102807591e-14),
+    (20, 8.0, 2.0805829639717028e-7),
+    (20, 12.0, 0.00025121327024539953),
+    (20, 40.0, 0.1277939335508489),
+    (20, 150.0, 0.063447240953861973),
+]
+
+# mpmath besseljzero(n, k) references.
+_ROOT_REFERENCE: list[tuple[int, int, float]] = [
+    (0, 1, 2.4048255576957728),
+    (0, 5, 14.930917708487786),
+    (0, 20, 62.04846919022717),
+    (1, 1, 3.8317059702075123),
+    (1, 7, 22.760084380592772),
+    (2, 3, 11.619841172149059),
+    (5, 4, 18.980133875179921),
+    (10, 10, 45.231574103535045),
+    (20, 8, 51.860019928074574),
+    (40, 3, 56.658313455430063),
+]
+
 
 class TestBessel:
-    def test_j0_matches_torch(self):
-        x = torch.linspace(0.1, 20, 200, dtype=torch.float64)
-        torch.testing.assert_close(bessel_jn(0, x), torch.special.bessel_j0(x))
+    @pytest.mark.parametrize('n, x, expected', _JN_REFERENCE)
+    def test_jn_matches_mpmath(self, n: int, x: float, expected: float):
+        """J_n must be accurate to double precision for every order, including n = 0, 1.
 
-    def test_j1_matches_torch(self):
-        x = torch.linspace(0.1, 20, 200, dtype=torch.float64)
-        torch.testing.assert_close(bessel_jn(1, x), torch.special.bessel_j1(x))
+        ``torch.special.bessel_j0/j1`` are only ~5e-7 accurate on x in [2.8, 14.5]
+        (torch 2.11 arm64), so they cannot be used as base cases.
+        """
+        got = bessel_jn(n, torch.tensor([x], dtype=torch.float64)).item()
+        assert got == pytest.approx(expected, abs=1e-14, rel=1e-13)
+
+    def test_jn_matches_mpmath_batched(self):
+        """Mixed orders/arguments in one tensor evaluate identically to scalar calls."""
+        for n in (0, 1, 2, 5, 20):
+            rows = [(x, v) for nn, x, v in _JN_REFERENCE if nn == n]
+            xs = torch.tensor([x for x, _ in rows], dtype=torch.float64)
+            expected = torch.tensor([v for _, v in rows], dtype=torch.float64)
+            torch.testing.assert_close(bessel_jn(n, xs), expected, atol=1e-14, rtol=1e-13)
+
+    def test_j0_at_zero_is_one(self):
+        x = torch.tensor([0.0, 0.0], dtype=torch.float64)
+        torch.testing.assert_close(bessel_jn(0, x), torch.ones_like(x), atol=0, rtol=0)
 
     def test_jn_at_zero(self):
         assert bessel_jn(0, torch.tensor([0.0])).item() == pytest.approx(1.0)
         for n in [1, 2, 5, 10]:
             assert bessel_jn(n, torch.tensor([0.0])).item() == pytest.approx(0.0)
 
+    def test_jn_float32_input(self):
+        x = torch.tensor([0.5, 3.5, 12.0], dtype=torch.float32)
+        got = bessel_jn(1, x)
+        assert got.dtype == torch.float32
+        expected = torch.tensor(
+            [v for n, xx, v in _JN_REFERENCE if n == 1 and xx in (0.5, 3.5, 12.0)],
+            dtype=torch.float32,
+        )
+        torch.testing.assert_close(got, expected, atol=1e-6, rtol=1e-5)
+
     def test_negative_order_raises(self):
         with pytest.raises(ValueError, match='Order n must be >= 0'):
             bessel_jn(-1, torch.tensor([1.0]))
 
+    @pytest.mark.parametrize('n, k, expected_root', _ROOT_REFERENCE)
+    def test_roots_match_mpmath(self, n: int, k: int, expected_root: float):
+        roots = bessel_jn_zeros(n, k)
+        assert roots[k - 1].item() == pytest.approx(expected_root, abs=1e-13)
+
     @pytest.mark.parametrize(
         'n, expected_first_root',
-        [(0, 2.4048255577), (1, 3.8317059702), (2, 5.1356223018)],
+        [(0, 2.4048255576957728), (1, 3.8317059702075123), (2, 5.1356223018406826)],
     )
     def test_known_roots(self, n: int, expected_first_root: float):
         roots = bessel_jn_zeros(n, 3)
-        # Root accuracy is limited (~1e-6) by torch.special.bessel_j0/j1,
-        # which have absolute error ~3e-7 near their zeros.
-        assert roots[0].item() == pytest.approx(expected_first_root, abs=1e-5)
+        assert roots[0].item() == pytest.approx(expected_first_root, abs=1e-13)
 
     @pytest.mark.parametrize(
         'n, x, expected',
@@ -91,7 +167,7 @@ class TestBessel:
     )
     def test_high_order_roots_match_reference(self, n: int, k: int, expected_root: float):
         roots = bessel_jn_zeros(n, k)
-        assert roots[k - 1].item() == pytest.approx(expected_root, abs=1e-5)
+        assert roots[k - 1].item() == pytest.approx(expected_root, abs=1e-12)
 
     def test_roots_interlace(self):
         """j_{n-1,k} < j_{n,k} < j_{n-1,k+1} for all consecutive orders.
@@ -109,7 +185,7 @@ class TestBessel:
         all_roots = compute_all_bessel_roots(20, 10)
         for n, roots in all_roots.items():
             vals = bessel_jn(n, torch.tensor(roots, dtype=torch.float64))
-            assert vals.abs().max().item() < 1e-6, f'Large residual at order {n}'
+            assert vals.abs().max().item() < 1e-13, f'Large residual at order {n}'
 
     @pytest.mark.parametrize('n', [0, 1, 2, 5, 10])
     def test_jn_at_zeros_is_zero(self, n: int):
