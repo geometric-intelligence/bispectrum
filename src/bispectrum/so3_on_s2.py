@@ -407,6 +407,14 @@ class SO3onS2(nn.Module):
         nlon: Number of longitude grid points.
         selective: If True, use the O(L²) augmented selective bispectrum.
             If False, compute all O(L³) entries.
+
+    .. versionchanged:: 0.4.0
+        The selective index map was redesigned (distinct-pair linear block
+        for l >= 8, identically-zero entries dropped).  ``output_size`` and the
+        feature layout differ from 0.3.x for every ``lmax >= 3`` (e.g. 426
+        instead of 430 at ``lmax=16``); cached features and downstream heads
+        trained on the old layout must be recomputed.  The on-disk sparse CG
+        cache is invalidated automatically.
     """
 
     def __init__(

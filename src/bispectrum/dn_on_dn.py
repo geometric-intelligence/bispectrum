@@ -226,6 +226,12 @@ class DnonDn(nn.Module):
         n: Polygon order (|D_n| = 2n).  Must be > 2.
         selective: If True (default), compute the selective bispectrum.
             Full bispectrum raises NotImplementedError.
+
+    .. versionchanged:: 0.4.0
+        For odd ``n >= 5`` the fold block beta_{rho_1, rho_n2d} is now
+        included (it was dropped in 0.3.x, leaving the invariant incomplete).
+        ``output_size`` grows by 16 and the feature layout changes for those
+        ``n``; even ``n`` and ``n = 3`` are unchanged.
     """
 
     def __init__(self, n: int, selective: bool = True) -> None:
