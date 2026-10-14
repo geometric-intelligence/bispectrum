@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from bispectrum import SO2onDisk
 from bispectrum._bessel import (
-    _bisect_newton,
+    _bisect_newton_batch,
     _mcmahon_zeros_j0,
     bessel_jn,
     bessel_jn_zeros,
@@ -219,21 +219,31 @@ class TestBessel:
         for i in range(len(roots) - 1):
             assert roots[i] < roots[i + 1], f'Roots not monotonically increasing at {i}'
 
-    def test_bisect_newton_j0_known_root(self):
-        root = _bisect_newton(0, 2.0, 3.0)
-        val = bessel_jn(0, torch.tensor([root], dtype=torch.float64)).item()
-        assert abs(val) < 1e-14, f'J_0({root}) = {val}'
-        assert 2.404 < root < 2.405
+    def test_bisect_newton_batch_j0_known_root(self):
+        """Order-0 brackets use J_0' = -J_1 for the Newton step."""
+        a = torch.tensor([2.0, 5.0], dtype=torch.float64)
+        b = torch.tensor([3.0, 6.0], dtype=torch.float64)
+        roots = _bisect_newton_batch(0, a, b)
+        torch.testing.assert_close(
+            roots,
+            torch.tensor([2.404825557695773, 5.520078110286311], dtype=torch.float64),
+            atol=1e-14,
+            rtol=0.0,
+        )
 
-    def test_bisect_newton_j1_known_root(self):
-        root = _bisect_newton(1, 3.5, 4.5)
+    def test_bisect_newton_batch_j1_known_root(self):
+        a = torch.tensor([3.5], dtype=torch.float64)
+        b = torch.tensor([4.5], dtype=torch.float64)
+        root = _bisect_newton_batch(1, a, b).item()
         val = bessel_jn(1, torch.tensor([root], dtype=torch.float64)).item()
         assert abs(val) < 1e-14, f'J_1({root}) = {val}'
         assert 3.831 < root < 3.832
 
-    def test_bisect_newton_degenerate_bracket(self):
+    def test_bisect_newton_batch_degenerate_bracket(self):
         """When fa * fb > 0, should return midpoint."""
-        root = _bisect_newton(0, 0.1, 0.5)
+        a = torch.tensor([0.1], dtype=torch.float64)
+        b = torch.tensor([0.5], dtype=torch.float64)
+        root = _bisect_newton_batch(0, a, b).item()
         assert root == pytest.approx(0.3, abs=1e-6)
 
 
