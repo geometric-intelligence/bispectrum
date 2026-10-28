@@ -1,0 +1,79 @@
+{
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Linux-5.15.0-186-generic-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "torch": "2.11.0+cu130",
+    "device": "cuda",
+    "cuda_runtime": "13.0",
+    "cudnn": 91900,
+    "mps_available": false,
+    "batch_size": 16,
+    "warmup": 10,
+    "repeats": 30,
+    "inner_loops": 20,
+    "dtype": "float32",
+    "device_name": "NVIDIA A100 80GB PCIe",
+    "compute_capability": [
+      8,
+      0
+    ]
+  },
+  "results": [
+    {
+      "module": "CnonCn",
+      "settings": "n=128",
+      "output_size": 128,
+      "median_ms": 0.15845425077714026,
+      "p25_ms": 0.15815287188161165,
+      "p75_ms": 0.15878687554504722,
+      "error": null
+    },
+    {
+      "module": "TorusOnTorus",
+      "settings": "ns=(32,32)",
+      "output_size": 1024,
+      "median_ms": 0.09843659936450422,
+      "p25_ms": 0.09803834836930037,
+      "p75_ms": 0.09869172645267099,
+      "error": null
+    },
+    {
+      "module": "DnonDn",
+      "settings": "n=32",
+      "output_size": 245,
+      "median_ms": 0.6424181250622496,
+      "p25_ms": 0.6416572257876396,
+      "p75_ms": 0.6440173121518455,
+      "error": null
+    },
+    {
+      "module": "SO2onDisk",
+      "settings": "L=16",
+      "output_size": 105,
+      "median_ms": 0.34167089906986803,
+      "p25_ms": 0.3411134021007456,
+      "p75_ms": 0.34244170237798244,
+      "error": null
+    },
+    {
+      "module": "SO3onS2",
+      "settings": "lmax=16, grid=64x128",
+      "output_size": 430,
+      "median_ms": 0.23176870017778128,
+      "p25_ms": 0.23150457709562033,
+      "p75_ms": 0.23191582586150616,
+      "error": null
+    },
+    {
+      "module": "OctaonOcta",
+      "settings": "|O|=24",
+      "output_size": 172,
+      "median_ms": 0.8120207989122719,
+      "p25_ms": 0.8112757888738997,
+      "p75_ms": 0.8132640999974683,
+      "error": null
+    }
+  ]
+}

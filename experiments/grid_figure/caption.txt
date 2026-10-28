@@ -1,0 +1,19 @@
+Consistent comparison of invariant pooling strategies across three
+group-structured benchmarks: PatchCamelyon (planar C8 rotations, test AUC),
+OrganMNIST3D (octahedral rotations, test accuracy), and Spherical MNIST
+(SO(3) rotations, test accuracy). Columns: (left) canonical vs rotated
+(OOD) test performance as paired bars; (middle) parameter efficiency;
+(right) data efficiency. Line plots report the rotated-test metric,
+mean +/- std over 3 seeds. "Aug. CNN" denotes the non-equivariant CNN
+baseline trained with G-augmentation; all invariant models are trained on
+canonical (non-augmented) data. "Norm pool" (finite groups) and "Power
+spectrum" (SO(3)) are incomplete second-order invariant baselines with
+matched backbones; the bispectrum is the complete invariant. The dashed
+line marks the published Spherical CNN result of Cohen et al. (2018)
+(NR/R = 0.94), cited rather than re-run. We include equivariant
+architectures in every row: the NormReLU, Gated, Fourier-ELU, Max-Pool,
+and Norm-Pool variants are G-equivariant networks differing only in
+their invariant map. The S2CNN reference appears only in the Spherical
+MNIST row because it is the canonical published architecture designed
+specifically for spherical images; rows 1-2 have no comparably canonical
+external baseline, and their equivariant variants already fill that role.

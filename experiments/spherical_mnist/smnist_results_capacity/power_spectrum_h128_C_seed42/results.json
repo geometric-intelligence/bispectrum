@@ -1,0 +1,69 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "power_spectrum_h128",
+  "base_model": "power_spectrum",
+  "train_mode": "C",
+  "test_rotation_seed": 777,
+  "seed": 42,
+  "lmax": 15,
+  "n_params": 3690,
+  "invariant_dim": 16,
+  "train_size": null,
+  "train_examples": 50000,
+  "best_val_accuracy": 0.7703,
+  "test_c": {
+    "loss": 0.7136156106948852,
+    "accuracy": 0.756
+  },
+  "test": {
+    "loss": 0.7136156106948852,
+    "accuracy": 0.756
+  },
+  "test_nr": {
+    "loss": 0.7136156106948852,
+    "accuracy": 0.756
+  },
+  "test_r": {
+    "loss": 0.7190399585723877,
+    "accuracy": 0.7557
+  },
+  "rotation_robustness": {
+    "rot_00": 0.7545,
+    "rot_01": 0.7554,
+    "rot_02": 0.7553,
+    "rot_03": 0.7549,
+    "rot_04": 0.7552,
+    "rot_05": 0.7551,
+    "rot_06": 0.7546,
+    "rot_07": 0.7549,
+    "rot_08": 0.7547,
+    "rot_09": 0.7554,
+    "mean_accuracy": 0.755,
+    "std_accuracy": 0.0003130495168499538
+  },
+  "wall_time_s": 161.02763104438782,
+  "epochs_run": 36,
+  "peak_train_alloc_bytes": 37316608,
+  "peak_train_reserved_bytes": 48234496,
+  "gpu_name": "NVIDIA A100 80GB PCIe",
+  "cuda_total_memory_bytes": 85094825984,
+  "git_sha": "c21824e889a54833905c4b361773d3a77da79445",
+  "argv": [
+    "--model",
+    "power_spectrum",
+    "--hidden",
+    "128",
+    "--run_label",
+    "power_spectrum_h128",
+    "--train_mode",
+    "C",
+    "--seed",
+    "42",
+    "--epochs",
+    "50",
+    "--patience",
+    "10",
+    "--output_dir",
+    "./smnist_results_capacity"
+  ]
+}

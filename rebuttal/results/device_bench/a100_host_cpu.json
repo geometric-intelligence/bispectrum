@@ -1,0 +1,76 @@
+{
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Linux-5.15.0-186-generic-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "torch": "2.11.0+cu130",
+    "device": "cpu",
+    "cuda_runtime": "13.0",
+    "cudnn": 91900,
+    "mps_available": false,
+    "batch_size": 16,
+    "warmup": 10,
+    "repeats": 30,
+    "inner_loops": 20,
+    "dtype": "float32",
+    "device_name": "x86_64",
+    "torch_num_threads": 128
+  },
+  "results": [
+    {
+      "module": "CnonCn",
+      "settings": "n=128",
+      "output_size": 128,
+      "median_ms": 0.08174295071512461,
+      "p25_ms": 0.0814225772046484,
+      "p75_ms": 0.08219547307817265,
+      "error": null
+    },
+    {
+      "module": "TorusOnTorus",
+      "settings": "ns=(32,32)",
+      "output_size": 1024,
+      "median_ms": 84.87368007772602,
+      "p25_ms": 80.13860201026546,
+      "p75_ms": 87.88476441550301,
+      "error": null
+    },
+    {
+      "module": "DnonDn",
+      "settings": "n=32",
+      "output_size": 245,
+      "median_ms": 97.02817107609008,
+      "p25_ms": 94.22329579829238,
+      "p75_ms": 100.09747381409397,
+      "error": null
+    },
+    {
+      "module": "SO2onDisk",
+      "settings": "L=16",
+      "output_size": 105,
+      "median_ms": 58.405346574727446,
+      "p25_ms": 55.83016502496321,
+      "p75_ms": 59.964501883951016,
+      "error": null
+    },
+    {
+      "module": "SO3onS2",
+      "settings": "lmax=16, grid=64x128",
+      "output_size": 430,
+      "median_ms": 402.02772507618647,
+      "p25_ms": 382.3099884975818,
+      "p75_ms": 411.8474733608309,
+      "error": null
+    },
+    {
+      "module": "OctaonOcta",
+      "settings": "|O|=24",
+      "output_size": 172,
+      "median_ms": 239.00025772454683,
+      "p25_ms": 219.68967490101932,
+      "p75_ms": 266.33193750312785,
+      "error": null
+    }
+  ]
+}

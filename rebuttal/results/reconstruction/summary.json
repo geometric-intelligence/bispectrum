@@ -1,0 +1,93 @@
+{
+  "rows": [
+    {
+      "signal_source": "smnist",
+      "meta": {
+        "n_digits": 8,
+        "n_rotations": 1,
+        "nlat": 128,
+        "nlon": 256,
+        "lmax": 15,
+        "selective": true,
+        "output_size": 384,
+        "n_steps": 8000,
+        "lr": 0.05,
+        "bandlimit_project": true,
+        "n_recon_restarts": 4,
+        "align_n_restarts": 12,
+        "align_n_steps": 200,
+        "align_lr": 0.1,
+        "device": "cuda",
+        "seed": 2026,
+        "signal_source": "smnist",
+        "sweep_seconds": 1627.8695582059445
+      },
+      "n_records": 16,
+      "feature_residual": {
+        "median": 0.0014084469876252115,
+        "p25": 0.001152385404566303,
+        "p75": 0.003498063131701201,
+        "max": 0.009843175299465656
+      },
+      "aligned_image_residual": {
+        "median": 0.26816992461681366,
+        "p25": 0.20905645936727524,
+        "p75": 0.5242548435926437,
+        "max": 0.979433000087738
+      },
+      "invariance_residual": {
+        "median": 0.0018503140890970826,
+        "p25": 0.0015702526434324682,
+        "p75": 0.002119429234880954,
+        "max": 0.003850300796329975
+      },
+      "feature_threshold": 0.01,
+      "feature_success_rate": 1.0,
+      "aligned_threshold": 0.3,
+      "aligned_success_rate": 0.625,
+      "joint_success_rate": 0.625
+    },
+    {
+      "signal_source": "random",
+      "meta": {
+        "n_digits": 16,
+        "n_rotations": 0,
+        "nlat": 128,
+        "nlon": 256,
+        "lmax": 15,
+        "selective": true,
+        "output_size": 384,
+        "n_steps": 8000,
+        "lr": 0.05,
+        "bandlimit_project": true,
+        "n_recon_restarts": 4,
+        "align_n_restarts": 12,
+        "align_n_steps": 200,
+        "align_lr": 0.1,
+        "device": "cuda",
+        "seed": 2026,
+        "signal_source": "random",
+        "sweep_seconds": 2947.1085920779733
+      },
+      "n_records": 16,
+      "feature_residual": {
+        "median": 0.014184689149260521,
+        "p25": 0.011276958743110299,
+        "p75": 0.01665435079485178,
+        "max": 0.02067342773079872
+      },
+      "aligned_image_residual": {
+        "median": 1.1897493600845337,
+        "p25": 1.1293006241321564,
+        "p75": 1.2263204157352448,
+        "max": 1.3794686794281006
+      },
+      "invariance_residual": null,
+      "feature_threshold": 0.01,
+      "feature_success_rate": 0.1875,
+      "aligned_threshold": 0.3,
+      "aligned_success_rate": 0.0,
+      "joint_success_rate": 0.0
+    }
+  ]
+}
