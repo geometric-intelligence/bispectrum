@@ -14,13 +14,14 @@ BASE_DIR = Path(__file__).parent / 'pcam_results_data_pareto'
 PCAM_FULL_TRAIN = 262_144
 
 MODEL_STYLE: dict[str, dict] = {
-    'standard': {'color': '#888888', 'marker': 's', 'label': 'Standard'},
+    'standard': {'color': '#888888', 'marker': 's', 'label': 'Aug. CNN'},
     'norm': {'color': '#2196F3', 'marker': 'o', 'label': 'NormReLU'},
     'gate': {'color': '#FF9800', 'marker': '^', 'label': 'Gated'},
     'fourier_elu': {'color': '#9C27B0', 'marker': 'D', 'label': 'Fourier-ELU'},
+    'norm_pool': {'color': '#5C6BC0', 'marker': 'v', 'label': 'Norm pool'},
     'bispectrum': {'color': '#E53935', 'marker': '*', 'label': 'Bispectrum'},
 }
-MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum']
+MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum']
 
 DEFAULT_TRAIN_MODE = 'R'
 
@@ -35,6 +36,11 @@ def _canonical_train_mode(mode: str) -> str:
 
 def _result_train_mode(record: dict) -> str:
     return _canonical_train_mode(record.get('train_mode', DEFAULT_TRAIN_MODE))
+
+
+def _expected_train_mode(model: str) -> str:
+    """Protocol mode per model: Aug. CNN baseline is R-trained, invariants C."""
+    return 'R' if model == 'standard' else 'C'
 
 
 def _result_test_metrics(record: dict) -> dict:
@@ -67,12 +73,14 @@ def load_all_results(base_dir: Path) -> list[dict]:
 
 def aggregate(
     results: list[dict],
-    train_mode: str = DEFAULT_TRAIN_MODE,
 ) -> dict[str, dict[int, dict[str, float]]]:
-    """Group by (model, train_size) for *train_mode*; report mean/std test AUC."""
+    """Group by (model, train_size); report mean/std test AUC.
+
+    Only protocol-conforming runs are kept (Aug. CNN: R, invariants: C).
+    """
     grouped: dict[tuple[str, int], list[float]] = defaultdict(list)
     for r in results:
-        if _result_train_mode(r) != train_mode:
+        if _result_train_mode(r) != _expected_train_mode(r.get('model', '')):
             continue
         key = (r['model'], _train_size_value(r))
         grouped[key].append(_result_test_metrics(r).get('auc', 0.0))
@@ -210,10 +218,7 @@ def main() -> None:
             deltas = [agg[model][n]['mean'] - standard_data[n]['mean'] for n in sizes]
             if deltas:
                 best_n = sizes[int(np.argmax(deltas))]
-                print(
-                    f'    {MODEL_STYLE[model]["label"]:25s}  '
-                    f'best advantage at N={best_n}: {max(deltas):+.4f}'
-                )
+                print(f'    {MODEL_STYLE[model]["label"]:25s}  best advantage at N={best_n}: {max(deltas):+.4f}')
 
 
 if __name__ == '__main__':
