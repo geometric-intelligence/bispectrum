@@ -146,6 +146,13 @@ COLUMN_LABELS: Final = (
     'Data efficiency',
 )
 
+# Shared across rows so vertical distances are comparable within each column.
+COLUMN_YLIMS: Final[tuple[tuple[float, float], ...]] = (
+    (0.5, 1.0),
+    (0.5, 1.0),
+    (0.0, 1.0),
+)
+
 PANEL_FILENAMES: Final = (
     ('grid_r1c1_pcam_ood.pdf', 'grid_r1c2_pcam_params.pdf', 'grid_r1c3_pcam_data.pdf'),
     ('grid_r2c1_organ3d_ood.pdf', 'grid_r2c2_organ3d_params.pdf', 'grid_r2c3_organ3d_data.pdf'),
@@ -927,6 +934,7 @@ def draw_panel(ax: Axes, row: RowData, column: int) -> None:
         draw_curve_panel(ax, row.params, xlabel='Trainable parameters')
     else:
         draw_curve_panel(ax, row.data, xlabel='Training examples')
+    ax.set_ylim(COLUMN_YLIMS[column])
 
 
 def method_legend_handle(method: str) -> Line2D:
