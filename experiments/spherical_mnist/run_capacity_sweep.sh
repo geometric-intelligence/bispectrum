@@ -29,7 +29,9 @@ export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
 OUTPUT_DIR="./smnist_results_capacity"
-COMMON="--epochs 50 --patience 10 --output_dir ${OUTPUT_DIR}"
+# Same protocol for every model: 30 epochs (SGDR cycle end 10 + 20), no early stopping
+# (best-validation checkpoint), batch size 256 (train.py default).
+COMMON="--epochs 30 --output_dir ${OUTPUT_DIR}"
 
 # shellcheck disable=SC2206  # word splitting is the point of these overrides
 PS_HIDDENS=(${PS_HIDDENS-128 256 512 1024 2048})

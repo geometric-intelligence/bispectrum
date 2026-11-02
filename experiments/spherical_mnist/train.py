@@ -37,6 +37,19 @@ import bispectrum
 from bispectrum import random_rotation_matrix, rotate_spherical_function
 
 NUM_CLASSES = 10
+SGDR_T0_EPOCHS = 10
+SGDR_T_MULT = 2
+
+
+def sgdr_cycle_ends(max_epoch: int) -> list[int]:
+    """Epochs <= max_epoch at which an SGDR cycle reaches its minimum LR (10, 30, 70, 150, ...)."""
+    ends: list[int] = []
+    end, length = SGDR_T0_EPOCHS, SGDR_T0_EPOCHS
+    while end <= max_epoch:
+        ends.append(end)
+        length *= SGDR_T_MULT
+        end += length
+    return ends
 
 
 def _git_sha() -> str:
@@ -404,11 +417,17 @@ def train(args: argparse.Namespace) -> dict:
     steps_per_epoch = max(1, len(train_loader))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer,
-        T_0=10 * steps_per_epoch,
-        T_mult=2,
+        T_0=SGDR_T0_EPOCHS * steps_per_epoch,
+        T_mult=SGDR_T_MULT,
     )
+    if args.epochs not in sgdr_cycle_ends(args.epochs):
+        print(
+            f'WARNING: --epochs {args.epochs} stops mid LR cycle; '
+            f'SGDR cycles end at epochs {sgdr_cycle_ends(max(args.epochs, 150))}'
+        )
 
     best_val_acc = 0.0
+    best_epoch = 0
     patience_counter = 0
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
     run_label = args.run_label or args.model
@@ -443,18 +462,22 @@ def train(args: argparse.Namespace) -> dict:
 
         if val_metrics['accuracy'] > best_val_acc:
             best_val_acc = val_metrics['accuracy']
+            best_epoch = epoch
             patience_counter = 0
             torch.save(model.state_dict(), out_dir / 'best_model.pt')
         else:
             patience_counter += 1
 
-        if patience_counter >= args.patience:
+        if args.patience > 0 and patience_counter >= args.patience:
             print(f'Early stopping at epoch {epoch} (patience={args.patience})')
             break
 
     cost = _cost_record(device, time.time() - t_start, epochs_run)
 
+    test_final = compute_metrics(model, test_nr_loader, device)
+    print(f'\nTest NR (final epoch {epochs_run}): {test_final}')
     model.load_state_dict(torch.load(out_dir / 'best_model.pt', weights_only=True))
+    print(f'Best val checkpoint: epoch {best_epoch}')
 
     test_nr = compute_metrics(model, test_nr_loader, device)
     test_r = compute_metrics(model, test_r_loader, device)
@@ -492,7 +515,11 @@ def train(args: argparse.Namespace) -> dict:
         'min_epoch_samples': args.min_epoch_samples,
         'epoch_samples': len(train_loader.sampler),
         'bispectrum_version': bispectrum.__version__,
+        'epochs': args.epochs,
+        'early_stopping_patience': args.patience,
+        'best_epoch': best_epoch,
         'best_val_accuracy': best_val_acc,
+        'test_final': test_final,
         'test_c': test_nr,
         'test': test_nr,
         'test_nr': test_nr,
@@ -587,11 +614,22 @@ def main():
     )
     parser.add_argument('--data_dir', type=str, default='./smnist_data')
     parser.add_argument('--output_dir', type=str, default='./smnist_results')
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument(
+        '--epochs',
+        type=int,
+        default=30,
+        help='Training epochs; keep at an SGDR cycle end (10, 30, 70, 150).',
+    )
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
-    parser.add_argument('--patience', type=int, default=10)
+    parser.add_argument(
+        '--patience',
+        type=int,
+        default=0,
+        help='Early-stopping patience in epochs; 0 (default) trains all --epochs. Validation '
+        'dips after every SGDR restart, so patience-based stopping is not recommended.',
+    )
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument(
         '--min_epoch_samples',
