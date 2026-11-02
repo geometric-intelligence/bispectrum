@@ -13,6 +13,9 @@
 #
 # Usage (run in tmux):
 #   ./run_data_efficiency.sh
+#   SEEDS="42 123 456 789 101112" SIZES="100 500 2500" ./run_data_efficiency.sh
+#
+# SEEDS / SIZES / MODELS are space-separated env overrides; defaults below.
 
 set -euo pipefail
 
@@ -24,7 +27,12 @@ source "$REPO_ROOT/.venv/bin/activate"
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
-SIZES=(100 500 2500 12500)
+# shellcheck disable=SC2206  # word splitting is the point of these overrides
+SIZES=(${SIZES:-100 500 2500 12500})
+# shellcheck disable=SC2206
+SEEDS=(${SEEDS:-42 123 456})
+# shellcheck disable=SC2206
+MODELS=(${MODELS:-standard power_spectrum bispectrum})
 OUTPUT_DIR="./smnist_results"
 COMMON="--patience 10 --epochs 50"
 
@@ -57,9 +65,9 @@ run_single() {
         $COMMON
 }
 
-for seed in 42 123 456; do
+for seed in "${SEEDS[@]}"; do
     for size in "${SIZES[@]}"; do
-        for model in standard power_spectrum bispectrum; do
+        for model in "${MODELS[@]}"; do
             run_single "$model" "$seed" "$size"
         done
     done

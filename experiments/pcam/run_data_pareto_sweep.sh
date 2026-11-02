@@ -21,6 +21,10 @@
 # Usage (run in tmux):
 #   ./run_data_pareto_sweep.sh              # Phase A (seed 42)
 #   ./run_data_pareto_sweep.sh --phase-b    # Phase B (seeds 123, 456)
+#   SEEDS="789 101112" SIZES="100 500 2500" RUN_SO2_DISK=0 ./run_data_pareto_sweep.sh --phase-b
+#
+# SEEDS (phase B only) / SIZES / MODELS are space-separated env overrides;
+# RUN_SO2_DISK=0 skips the SO2onDisk MLP runs. Defaults below.
 
 set -euo pipefail
 
@@ -40,9 +44,15 @@ MODEL_GR[fourier_elu]=4
 MODEL_GR[norm_pool]=4
 MODEL_GR[bispectrum]=4
 
-MODELS=(standard norm gate fourier_elu norm_pool bispectrum)
+# shellcheck disable=SC2206  # word splitting is the point of these overrides
+MODELS=(${MODELS:-standard norm gate fourier_elu norm_pool bispectrum})
 # Absolute training-set sizes; "full" maps to PCam's 262144 examples.
-SIZES=(100 500 2500 12500 full)
+# shellcheck disable=SC2206
+SIZES=(${SIZES:-100 500 2500 12500 full})
+# Phase B seeds (phase A is always seed 42).
+# shellcheck disable=SC2206
+SEEDS=(${SEEDS:-123 456})
+RUN_SO2_DISK=${RUN_SO2_DISK:-1}
 SO2_DISK_BL=30
 
 BASE_OUTPUT_DIR="./pcam_results_data_pareto"
@@ -158,13 +168,15 @@ run_so2_disk() {
 }
 
 if [[ "${1:-}" == "--phase-b" ]]; then
-    echo "=== PHASE B: remaining seeds (123, 456) ==="
+    echo "=== PHASE B: remaining seeds (${SEEDS[*]}) ==="
     for size in "${SIZES[@]}"; do
-        for seed in 123 456; do
+        for seed in "${SEEDS[@]}"; do
             for model in "${MODELS[@]}"; do
                 run_single "$model" "$size" "$seed"
             done
-            run_so2_disk "$size" "$seed"
+            if [[ "$RUN_SO2_DISK" == "1" ]]; then
+                run_so2_disk "$size" "$seed"
+            fi
         done
     done
 else
@@ -173,7 +185,9 @@ else
         for model in "${MODELS[@]}"; do
             run_single "$model" "$size" 42
         done
-        run_so2_disk "$size" 42
+        if [[ "$RUN_SO2_DISK" == "1" ]]; then
+            run_so2_disk "$size" 42
+        fi
     done
 fi
 
