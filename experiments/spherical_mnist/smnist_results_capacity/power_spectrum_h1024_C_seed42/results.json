@@ -8,46 +8,51 @@
   "lmax": 15,
   "n_params": 144138,
   "invariant_dim": 16,
+  "active_invariant_dim": 16,
+  "bispectrum_features": "full",
   "train_size": null,
   "train_examples": 50000,
-  "best_val_accuracy": 0.8149,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 50000,
+  "bispectrum_version": "0.4.0",
+  "best_val_accuracy": 0.8166,
   "test_c": {
-    "loss": 0.5953308139801026,
-    "accuracy": 0.7974
+    "loss": 0.594836731338501,
+    "accuracy": 0.7983
   },
   "test": {
-    "loss": 0.5953308139801026,
-    "accuracy": 0.7974
+    "loss": 0.594836731338501,
+    "accuracy": 0.7983
   },
   "test_nr": {
-    "loss": 0.5953308139801026,
-    "accuracy": 0.7974
+    "loss": 0.594836731338501,
+    "accuracy": 0.7983
   },
   "test_r": {
-    "loss": 0.5993756965637207,
-    "accuracy": 0.7941
+    "loss": 0.6000052711486816,
+    "accuracy": 0.794
   },
   "rotation_robustness": {
-    "rot_00": 0.7945,
-    "rot_01": 0.7944,
-    "rot_02": 0.7947,
-    "rot_03": 0.7943,
-    "rot_04": 0.7947,
-    "rot_05": 0.7946,
-    "rot_06": 0.7941,
-    "rot_07": 0.7948,
-    "rot_08": 0.7946,
-    "rot_09": 0.7947,
-    "mean_accuracy": 0.7945399999999999,
-    "std_accuracy": 0.0002059126028197173
+    "rot_00": 0.7936,
+    "rot_01": 0.794,
+    "rot_02": 0.7941,
+    "rot_03": 0.7939,
+    "rot_04": 0.794,
+    "rot_05": 0.7943,
+    "rot_06": 0.7942,
+    "rot_07": 0.7937,
+    "rot_08": 0.7938,
+    "rot_09": 0.7941,
+    "mean_accuracy": 0.7939700000000001,
+    "std_accuracy": 0.00021000000000001971
   },
-  "wall_time_s": 150.5176088809967,
-  "epochs_run": 39,
-  "peak_train_alloc_bytes": 39836160,
-  "peak_train_reserved_bytes": 50331648,
-  "gpu_name": "NVIDIA A100 80GB PCIe",
-  "cuda_total_memory_bytes": 85094825984,
-  "git_sha": "c21824e889a54833905c4b361773d3a77da79445",
+  "wall_time_s": 51.43521738052368,
+  "epochs_run": 38,
+  "peak_train_alloc_bytes": 96328192,
+  "peak_train_reserved_bytes": 117440512,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "9e4c33e76aa68222b1c9794337b56f33d7c8578a",
   "argv": [
     "--model",
     "power_spectrum",

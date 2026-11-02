@@ -8,46 +8,51 @@
   "lmax": 15,
   "n_params": 144138,
   "invariant_dim": 16,
+  "active_invariant_dim": 16,
+  "bispectrum_features": "full",
   "train_size": null,
   "train_examples": 50000,
-  "best_val_accuracy": 0.7986,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 50000,
+  "bispectrum_version": "0.4.0",
+  "best_val_accuracy": 0.7992,
   "test_c": {
-    "loss": 0.6399381315231323,
-    "accuracy": 0.7822
+    "loss": 0.6392321599960327,
+    "accuracy": 0.7832
   },
   "test": {
-    "loss": 0.6399381315231323,
-    "accuracy": 0.7822
+    "loss": 0.6392321599960327,
+    "accuracy": 0.7832
   },
   "test_nr": {
-    "loss": 0.6399381315231323,
-    "accuracy": 0.7822
+    "loss": 0.6392321599960327,
+    "accuracy": 0.7832
   },
   "test_r": {
-    "loss": 0.6445383260726929,
-    "accuracy": 0.7805
+    "loss": 0.6436995463371277,
+    "accuracy": 0.7818
   },
   "rotation_robustness": {
-    "rot_00": 0.7811,
-    "rot_01": 0.781,
-    "rot_02": 0.7803,
-    "rot_03": 0.7802,
-    "rot_04": 0.7802,
-    "rot_05": 0.7806,
-    "rot_06": 0.7813,
-    "rot_07": 0.7806,
-    "rot_08": 0.7812,
-    "rot_09": 0.7805,
-    "mean_accuracy": 0.7807000000000001,
-    "std_accuracy": 0.0003974921382870423
+    "rot_00": 0.7827,
+    "rot_01": 0.7821,
+    "rot_02": 0.7827,
+    "rot_03": 0.7825,
+    "rot_04": 0.782,
+    "rot_05": 0.7819,
+    "rot_06": 0.7822,
+    "rot_07": 0.7823,
+    "rot_08": 0.7825,
+    "rot_09": 0.7818,
+    "mean_accuracy": 0.78227,
+    "std_accuracy": 0.00030675723300352555
   },
-  "wall_time_s": 91.13370156288147,
+  "wall_time_s": 26.906922340393066,
   "epochs_run": 20,
-  "peak_train_alloc_bytes": 39836160,
-  "peak_train_reserved_bytes": 50331648,
-  "gpu_name": "NVIDIA A100 80GB PCIe",
-  "cuda_total_memory_bytes": 85094825984,
-  "git_sha": "c21824e889a54833905c4b361773d3a77da79445",
+  "peak_train_alloc_bytes": 96328192,
+  "peak_train_reserved_bytes": 117440512,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "9e4c33e76aa68222b1c9794337b56f33d7c8578a",
   "argv": [
     "--model",
     "power_spectrum",

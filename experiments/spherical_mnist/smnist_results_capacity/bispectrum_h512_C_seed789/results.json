@@ -1,0 +1,74 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "bispectrum_h512",
+  "base_model": "bispectrum",
+  "train_mode": "C",
+  "test_rotation_seed": 777,
+  "seed": 789,
+  "lmax": 15,
+  "n_params": 525066,
+  "invariant_dim": 760,
+  "active_invariant_dim": 760,
+  "bispectrum_features": "full",
+  "train_size": null,
+  "train_examples": 50000,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 50000,
+  "bispectrum_version": "0.4.0",
+  "best_val_accuracy": 0.9611,
+  "test_c": {
+    "loss": 0.14311578966379165,
+    "accuracy": 0.9565
+  },
+  "test": {
+    "loss": 0.14311578966379165,
+    "accuracy": 0.9565
+  },
+  "test_nr": {
+    "loss": 0.14311578966379165,
+    "accuracy": 0.9565
+  },
+  "test_r": {
+    "loss": 0.14305439400672912,
+    "accuracy": 0.9558
+  },
+  "rotation_robustness": {
+    "rot_00": 0.9559,
+    "rot_01": 0.9558,
+    "rot_02": 0.9558,
+    "rot_03": 0.9558,
+    "rot_04": 0.9558,
+    "rot_05": 0.9559,
+    "rot_06": 0.9559,
+    "rot_07": 0.9559,
+    "rot_08": 0.9559,
+    "rot_09": 0.9558,
+    "mean_accuracy": 0.9558500000000001,
+    "std_accuracy": 4.999999999999449e-05
+  },
+  "wall_time_s": 23.033846378326416,
+  "epochs_run": 20,
+  "peak_train_alloc_bytes": 604773376,
+  "peak_train_reserved_bytes": 1184890880,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "9e4c33e76aa68222b1c9794337b56f33d7c8578a",
+  "argv": [
+    "--model",
+    "bispectrum",
+    "--hidden",
+    "512",
+    "--run_label",
+    "bispectrum_h512",
+    "--train_mode",
+    "C",
+    "--seed",
+    "789",
+    "--epochs",
+    "50",
+    "--patience",
+    "10",
+    "--output_dir",
+    "./smnist_results_capacity"
+  ]
+}

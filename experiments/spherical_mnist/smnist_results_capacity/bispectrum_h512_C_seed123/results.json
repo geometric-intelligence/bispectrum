@@ -6,48 +6,53 @@
   "test_rotation_seed": 777,
   "seed": 123,
   "lmax": 15,
-  "n_params": 529162,
-  "invariant_dim": 768,
+  "n_params": 525066,
+  "invariant_dim": 760,
+  "active_invariant_dim": 760,
+  "bispectrum_features": "full",
   "train_size": null,
   "train_examples": 50000,
-  "best_val_accuracy": 0.958,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 50000,
+  "bispectrum_version": "0.4.0",
+  "best_val_accuracy": 0.9603,
   "test_c": {
-    "loss": 0.15268258954286576,
-    "accuracy": 0.9506
+    "loss": 0.1436170184969902,
+    "accuracy": 0.9541
   },
   "test": {
-    "loss": 0.15268258954286576,
-    "accuracy": 0.9506
+    "loss": 0.1436170184969902,
+    "accuracy": 0.9541
   },
   "test_nr": {
-    "loss": 0.15268258954286576,
-    "accuracy": 0.9506
+    "loss": 0.1436170184969902,
+    "accuracy": 0.9541
   },
   "test_r": {
-    "loss": 0.1524241693496704,
-    "accuracy": 0.9508
+    "loss": 0.14386420171260833,
+    "accuracy": 0.9538
   },
   "rotation_robustness": {
-    "rot_00": 0.9508,
-    "rot_01": 0.9508,
-    "rot_02": 0.9507,
-    "rot_03": 0.9508,
-    "rot_04": 0.9509,
-    "rot_05": 0.9507,
-    "rot_06": 0.9508,
-    "rot_07": 0.9507,
-    "rot_08": 0.9505,
-    "rot_09": 0.9506,
-    "mean_accuracy": 0.9507300000000001,
-    "std_accuracy": 0.00010999999999998789
+    "rot_00": 0.9541,
+    "rot_01": 0.9542,
+    "rot_02": 0.9543,
+    "rot_03": 0.9543,
+    "rot_04": 0.9539,
+    "rot_05": 0.9542,
+    "rot_06": 0.9542,
+    "rot_07": 0.9541,
+    "rot_08": 0.9543,
+    "rot_09": 0.954,
+    "mean_accuracy": 0.9541600000000001,
+    "std_accuracy": 0.0001280624847486897
   },
-  "wall_time_s": 78.52180910110474,
-  "epochs_run": 20,
-  "peak_train_alloc_bytes": 427510272,
-  "peak_train_reserved_bytes": 895483904,
-  "gpu_name": "NVIDIA A100 80GB PCIe",
-  "cuda_total_memory_bytes": 85094825984,
-  "git_sha": "c21824e889a54833905c4b361773d3a77da79445",
+  "wall_time_s": 22.318446159362793,
+  "epochs_run": 19,
+  "peak_train_alloc_bytes": 604773376,
+  "peak_train_reserved_bytes": 1184890880,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "9e4c33e76aa68222b1c9794337b56f33d7c8578a",
   "argv": [
     "--model",
     "bispectrum",
