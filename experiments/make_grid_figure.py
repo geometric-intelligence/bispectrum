@@ -51,6 +51,11 @@ PANEL_SIZE: Final = (4.0, 3.0)
 
 COHEN_S2CNN_NRR: Final = 0.94  # Cohen et al. (2018), NR/R accuracy, published.
 
+# Protocol markers used to reject stale results.json files (see _is_current).
+SAMPLE_FLOOR: Final = 10_000  # default --min_epoch_samples in experiments/*/train.py
+FULL_TRAIN_SIZE: Final = {'pcam': 262_144, 'organ3d': 971, 'spherical_mnist': 60_000}
+MIN_LIBRARY_VERSION: Final = {'spherical_mnist': (0, 4, 0)}  # SO3onS2 selective map redesign
+
 
 # --------------------------------------------------------------------------
 # Data model
@@ -189,21 +194,84 @@ external baseline, and their equivariant variants already fill that role.
 # --------------------------------------------------------------------------
 
 
-def _load_runs(root: Path) -> list[dict]:
-    """Recursively load every results.json under *root*."""
+def _parse_version(text: object) -> tuple[int, ...] | None:
+    """Leading numeric components of a version string ('0.4.1.dev3+g1a2b' -> (0, 4, 1))."""
+    if not isinstance(text, str):
+        return None
+    parts: list[int] = []
+    for token in text.split('.'):
+        digits = ''
+        for ch in token:
+            if not ch.isdigit():
+                break
+            digits += ch
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts) or None
+
+
+def _stale_reason(run: dict) -> str | None:
+    """Why a results.json predates the current protocol, or None if it is current.
+
+    Two classes of stale runs are rejected:
+
+    * ``pre-floor``: low-data runs (``train_size`` below the per-epoch sample
+      floor) written before ``min_epoch_samples`` existed. They were trained
+      with a collapsed optimizer-step budget (one step per epoch at n=100) and
+      are not comparable to current runs at the same ``train_size``.
+    * ``pre-<version>``: runs of a dataset whose model code changed layout in
+      the bispectrum library (Spherical MNIST: the SO3onS2 selective map was
+      redesigned in 0.4.0), written by an older or unrecorded library version.
+    """
+    dataset = run.get('dataset')
+    size = run.get('train_size')
+    full = FULL_TRAIN_SIZE.get(dataset, SAMPLE_FLOOR)
+    if size is not None and 0 < size < min(SAMPLE_FLOOR, full) and 'min_epoch_samples' not in run:
+        return 'pre-floor'
+    minimum = MIN_LIBRARY_VERSION.get(dataset)
+    if minimum is not None:
+        version = _parse_version(run.get('bispectrum_version'))
+        if version is None or version < minimum:
+            return 'pre-' + '.'.join(str(v) for v in minimum)
+    return None
+
+
+def _is_current(run: dict) -> bool:
+    return _stale_reason(run) is None
+
+
+def _load_runs(root: Path, include_stale: bool = False) -> list[dict]:
+    """Recursively load every results.json under *root*, dropping stale runs.
+
+    Stale runs (see ``_stale_reason``) are skipped unless *include_stale* is
+    set; the number skipped per reason is reported so a silently reused
+    pre-fix results directory is visible in the log.
+    """
     runs: list[dict] = []
+    skipped: dict[str, int] = defaultdict(int)
     if not root.exists():
         print(f'WARNING: results dir not found: {root}')
         return runs
     for p in sorted(root.rglob('results.json')):
         with open(p) as f:
-            runs.append(json.load(f))
+            run = json.load(f)
+        reason = _stale_reason(run)
+        if reason is not None and not include_stale:
+            skipped[reason] += 1
+            continue
+        runs.append(run)
+    if skipped:
+        detail = ', '.join(f'{n} {reason}' for reason, n in sorted(skipped.items()))
+        print(f'{root}: loaded {len(runs)} runs, skipped {sum(skipped.values())} stale ({detail})')
     return runs
 
 
 def _mean_std(values: list[float]) -> tuple[float, float]:
+    """Mean and sample standard deviation (ddof=1; 0.0 for a single value)."""
     arr = np.asarray(values, dtype=np.float64)
-    return float(arr.mean()), float(arr.std())
+    std = float(arr.std(ddof=1)) if arr.size > 1 else 0.0
+    return float(arr.mean()), std
 
 
 def _metric(run: dict, key: str, metric: str) -> float | None:
@@ -345,10 +413,10 @@ def _is_full_train(run: dict) -> bool:
     return size is None or size <= 0
 
 
-def load_pcam(pareto_dir: Path, data_pareto_dir: Path) -> RowData:
+def load_pcam(pareto_dir: Path, data_pareto_dir: Path, include_stale: bool = False) -> RowData:
     """Row 1: PCam. Bars from matched-budget full-data runs, curves from sweeps."""
-    pareto_runs = _group_runs(_load_runs(pareto_dir), PCAM_METHODS)
-    data_runs = _group_runs(_load_runs(data_pareto_dir), PCAM_METHODS)
+    pareto_runs = _group_runs(_load_runs(pareto_dir, include_stale), PCAM_METHODS)
+    data_runs = _group_runs(_load_runs(data_pareto_dir, include_stale), PCAM_METHODS)
 
     # Bars: matched ~100K-param configs trained on the full training set.
     aggregates: dict[str, Aggregate] = {}
@@ -406,9 +474,9 @@ def load_pcam(pareto_dir: Path, data_pareto_dir: Path) -> RowData:
     return RowData(bar=bar, params=params, data=data)
 
 
-def load_organ3d(results_dir: Path) -> RowData:
+def load_organ3d(results_dir: Path, include_stale: bool = False) -> RowData:
     """Row 2: OrganMNIST3D. Bars from ch(4,8) full-data runs, curves from sweeps."""
-    grouped = _group_runs(_load_runs(results_dir), ORGAN3D_METHODS)
+    grouped = _group_runs(_load_runs(results_dir, include_stale), ORGAN3D_METHODS)
 
     aggregates: dict[str, Aggregate] = {}
     param_points: dict[str, list[tuple[float, float, float]]] = defaultdict(list)
@@ -471,10 +539,10 @@ def load_organ3d(results_dir: Path) -> RowData:
     return RowData(bar=bar, params=params, data=data)
 
 
-def load_smnist(results_dir: Path, capacity_dir: Path) -> RowData:
+def load_smnist(results_dir: Path, capacity_dir: Path, include_stale: bool = False) -> RowData:
     """Row 3: Spherical MNIST. Bars + data from main sweep, params from capacity."""
-    main_runs = _load_runs(results_dir)
-    capacity_runs = _load_runs(capacity_dir)
+    main_runs = _load_runs(results_dir, include_stale)
+    capacity_runs = _load_runs(capacity_dir, include_stale)
 
     # Capacity runs use run_label 'model_h{width}'; recover the base model.
     grouped_main = _group_runs(main_runs, SMNIST_METHODS, model_key='base_model')
@@ -1129,6 +1197,12 @@ def main() -> None:
         default=None,
         help='Defaults to ./grid_mockup for --mock, ./grid_figure otherwise.',
     )
+    parser.add_argument(
+        '--include_stale',
+        action='store_true',
+        help='Keep results.json files that predate the current protocol (pre-floor low-data runs, '
+        'pre-0.4.0 Spherical MNIST runs). Default: skip them and report the count.',
+    )
     args = parser.parse_args()
 
     output_dir: Path = args.output_dir or (EXPERIMENTS_DIR / ('grid_mockup' if args.mock else 'grid_figure'))
@@ -1140,9 +1214,9 @@ def main() -> None:
         grid = mock_grid_data()
     else:
         grid = (
-            load_pcam(args.pcam_pareto_dir, args.pcam_data_pareto_dir),
-            load_organ3d(args.organ3d_dir),
-            load_smnist(args.smnist_dir, args.smnist_capacity_dir),
+            load_pcam(args.pcam_pareto_dir, args.pcam_data_pareto_dir, args.include_stale),
+            load_organ3d(args.organ3d_dir, args.include_stale),
+            load_smnist(args.smnist_dir, args.smnist_capacity_dir, args.include_stale),
         )
 
     save_panels(grid, output_dir)
