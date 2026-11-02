@@ -101,3 +101,7 @@ uv.lock
 # Experiment figure outputs
 experiments/grid_mockup/
 experiments/grid_figure/
+
+# camera-ready reruns: stale results moved aside by rebuttal/archive_stale_results.py
+*_pre040/
+*_prefloor/

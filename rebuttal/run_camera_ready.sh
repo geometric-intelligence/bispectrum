@@ -16,8 +16,9 @@
 #   smnist   H100        data efficiency, Table 4 sweep, capacity, feature
 #                        ablation x 5 seeds; reconstruction; H100 device timings
 #
-# Environment: SEEDS5 / SEEDS10 override the seed sets; SKIP_TESTS=1 skips
-# pytest at launch; SESSION names the tmux session.
+# Environment: SEEDS5 / SEEDS10 override the seed sets; PCAM_SIZES /
+# ORGAN3D_WIDTHS narrow a pipeline so its matrix can be split across machines;
+# SKIP_TESTS=1 skips pytest at launch; SESSION names the tmux session.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,6 +32,8 @@ SMOKE_DIR="${SMOKE_DIR:-${TMPDIR:-/tmp}/camera_ready_smoke}"
 
 SEEDS5="${SEEDS5:-42 123 456 789 101112}"
 SEEDS10="${SEEDS10:-42 123 456 789 101112 1 2 3 4 5}"
+PCAM_SIZES="${PCAM_SIZES:-100 500 2500}"
+ORGAN3D_WIDTHS="${ORGAN3D_WIDTHS:-4_8 8_16 16_32}"
 SMOKE_MIN_VAL_ACC="${SMOKE_MIN_VAL_ACC:-0.2}"
 
 EXP="$REPO_ROOT/experiments"
@@ -148,8 +151,8 @@ pcam_pipeline() {
   export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
   preflight
   smoke_pcam
-  banner "PCam data-Pareto: n in {100, 500, 2500} x 6 models x 5 seeds (90 runs)"
-  SEEDS="$SEEDS5" SIZES="100 500 2500" RUN_SO2_DISK=0 bash "$EXP/pcam/run_data_pareto_sweep.sh" --phase-b
+  banner "PCam data-Pareto: n in {$PCAM_SIZES} x 6 models x seeds {$SEEDS5}"
+  SEEDS="$SEEDS5" SIZES="$PCAM_SIZES" RUN_SO2_DISK=0 bash "$EXP/pcam/run_data_pareto_sweep.sh" --phase-b
   banner "[pcam] DONE"
 }
 
@@ -159,10 +162,12 @@ organ3d_pipeline() {
   smoke_organ3d
   banner "OrganMNIST3D data efficiency: n in {50, 100, 250, 500} x 4 models x 10 seeds"
   SEEDS="$SEEDS10" bash "$EXP/organ3d/run_dataeff_multiseed.sh"
-  banner "OrganMNIST3D full data: widths (4,8), (8,16), (16,32) x 4 models x 10 seeds"
-  SEEDS="$SEEDS10" WIDTHS="4_8 8_16 16_32" bash "$EXP/organ3d/run_wider_multiseed.sh"
+  banner "OrganMNIST3D full data: widths {$ORGAN3D_WIDTHS} x 4 models x 10 seeds"
+  SEEDS="$SEEDS10" WIDTHS="$ORGAN3D_WIDTHS" bash "$EXP/organ3d/run_wider_multiseed.sh"
   banner "OrganMNIST3D max_pool batch-16 control: n in {100, 500} x 10 seeds"
   SEEDS="$SEEDS10" bash "$EXP/organ3d/run_bs16_control.sh"
+  banner "waiting for the PCam sweep on this host so the timings run on a quiet machine"
+  while pgrep -f "pcam/run_data_pareto_sweep.sh" >/dev/null; do sleep 300; done
   device_timings a100
   banner "[organ3d] DONE"
 }
@@ -236,7 +241,8 @@ PY
 
 launch() {
   local machine=$1
-  if tmux has-session -t "$SESSION" 2>/dev/null; then
+  # "=" forces an exact match; a bare name also matches any session it prefixes.
+  if tmux has-session -t "=$SESSION" 2>/dev/null; then
     echo "tmux session '$SESSION' already exists; attach with: tmux attach -t $SESSION" >&2
     exit 1
   fi
