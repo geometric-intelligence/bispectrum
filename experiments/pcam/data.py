@@ -19,7 +19,7 @@ from pathlib import Path
 import h5py
 import torch
 import torchvision.transforms.functional as TF
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset, RandomSampler, Subset
 from torchvision.transforms import InterpolationMode
 
 PCAM_URLS = {
@@ -209,6 +209,7 @@ def get_dataloaders(
     train_size: int | None = None,
     seed: int = 42,
     subset_dir: str | None = None,
+    min_epoch_samples: int = 10_000,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Build train / val / test data loaders.
 
@@ -224,6 +225,12 @@ def get_dataloaders(
         train_size: Absolute number of training examples to use. ``None`` or
             a value >= the full training set means use everything.
         seed: Random seed for subsetting.
+        min_epoch_samples: Floor on the number of training samples drawn per
+            epoch. Subsets smaller than ``min(min_epoch_samples, n_full)`` are
+            cycled (whole permutations, no replacement) so that every run gets
+            a comparable optimizer-step budget regardless of ``train_size``.
+            When the training set is at least this large, the sampler is
+            identical to ``shuffle=True``.
 
     Returns:
         (train_loader, val_loader, test_loader)
@@ -248,10 +255,15 @@ def get_dataloaders(
         train_ds = Subset(train_ds, indices)
 
     loader_rng = torch.Generator().manual_seed(seed)
+    train_sampler = RandomSampler(
+        train_ds,
+        num_samples=max(len(train_ds), min(min_epoch_samples, n_full)),
+        generator=loader_rng,
+    )
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
-        shuffle=True,
+        sampler=train_sampler,
         generator=loader_rng,
         num_workers=0,
         pin_memory=True,

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset, RandomSampler, Subset
 
 DATASET_MEAN = 0.5009
 DATASET_STD = 0.2802
@@ -169,6 +169,7 @@ def get_dataloaders(
     train_size: int | None = None,
     seed: int = 42,
     subset_dir: str | None = None,
+    min_epoch_samples: int = 10_000,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Build train / val / test data loaders.
 
@@ -177,6 +178,12 @@ def get_dataloaders(
     Args:
         train_size: Absolute number of training examples to use. ``None`` or
             a value >= the full training set means use everything.
+        min_epoch_samples: Floor on the number of training samples drawn per
+            epoch. Subsets smaller than ``min(min_epoch_samples, n_full)`` are
+            cycled (whole permutations, no replacement) so that every run gets
+            a comparable optimizer-step budget regardless of ``train_size``.
+            OrganMNIST3D has 971 training volumes, so the effective floor is
+            the full set and full-data runs are identical to ``shuffle=True``.
     """
     data_dir = str(Path(data_dir).resolve())
 
@@ -196,10 +203,15 @@ def get_dataloaders(
         train_ds = Subset(train_ds, indices)
 
     loader_rng = torch.Generator().manual_seed(seed)
+    train_sampler = RandomSampler(
+        train_ds,
+        num_samples=max(len(train_ds), min(min_epoch_samples, n_full)),
+        generator=loader_rng,
+    )
     train_loader = DataLoader(
         train_ds,
         batch_size=min(batch_size, len(train_ds)),
-        shuffle=True,
+        sampler=train_sampler,
         generator=loader_rng,
         num_workers=0,
         pin_memory=True,
