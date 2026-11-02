@@ -135,7 +135,7 @@ def benchmark_case(
         return Result(
             module=name,
             settings=settings,
-            output_size=int(getattr(module, 'output_size')),
+            output_size=int(module.output_size),
             median_ms=statistics.median(samples_ms),
             p25_ms=quartiles[0],
             p75_ms=quartiles[2],
@@ -197,7 +197,10 @@ def main() -> int:
         for name in names
     ]
 
-    payload = {'environment': environment(device, args), 'results': [asdict(row) for row in results]}
+    payload = {
+        'environment': environment(device, args),
+        'results': [asdict(row) for row in results],
+    }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2) + '\n')
 

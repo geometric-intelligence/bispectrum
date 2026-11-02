@@ -86,6 +86,8 @@ repos:
     hooks:
       - id: mdformat
         args: ["--number"]
+        # OpenReview rebuttal texts carry MathJax; mdformat escapes `\` and `_` inside `$...$`.
+        exclude: ^(rebuttal/.*\.md|neurips_review\.md)$
         additional_dependencies:
           - mdformat-gfm
           - mdformat-tables

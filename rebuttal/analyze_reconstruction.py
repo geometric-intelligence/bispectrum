@@ -53,9 +53,11 @@ def summarize(
         'aligned_image_residual': stats(aligned),
         'invariance_residual': stats(invariance) if invariance else None,
         'feature_threshold': feature_threshold,
-        'feature_success_rate': sum(value <= feature_threshold for value in feature) / len(feature),
+        'feature_success_rate': sum(value <= feature_threshold for value in feature)
+        / len(feature),
         'aligned_threshold': aligned_threshold,
-        'aligned_success_rate': sum(value <= aligned_threshold for value in aligned) / len(aligned),
+        'aligned_success_rate': sum(value <= aligned_threshold for value in aligned)
+        / len(aligned),
         'joint_success_rate': sum(joint) / len(joint),
     }
 
@@ -67,7 +69,9 @@ def main() -> int:
         for path in args.results
     ]
 
-    print('| Source | N | Feature residual median [IQR] | Aligned residual median [IQR] | Joint success |')
+    print(
+        '| Source | N | Feature residual median [IQR] | Aligned residual median [IQR] | Joint success |'
+    )
     print('|---|---:|---:|---:|---:|')
     for row in summaries:
         feature = row['feature_residual']

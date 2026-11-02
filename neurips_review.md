@@ -4,12 +4,12 @@ Search articles, authors and reviews...
 Notifications
 Activity
 Tasks
-Johan Mathe 
+Johan Mathe
 back arrowGo to NeurIPS 2026 Conference homepage
-: Selective 
+: Selective
 -Bispectra Made Practical
 Download PDF
-Johan Mathe, Adele Myers, Simon Mataigne, Nina Miolane 
+Johan Mathe, Adele Myers, Simon Mataigne, Nina Miolane
 30 Apr 2026 (modified: 27 May 2026)
 NeurIPS 2026 Conference Submission
 Conference, Senior Area Chairs, Area Chairs, Reviewers, Authors
@@ -17,15 +17,15 @@ Revisions
 CC BY 4.0
 TL;DR: We introduce \texttt{bispectrum}, a PyTorch library for efficient, differentiable, and complete group-invariant representations across diverse geometric domains.
 Abstract:
-Many machine learning tasks are invariant under the action of a group 
- of transformations: signal classification can be invariant under translations, image classification under 2D rotations, and spherical-image classification under 3D rotations. The 
--bispectrum is a principled complete invariant of a signal )retaining all signal's information up to the group action) with proven benefits in machine learning and as a pooling layer in deep networks. However, its deployment has been hampered by high computational cost and a patchwork of group-specific implementations. We present bispectrum, an open-source, fully unit-tested PyTorch library that implements selective 
--bispectra for seven different group actions, as differentiable modules that can be directly incorporated into machine learning pipelines and deep learning architectures. For finite groups 
-, selectivity reduces the computational cost from 
- to 
-. For planar rotations, we leverage the disk bispectrum. For spherical 3D rotations, we introduce an augmented selective bispectrum at band-limit 
- which reduces the cost from 
- to 
+Many machine learning tasks are invariant under the action of a group
+ of transformations: signal classification can be invariant under translations, image classification under 2D rotations, and spherical-image classification under 3D rotations. The
+-bispectrum is a principled complete invariant of a signal )retaining all signal's information up to the group action) with proven benefits in machine learning and as a pooling layer in deep networks. However, its deployment has been hampered by high computational cost and a patchwork of group-specific implementations. We present bispectrum, an open-source, fully unit-tested PyTorch library that implements selective
+-bispectra for seven different group actions, as differentiable modules that can be directly incorporated into machine learning pipelines and deep learning architectures. For finite groups
+, selectivity reduces the computational cost from
+ to
+. For planar rotations, we leverage the disk bispectrum. For spherical 3D rotations, we introduce an augmented selective bispectrum at band-limit
+ which reduces the cost from
+ to
  coefficients. We profile the entire library (for
 
 Checklist Confirmation: I confirm that I have included a paper checklist in the paper PDF.
@@ -67,7 +67,7 @@ Clarity: 3: good
 Significance: 3: good
 Originality: 4: excellent
 Questions:
-For the table11, the OrganMNIST3D results, the performance is droped to 0.685 at (16, 32) channels. The paper state that the bispectrum model likely overfits the 971 training samples, could you do more ablation for us to understand more about it?
+For the table11, the OrganMNIST3D results, the performance is dropped to 0.685 at (16, 32) channels. The paper state that the bispectrum model likely overfits the 971 training samples, could you do more ablation for us to understand more about it?
 
 Limitations:
 Yes
@@ -84,13 +84,13 @@ Add:
 Official Review of Submission10902 by Reviewer yWuC
 Official Reviewby Reviewer yWuC25 Jun 2026, 10:17 (modified: 23 Jul 2026, 07:23)Program Chairs, Senior Area Chairs, Area Chairs, Reviewers Submitted, Authors, Reviewer yWuCRevisions
 Summary:
-bispectrum is a unit-tested PyTorch library implementing selective 
--bispectral invariants as differentiable pooling modules for seven group/domain pairs under a uniform API. Most modules repackage prior constructions (Sanborn et al. 2023; Mataigne et al. 2024; Myers & Miolane 2025; Kakarala 2012). The one new construction is an augmented selective 
+bispectrum is a unit-tested PyTorch library implementing selective
+-bispectral invariants as differentiable pooling modules for seven group/domain pairs under a uniform API. Most modules repackage prior constructions (Sanborn et al. 2023; Mataigne et al. 2024; Myers & Miolane 2025; Kakarala 2012). The one new construction is an augmented selective
 -on-
- invariant of size 
- (vs. 
+ invariant of size
+ (vs.
  for the full spherical bispectrum), with completeness supported empirically rather than proven. Modules are profiled on an H100 and evaluated as terminal pooling layers on PCam (
-), OrganMNIST3D (octahedral 
+), OrganMNIST3D (octahedral
 ), and Spherical MNIST (
 ), against norm, gated, Fourier-ELU, max pooling, and augmented-CNN baselines.
 
@@ -99,32 +99,32 @@ Strengths And Weaknesses:
 Strengths.
 
 A single tested differentiable interface for invariants previously scattered across group-specific implementations. Line coverage is 96.8%; the selective forward pass is sub-millisecond at the tested band-limits.
-The 
+The
 -on-
- construction has coefficient count 
-, matching the 
- orbit-space dimension and the 
+ construction has coefficient count
+, matching the
+ orbit-space dimension and the
  lower bound (Proposition 7).
 Low-data results: the bispectrum leads at 1% PCam (0.912 vs. 0.873/0.876) and 5% OrganMNIST3D (33.2% vs. 18.9% max pool); on Spherical MNIST it reaches 95.0% vs. 79.2% for the matched-capacity power spectrum.
 Weaknesses.
 
-Section 5 status. The spherical invariant is augmented: the bootstrap block 
- is rank-deficient on real signals (rank 
- vs. 
+Section 5 status. The spherical invariant is augmented: the bootstrap block
+ is rank-deficient on real signals (rank
+ vs.
 , Remark 18), so CG-power scalars are added to recover rank. Completeness is empirical only. The bispectrum-vs-augmentation split and the proven-vs-empirical split should be stated more sharply.
-Band-limit mismatch. Completeness is probed at 
- (footnote 1) while the classifier runs at 
+Band-limit mismatch. Completeness is probed at
+ (footnote 1) while the classifier runs at
 . The deployed band-limit is not the one validated.
 Empirical scope. The spherical evidence rests on Spherical MNIST; the greedy index selection is validated in one setting; all datasets are small. At matched capacity the bispectrum is competitive, not best (Fourier-ELU leads PCam at 0.945; max pool matches/leads OrganMNIST3D). The abstract's "consistently outperform" overstates this.
-High-capacity failure. At 
+High-capacity failure. At
 /6.3M params the bispectrum drops to 68.5% vs. 78.5% max pool (Table 11), attributed to overfitting; the advantage is data-regime-specific.
 Benchmarking. All timings are on one H100. There are no CPU or consumer-GPU numbers and no CUDA-version compatibility statement, which matters for a library contribution.
-Baselines. No comparison to tensor-product/e3nn-style or scattering invariants, or to other complete spherical invariants (Bendory et al. 2025; Edidin & Satriano 2024). The Cohen 
+Baselines. No comparison to tensor-product/e3nn-style or scattering invariants, or to other complete spherical invariants (Bendory et al. 2025; Edidin & Satriano 2024). The Cohen
 CNN row uses published numbers, not a re-run.
-Imprecision. The abstract states selectivity reduces finite-group "computational cost from 
- to 
-"; Table 1 shows selective forward cost is 
- — only the coefficient count is 
+Imprecision. The abstract states selectivity reduces finite-group "computational cost from
+ to
+"; Table 1 shows selective forward cost is
+ — only the coefficient count is
 . Minor: coverage is reported as both 96% and 96.8%; some checklist cross-references point to the wrong sections (the Section 5 construction is cited as Section 6).
 Writing is otherwise clear.
 
@@ -133,22 +133,22 @@ Clarity: 3: good
 Significance: 3: good
 Originality: 3: good
 Questions:
-Is generic completeness of the 
+Is generic completeness of the
 -on-
  invariant conjectured or only empirical? A statement suffices; a proof is not expected.
-Add a classification ablation for the spherical construction: bootstrap triples only 
- + even self-couplings 
+Add a classification ablation for the spherical construction: bootstrap triples only
+ + even self-couplings
  + CG-power scalars. This isolates what drives accuracy and tests whether the greedy selection generalizes.
-Add spherical evidence beyond Spherical MNIST (e.g. random band-limited signals or a second dataset) and report reconstruction at 
+Add spherical evidence beyond Spherical MNIST (e.g. random band-limited signals or a second dataset) and report reconstruction at
 , the band-limit used by the classifier.
 Do the sub-millisecond runtimes hold on a consumer GPU and/or CPU, and across CUDA versions/backends?
 Add one stronger invariant baseline (tensor-product/e3nn-style readout or scattering), at least on Spherical MNIST.
-The bispectrum degrades at 6.3M params on OrganMNIST3D (971 samples) while max pool improves. Can you separate overfitting from a capacity limitation — e.g. train/test curves or a regularization sweep at 
+The bispectrum degrades at 6.3M params on OrganMNIST3D (971 samples) while max pool improves. Can you separate overfitting from a capacity limitation — e.g. train/test curves or a regularization sweep at
 , or high-capacity results on a larger dataset?
 Limitations:
-Mostly addressed: the paper notes the missing completeness proof, the missing 
- inversion API, conditioning at large band-limits, and missing e3nn/MACE/scattering comparisons. Add two points: (i) the finite-group selective bispectrum has theoretical support whereas the spherical invariant is empirical, and the two should not be presented at equal confidence; (ii) completeness is validated at 
-, not the deployed 
+Mostly addressed: the paper notes the missing completeness proof, the missing
+ inversion API, conditioning at large band-limits, and missing e3nn/MACE/scattering comparisons. Add two points: (i) the finite-group selective bispectrum has theoretical support whereas the spherical invariant is empirical, and the two should not be presented at equal confidence; (ii) completeness is validated at
+, not the deployed
 .
 
 Rating: 4: Borderline accept: Technically solid paper where reasons to accept outweigh reasons to reject, e.g., limited evaluation. Please use sparingly.
@@ -175,8 +175,8 @@ The paper also provides thorough studies of the efficiency of the provided packa
 Furthermore, the paper is well-written and points out contributions and limitations clearly.
 
 Weaknesses
-The biggest weakness of this paper is the lack of a significant conceptual, theoretical, empirical or algorithmic contribution. As Table 2 summarizes, all implemented algorithms to compute selective bispectra were previously available, with 
- on 
+The biggest weakness of this paper is the lack of a significant conceptual, theoretical, empirical or algorithmic contribution. As Table 2 summarizes, all implemented algorithms to compute selective bispectra were previously available, with
+ on
  being the only exception. However, as the paper notes, this constitutes a moderate extension of an algorithm by Mataigne et al. (2024). The crucial completeness of the bispectrum is not proven analytically but only tested empirically, although proofs exist for the other used bispectra (Table 7).
 
 The experiments provided do show a benefit of the bispectrum, but only in the very low data regime, limiting the scope of the applicability of the proposed package. This is consistent across both tasks in Sections 6.1 and 6.2 and noted by the authors. Therefore, I rated the paper as "not good" on significance.
@@ -194,7 +194,7 @@ Can you outline the steps necessary to prove the completeness of the selective S
 In the spherical MNIST experiments, you currently left the S2CNN-results out of Table 4 and wrote them in the main text. However these seem like a significant baseline. I would expect that a central advantage of the bispectra in comparison to S2CNNs lies in the faster inference. Did you measure inference times for these models?
 I also spotted the following typos:
 
-The coefficients 
+The coefficients
  referred to in l. 100 following do not appear in (3)
 It would be good to state the formal definition of completeness (l. 208) in Section 2
 Table 2: TorusDnTorus should be TorusonTorus
@@ -220,4 +220,3 @@ All Venues
 Donate
 News
 OpenReview is a long-term project to advance science through improved peer review with legal nonprofit status. We gratefully acknowledge the support of the OpenReview Sponsors. © 2026 OpenReview
-
