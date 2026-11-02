@@ -33,6 +33,7 @@ import torch.nn.functional as F
 from data import get_dataloaders
 from model import build_model
 
+import bispectrum
 from bispectrum import random_rotation_matrix, rotate_spherical_function
 
 NUM_CLASSES = 10
@@ -367,11 +368,13 @@ def train(args: argparse.Namespace) -> dict:
         seed=args.seed,
         test_rotation_seed=args.test_rotation_seed,
         subset_dir=args.subset_dir,
+        min_epoch_samples=args.min_epoch_samples,
     )
 
     print(f'Device: {device}')
     print(
-        f'Data: train={len(train_loader.dataset)}, '
+        f'Data: train={len(train_loader.dataset)} '
+        f'(samples/epoch={len(train_loader.sampler)}), '
         f'val={len(val_loader.dataset)}, '
         f'test_nr={len(test_nr_loader.dataset)}, '
         f'test_r={len(test_r_loader.dataset)}'
@@ -471,6 +474,9 @@ def train(args: argparse.Namespace) -> dict:
         'invariant_dim': invariant_dim,
         'train_size': args.train_size,
         'train_examples': len(train_loader.dataset),
+        'min_epoch_samples': args.min_epoch_samples,
+        'epoch_samples': len(train_loader.sampler),
+        'bispectrum_version': bispectrum.__version__,
         'best_val_accuracy': best_val_acc,
         'test_c': test_nr,
         'test': test_nr,
@@ -572,6 +578,13 @@ def main():
     parser.add_argument('--weight_decay', type=float, default=1e-4)
     parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument(
+        '--min_epoch_samples',
+        type=int,
+        default=10_000,
+        help='Floor on training samples drawn per epoch; small --train_size subsets are '
+        'cycled up to min(this, full train set) so the optimizer-step budget is comparable.',
+    )
     parser.add_argument('--lmax', type=int, default=15)
     parser.add_argument('--nlat', type=int, default=64)
     parser.add_argument('--nlon', type=int, default=128)

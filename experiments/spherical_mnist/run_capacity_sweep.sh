@@ -14,6 +14,9 @@
 #
 # Usage (run in tmux):
 #   ./run_capacity_sweep.sh
+#   SEEDS="42 123 456 789 101112" PS_HIDDENS="" ./run_capacity_sweep.sh   # bispectrum only
+#
+# SEEDS / PS_HIDDENS / BSP_HIDDENS are space-separated env overrides; defaults below.
 
 set -euo pipefail
 
@@ -28,9 +31,12 @@ export PYTHONUNBUFFERED=1
 OUTPUT_DIR="./smnist_results_capacity"
 COMMON="--epochs 50 --patience 10 --output_dir ${OUTPUT_DIR}"
 
-PS_HIDDENS=(128 256 512 1024 2048)
-BSP_HIDDENS=(32 64 128 256 512)
-SEEDS=(42 123 456)
+# shellcheck disable=SC2206  # word splitting is the point of these overrides
+PS_HIDDENS=(${PS_HIDDENS-128 256 512 1024 2048})
+# shellcheck disable=SC2206
+BSP_HIDDENS=(${BSP_HIDDENS-32 64 128 256 512})
+# shellcheck disable=SC2206
+SEEDS=(${SEEDS:-42 123 456})
 
 run_single() {
     local model=$1 hidden=$2 seed=$3
@@ -49,10 +55,10 @@ run_single() {
 }
 
 for seed in "${SEEDS[@]}"; do
-    for hidden in "${PS_HIDDENS[@]}"; do
+    for hidden in "${PS_HIDDENS[@]+"${PS_HIDDENS[@]}"}"; do
         run_single power_spectrum "$hidden" "$seed"
     done
-    for hidden in "${BSP_HIDDENS[@]}"; do
+    for hidden in "${BSP_HIDDENS[@]+"${BSP_HIDDENS[@]}"}"; do
         run_single bispectrum "$hidden" "$seed"
     done
 done

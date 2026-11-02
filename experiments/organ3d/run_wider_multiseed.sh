@@ -13,6 +13,10 @@
 #
 # Usage (run in tmux):
 #   ./run_wider_multiseed.sh
+#   SEEDS="789 101112" WIDTHS="16_32" MODELS="max_pool bispectrum" ./run_wider_multiseed.sh
+#
+# SEEDS / WIDTHS / MODELS are space-separated env overrides; defaults below.
+# WIDTHS entries use "_" between channel counts (e.g. 8_16 -> --channels 8 16).
 
 set -euo pipefail
 
@@ -26,6 +30,12 @@ export PYTHONUNBUFFERED=1
 
 OUTPUT_DIR="./organ3d_results"
 COMMON="--patience 15 --epochs 100 --data_dir ./organ3d_data"
+# shellcheck disable=SC2206  # word splitting is the point of these overrides
+SEEDS=(${SEEDS:-42 123 456})
+# shellcheck disable=SC2206
+WIDTHS=(${WIDTHS:-8_16 16_32})
+# shellcheck disable=SC2206
+MODELS=(${MODELS:-standard max_pool norm_pool bispectrum})
 
 train_mode_for() {
     local model=$1
@@ -77,9 +87,10 @@ run_single() {
         $COMMON
 }
 
-for seed in 42 123 456; do
-    for channels in "8 16" "16 32"; do
-        for model in standard max_pool norm_pool bispectrum; do
+for seed in "${SEEDS[@]}"; do
+    for width in "${WIDTHS[@]}"; do
+        channels="${width//_/ }"
+        for model in "${MODELS[@]}"; do
             run_single "$model" "$seed" "$channels"
         done
     done
