@@ -17,6 +17,7 @@ Seven model variants:
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Literal
 
 import torch
@@ -26,6 +27,42 @@ import torch.nn.functional as F
 from bispectrum import CnonCn, DnonDn, SO2onDisk
 
 GroupName = Literal['c8', 'd4']
+HeadNonlin = Literal['pre', 'post']
+HeadScale = Literal['log', 'cbrt']
+
+# Keeps the degree-root compression differentiable at 0 (gradient 1/d * eps^(1/d - 1)).
+_SCALE_EPS = 1e-3
+
+
+@dataclass(frozen=True)
+class BispectrumHead:
+    """Options for the bispectral pooling head (``BispectrumPool``).
+
+    Attributes:
+        nonlin: ``'post'`` applies the ReLU after the 1x1 projection. ``'pre'`` is the
+            original head: ReLU on the signed-log bispectrum *before* the projection,
+            which zeroes every negative real/imaginary part and so discards most of the
+            phase information that makes the bispectrum complete.
+        power: Append the group power spectrum ``|f_hat_k|^2`` of each channel. The
+            selective bispectrum reaches frequencies above 1 only through ``f_hat_1``,
+            so a channel with small ``f_hat_1`` is otherwise nearly invisible.
+        scale: Compression of the polynomial invariants. ``'log'`` is
+            ``sign(b) log(1 + |b|)``; ``'cbrt'`` is the signed degree-root (cube root
+            for the bispectrum, square root for the power spectrum), which makes the
+            features scale linearly with the input like max or norm pooling.
+    """
+
+    nonlin: HeadNonlin = 'post'
+    power: bool = False
+    scale: HeadScale = 'log'
+
+
+def _compress(x: torch.Tensor, scale: HeadScale, degree: int) -> torch.Tensor:
+    """Sign-preserving compression of a degree-``degree`` polynomial invariant."""
+    if scale == 'log':
+        return torch.sign(x) * torch.log1p(x.abs())
+    root = 1.0 / degree
+    return torch.sign(x) * ((x.abs() + _SCALE_EPS) ** root - _SCALE_EPS**root)
 
 
 def _rotation_matrix(angle: float) -> torch.Tensor:
@@ -311,18 +348,24 @@ class BispectrumPool(nn.Module):
     the group dimension of each channel at each spatial location.
 
     Input:  (B, C, |G|, H, W)
-    Output: (B, C * n_bispec_features, H, W) — invariant (no group dim).
+    Output: (B, C, H, W) — invariant (no group dim), after a 1×1 projection of the
+    ``C * features_per_channel`` invariant features.
     """
 
-    def __init__(self, group: GroupName, num_channels: int):
+    def __init__(
+        self, group: GroupName, num_channels: int, head: BispectrumHead = BispectrumHead()
+    ):
         super().__init__()
         self.group = group
+        self.head = head
         if group == 'c8':
             self.bispec = CnonCn(n=8, selective=True)
         elif group == 'd4':
             self.bispec = DnonDn(n=4, selective=True)
         else:
             raise ValueError(f'Unknown group: {group}')
+        if head.power and group != 'c8':
+            raise ValueError('power-spectrum features are only implemented for group c8')
 
         # Number of real-valued output features per input channel.
         if group == 'c8':
@@ -331,28 +374,34 @@ class BispectrumPool(nn.Module):
         else:
             # DnonDn output is already real.
             self.features_per_channel = self.bispec.output_size
+        if head.power:
+            # |f_hat_k|^2 for k = 0..4 (rfft of a real length-8 signal).
+            self.features_per_channel += 8 // 2 + 1
 
         # 1×1 projection to keep channel count manageable.
         self.proj = nn.Conv2d(num_channels * self.features_per_channel, num_channels, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, C, G, H, W = x.shape
+        scale = self.head.scale
         with torch.amp.autocast('cuda', enabled=False):
             x_flat = x.float().permute(0, 1, 3, 4, 2).reshape(-1, G)
             beta = self.bispec(x_flat)
 
             if beta.is_complex():
-                beta_real = beta.real
-                beta_imag = beta.imag
-                beta_real = torch.sign(beta_real) * torch.log1p(beta_real.abs())
-                beta_imag = torch.sign(beta_imag) * torch.log1p(beta_imag.abs())
-                out = torch.cat([beta_real, beta_imag], dim=-1)
+                parts = [_compress(beta.real, scale, 3), _compress(beta.imag, scale, 3)]
             else:
-                out = torch.sign(beta) * torch.log1p(beta.abs())
+                parts = [_compress(beta, scale, 3)]
+            if self.head.power:
+                power = torch.fft.rfft(x_flat, dim=-1).abs().square()
+                parts.append(_compress(power, scale, 2))
+            out = torch.cat(parts, dim=-1) if len(parts) > 1 else parts[0]
 
             out = out.reshape(B, C, H, W, -1).permute(0, 1, 4, 2, 3)
             out = out.reshape(B, C * self.features_per_channel, H, W)
-        return self.proj(F.relu(out))
+        if self.head.nonlin == 'pre':
+            return self.proj(F.relu(out))
+        return F.relu(self.proj(out))
 
 
 class GroupMaxPool(nn.Module):
@@ -513,6 +562,7 @@ class PCamDenseNet(nn.Module):
         block_config: Number of layers in each dense block.
         init_channels: Channels after the initial convolution.
         compression: Channel reduction factor at transitions.
+        head: Options of the bispectral pooling head (``nonlin_type="bispectrum"`` only).
     """
 
     def __init__(
@@ -523,6 +573,7 @@ class PCamDenseNet(nn.Module):
         block_config: tuple[int, ...] = (4, 4, 4),
         init_channels: int = 24,
         compression: float = 0.5,
+        head: BispectrumHead = BispectrumHead(),
     ):
         super().__init__()
         self.nonlin_type = nonlin_type
@@ -555,7 +606,7 @@ class PCamDenseNet(nn.Module):
             self.final_bn = nn.BatchNorm2d(channels)
 
         if nonlin_type == 'bispectrum':
-            self.invariant_pool = BispectrumPool(group, channels)
+            self.invariant_pool = BispectrumPool(group, channels, head)
         elif nonlin_type == 'norm_pool':
             self.invariant_pool = GroupNormPool()
         elif self.equivariant:
@@ -656,6 +707,7 @@ def build_model(
     block_config: tuple[int, ...] = (4, 4, 4),
     bandlimit: float | None = None,
     target_params: int = 100_000,
+    head: BispectrumHead | None = None,
 ) -> nn.Module:
     """Build a PCam model with the specified configuration."""
     if nonlin_type == 'so2_disk':
@@ -670,4 +722,5 @@ def build_model(
         group=group,
         growth_rate=growth_rate,
         block_config=block_config,
+        head=head or BispectrumHead(),
     )

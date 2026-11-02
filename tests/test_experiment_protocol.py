@@ -163,3 +163,29 @@ def test_stale_reason_rejects_early_stopped_runs(monkeypatch: pytest.MonkeyPatch
     assert grid._stale_reason({**current, 'early_stopping_patience': 15}) == 'early-stopped'
     legacy = {k: v for k, v in current.items() if k != 'early_stopping_patience'}
     assert grid._stale_reason(legacy) == 'early-stopped'
+
+
+def test_stale_reason_rejects_pre_head_fix_bispectrum_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grid = _load_grid_module(monkeypatch)
+    head = {'nonlin': 'post', 'power': False, 'scale': 'log'}
+    for dataset in ('pcam', 'organ3d'):
+        run = {
+            'dataset': dataset,
+            'model': 'bispectrum',
+            'train_size': None,
+            'bispectrum_version': '0.4.0',
+            'early_stopping_patience': 0,
+        }
+        assert grid._stale_reason(run) == 'pre-head-fix'
+        assert grid._stale_reason({**run, 'bispectrum_head': head}) is None
+        assert grid._stale_reason({**run, 'model': 'max_pool'}) is None
+    smnist = {
+        'dataset': 'spherical_mnist',
+        'model': 'bispectrum',
+        'train_size': None,
+        'bispectrum_version': '0.4.0',
+        'early_stopping_patience': 0,
+    }
+    assert grid._stale_reason(smnist) is None

@@ -55,6 +55,7 @@ COHEN_S2CNN_NRR: Final = 0.94  # Cohen et al. (2018), NR/R accuracy, published.
 SAMPLE_FLOOR: Final = 10_000  # default --min_epoch_samples in experiments/*/train.py
 FULL_TRAIN_SIZE: Final = {'pcam': 262_144, 'organ3d': 971, 'spherical_mnist': 60_000}
 MIN_LIBRARY_VERSION: Final = {'spherical_mnist': (0, 4, 0)}  # SO3onS2 selective map redesign
+HEAD_FIX_DATASETS: Final = frozenset({'pcam', 'organ3d'})  # bispectral pooling head options
 
 
 # --------------------------------------------------------------------------
@@ -227,6 +228,10 @@ def _stale_reason(run: dict) -> str | None:
       written before ``early_stopping_patience`` was recorded). Validation dips
       after every SGDR warm restart, so patience fired at restart-dependent
       epochs and the training budget differed between seeds and models.
+    * ``pre-head-fix``: PCam / OrganMNIST3D bispectrum runs written before the
+      pooling head recorded its options (``bispectrum_head``). That head applied
+      a ReLU to the signed bispectrum before the projection, discarding the
+      phase information that makes the bispectrum complete.
     """
     dataset = run.get('dataset')
     size = run.get('train_size')
@@ -240,6 +245,9 @@ def _stale_reason(run: dict) -> str | None:
             return 'pre-' + '.'.join(str(v) for v in minimum)
     if run.get('early_stopping_patience') != 0:
         return 'early-stopped'
+    if dataset in HEAD_FIX_DATASETS and run.get('model') == 'bispectrum':
+        if 'bispectrum_head' not in run:
+            return 'pre-head-fix'
     return None
 
 
