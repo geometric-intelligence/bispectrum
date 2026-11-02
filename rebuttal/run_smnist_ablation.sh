@@ -7,10 +7,12 @@ TRAIN="$REPO_ROOT/experiments/spherical_mnist/train.py"
 DATA_DIR="${SMNIST_DATA_DIR:-$REPO_ROOT/experiments/spherical_mnist/smnist_data}"
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/rebuttal/results/smnist_ablation}"
 TRAIN_MODES="${TRAIN_MODES:-C}"
+SEEDS="${SEEDS:-42 123 456}"
+FEATURES="${FEATURES:-bootstrap bootstrap_self bootstrap_self_cg full}"
 
-for features in bootstrap bootstrap_self bootstrap_self_cg full; do
+for features in $FEATURES; do
   for mode in $TRAIN_MODES; do
-    for seed in 42 123 456; do
+    for seed in $SEEDS; do
       label="bispectrum_${features}"
       result="$OUTPUT_DIR/${label}_${mode}_seed${seed}/results.json"
       if [[ -f "$result" ]]; then

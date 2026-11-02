@@ -1,0 +1,129 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{xcolor}
+
+\definecolor{bsp}{HTML}{E53935}
+\definecolor{okgreen}{HTML}{2E7D32}
+\definecolor{muted}{HTML}{6B6B6B}
+\definecolor{boxbg}{HTML}{F4F4F4}
+
+\usetheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}{%
+  \hfill\textcolor{muted}{\scriptsize bispectrum --- camera-ready experiments \quad \insertframenumber/\inserttotalframenumber}\hspace{1.2em}\vspace{0.7em}}
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+\setbeamercolor{frametitle}{fg=black}
+\setbeamercolor{block title}{fg=black,bg=boxbg}
+\setbeamercolor{block body}{bg=boxbg}
+\setbeamertemplate{itemize items}{\textcolor{muted}{\textbullet}}
+
+\newcommand{\redo}{\textcolor{bsp}{\textbf{redo}}}
+\newcommand{\valid}{\textcolor{okgreen}{\textbf{valid}}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\begin{document}
+
+\begin{frame}{Do we have to redo everything? No --- only what goes through \texttt{SO3onS2}}
+\scriptsize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}L{2.7cm} Y Y L{1.2cm}@{}}
+\toprule
+\textbf{v0.4.0 fix (Oct 14)} & \textbf{What changed} & \textbf{Paper / rebuttal artefacts hit} & \textbf{Verdict} \\
+\midrule
+\#56 \code{SO3onS2} selective index set
+  & Degree-$\ell\ge 8$ block had rank $\le \ell{+}1 < 2\ell{+}1$: old map \emph{not} generically complete for $L\ge 8$. Breaking layout: $L{=}15$: $384\to380$, $L{=}16$: $430\to426$ coefficients.
+  & Tab.~4 / Fig.~4, grid row~3, Fig.~1 reconstruction ($L{=}12$), rebuttal feature ablation + $L{=}15$ reconstruction, Tab.~6, \code{SO3onS2} timings
+  & \redo \\
+\#53 / \#54 Bessel $J_n$ + \code{SO2onDisk} Nyquist default
+  & $J_n$ was ${\sim}5{\times}10^{-7}$ off; disk basis had cond ${\sim}10^{16}$. $L{=}16$: $105\to76$ coefficients.
+  & Tab.~3 disk row, Fig.~5 disk curve (benchmarks only)
+  & \redo{} \textcolor{muted}{(cheap)} \\
+\#55 \code{DnonDn} fold block
+  & Odd $n\ge5$ was incomplete ($+16$ coefficients). $D_{32}$ unchanged (245).
+  & Fig.~5 $D_n$ curve at odd $n$
+  & \redo{} \textcolor{muted}{(CPU)} \\
+\#57 minor numerics
+  & \code{CnonCn} / \code{OctaonOcta}: \emph{invert} only. Rotation change is a no-op for float32 inputs.
+  & none --- forward paths used in training are untouched
+  & \valid \\
+\bottomrule
+\end{tabularx}
+
+\vspace{0.7em}
+\begin{columns}[T]
+\begin{column}{0.49\textwidth}
+\begin{block}{\footnotesize Every committed result predates \#56}
+\scriptsize
+Neither \code{johmathe/rebuttal} nor \code{consistent-experiment-comparison} contains the fix. The Oct~27 SMNIST runs record \code{git\_sha c21824e} (Jul~17) and 231{,}818 params, i.e.\ the old 768-dim input (post-fix: 760-dim, 229{,}770 params).
+\end{block}
+\end{column}
+\begin{column}{0.49\textwidth}
+\begin{block}{\footnotesize Still valid --- no re-run}
+\scriptsize
+All PCam (\code{CnonCn}), all OrganMNIST3D including the 21-run regularization sweep (\code{OctaonOcta}), and the SMNIST standard-CNN and power-spectrum arms (\code{RealSHT} directly).
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Re-run on v0.4.0: ${\sim}60$ short runs + reconstruction (under one GPU-day)}
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}l Y L{3.0cm} r L{2.9cm}@{}}
+\toprule
+& \textbf{Experiment (bispectrum arm only)} & \textbf{Feeds} & \textbf{Runs} & \textbf{Compute} \\
+\midrule
+1 & SMNIST main sweep, train C / R $\times$ 3 seeds & Tab.~4, grid r3c1 & 6 & \multirow{4}{2.9cm}{${\sim}1.5$ min/run on A100 $\Rightarrow$ ${\sim}1.5$ GPU-h + projection caches} \\
+2 & SMNIST capacity, $h \in \{32,\dots,512\}$ $\times$ 3 seeds & grid r3c2 & 15 & \\
+3 & SMNIST data efficiency, $n \in \{100, 500, 2.5\mathrm{K}, 12.5\mathrm{K}\}$ $\times$ 3 seeds & grid r3c3 & 12 & \\
+4 & Feature ablation, 4 feature sets $\times$ 3 seeds (R/R optional). Port masks to the new layout first. & rebuttal (yWuC), appendix & 12 (+12) & \\
+\midrule
+5 & Reconstruction: Fig.~1 at $L{=}12$; $L{=}15$ on 16 MNIST + 16 random signals & Sec.~5, appendix & 2 jobs & several GPU-h \\
+6 & Forward timings, all 6 modules, one protocol: H100, A100, x86 CPU, M5 MPS + CPU & Tab.~3, appendix matrix & 5 devices & 5--20 min each \\
+7 & Coefficient counts & Tab.~6, Fig.~5 & --- & CPU, minutes \\
+\bottomrule
+\end{tabularx}
+
+\vspace{0.8em}
+\begin{itemize}\setlength{\itemsep}{0.35em}
+\item \textcolor{bsp}{\textbf{Upside (hypothesis, unverified):}} the 0/16 random-signal recoveries at $L{=}15$ --- yWuC's most damaging point --- may be the old rank deficiency. Job~5 could flip it.
+\item Job~6 on a single protocol also reconciles the A100 (0.232\,ms) vs.\ H100 (0.48\,ms) \code{SO3onS2} mismatch yWuC flagged.
+\item yWuC's ``ship the 758-channel config?'' question is moot until job~4 re-runs: the feature groups themselves changed.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[t]{New for camera-ready, and what to fix before launching}
+\vspace{0.6em}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\textbf{\small New experiments (committed, not started)}
+\scriptsize
+\begin{itemize}\setlength{\itemsep}{0.5em}
+\item \textbf{E5 --- tuned tensor-product (e3nn) or scattering baseline} on Spherical MNIST. \textcolor{muted}{yWuC, global response.}
+\item \textbf{E6 --- matched S2CNN re-run}: accuracy \emph{and} inference latency on the same hardware and protocol as job~6. \textcolor{muted}{AZ1B.}
+\item \textcolor{muted}{Shortcut (unverified):} e3nn's S2CNN reimplementation runs on current PyTorch and could cover both E5 and E6.
+\item \textbf{Tab.~11 seed count}: rebuttal says single-seed, caption says 3 seeds. Swap the $(16,32)$ row for the 3-seed regularization-sweep baselines (no compute).
+\end{itemize}
+\end{column}
+\begin{column}{0.50\textwidth}
+\textbf{\small Before launching}
+\scriptsize
+\begin{enumerate}\setlength{\itemsep}{0.5em}
+\item \textbf{One integration branch}: \code{main} (v0.4.0) + grid pipeline (\code{consistent-experiment-comparison}) + rebuttal tooling. No experiment branch has \#56.
+\item \textbf{Archive stale bispectrum \code{results.json}}: sweep scripts skip existing runs and would silently keep pre-fix results.
+\item \textbf{Grid rows 1--2}: raw \code{results.json} are not in git (only the Oct~27 PDFs). Rsync them from the GPU box before re-rendering.
+\item \textbf{Local H100}: driver is CUDA 12.8, the venv has cu130 wheels. Install cu128 torch.
+\end{enumerate}
+\vspace{0.4em}
+\textbf{\small Paper text to update}\\[0.2em]
+\scriptsize Eq.~(10) and Alg.~1--2 (distinct-pair block), Remark~18, Tab.~6 ($34{\to}32$, $54{\to}52$, $384{\to}380$, $430{\to}426$), Tab.~3 ($430{\to}426$, $105{\to}76$), and every rebuttal SMNIST / reconstruction number.
+\end{column}
+\end{columns}
+\end{frame}
+
+\end{document}
