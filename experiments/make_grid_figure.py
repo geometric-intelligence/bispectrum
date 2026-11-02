@@ -214,7 +214,7 @@ def _parse_version(text: object) -> tuple[int, ...] | None:
 def _stale_reason(run: dict) -> str | None:
     """Why a results.json predates the current protocol, or None if it is current.
 
-    Two classes of stale runs are rejected:
+    Three classes of stale runs are rejected:
 
     * ``pre-floor``: low-data runs (``train_size`` below the per-epoch sample
       floor) written before ``min_epoch_samples`` existed. They were trained
@@ -223,6 +223,10 @@ def _stale_reason(run: dict) -> str | None:
     * ``pre-<version>``: runs of a dataset whose model code changed layout in
       the bispectrum library (Spherical MNIST: the SO3onS2 selective map was
       redesigned in 0.4.0), written by an older or unrecorded library version.
+    * ``early-stopped``: runs trained with patience-based early stopping (or
+      written before ``early_stopping_patience`` was recorded). Validation dips
+      after every SGDR warm restart, so patience fired at restart-dependent
+      epochs and the training budget differed between seeds and models.
     """
     dataset = run.get('dataset')
     size = run.get('train_size')
@@ -234,6 +238,8 @@ def _stale_reason(run: dict) -> str | None:
         version = _parse_version(run.get('bispectrum_version'))
         if version is None or version < minimum:
             return 'pre-' + '.'.join(str(v) for v in minimum)
+    if run.get('early_stopping_patience') != 0:
+        return 'early-stopped'
     return None
 
 
