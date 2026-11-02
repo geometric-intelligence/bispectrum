@@ -104,8 +104,14 @@ class CnonCn(nn.Module):
         discrete cyclic shift. The reconstruction lives in the complex signal
         model even if the original signal was real-valued.
 
-        Requires fhat[0] != 0 and fhat[1] != 0 for the recursive recovery
-        to be well-defined.
+        The recursion fhat[k+1] = conj(beta_{1,k} / (fhat[1] * fhat[k])) divides
+        by fhat[1] and by every intermediate fhat[k], k = 1..n-2, so the
+        algorithm requires *all* of fhat[0], fhat[1], ..., fhat[n-2] to be
+        non-zero.  Signals with a vanishing Fourier coefficient in that range
+        (e.g. band-limited signals) are not in the domain of this inverse; the
+        selective bispectrum is only complete on the generic (full-support)
+        stratum, see Mataigne et al. 2024, Theorem 4.1.  A near-zero pivot
+        raises instead of propagating inf/nan into later coefficients.
 
         Args:
             beta: Selective bispectrum. Shape: (batch, n), complex.
@@ -115,7 +121,8 @@ class CnonCn(nn.Module):
 
         Raises:
             NotImplementedError: If selective=False.
-            ValueError: If pivot Fourier coefficients are zero or near-zero.
+            ValueError: If ``beta`` is not finite or any pivot fhat[k],
+                k <= n-2, is zero or near-zero (|fhat[k]| < 1e-10).
         """
         if not self.selective:
             raise NotImplementedError(
@@ -123,6 +130,8 @@ class CnonCn(nn.Module):
             )
         if beta.ndim != 2 or beta.shape[-1] != self.n:
             raise ValueError(f'Expected shape (batch, {self.n}), got {tuple(beta.shape)}')
+        if not torch.isfinite(beta).all():
+            raise ValueError('Cannot invert: beta contains non-finite entries.')
 
         n = self.n
         batch = beta.shape[0]
@@ -144,7 +153,10 @@ class CnonCn(nn.Module):
         # Step 3: sequential recovery for k = 1..n-2
         # beta[k+1] corresponds to beta_{1,k}, and
         # fhat[k+1] = conj(beta_{1,k} / (fhat[1] * fhat[k]))
+        # Every fhat[k] with k <= n-2 is a divisor; check it before use.
         for k in range(1, n - 1):
+            if k > 1 and torch.any(torch.abs(fhat[:, k]) < eps):
+                raise ValueError(f'Cannot invert: pivot fhat[{k}] is zero or near-zero.')
             fhat[:, k + 1] = torch.conj(beta[:, k + 1] / (fhat[:, 1] * fhat[:, k]))
 
         return torch.fft.ifft(fhat, dim=-1)

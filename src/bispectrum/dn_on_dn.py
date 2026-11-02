@@ -226,6 +226,12 @@ class DnonDn(nn.Module):
         n: Polygon order (|D_n| = 2n).  Must be > 2.
         selective: If True (default), compute the selective bispectrum.
             Full bispectrum raises NotImplementedError.
+
+    .. versionchanged:: 0.4.0
+        For odd ``n >= 5`` the fold block beta_{rho_1, rho_n2d} is now
+        included (it was dropped in 0.3.x, leaving the invariant incomplete).
+        ``output_size`` grows by 16 and the feature layout changes for those
+        ``n``; even ``n`` and ``n = 3`` are unchanged.
     """
 
     def __init__(self, n: int, selective: bool = True) -> None:
@@ -239,8 +245,13 @@ class DnonDn(nn.Module):
         n2d = (n - 1) // 2
         self._n2d = n2d
 
-        # Fix for small odd n (g-invariance bug): n3 = max(n2-1, 1) for odd
-        n3 = n2d if n % 2 == 0 else max(n2d - 1, 1)
+        # beta_{rho1, rho_k} for k = 1..n2d.  The last block is the *fold*:
+        # for even n, rho_1 x rho_{n/2-1} contains the 1D irreps rho_02/rho_03;
+        # for odd n, rho_1 x rho_n2d contains rho_{(n+1)/2}, which is
+        # equivalent to rho_n2d itself.  Dropping it (as an earlier version
+        # did for odd n >= 5) leaves the invariant blind to the continuous
+        # twist F_k -> R(k theta) F_k, i.e. incomplete.
+        n3 = n2d
         self._n3 = n3
 
         # --- CG matrices for beta_{rho1, rho_k}, k = 1..n3 ----------------
@@ -254,27 +265,22 @@ class DnonDn(nn.Module):
 
         self.register_buffer('_cg_matrices', cg_buf)
 
-        if n2d > 0:
-            i_range = torch.arange(1, n2d + 1, dtype=torch.float64)
-            j_range = torch.arange(n, dtype=torch.float64)
-            omega = 2 * math.pi * i_range[:, None] * j_range[None, :] / n
+        # n >= 3 guarantees n2d >= 1, so there is always at least one 2D irrep.
+        i_range = torch.arange(1, n2d + 1, dtype=torch.float64)
+        j_range = torch.arange(n, dtype=torch.float64)
+        omega = 2 * math.pi * i_range[:, None] * j_range[None, :] / n
 
-            rho_rot = torch.zeros(n2d, 2, 2, n, dtype=torch.float64)
-            rho_rot[:, 0, 0] = torch.cos(omega)
-            rho_rot[:, 0, 1] = -torch.sin(omega)
-            rho_rot[:, 1, 0] = torch.sin(omega)
-            rho_rot[:, 1, 1] = torch.cos(omega)
+        rho_rot = torch.zeros(n2d, 2, 2, n, dtype=torch.float64)
+        rho_rot[:, 0, 0] = torch.cos(omega)
+        rho_rot[:, 0, 1] = -torch.sin(omega)
+        rho_rot[:, 1, 0] = torch.sin(omega)
+        rho_rot[:, 1, 1] = torch.cos(omega)
 
-            rho_ref = rho_rot.clone()
-            rho_ref[:, :, 1, :] *= -1
+        rho_ref = rho_rot.clone()
+        rho_ref[:, :, 1, :] *= -1
 
-            cos_table = torch.cos(omega)
-            sin_table = torch.sin(omega)
-        else:
-            rho_rot = torch.zeros(0, 2, 2, n, dtype=torch.float64)
-            rho_ref = rho_rot.clone()
-            cos_table = torch.zeros(0, n, dtype=torch.float64)
-            sin_table = torch.zeros(0, n, dtype=torch.float64)
+        cos_table = torch.cos(omega)
+        sin_table = torch.sin(omega)
 
         self.register_buffer('_rho_rot', rho_rot)
         self.register_buffer('_rho_ref', rho_ref)
@@ -464,10 +470,7 @@ class DnonDn(nn.Module):
         F_rho1 = fhat[:, :, :, 1]
         beta_01 = F_rho0[:, None, None] * torch.bmm(F_rho1.transpose(-1, -2), F_rho1)
 
-        if n3 == 0:
-            return torch.cat([beta_00, beta_01.reshape(batch, 4)], dim=-1)
-
-        # Batched kron: all n3 products at once
+        # Batched kron: all n3 >= 1 products at once
         # F_rho1: (batch, 2, 2), F_all_k: (batch, 2, 2, n3)
         F_all_k = fhat[:, :, :, 1 : n3 + 1]
         all_kron = torch.einsum('bij,bklm->bmikjl', F_rho1, F_all_k).reshape(batch, n3, 4, 4)
@@ -571,20 +574,19 @@ class DnonDn(nn.Module):
         F(rho_1) only up to an O(2) twist Q (F_1 = Q S).  The chain
         extraction of the 2D coefficients is consistent in any fixed twist
         frame, but the *fold* entries — rho_02/rho_03 for even n (from
-        rho_1 x rho_{n/2 - 1}) and the folded rho_1 block at n = 3 — mix
-        components by a rotation R(h*theta) that depends on the twist angle.
-        This method measures that rotation from the fold block, corrects the
-        seed S by a finite candidate set of gauge angles (rotations and
-        reflection), and selects the candidate whose reconstruction
-        reproduces *beta* exactly (verified via :meth:`forward`).
-
-        For odd n >= 5 there is no fold and a single chain pass is exact.
+        rho_1 x rho_{n/2 - 1}) and the folded rho_{n2d} block for odd n
+        (from rho_1 x rho_{n2d}, whose rho_{(n+1)/2} component is equivalent
+        to rho_{n2d}) — mix components by a rotation R(h*theta) that depends
+        on the twist angle.  This method measures that rotation from the fold
+        block, corrects the seed S by a finite candidate set of gauge angles
+        (rotations and reflection), and selects the candidate whose
+        reconstruction reproduces *beta* exactly (verified via
+        :meth:`forward`).
 
         The reconstruction satisfies ``forward(invert(beta)) == beta`` to
-        machine precision for generic signals.  The recovered signal is
-        determined up to the O(2) twist; degenerate inputs (F(rho_0) = 0 or
-        singular F(rho_1)) are outside the algorithm's domain and may
-        reconstruct inaccurately.
+        machine precision for generic signals and lies in the D_n orbit of
+        the original.  Degenerate inputs (F(rho_0) = 0 or singular F(rho_1))
+        are outside the algorithm's domain and may reconstruct inaccurately.
 
         Args:
             beta: Selective bispectrum, shape ``(batch, output_size)``.
@@ -612,12 +614,7 @@ class DnonDn(nn.Module):
         eigvals_M = torch.clamp(eigvals_M, min=0.0)
         S = eigvecs_M @ torch.diag_embed(torch.sqrt(eigvals_M)) @ eigvecs_M.transpose(-1, -2)
 
-        has_fold = n % 2 == 0 or n == 3
-        if not has_fold:
-            # Odd n >= 5: chain extraction is exact in the S frame.
-            fhat, _ = self._chain_extract(beta, F0, S)
-            return self._inverse_dft(fhat)
-
+        n2d = self._n2d
         decomp_last = self._decompositions[self._n3 - 1]
         if n % 2 == 0:
             fold_1d = [
@@ -627,10 +624,14 @@ class DnonDn(nn.Module):
             fold_labels = [b.label for b in fold_1d]
             fold_scale = float(n // 2)
             n_shift = 2
-        else:  # n == 3: the rho_1 block folds back onto itself
-            fold_2d = next(b for b in decomp_last if b.block_type == '2d' and b.label == 1)
+        else:
+            # Odd n: rho_1 x rho_n2d contains rho_{(n+1)/2} ~ rho_n2d, so the
+            # last chain step re-extracts the rho_n2d block in a frame rotated
+            # by R(-n*theta) relative to the forward-chain value.  (At n = 3
+            # this is the rho_1 block folding back onto itself.)
+            fold_2d = next(b for b in decomp_last if b.block_type == '2d' and b.label == n2d)
             fold_scale = float(n)
-            n_shift = 6
+            n_shift = 2 * n
 
         D_refl = torch.tensor([[1.0, 0.0], [0.0, -1.0]], device=device, dtype=dtype)
 
@@ -646,7 +647,7 @@ class DnonDn(nn.Module):
 
         for refl in (False, True):
             S_base = (D_refl @ S) if refl else S
-            _, lb = self._chain_extract(beta, F0, S_base)
+            fhat_base, lb = self._chain_extract(beta, F0, S_base)
             assert lb is not None
 
             # Measure the fold rotation angle in this frame.
@@ -659,9 +660,10 @@ class DnonDn(nn.Module):
                 O = W / cnorm.unsqueeze(1)
                 phi = torch.atan2(O[:, 1, 0], O[:, 0, 0])
             else:
+                # W = R(phi) @ F_n2d (chain value); for n = 3, F_n2d = S_base.
                 r0, r1 = fold_2d.rows
                 W = lb[:, r0 : r1 + 1, r0 : r1 + 1]
-                Mw = W @ torch.linalg.inv(S_base)
+                Mw = W @ torch.linalg.inv(fhat_base[:, :, :, n2d])
                 U, _sv, Vh = torch.linalg.svd(Mw)
                 det = torch.linalg.det(U @ Vh)
                 U2 = U.clone()

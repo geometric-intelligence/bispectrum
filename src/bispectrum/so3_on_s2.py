@@ -13,15 +13,33 @@ with CG power spectrum entries
 P_{l1,l2,l} = ||(F_{l1} ⊗ F_{l2})|_l||^2.
 See ``_build_selective_index_map`` and ``_build_cg_power_index_map``.
 
-Generic completeness of this augmented selective invariant is conjectured and
-supported by Jacobian-rank and reconstruction experiments; a global
-orbit-separation proof is not currently known.
+**Completeness.** On real signals every bispectral entry is a single real
+number (real for even l1+l2+l, imaginary for odd) and obeys the
+permutation identity β_{l1,l2,l} = (-1)^{l1} √((2l+1)/(2l2+1)) β_{l1,l,l2},
+so an entry's information content is its *unordered* triple.  The
+selective map is built degree by degree so that the entries of degree ℓ
+determine F_ℓ given lower degrees (the linear bootstrap), with the
+degree-ℓ block drawn from distinct unordered triples.  What is verified:
+
+  - *generic local completeness* — the real Jacobian of the augmented
+    invariant w.r.t. the (L+1)² real SH dof has rank (L+1)² − 3 (dimension
+    minus dim SO(3)); checked by the test-suite for L ≤ 16 and, per degree,
+    for ℓ ≤ 20 (``benchmarks/verify_linear_bootstrap.py`` extends the
+    per-degree check to ℓ = 100);
+  - *finite fibre at low degree* — seed recovery at degrees 0–3 and
+    degree-4 fibre reduction via the parity-breaking entries.
+
+Global orbit separation (no second, isolated solution) is conjectural and
+supported by reconstruction experiments only.  For L ≤ 3 the invariant
+separates O(3)-orbits but cannot resolve the T_R (azimuthal reflection)
+ambiguity.
 
 Reference: Kakarala (1992), Cohen et al.
 """
 
 import hashlib
 import logging
+import os
 import pickle  # nosec B403 — only used for UnpicklingError type reference
 from collections import OrderedDict
 from pathlib import Path
@@ -126,40 +144,51 @@ def _small_linear_bootstrap_block(l_target: int) -> list[tuple[int, int, int]]:
     return explicit_blocks[l_target]
 
 
-def _proved_linear_bootstrap_block(l_target: int) -> list[tuple[int, int, int]]:
-    """Closed-form linear block used for l_target >= 8.
+def _is_identically_zero(l1: int, l2: int, l_val: int) -> bool:
+    """True if beta_{l1,l2,l} vanishes for every real signal.
 
-    For each target degree ell >= 8, use:
+    ``(l, l, odd)`` vanishes for any signal (exchange antisymmetry of the
+    odd-l component of ``F_l (x) F_l``).  For real signals every entry is a
+    single real number and obeys the permutation identity
+    ``beta_{l1,l2,l} = (-1)^{l1} sqrt((2l+1)/(2l2+1)) beta_{l1,l,l2}``, so an
+    odd-parity triple with *any* repeated index is a permutation of a
+    ``(l, l, odd)`` entry and vanishes too (e.g. (2,3,2), (4,5,4)).
+    """
+    parity_odd = (l1 + l2 + l_val) % 2 == 1
+    repeated = len({l1, l2, l_val}) < 3
+    return parity_odd and repeated
 
-    - X0_a = (a, ell, ell-a),    1 <= a <= ell-1
-    - X1_a = (a, ell, ell-a+1),  2 <= a <= ell-1, EXCLUDING a = (ell+1)//2
-      when ell is odd. The excluded triple is (r, 2*r-1, r) at ell = 2r-1,
-      which has a repeated index and parity 4r-1 (odd), so it is identically
-      zero on real signals (Proposition prop:app-odd-vanishing in the paper).
-    - C_a  = (a, ell-a, ell),    1 <= a <= 4 (chain rows).
-    - Z_ell = {(2, ell-1, ell)} for odd ell, empty for even ell. This single
-      shifted-chain row compensates for the dropped second-family entry,
-      preserving the budget |T_ell| = 2*ell + 1. It has all-distinct
-      indices (admissible, not contained in C since C only covers
-      pairs (a, ell-a) with a in {1,2,3,4}).
+
+def _distinct_pair_linear_block(l_target: int) -> list[tuple[int, int, int]]:
+    """Linear bootstrap rows for ``l_target >= 8``: one per distinct unordered triple.
+
+    Every bispectral triple ``{a, b, ell}`` with ``a, b < ell`` is *linear* in
+    ``F_ell`` and, on real signals, a single real equation.  The permutation
+    identity ``beta_{l1,l2,l} = (-1)^{l1} sqrt((2l+1)/(2l2+1)) beta_{l1,l,l2}``
+    makes the chain form ``(a, b, ell)`` and the cross form ``(a, ell, b)``
+    the *same* equation, so only distinct unordered triples count toward
+    the ``2 ell + 1`` real unknowns.  (The earlier closed-form block listed
+    each chain row again as a cross row and had real rank ~ell/2.)
+
+    Rows are chain-form ``(a, b, ell)`` over pairs ``1 <= a <= b <= ell-1``
+    with ``a + b >= ell``, ordered by ``a + b`` ascending then ``a``
+    ascending (lowest degrees first), skipping ``a == b`` when ``ell`` is
+    odd (identically zero).  Available rows: 16 at ell = 8 and 9 (the power
+    and even self-coupling entries complete those budgets), and at least
+    ``2 ell + 1`` from ell = 10 on; at most ``2 ell + 1`` are returned.
+    Generic independence is checked by the real-Jacobian rank tests and by
+    ``benchmarks/verify_linear_bootstrap.py``.
     """
     block: list[tuple[int, int, int]] = []
-
-    for a in range(1, l_target):
-        block.append((a, l_target, l_target - a))
-
-    skip_a = (l_target + 1) // 2 if l_target % 2 == 1 else None
-    for a in range(2, l_target):
-        if a == skip_a:
-            continue
-        block.append((a, l_target, l_target - a + 1))
-
-    for a in range(1, 5):
-        block.append((a, l_target - a, l_target))
-
-    if l_target % 2 == 1:
-        block.append((2, l_target - 1, l_target))
-
+    budget = 2 * l_target + 1
+    for s in range(l_target, 2 * l_target - 1):
+        for a in range(max(1, s - (l_target - 1)), s // 2 + 1):
+            b = s - a
+            if _is_identically_zero(a, b, l_target):
+                continue
+            block.append((a, b, l_target))
+            if len(block) == budget:
+                return block
     return block
 
 
@@ -176,16 +205,22 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
     1. **Seed block** for ``l_target <= 3``: the original low-degree
        construction, including the joint ``(2,3)`` seed.
     2. **Explicit low-degree linear blocks** for ``4 <= l_target <= 7``:
-       hard-coded linear families proved separately in the appendix.
-    3. **Closed-form linear block** for ``l_target >= 8``:
-       all cross rows ``(a, l_target, l_target-a)`` and
-       ``(a, l_target, l_target-a+1)``, plus four chain rows
-       ``(a, l_target-a, l_target)`` for ``a = 1,2,3,4``.
+       hard-coded linear families (see ``_small_linear_bootstrap_block``).
+    3. **Distinct-triple linear block** for ``l_target >= 8``: chain rows
+       ``(a, b, l_target)`` over distinct unordered pairs, see
+       ``_distinct_pair_linear_block``.  On real signals each bispectral
+       entry is one real number and the chain/cross forms of a triple are
+       the same equation, so distinct unordered triples are what count.
     4. **Power** ``(0, l_target, l_target)`` — gives ``||F_{l_target}||²``
        (quadratic), used only when the linear block does not already fill
        the budget.
-    5. **Self-coupling** ``(l_target, l_target, l)`` with ``l < l_target``
-       — quadratic/cubic in ``F_{l_target}``, likewise only used when needed.
+    5. **Self-coupling** ``(l_target, l_target, l)`` with even ``l <
+       l_target`` — quadratic/cubic in ``F_{l_target}``, likewise only used
+       when needed.
+
+    Candidates that vanish identically on real signals (``(l, l, odd)``
+    and odd-parity triples with a repeated index, e.g. ``(2,3,2)``,
+    ``(4,5,4)``) are never selected; see ``_is_identically_zero``.
 
     Self-coupling ``(l, l, 0)`` is redundant with the power entry for
     all real signals: ``beta_{l,l,0} = (-1)^l beta_{0,l,l}/sqrt(2l+1)``.
@@ -210,7 +245,10 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
     ``O(L)`` entries per degree, preserving the ``Θ(L²)`` total.
 
     The total augmented output (bispectral + CG power) is ``Θ(L²)``; see
-    ``_build_cg_power_index_map`` for the CG power complement.
+    ``_build_cg_power_index_map`` for the CG power complement.  Generic
+    local completeness (real Jacobian rank ``(L+1)² - 3``) is verified by
+    the test-suite for ``L ≤ 20`` and by ``benchmarks/verify_linear_bootstrap.py``
+    per degree up to ``ℓ = 100``.
     """
     index_map: list[tuple[int, int, int]] = []
 
@@ -228,7 +266,7 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
         if 4 <= l_target <= 7:
             candidates.extend(_small_linear_bootstrap_block(l_target))
         elif l_target >= 8:
-            candidates.extend(_proved_linear_bootstrap_block(l_target))
+            candidates.extend(_distinct_pair_linear_block(l_target))
         else:
             # Low-degree seed logic.
             chain_mixed: list[tuple[int, int, int]] = []
@@ -269,23 +307,23 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
         # 3. Power entry: (0, l_target, l_target).
         candidates.append((0, l_target, l_target))
 
-        # 4. Self-coupling: (l_target, l_target, l) with 0 <= l < l_target.
-        #    Skipped at l_target in {1, 2}: beta_{l,l,0} is always redundant
-        #    with the power entry; at l=2, beta_{2,2,1} also vanishes (CG
-        #    antisymmetry).
-        if l_target not in (1, 2):
-            for l_val in range(l_target - 1, -1, -1):
+        # 4. Self-coupling: (l_target, l_target, l) with even 2 <= l < l_target.
+        #    Odd l vanishes identically and l = 0 is always redundant with
+        #    the power entry (beta_{l,l,0} = (-1)^l beta_{0,l,l}/sqrt(2l+1)).
+        for l_val in range(l_target - 1, 1, -1):
+            if l_val % 2 == 0:
                 candidates.append((l_target, l_target, l_val))
 
         # 5. At l_target=2, add the symmetric self-coupling (2,2,2).
         if l_target == 2:
             candidates.append((2, 2, 2))
 
-        # Deduplicate preserving priority order, take up to budget.
+        # Deduplicate preserving priority order, drop identically-zero
+        # entries, take up to budget.
         seen: set[tuple[int, int, int]] = set()
         selected: list[tuple[int, int, int]] = []
         for entry in candidates:
-            if entry not in seen:
+            if entry not in seen and not _is_identically_zero(*entry):
                 seen.add(entry)
                 selected.append(entry)
                 if len(selected) == budget:
@@ -311,8 +349,8 @@ def _build_selective_feature_tags(
 ) -> list[SelectiveFeatureTag]:
     """Classify selective bispectral entries by construction stage.
 
-    Entries are ordered by target degree. Within each degree, the budgeted
-    bootstrap block comes first and mandatory even self-couplings are appended.
+    Entries are ordered by target degree. Within each degree, the budgeted bootstrap block comes
+    first and mandatory even self-couplings are appended.
     """
     positions: dict[int, int] = {}
     tags: list[SelectiveFeatureTag] = []
@@ -396,10 +434,12 @@ class SO3onS2(nn.Module):
     equiangular grid, computes the spherical harmonic transform internally,
     and returns the bispectrum coefficients.
 
-    When ``selective=True``, outputs O(L²) augmented selective entries
-    (scalar bispectral + CG power spectrum). Generic completeness is
-    conjectured and supported empirically, not proved. When
-    ``selective=False``, computes all O(L³) scalar bispectral entries.
+    When ``selective=True``, outputs Θ(L²) augmented selective entries
+    (scalar bispectral + CG power spectrum) that are generically locally
+    complete for real signals when lmax ≥ 4 (real Jacobian rank
+    ``(L+1)² - 3``; see the module docstring for what is verified and what
+    is conjectural).  When ``selective=False``, computes all O(L³) scalar
+    bispectral entries.
 
     Args:
         lmax: Maximum spherical harmonic degree.
@@ -407,6 +447,14 @@ class SO3onS2(nn.Module):
         nlon: Number of longitude grid points.
         selective: If True, use the O(L²) augmented selective bispectrum.
             If False, compute all O(L³) entries.
+
+    .. versionchanged:: 0.4.0
+        The selective index map was redesigned (distinct-pair linear block
+        for l >= 8, identically-zero entries dropped).  ``output_size`` and the
+        feature layout differ from 0.3.x for every ``lmax >= 3`` (e.g. 426
+        instead of 430 at ``lmax=16``); cached features and downstream heads
+        trained on the old layout must be recomputed.  The on-disk sparse CG
+        cache is invalidated automatically.
     """
 
     def __init__(
@@ -525,6 +573,9 @@ class SO3onS2(nn.Module):
     ) -> None:
         try:
             _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            # Write to a private temp file and rename: concurrent processes
+            # (e.g. pytest-xdist workers) must never observe a partial file.
+            tmp_path = path.with_name(f'{path.name}.{os.getpid()}.tmp')
             torch.save(
                 {
                     'cg_vals': cg_vals,
@@ -533,8 +584,9 @@ class SO3onS2(nn.Module):
                     'offsets': offsets,
                     'entry_meta': entry_meta,
                 },
-                path,
+                tmp_path,
             )
+            os.replace(tmp_path, path)
             logger.info('Saved sparse CG cache to %s', path)
         except OSError:
             pass
@@ -557,7 +609,7 @@ class SO3onS2(nn.Module):
             if cached_meta != expected_meta:
                 return None
             return data['cg_vals'], data['m1_idx'], data['m_idx'], data['offsets'], cached_meta
-        except (OSError, RuntimeError, KeyError, pickle.UnpicklingError):
+        except (OSError, EOFError, RuntimeError, KeyError, pickle.UnpicklingError):
             return None
 
     def _build_group_tables(
@@ -647,7 +699,7 @@ class SO3onS2(nn.Module):
             try:
                 data = torch.load(cache_path, weights_only=True)
                 return {int(k): v for k, v in data.items()}
-            except (OSError, RuntimeError):
+            except (OSError, EOFError, RuntimeError, pickle.UnpicklingError):
                 pass
 
         # Compute in parallel.
@@ -711,15 +763,20 @@ class SO3onS2(nn.Module):
     ) -> torch.Tensor | None:
         """Try the CUDA-graph path.
 
-        Returns None if capture fails or is skipped.
+        Returns None if capture fails or is skipped.  The captured graph is
+        bound to the input's shape, dtype and device (``static_input.copy_``
+        would otherwise silently cast a float64 input into a float32 graph);
+        a different input signature falls back to the eager paths until
+        :meth:`reset_cuda_graph_cache` is called.
         """
+        key = self._cuda_graph_key(f)
         cache = getattr(self, '_cuda_graph_cache', None)
-        if cache is not None and cache['batch_size'] == batch_size:
+        if cache is not None and cache['key'] == key:
             cache['static_input'].copy_(f)
             cache['graph'].replay()
             return cache['static_output'].clone()
 
-        if cache is not None and cache['batch_size'] != batch_size:
+        if cache is not None:
             return None
 
         try:
@@ -755,7 +812,7 @@ class SO3onS2(nn.Module):
                 'graph': g,
                 'static_input': static_input,
                 'static_output': static_output,
-                'batch_size': batch_size,
+                'key': key,
             }
 
             static_input.copy_(f)
@@ -764,8 +821,13 @@ class SO3onS2(nn.Module):
 
         except Exception:
             logger.debug('CUDA graph capture failed, disabling for this module', exc_info=True)
-            self._cuda_graph_cache = {'batch_size': -1}
+            self._cuda_graph_cache = {'key': None}
             return None
+
+    @staticmethod
+    def _cuda_graph_key(f: torch.Tensor) -> tuple[tuple[int, ...], torch.dtype, torch.device]:
+        """Input signature a captured CUDA graph is valid for."""
+        return (tuple(f.shape), f.dtype, f.device)
 
     def _forward_python(
         self,
@@ -976,11 +1038,11 @@ class SO3onS2(nn.Module):
             pw_cidx_parts: list[torch.Tensor] = []
             pw_eids: list[int] = []
             row = 0
+            # Entries without CG terms are never flagged as power in
+            # _build_sparse_global_indices, so every slice here is non-empty.
             for eidx in power_indices:
                 start = int(offsets[eidx].item())
                 end = int(offsets[eidx + 1].item())
-                if start == end:
-                    continue
                 pw_fl1_parts.append(fl1_i[start:end])
                 pw_fl2_parts.append(fl2_i[start:end])
                 pw_cg_parts.append(self._sparse_cg_vals[start:end])

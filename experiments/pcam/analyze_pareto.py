@@ -15,13 +15,14 @@ ONEPCT_DIR = Path(__file__).parent / 'pcam_results_1pct'
 DATA_PARETO_DIR = Path(__file__).parent / 'pcam_results_data_pareto'
 
 MODEL_STYLE = {
-    'standard': {'color': '#888888', 'marker': 's', 'label': 'Standard'},
+    'standard': {'color': '#888888', 'marker': 's', 'label': 'Aug. CNN'},
     'norm': {'color': '#2196F3', 'marker': 'o', 'label': 'NormReLU'},
     'gate': {'color': '#FF9800', 'marker': '^', 'label': 'Gated'},
     'fourier_elu': {'color': '#9C27B0', 'marker': 'D', 'label': 'Fourier-ELU'},
+    'norm_pool': {'color': '#5C6BC0', 'marker': 'v', 'label': 'Norm pool'},
     'bispectrum': {'color': '#E53935', 'marker': '*', 'label': 'Bispectrum'},
 }
-MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'bispectrum']
+MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum']
 
 DEFAULT_TRAIN_MODE = 'R'
 
@@ -42,6 +43,15 @@ def _result_train_mode(record: dict) -> str:
     return _canonical_train_mode(record.get('train_mode', DEFAULT_TRAIN_MODE))
 
 
+def _expected_train_mode(model: str) -> str:
+    """Protocol mode per model: Aug. CNN baseline is R-trained, invariants C."""
+    return 'R' if model == 'standard' else 'C'
+
+
+def _matches_protocol(record: dict) -> bool:
+    return _result_train_mode(record) == _expected_train_mode(record.get('model', ''))
+
+
 def _result_test_metrics(record: dict) -> dict:
     return record.get('test_c') or record.get('test') or {}
 
@@ -58,13 +68,13 @@ def load_results(directory: Path) -> list[dict]:
     return results
 
 
-def aggregate_1pct(results: list[dict], train_mode: str = DEFAULT_TRAIN_MODE) -> dict[str, dict]:
-    """Group 1% results by model (filtered to *train_mode*), compute mean +/- std."""
+def aggregate_1pct(results: list[dict]) -> dict[str, dict]:
+    """Group 1% results by model (protocol-conforming runs only), mean +/- std."""
     from collections import defaultdict
 
     grouped = defaultdict(list)
     for r in results:
-        if _result_train_mode(r) != train_mode:
+        if not _matches_protocol(r):
             continue
         grouped[r['model']].append(r)
     agg = {}
@@ -82,17 +92,17 @@ def aggregate_1pct(results: list[dict], train_mode: str = DEFAULT_TRAIN_MODE) ->
 
 def aggregate_pareto_multiseed(
     results: list[dict],
-    train_mode: str = DEFAULT_TRAIN_MODE,
 ) -> dict[str, list[dict]]:
-    """Group pareto results by (model, n_params) for *train_mode*, mean +/- std AUC.
+    """Group pareto results by (model, n_params), mean +/- std AUC.
 
+    Only protocol-conforming runs are kept (Aug. CNN: R, invariants: C).
     Returns model -> sorted list of {n_params, mean_auc, std_auc, n_seeds}.
     """
     from collections import defaultdict
 
     grouped: dict[tuple[str, int], list[float]] = defaultdict(list)
     for r in results:
-        if _result_train_mode(r) != train_mode:
+        if not _matches_protocol(r):
             continue
         grouped[(r['model'], r['n_params'])].append(_result_test_metrics(r).get('auc', 0.0))
 
@@ -129,12 +139,11 @@ def _train_size_value(record: dict) -> int:
     return n if n > 0 else PCAM_FULL_TRAIN
 
 
-def load_data_pareto(
-    train_mode: str = DEFAULT_TRAIN_MODE,
-) -> dict[str, dict[int, dict[str, float]]]:
+def load_data_pareto() -> dict[str, dict[int, dict[str, float]]]:
     """Load data-efficiency results with multi-seed aggregation.
 
-    Filters by *train_mode* (default `R`). Returns model -> {train_size: stats}.
+    Only protocol-conforming runs are kept (Aug. CNN: R, invariants: C).
+    Returns model -> {train_size: stats}.
     """
     from collections import defaultdict
 
@@ -144,7 +153,7 @@ def load_data_pareto(
     for run_dir in sorted(DATA_PARETO_DIR.rglob('results.json')):
         with open(run_dir) as f:
             r = json.load(f)
-        if _result_train_mode(r) != train_mode:
+        if not _matches_protocol(r):
             continue
         size = _train_size_value(r)
         raw[(r['model'], size)].append(_result_test_metrics(r).get('auc', 0.0))
@@ -230,9 +239,7 @@ def main() -> None:
     ax1.set_title('(a) AUC vs. parameter count (10% data)')
     _style_ax(ax1)
     ax1.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
-    ax1.legend(
-        frameon=True, fancybox=False, edgecolor='#cccccc', framealpha=0.95, loc='lower right'
-    )
+    ax1.legend(frameon=True, fancybox=False, edgecolor='#cccccc', framealpha=0.95, loc='lower right')
 
     matched_data = []
     for model in MODEL_ORDER:
@@ -240,9 +247,7 @@ def main() -> None:
         if not pts:
             continue
         best_at_100k = min(pts, key=lambda x: abs(x['n_params'] - 100_000))
-        matched_data.append(
-            (model, best_at_100k['n_params'], best_at_100k['mean_auc'], best_at_100k['std_auc'])
-        )
+        matched_data.append((model, best_at_100k['n_params'], best_at_100k['mean_auc'], best_at_100k['std_auc']))
 
     matched_data.sort(key=lambda x: x[2])
     y_pos = np.arange(len(matched_data))
