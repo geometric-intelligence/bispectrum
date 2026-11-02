@@ -5,7 +5,7 @@
 #
 #   bash rebuttal/run_camera_ready.sh archive [--dry_run]  # move stale results aside
 #   bash rebuttal/run_camera_ready.sh smoke <pcam|organ3d|smnist>...
-#   bash rebuttal/run_camera_ready.sh launch <bongo|h100>  # one tmux window per GPU
+#   bash rebuttal/run_camera_ready.sh launch <bongo|h100|custom>  # one tmux window per GPU
 #   bash rebuttal/run_camera_ready.sh <pipeline>           # one pipeline, foreground
 #   bash rebuttal/run_camera_ready.sh analyze              # grid figure + significance + timings
 #
@@ -21,10 +21,12 @@
 #   pcam_matched  PCam growth-rate sweep at n = 12500, seeds $MATCHED_SEEDS
 #   reconstruction, timings <tag>   no training; kept from the 0.4.0 run
 #
-# launch runs the pipelines listed in GPU0_PIPELINES / GPU1_PIPELINES
-# sequentially in one tmux window per GPU. Defaults: bongo GPU0 "pcam pcam_12500",
-# GPU1 "organ3d pcam_full" (A100 timings first, on the idle machine); h100 GPU0
-# "smnist pcam_matched".
+# launch runs the pipelines listed in GPU<i>_PIPELINES sequentially in one tmux
+# window per GPU, with the extra environment in GPU<i>_ENV (e.g. "SEEDS3=123
+# MODELS=fourier_elu RUN_SO2_DISK=0") to shard a pipeline across GPUs. Shards
+# must not share a (seed, model) pair: their skip checks would race. Defaults:
+# bongo GPU0 "pcam pcam_12500", GPU1 "organ3d pcam_full" (A100 timings first,
+# on the idle machine); h100 GPU0 "smnist pcam_matched"; custom has none.
 #
 # Environment: SEEDS3 / SEEDS5 / SEEDS10 / MATCHED_SEEDS override the seed sets;
 # PCAM_SIZES / ORGAN3D_WIDTHS narrow a pipeline; MODELS_FILTER passes through to
@@ -311,35 +313,45 @@ launch() {
     "$PYTHON" -m pytest -q tests/ 2>&1 | tee "$LOG_DIR/pytest_$(hostname -s).log"
   fi
 
-  local gpu0 gpu1=""
   case "$machine" in
     bongo)
-      gpu0="${GPU0_PIPELINES:-pcam pcam_12500}"
-      gpu1="${GPU1_PIPELINES:-organ3d pcam_full}"
+      : "${GPU0_PIPELINES:=pcam pcam_12500}" "${GPU1_PIPELINES:=organ3d pcam_full}"
       if [[ ! -f "$RESULTS/device_bench/a100_cuda.json" ]]; then
         device_timings a100
       fi
       ;;
     h100)
-      gpu0="${GPU0_PIPELINES:-smnist pcam_matched}"
+      : "${GPU0_PIPELINES:=smnist pcam_matched}"
       ;;
+    custom) ;;
     *)
-      echo "usage: $0 launch <bongo|h100>" >&2
+      echo "usage: $0 launch <bongo|h100|custom>" >&2
       exit 1
       ;;
   esac
-  tmux new-session -d -s "$SESSION" -n gpu0
-  tmux send-keys -t "$SESSION:gpu0" \
-    "CUDA_VISIBLE_DEVICES=0 bash '$SCRIPT' chain $gpu0 2>&1 | tee -a '$LOG_DIR/gpu0.log'" C-m
-  if [[ -n "$gpu1" ]]; then
-    tmux new-window -t "$SESSION" -n gpu1
-    tmux send-keys -t "$SESSION:gpu1" \
-      "CUDA_VISIBLE_DEVICES=1 bash '$SCRIPT' chain $gpu1 2>&1 | tee -a '$LOG_DIR/gpu1.log'" C-m
+  local n_gpus i pipelines_var env_var window launched=()
+  n_gpus=$(nvidia-smi -L | wc -l)
+  for (( i = 0; i < n_gpus; i++ )); do
+    pipelines_var="GPU${i}_PIPELINES"
+    env_var="GPU${i}_ENV"
+    [[ -n "${!pipelines_var:-}" ]] || continue
+    window="gpu$i"
+    if (( ${#launched[@]} == 0 )); then
+      tmux new-session -d -s "$SESSION" -n "$window"
+    else
+      tmux new-window -t "$SESSION" -n "$window"
+    fi
+    tmux send-keys -t "$SESSION:$window" \
+      "env CUDA_VISIBLE_DEVICES=$i ${!env_var:-} bash '$SCRIPT' chain ${!pipelines_var} 2>&1 | tee -a '$LOG_DIR/gpu$i.log'" C-m
+    launched+=("$window: ${!env_var:-} ${!pipelines_var}")
+  done
+  if (( ${#launched[@]} == 0 )); then
+    echo "no GPU<i>_PIPELINES set for the $n_gpus GPUs on this host" >&2
+    exit 1
   fi
   echo ""
   echo "Launched '$SESSION'. Monitor with:"
-  echo "  GPU0: $gpu0"
-  [[ -n "$gpu1" ]] && echo "  GPU1: $gpu1"
+  printf '  %s\n' "${launched[@]}"
   echo "  tmux attach -t $SESSION        (Ctrl-b n to switch windows)"
   echo "  tail -f $LOG_DIR/*.log"
 }
@@ -369,7 +381,7 @@ case "${1:-}" in
   launch) launch "${2:-}" ;;
   analyze) analyze ;;
   *)
-    sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//' >&2
+    sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//' >&2
     exit 1
     ;;
 esac
