@@ -24,7 +24,9 @@ export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
 MODELS=(standard power_spectrum bispectrum)
-TRAIN_MODES=(NR R)
+# train.py canonicalizes NR -> C in output dir names; use C here so the
+# resume/skip check matches the actual results directories.
+TRAIN_MODES=(C R)
 OUTPUT_DIR="./smnist_results"
 COMMON="--patience 10 --epochs 50"
 
