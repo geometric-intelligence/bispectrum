@@ -17,7 +17,7 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset, RandomSampler, Subset
 from torchvision import datasets as tv_datasets
 
 from bispectrum import random_rotation_matrix, rotate_spherical_function
@@ -181,12 +181,19 @@ def get_dataloaders(
     seed: int = 42,
     test_rotation_seed: int = 777,
     subset_dir: str | None = None,
+    min_epoch_samples: int = 10_000,
 ) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
     """Build train / val / test_NR / test_R data loaders.
 
     Args:
         train_size: Absolute number of training examples to use. ``None`` or
             a value >= the full training set means use everything.
+        min_epoch_samples: Floor on the number of training samples drawn per
+            epoch. Subsets smaller than ``min(min_epoch_samples, n_full)`` are
+            cycled (whole permutations, no replacement) so that every run gets
+            a comparable optimizer-step budget regardless of ``train_size``.
+            When the training set is at least this large, the sampler is
+            identical to ``shuffle=True``.
 
     Returns:
         (train_loader, val_loader, test_nr_loader, test_r_loader)
@@ -235,10 +242,15 @@ def get_dataloaders(
         train_ds = Subset(train_ds, indices)
 
     loader_rng = torch.Generator().manual_seed(seed)
+    train_sampler = RandomSampler(
+        train_ds,
+        num_samples=max(len(train_ds), min(min_epoch_samples, n_full)),
+        generator=loader_rng,
+    )
     train_loader = DataLoader(
         train_ds,
         batch_size=min(batch_size, len(train_ds)),
-        shuffle=True,
+        sampler=train_sampler,
         generator=loader_rng,
         num_workers=0,
         pin_memory=True,

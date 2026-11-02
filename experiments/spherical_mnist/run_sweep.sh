@@ -12,6 +12,9 @@
 #
 # Usage (run in tmux):
 #   ./run_sweep.sh
+#   SEEDS="42 123 456 789 101112" MODELS="bispectrum" ./run_sweep.sh
+#
+# SEEDS / MODELS / TRAIN_MODES are space-separated env overrides; defaults below.
 
 set -euo pipefail
 
@@ -23,10 +26,14 @@ source "$REPO_ROOT/.venv/bin/activate"
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
-MODELS=(standard power_spectrum bispectrum)
+# shellcheck disable=SC2206  # word splitting is the point of these overrides
+MODELS=(${MODELS:-standard power_spectrum bispectrum})
 # train.py canonicalizes NR -> C in output dir names; use C here so the
 # resume/skip check matches the actual results directories.
-TRAIN_MODES=(C R)
+# shellcheck disable=SC2206
+TRAIN_MODES=(${TRAIN_MODES:-C R})
+# shellcheck disable=SC2206
+SEEDS=(${SEEDS:-42 123 456})
 OUTPUT_DIR="./smnist_results"
 COMMON="--patience 10 --epochs 50"
 
@@ -45,8 +52,8 @@ run_single() {
         --output_dir "$OUTPUT_DIR" --seed "$seed" $COMMON
 }
 
-echo "=== Full sweep: 3 models x 2 modes x 3 seeds ==="
-for seed in 42 123 456; do
+echo "=== Full sweep: ${#MODELS[@]} models x ${#TRAIN_MODES[@]} modes x ${#SEEDS[@]} seeds ==="
+for seed in "${SEEDS[@]}"; do
     for mode in "${TRAIN_MODES[@]}"; do
         for model in "${MODELS[@]}"; do
             run_single "$model" "$mode" "$seed"

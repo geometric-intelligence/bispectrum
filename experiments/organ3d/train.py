@@ -37,6 +37,8 @@ from data import (
 )
 from model import build_model
 
+import bispectrum
+
 NUM_CLASSES = 11
 
 
@@ -449,9 +451,11 @@ def train(args: argparse.Namespace) -> dict:
         train_size=args.train_size,
         seed=args.seed,
         subset_dir=args.subset_dir,
+        min_epoch_samples=args.min_epoch_samples,
     )
     print(
-        f'Data: train={len(train_loader.dataset)}, '
+        f'Data: train={len(train_loader.dataset)} '
+        f'(samples/epoch={len(train_loader.sampler)}), '
         f'val={len(val_loader.dataset)}, test={len(test_loader.dataset)}'
     )
 
@@ -565,6 +569,9 @@ def train(args: argparse.Namespace) -> dict:
         'projected_dim': dim_info.get('projected_dim'),
         'train_size': args.train_size,
         'train_examples': len(train_loader.dataset),
+        'min_epoch_samples': args.min_epoch_samples,
+        'epoch_samples': len(train_loader.sampler),
+        'bispectrum_version': bispectrum.__version__,
         'best_val_auc': best_auc,
         'test': test_c,
         'test_c': test_c,
@@ -663,6 +670,13 @@ def main():
     parser.add_argument('--weight_decay', type=float, default=1e-4)
     parser.add_argument('--patience', type=int, default=15)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument(
+        '--min_epoch_samples',
+        type=int,
+        default=10_000,
+        help='Floor on training samples drawn per epoch; small --train_size subsets are '
+        'cycled up to min(this, full train set) so the optimizer-step budget is comparable.',
+    )
     parser.add_argument(
         '--channels',
         type=int,

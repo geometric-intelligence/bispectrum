@@ -12,6 +12,9 @@
 #
 # Usage (run in tmux):
 #   ./run_dataeff_multiseed.sh
+#   SEEDS="42 123 456 789 101112" SIZES="100 500" ./run_dataeff_multiseed.sh
+#
+# SEEDS / SIZES / MODELS are space-separated env overrides; defaults below.
 
 set -euo pipefail
 
@@ -25,6 +28,12 @@ export PYTHONUNBUFFERED=1
 
 OUTPUT_DIR="./organ3d_results"
 COMMON="--patience 15 --epochs 100 --data_dir ./organ3d_data"
+# shellcheck disable=SC2206  # word splitting is the point of these overrides
+SEEDS=(${SEEDS:-42 123 456})
+# shellcheck disable=SC2206
+SIZES=(${SIZES:-50 100 250 500})
+# shellcheck disable=SC2206
+MODELS=(${MODELS:-standard max_pool norm_pool bispectrum})
 
 train_mode_for() {
     local model=$1
@@ -67,9 +76,9 @@ run_single() {
         --train_size "$size" $COMMON
 }
 
-for seed in 42 123 456; do
-    for size in 50 100 250 500; do
-        for model in standard max_pool norm_pool bispectrum; do
+for seed in "${SEEDS[@]}"; do
+    for size in "${SIZES[@]}"; do
+        for model in "${MODELS[@]}"; do
             run_single "$model" "$seed" "$size"
         done
     done
