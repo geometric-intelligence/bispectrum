@@ -1,24 +1,35 @@
 #!/usr/bin/env bash
-# Camera-ready reruns on bispectrum 0.4.0 with the per-epoch sample floor.
+# Camera-ready reruns on bispectrum 0.4.0: per-epoch sample floor, a fixed epoch
+# budget that ends at an SGDR cycle end (no early stopping), one batch size per
+# dataset (see tests/test_experiment_protocol.py).
 #
 #   bash rebuttal/run_camera_ready.sh archive [--dry_run]  # move stale results aside
 #   bash rebuttal/run_camera_ready.sh smoke <pcam|organ3d|smnist>...
-#   bash rebuttal/run_camera_ready.sh launch bongo         # tmux: gpu0 PCam, gpu1 OrganMNIST3D
-#   bash rebuttal/run_camera_ready.sh launch h100          # tmux: gpu0 Spherical MNIST
-#   bash rebuttal/run_camera_ready.sh <pcam|organ3d|smnist>  # one pipeline, foreground
+#   bash rebuttal/run_camera_ready.sh launch <bongo|h100>  # one tmux window per GPU
+#   bash rebuttal/run_camera_ready.sh <pipeline>           # one pipeline, foreground
 #   bash rebuttal/run_camera_ready.sh analyze              # grid figure + significance + timings
 #
 # Pipelines (every sweep skips runs whose results.json exists, so re-running
 # resumes):
-#   pcam     bongo GPU0  data-Pareto n in {100, 500, 2500} x 6 models x 5 seeds
-#   organ3d  bongo GPU1  data efficiency n in {50..500} + widths x 10 seeds,
-#                        max_pool batch-16 control, A100 device timings
-#   smnist   H100        data efficiency, Table 4 sweep, capacity, feature
-#                        ablation x 5 seeds; reconstruction; H100 device timings
+#   smnist        Spherical MNIST data efficiency, Table 4 sweep, capacity,
+#                 feature ablation x 5 seeds
+#   organ3d       OrganMNIST3D data efficiency n in {50..500} + widths x 10 seeds,
+#                 $ORGAN3D_STREAMS concurrent streams on one GPU
+#   pcam          PCam data-Pareto n in {100, 500, 2500} x 6 models x 5 seeds
+#   pcam_12500    PCam data-Pareto n = 12500 x 7 models x 3 seeds
+#   pcam_full     PCam data-Pareto full data x 7 models x 3 seeds
+#   pcam_matched  PCam growth-rate sweep at n = 12500, seeds $MATCHED_SEEDS
+#   reconstruction, timings <tag>   no training; kept from the 0.4.0 run
 #
-# Environment: SEEDS5 / SEEDS10 override the seed sets; PCAM_SIZES /
-# ORGAN3D_WIDTHS narrow a pipeline so its matrix can be split across machines;
-# SKIP_TESTS=1 skips pytest at launch; SESSION names the tmux session.
+# launch runs the pipelines listed in GPU0_PIPELINES / GPU1_PIPELINES
+# sequentially in one tmux window per GPU. Defaults: bongo GPU0 "pcam pcam_12500",
+# GPU1 "organ3d pcam_full" (A100 timings first, on the idle machine); h100 GPU0
+# "smnist pcam_matched".
+#
+# Environment: SEEDS3 / SEEDS5 / SEEDS10 / MATCHED_SEEDS override the seed sets;
+# PCAM_SIZES / ORGAN3D_WIDTHS narrow a pipeline; MODELS_FILTER passes through to
+# run_matched_sweep.sh; SKIP_TESTS=1 skips pytest at launch; SESSION names the
+# tmux session.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,11 +41,17 @@ LOG_DIR="$RESULTS/logs_camera_ready"
 ENV_DIR="$RESULTS/environment_camera_ready/$(hostname -s)"
 SMOKE_DIR="${SMOKE_DIR:-${TMPDIR:-/tmp}/camera_ready_smoke}"
 
+SEEDS3="${SEEDS3:-42 123 456}"
 SEEDS5="${SEEDS5:-42 123 456 789 101112}"
 SEEDS10="${SEEDS10:-42 123 456 789 101112 1 2 3 4 5}"
 PCAM_SIZES="${PCAM_SIZES:-100 500 2500}"
 ORGAN3D_WIDTHS="${ORGAN3D_WIDTHS:-4_8 8_16 16_32}"
+ORGAN3D_STREAMS="${ORGAN3D_STREAMS:-3}"
+MATCHED_SEEDS="${MATCHED_SEEDS:-$SEEDS3}"
 SMOKE_MIN_VAL_ACC="${SMOKE_MIN_VAL_ACC:-0.2}"
+# One BLAS/OpenMP pool per CPU core oversubscribes the host once several runs
+# share it; 8 threads per run is faster on bongo even for a single run.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 
 EXP="$REPO_ROOT/experiments"
 SMNIST_DATA="${SMNIST_DATA_DIR:-$EXP/spherical_mnist/smnist_data}"
@@ -70,7 +87,8 @@ for i in range(torch.cuda.device_count()):
 PY
 }
 
-# results.json written by a smoke run must show the floor and the library version.
+# results.json written by a smoke run must show the floor, the library version
+# and the fixed-epoch protocol.
 check_results() {
   local results_path=$1 expected_epoch_samples=$2 min_val_acc=${3:-0}
   "$PYTHON" - "$results_path" "$expected_epoch_samples" "$min_val_acc" <<'PY'
@@ -86,6 +104,10 @@ if run.get('epoch_samples') != expected:
     problems.append(f"epoch_samples={run.get('epoch_samples')} != {expected}")
 if version < (0, 4, 0):
     problems.append(f"bispectrum_version={run.get('bispectrum_version')} < 0.4.0")
+if run.get('early_stopping_patience') != 0:
+    problems.append(f"early_stopping_patience={run.get('early_stopping_patience')} != 0")
+if run.get('epochs_run') != run.get('epochs'):
+    problems.append(f"epochs_run={run.get('epochs_run')} != epochs={run.get('epochs')}")
 acc = run.get('best_val_accuracy')
 if acc is not None and acc < min_acc:
     problems.append(f'best_val_accuracy={acc:.3f} < {min_acc}')
@@ -103,7 +125,7 @@ smoke_pcam() {
   banner "smoke: PCam bispectrum n=100, 1 epoch"
   rm -rf "$SMOKE_DIR/pcam"
   (cd "$EXP/pcam" && "$PYTHON" train.py --model bispectrum --growth_rate 4 --train_mode C \
-    --train_size 100 --epochs 1 --patience 1 --batch_size 128 --skip_rotation \
+    --train_size 100 --epochs 1 --skip_rotation \
     --output_dir "$SMOKE_DIR/pcam" --seed 42)
   check_results "$(find "$SMOKE_DIR/pcam" -name results.json)" 10000
 }
@@ -112,7 +134,7 @@ smoke_organ3d() {
   banner "smoke: OrganMNIST3D bispectrum n=50, 1 epoch"
   rm -rf "$SMOKE_DIR/organ3d"
   (cd "$EXP/organ3d" && "$PYTHON" train.py --model bispectrum --channels 4 8 --train_mode C \
-    --train_size 50 --epochs 1 --patience 1 --batch_size 16 --skip_rotation \
+    --train_size 50 --epochs 1 --skip_rotation \
     --data_dir ./organ3d_data --output_dir "$SMOKE_DIR/organ3d" --seed 42)
   check_results "$(find "$SMOKE_DIR/organ3d" -name results.json)" 971
 }
@@ -123,10 +145,10 @@ smoke_smnist() {
     (cd "$EXP/spherical_mnist" && "$PYTHON" train.py --model bispectrum \
       --bispectrum_features "$features" --run_label "bispectrum_${features}" --dry_run)
   done
-  banner "smoke: Spherical MNIST bispectrum n=100, 5 epochs (was 9.6% val acc before the floor)"
+  banner "smoke: Spherical MNIST bispectrum n=100, 10 epochs (was 9.6% val acc before the floor)"
   rm -rf "$SMOKE_DIR/smnist"
   (cd "$EXP/spherical_mnist" && "$PYTHON" train.py --model bispectrum --train_mode C \
-    --train_size 100 --epochs 5 --patience 5 --skip_rotation \
+    --train_size 100 --epochs 10 --skip_rotation \
     --data_dir "$SMNIST_DATA" --output_dir "$SMOKE_DIR/smnist" --seed 42)
   check_results "$(find "$SMOKE_DIR/smnist" -name results.json)" 10000 "$SMOKE_MIN_VAL_ACC"
 }
@@ -156,19 +178,51 @@ pcam_pipeline() {
   banner "[pcam] DONE"
 }
 
+pcam_size_pipeline() {
+  local size=$1
+  export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+  preflight
+  banner "PCam data-Pareto: n = $size x 7 models x seeds {$SEEDS3}"
+  SEEDS="$SEEDS3" SIZES="$size" bash "$EXP/pcam/run_data_pareto_sweep.sh" --phase-b
+  banner "[pcam_$size] DONE"
+}
+
+pcam_matched_pipeline() {
+  export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+  preflight
+  for seed in $MATCHED_SEEDS; do
+    banner "PCam growth-rate sweep at n = 12500: seed $seed (models: ${MODELS_FILTER:-all})"
+    bash "$EXP/pcam/run_matched_sweep.sh" --seed "$seed"
+  done
+  banner "[pcam_matched] DONE"
+}
+
+organ3d_stream() {
+  local seeds=$1
+  SEEDS="$seeds" bash "$EXP/organ3d/run_dataeff_multiseed.sh"
+  SEEDS="$seeds" WIDTHS="$ORGAN3D_WIDTHS" bash "$EXP/organ3d/run_wider_multiseed.sh"
+}
+
+# OrganMNIST3D runs leave the GPU half idle, so seeds are dealt round-robin to
+# concurrent streams; streams never share a seed, so their skip checks do not race.
 organ3d_pipeline() {
   export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-1}"
   preflight
   smoke_organ3d
-  banner "OrganMNIST3D data efficiency: n in {50, 100, 250, 500} x 4 models x 10 seeds"
-  SEEDS="$SEEDS10" bash "$EXP/organ3d/run_dataeff_multiseed.sh"
-  banner "OrganMNIST3D full data: widths {$ORGAN3D_WIDTHS} x 4 models x 10 seeds"
-  SEEDS="$SEEDS10" WIDTHS="$ORGAN3D_WIDTHS" bash "$EXP/organ3d/run_wider_multiseed.sh"
-  banner "OrganMNIST3D max_pool batch-16 control: n in {100, 500} x 10 seeds"
-  SEEDS="$SEEDS10" bash "$EXP/organ3d/run_bs16_control.sh"
-  banner "waiting for the PCam sweep on this host so the timings run on a quiet machine"
-  while pgrep -f "pcam/run_data_pareto_sweep.sh" >/dev/null; do sleep 300; done
-  device_timings a100
+  local seeds groups=() pids=() i failed=0
+  read -ra seeds <<<"$SEEDS10"
+  for i in "${!seeds[@]}"; do
+    groups[i % ORGAN3D_STREAMS]+="${seeds[i]} "
+  done
+  banner "OrganMNIST3D: n in {50, 100, 250, 500} + widths {$ORGAN3D_WIDTHS} x 4 models, streams: ${groups[*]/%/|}"
+  for i in "${!groups[@]}"; do
+    organ3d_stream "${groups[i]}" >"$LOG_DIR/organ3d_stream$i.log" 2>&1 &
+    pids+=($!)
+  done
+  for i in "${!pids[@]}"; do
+    wait "${pids[i]}" || { echo "stream $i failed: $LOG_DIR/organ3d_stream$i.log" >&2; failed=1; }
+  done
+  (( failed == 0 )) || exit 1
   banner "[organ3d] DONE"
 }
 
@@ -184,10 +238,14 @@ smnist_pipeline() {
   SEEDS="$SEEDS5" bash "$EXP/spherical_mnist/run_capacity_sweep.sh"
   banner "Spherical MNIST feature ablation: 4 feature sets x 5 seeds"
   SEEDS="$SEEDS5" bash "$REPO_ROOT/rebuttal/run_smnist_ablation.sh"
+  banner "[smnist] DONE"
+}
+
+reconstruction_pipeline() {
+  export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+  preflight
   banner "Reconstruction evidence (smnist_l15, random_l15)"
   bash "$REPO_ROOT/rebuttal/run_reconstruction_evidence.sh"
-  device_timings h100
-  banner "[smnist] DONE"
 }
 
 # ---------------------------------------------------------------------------
@@ -253,27 +311,35 @@ launch() {
     "$PYTHON" -m pytest -q tests/ 2>&1 | tee "$LOG_DIR/pytest_$(hostname -s).log"
   fi
 
+  local gpu0 gpu1=""
   case "$machine" in
     bongo)
-      tmux new-session -d -s "$SESSION" -n pcam
-      tmux send-keys -t "$SESSION:pcam" \
-        "CUDA_VISIBLE_DEVICES=0 bash '$SCRIPT' pcam 2>&1 | tee -a '$LOG_DIR/pcam_gpu0.log'" C-m
-      tmux new-window -t "$SESSION" -n organ3d
-      tmux send-keys -t "$SESSION:organ3d" \
-        "CUDA_VISIBLE_DEVICES=1 bash '$SCRIPT' organ3d 2>&1 | tee -a '$LOG_DIR/organ3d_gpu1.log'" C-m
+      gpu0="${GPU0_PIPELINES:-pcam pcam_12500}"
+      gpu1="${GPU1_PIPELINES:-organ3d pcam_full}"
+      if [[ ! -f "$RESULTS/device_bench/a100_cuda.json" ]]; then
+        device_timings a100
+      fi
       ;;
     h100)
-      tmux new-session -d -s "$SESSION" -n smnist
-      tmux send-keys -t "$SESSION:smnist" \
-        "CUDA_VISIBLE_DEVICES=0 bash '$SCRIPT' smnist 2>&1 | tee -a '$LOG_DIR/smnist_gpu0.log'" C-m
+      gpu0="${GPU0_PIPELINES:-smnist pcam_matched}"
       ;;
     *)
       echo "usage: $0 launch <bongo|h100>" >&2
       exit 1
       ;;
   esac
+  tmux new-session -d -s "$SESSION" -n gpu0
+  tmux send-keys -t "$SESSION:gpu0" \
+    "CUDA_VISIBLE_DEVICES=0 bash '$SCRIPT' chain $gpu0 2>&1 | tee -a '$LOG_DIR/gpu0.log'" C-m
+  if [[ -n "$gpu1" ]]; then
+    tmux new-window -t "$SESSION" -n gpu1
+    tmux send-keys -t "$SESSION:gpu1" \
+      "CUDA_VISIBLE_DEVICES=1 bash '$SCRIPT' chain $gpu1 2>&1 | tee -a '$LOG_DIR/gpu1.log'" C-m
+  fi
   echo ""
   echo "Launched '$SESSION'. Monitor with:"
+  echo "  GPU0: $gpu0"
+  [[ -n "$gpu1" ]] && echo "  GPU1: $gpu1"
   echo "  tmux attach -t $SESSION        (Ctrl-b n to switch windows)"
   echo "  tail -f $LOG_DIR/*.log"
 }
@@ -289,12 +355,21 @@ case "${1:-}" in
     for target in "$@"; do "smoke_$target"; done
     ;;
   pcam) pcam_pipeline ;;
+  pcam_12500) pcam_size_pipeline 12500 ;;
+  pcam_full) pcam_size_pipeline full ;;
+  pcam_matched) pcam_matched_pipeline ;;
   organ3d) organ3d_pipeline ;;
   smnist) smnist_pipeline ;;
+  reconstruction) reconstruction_pipeline ;;
+  timings) preflight && device_timings "${2:?usage: $0 timings <tag>}" ;;
+  chain)
+    shift
+    for pipeline in "$@"; do bash "$SCRIPT" "$pipeline"; done
+    ;;
   launch) launch "${2:-}" ;;
   analyze) analyze ;;
   *)
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' >&2
+    sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//' >&2
     exit 1
     ;;
 esac

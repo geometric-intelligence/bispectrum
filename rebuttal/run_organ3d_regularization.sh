@@ -25,11 +25,6 @@ for config in "${CONFIGS[@]}"; do
   if [[ -n "$CONFIG_LABELS" && " $CONFIG_LABELS " != *" $label "* ]]; then
     continue
   fi
-  if [[ "$model" == "bispectrum" ]]; then
-    batch_size=4
-  else
-    batch_size=8
-  fi
   for seed in 42 123 456; do
     result="$OUTPUT_DIR/${label}_C_ch16_32_seed${seed}/results.json"
     if [[ -f "$result" ]]; then
@@ -42,9 +37,8 @@ for config in "${CONFIGS[@]}"; do
       --channels 16 32 \
       --train_mode C \
       --seed "$seed" \
-      --epochs 100 \
-      --patience 15 \
-      --batch_size "$batch_size" \
+      --epochs 70 \
+      --batch_size 16 \
       --lr 1e-3 \
       --weight_decay "$weight_decay" \
       --dropout "$dropout" \

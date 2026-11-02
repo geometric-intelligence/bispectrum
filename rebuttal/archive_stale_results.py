@@ -1,11 +1,11 @@
 """Move stale experiment results out of the sweep output directories.
 
 Every sweep script skips a run whose ``results.json`` already exists, so results
-written before the per-epoch sample floor or before bispectrum 0.4.0 must be
-moved aside before the camera-ready reruns. Grid run directories are
-classified with ``make_grid_figure._stale_reason`` so exactly the runs the
-grid figure drops are archived; full-data and n >= floor runs stay in place
-and are reused. Rebuttal result trees without grid provenance fields
+written before the per-epoch sample floor, before bispectrum 0.4.0, or with
+patience-based early stopping must be moved aside before the camera-ready
+reruns. Grid run directories are classified with
+``make_grid_figure._stale_reason`` so exactly the runs the grid figure drops
+are archived. Rebuttal result trees without grid provenance fields
 (reconstruction, device timings) are archived whole, once.
 
     python rebuttal/archive_stale_results.py --dry_run
@@ -27,12 +27,14 @@ sys.path.insert(0, str(REPO_ROOT / 'experiments'))
 
 from make_grid_figure import _stale_reason  # noqa: E402
 
-ARCHIVE_TAG: Final = {'pre-floor': 'prefloor', 'pre-0.4.0': 'pre040'}
+ARCHIVE_TAG: Final = {'pre-floor': 'prefloor', 'pre-0.4.0': 'pre040', 'early-stopped': 'earlystop'}
 
 # Grid result roots: individual run dirs are moved to <root>_<tag>/<relative path>.
 GRID_ROOTS: Final = (
     'experiments/pcam/pcam_results_data_pareto',
+    'experiments/pcam/pcam_results_pareto',
     'experiments/organ3d/organ3d_results',
+    'experiments/organ3d/organ3d_results_bs16_control',
     'experiments/spherical_mnist/smnist_results',
     'experiments/spherical_mnist/smnist_results_capacity',
     'rebuttal/results/smnist_ablation',
