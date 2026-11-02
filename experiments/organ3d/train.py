@@ -24,6 +24,7 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from dataclasses import asdict
 from pathlib import Path
 
 import torch
@@ -35,7 +36,7 @@ from data import (
     get_dataloaders,
     gpu_augment_3d,
 )
-from model import build_model
+from model import BispectrumHead, build_model
 
 import bispectrum
 
@@ -222,6 +223,17 @@ def _mean_group_metrics(rotation_metrics: dict) -> dict[str, float]:
     }
 
 
+def _bispectrum_head(args: argparse.Namespace) -> BispectrumHead:
+    return BispectrumHead(
+        nonlin=args.bispectrum_head, power=args.bispectrum_power, scale=args.bispectrum_scale
+    )
+
+
+def _bispectrum_head_record(args: argparse.Namespace) -> dict | None:
+    """Head options for results.json; None for models without a bispectral head."""
+    return asdict(_bispectrum_head(args)) if args.model == 'bispectrum' else None
+
+
 def _invariant_dim_info(model: torch.nn.Module) -> dict[str, int | None]:
     """Return raw and projected invariant feature widths feeding the head.
 
@@ -268,6 +280,7 @@ def memory_check(args: argparse.Namespace) -> dict:
         channels=channels,
         head_dim=args.head_dim,
         dropout=args.dropout,
+        head=_bispectrum_head(args),
     ).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     dim_info = _invariant_dim_info(model)
@@ -337,6 +350,7 @@ def memory_check(args: argparse.Namespace) -> dict:
         'head_dim': args.head_dim,
         'weight_decay': args.weight_decay,
         'dropout': args.dropout,
+        'bispectrum_head': _bispectrum_head_record(args),
         'output_dir': str(output_dir),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
@@ -428,12 +442,15 @@ def train(args: argparse.Namespace) -> dict:
         channels=channels,
         head_dim=args.head_dim,
         dropout=args.dropout,
+        head=_bispectrum_head(args),
     )
     model = model.to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     dim_info = _invariant_dim_info(model)
     invariant_dim = dim_info.get('projected_dim') or dim_info.get('raw_invariant_dim')
     print(f'Model: {args.model} (channels={channels}), {n_params:,} params')
+    if args.model == 'bispectrum':
+        print(f'Bispectrum head: {_bispectrum_head(args)}')
 
     if args.dry_run:
         print(
@@ -445,6 +462,7 @@ def train(args: argparse.Namespace) -> dict:
                     'run_label': args.run_label or args.model,
                     'weight_decay': args.weight_decay,
                     'dropout': args.dropout,
+                    'bispectrum_head': _bispectrum_head_record(args),
                     'n_params': n_params,
                     'invariant_dim': invariant_dim,
                     'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
@@ -585,6 +603,7 @@ def train(args: argparse.Namespace) -> dict:
         'head_dim': args.head_dim,
         'weight_decay': args.weight_decay,
         'dropout': args.dropout,
+        'bispectrum_head': _bispectrum_head_record(args),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
         'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
@@ -727,6 +746,24 @@ def main():
         type=float,
         default=0.0,
         help='Dropout probability immediately before the final classifier.',
+    )
+    parser.add_argument(
+        '--bispectrum_head',
+        choices=['pre', 'post'],
+        default='post',
+        help='Bispectral pooling head: ReLU after the 1x1 projection (post) or, as in the '
+        'original head, on the signed-log bispectrum before it (pre).',
+    )
+    parser.add_argument(
+        '--bispectrum_power',
+        action='store_true',
+        help='Append the per-irrep power spectrum to the bispectral pooling features.',
+    )
+    parser.add_argument(
+        '--bispectrum_scale',
+        choices=['log', 'cbrt'],
+        default='log',
+        help='Compression of the bispectral pooling features: signed log1p or signed degree-root.',
     )
     parser.add_argument(
         '--train_size',

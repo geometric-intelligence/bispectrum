@@ -30,12 +30,13 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from dataclasses import asdict
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
 from data import apply_group_element, get_dataloaders, gpu_augment, gpu_normalize_only
-from model import build_model
+from model import BispectrumHead, build_model
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
@@ -206,6 +207,17 @@ def _mean_group_metrics(rotation_metrics: dict) -> dict[str, float]:
     }
 
 
+def _bispectrum_head(args: argparse.Namespace) -> BispectrumHead:
+    return BispectrumHead(
+        nonlin=args.bispectrum_head, power=args.bispectrum_power, scale=args.bispectrum_scale
+    )
+
+
+def _bispectrum_head_record(args: argparse.Namespace) -> dict | None:
+    """Head options for results.json; None for models without a bispectral head."""
+    return asdict(_bispectrum_head(args)) if args.model == 'bispectrum' else None
+
+
 def _invariant_dim(model: torch.nn.Module) -> int | None:
     pool = getattr(model, 'invariant_pool', None)
     features_per_channel = getattr(pool, 'features_per_channel', None)
@@ -230,6 +242,7 @@ def memory_check(args: argparse.Namespace) -> dict:
         growth_rate=args.growth_rate,
         block_config=tuple(args.block_config),
         bandlimit=getattr(args, 'bandlimit', None),
+        head=_bispectrum_head(args),
     ).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     invariant_dim = _invariant_dim(model)
@@ -294,6 +307,7 @@ def memory_check(args: argparse.Namespace) -> dict:
         'batch_size': args.batch_size,
         'effective_batch_size': args.batch_size,
         'growth_rate': args.growth_rate,
+        'bispectrum_head': _bispectrum_head_record(args),
         'output_dir': str(output_dir),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
@@ -385,6 +399,7 @@ def train(args: argparse.Namespace) -> dict:
         growth_rate=args.growth_rate,
         block_config=tuple(args.block_config),
         bandlimit=getattr(args, 'bandlimit', None),
+        head=_bispectrum_head(args),
     )
     model = model.to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -393,6 +408,8 @@ def train(args: argparse.Namespace) -> dict:
         print(f'Model: {args.model} (bandlimit={args.bandlimit}), {n_params:,} params')
     else:
         print(f'Model: {args.model} (group={args.group}, gr={args.growth_rate}), {n_params:,} params')
+    if args.model == 'bispectrum':
+        print(f'Bispectrum head: {_bispectrum_head(args)}')
 
     if args.dry_run:
         info: dict = {
@@ -400,6 +417,7 @@ def train(args: argparse.Namespace) -> dict:
             'train_mode': args.train_mode,
             'n_params': n_params,
             'invariant_dim': invariant_dim,
+            'bispectrum_head': _bispectrum_head_record(args),
         }
         if args.model == 'so2_disk':
             info['bandlimit'] = args.bandlimit
@@ -524,6 +542,7 @@ def train(args: argparse.Namespace) -> dict:
         'train_mode': args.train_mode,
         'geometry_group': geometry_group,
         'growth_rate': args.growth_rate,
+        'bispectrum_head': _bispectrum_head_record(args),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
         'train_size': args.train_size,
@@ -646,6 +665,24 @@ def main():
         'cycled up to min(this, full train set) so the optimizer-step budget is comparable.',
     )
     parser.add_argument('--growth_rate', type=int, default=12)
+    parser.add_argument(
+        '--bispectrum_head',
+        choices=['pre', 'post'],
+        default='post',
+        help='Bispectral pooling head: ReLU after the 1x1 projection (post) or, as in the '
+        'original head, on the signed-log bispectrum before it (pre).',
+    )
+    parser.add_argument(
+        '--bispectrum_power',
+        action='store_true',
+        help='Append the group power spectrum to the bispectral pooling features.',
+    )
+    parser.add_argument(
+        '--bispectrum_scale',
+        choices=['log', 'cbrt'],
+        default='log',
+        help='Compression of the bispectral pooling features: signed log1p or signed degree-root.',
+    )
     parser.add_argument(
         '--bandlimit',
         type=float,

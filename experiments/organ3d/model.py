@@ -15,6 +15,7 @@ invariant-map used:
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Literal
 
 import torch
@@ -27,6 +28,42 @@ from bispectrum.octa_on_octa import _CAYLEY, _ELEMENTS_3x3
 GROUP_ORDER = 24
 
 NonlinType = Literal['standard', 'max_pool', 'norm_pool', 'bispectrum']
+HeadNonlin = Literal['pre', 'post']
+HeadScale = Literal['log', 'cbrt']
+
+# Keeps the degree-root compression differentiable at 0 (gradient 1/d * eps^(1/d - 1)).
+_SCALE_EPS = 1e-3
+
+
+@dataclass(frozen=True)
+class BispectrumHead:
+    """Options for the bispectral pooling head (``BispectrumPool3d``).
+
+    Attributes:
+        nonlin: ``'post'`` applies the ReLU after the 1x1 projection. ``'pre'`` is the
+            original head: ReLU on the signed-log bispectrum *before* the projection,
+            which zeroes every negative entry and so discards most of the phase
+            information that makes the bispectrum complete.
+        power: Append the per-irrep power spectrum ``||F(rho_k)||_F^2`` of each channel.
+            The selective bispectrum reaches rho_2..rho_4 only through ``F(rho_1)``, so a
+            channel with small ``F(rho_1)`` is otherwise nearly invisible.
+        scale: Compression of the polynomial invariants. ``'log'`` is
+            ``sign(b) log(1 + |b|)``; ``'cbrt'`` is the signed degree-root (cube root
+            for the bispectrum, square root for the power spectrum), which makes the
+            features scale linearly with the input like max or norm pooling.
+    """
+
+    nonlin: HeadNonlin = 'post'
+    power: bool = False
+    scale: HeadScale = 'log'
+
+
+def _compress(x: torch.Tensor, scale: HeadScale, degree: int) -> torch.Tensor:
+    """Sign-preserving compression of a degree-``degree`` polynomial invariant."""
+    if scale == 'log':
+        return torch.sign(x) * torch.log1p(x.abs())
+    root = 1.0 / degree
+    return torch.sign(x) * ((x.abs() + _SCALE_EPS) ** root - _SCALE_EPS**root)
 
 
 def _make_octahedral_group() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -224,23 +261,35 @@ class BispectrumPool3d(nn.Module):
     Output: (B, head_dim, D, H, W) — invariant (no group dim).
     """
 
-    def __init__(self, num_channels: int, head_dim: int = 64):
+    def __init__(
+        self, num_channels: int, head_dim: int = 64, head: BispectrumHead = BispectrumHead()
+    ):
         super().__init__()
+        self.head = head
         self.bispec = OctaonOcta(selective=True)
         self.features_per_channel = self.bispec.output_size
+        if head.power:
+            self.features_per_channel += self.bispec.N_IRREPS
         self.proj = nn.Conv3d(num_channels * self.features_per_channel, head_dim, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, C, G, D, H, W = x.shape
+        scale = self.head.scale
         with torch.amp.autocast('cuda', enabled=False):
             x_flat = x.float().permute(0, 1, 3, 4, 5, 2).reshape(-1, G)
             beta = self.bispec(x_flat)
 
-            out = beta.real
-            out = torch.sign(out) * torch.log1p(out.abs())
+            out = _compress(beta.real, scale, 3)
+            if self.head.power:
+                # ||F(rho_k)||_F^2 is invariant: left translation maps F -> rho_k(h) F.
+                fhat = self.bispec._group_dft(x_flat)
+                power = torch.stack([fk.square().sum(dim=(-2, -1)) for fk in fhat], dim=-1)
+                out = torch.cat([out, _compress(power, scale, 2)], dim=-1)
             out = out.reshape(B, C, D, H, W, -1).permute(0, 1, 5, 2, 3, 4)
             out = out.reshape(B, C * self.features_per_channel, D, H, W)
-        return self.proj(F.relu(out))
+        if self.head.nonlin == 'pre':
+            return self.proj(F.relu(out))
+        return F.relu(self.proj(out))
 
 
 class GroupMaxPool3d(nn.Module):
@@ -316,6 +365,7 @@ class Organ3DResNet(nn.Module):
         channels: Tuple of (C0, C1) channel widths for stages.
         head_dim: Output dim of bispectral pool projection.
         dropout: Dropout probability before the final classifier.
+        head: Options of the bispectral pooling head (``nonlin_type="bispectrum"`` only).
     """
 
     def __init__(
@@ -324,6 +374,7 @@ class Organ3DResNet(nn.Module):
         channels: tuple[int, int] = (4, 8),
         head_dim: int = 64,
         dropout: float = 0.0,
+        head: BispectrumHead = BispectrumHead(),
     ) -> None:
         super().__init__()
         self.nonlin_type = nonlin_type
@@ -365,7 +416,7 @@ class Organ3DResNet(nn.Module):
             self.final_bn = nn.BatchNorm3d(C1)
 
         if nonlin_type == 'bispectrum':
-            self.invariant_pool = BispectrumPool3d(C1, head_dim)
+            self.invariant_pool = BispectrumPool3d(C1, head_dim, head)
             self._fc_in = head_dim
         elif nonlin_type == 'max_pool':
             self.invariant_pool = GroupMaxPool3d()
@@ -427,6 +478,7 @@ def build_model(
     channels: tuple[int, int] = (4, 8),
     head_dim: int = 64,
     dropout: float = 0.0,
+    head: BispectrumHead | None = None,
 ) -> Organ3DResNet:
     """Build an Organ3DResNet with the specified configuration."""
     return Organ3DResNet(
@@ -434,4 +486,5 @@ def build_model(
         channels=channels,
         head_dim=head_dim,
         dropout=dropout,
+        head=head or BispectrumHead(),
     )

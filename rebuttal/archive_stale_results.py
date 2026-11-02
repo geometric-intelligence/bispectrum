@@ -27,7 +27,12 @@ sys.path.insert(0, str(REPO_ROOT / 'experiments'))
 
 from make_grid_figure import _stale_reason  # noqa: E402
 
-ARCHIVE_TAG: Final = {'pre-floor': 'prefloor', 'pre-0.4.0': 'pre040', 'early-stopped': 'earlystop'}
+ARCHIVE_TAG: Final = {
+    'pre-floor': 'prefloor',
+    'pre-0.4.0': 'pre040',
+    'early-stopped': 'earlystop',
+    'pre-head-fix': 'preheadfix',
+}
 
 # Grid result roots: individual run dirs are moved to <root>_<tag>/<relative path>.
 GRID_ROOTS: Final = (
