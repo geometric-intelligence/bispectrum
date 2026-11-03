@@ -15,6 +15,7 @@ import shutil
 import subprocess  # nosec B404
 import sys
 import textwrap
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -236,3 +237,7 @@ def test_runner_picks_up_a_reassigned_manifest(tmp_path: Path) -> None:
     write(['b', 'a'], 2_000_000)
     runner._reload()
     assert [j.id for j in runner.queue] == ['id2']
+    jobs[1] = replace(jobs[1], mem_gib=30.0)
+    write(['b', 'a'], 3_000_000)
+    runner._reload()
+    assert [(j.id, j.mem_gib) for j in runner.queue] == [('id2', 30.0)]

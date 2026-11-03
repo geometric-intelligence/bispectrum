@@ -262,7 +262,7 @@ class Runner:
         return (self.state_dir / 'done' / f'{job.id}.json').exists()
 
     def _reload(self) -> None:
-        """Pick up a reassigned manifest: queue new jobs, drop jobs moved elsewhere.
+        """Pick up a changed manifest: new jobs, jobs moved elsewhere, updated estimates.
 
         Running jobs are never interrupted, even if they were moved to another machine.
         """
@@ -279,7 +279,9 @@ class Runner:
         dropped = [j for j in self.queue if j.id not in ids]
         added = [j for j in jobs if j.id not in busy and not self._is_done(j)]
         self.jobs = jobs
-        self.queue = sorted([j for j in self.queue if j.id in ids] + added, key=queue_order)
+        current = {j.id: j for j in jobs}
+        kept = [current[j.id] for j in self.queue if j.id in ids]
+        self.queue = sorted(kept + added, key=queue_order)
         self.log(
             f'manifest reloaded: {len(added)} jobs added, {len(dropped)} dropped from the queue'
         )

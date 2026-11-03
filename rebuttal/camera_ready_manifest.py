@@ -61,9 +61,9 @@ SMALL_GPU_MAX_PEAK_GIB: Final = 36.0
 # growth over a run, plus the CUDA context, which torch does not count.
 MEM_SLACK: Final = 1.05
 CUDA_CONTEXT_GIB: Final = 1.5
-# A configuration that runs out of memory on a 40 GB GPU is assumed to need an 80 GB GPU
-# to itself.
-OOM_MEM_GIB: Final = 60.0
+# A configuration that runs out of memory on a 40 GB GPU gets an 80 GB GPU to itself, bar
+# the smallest jobs: Fourier-ELU gr12 holds ~70 GiB on an 80 GB H100.
+OOM_MEM_GIB: Final = 75.0
 DEFAULT_EST_HOURS: Final = 1.0
 
 
