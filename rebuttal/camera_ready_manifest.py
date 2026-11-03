@@ -310,7 +310,8 @@ def scan_costs(roots: Sequence[Path]) -> list[dict[str, Any]]:
                     'width': width_tag(dataset, argv),
                     'batch_size': run.get('batch_size')
                     or (flag(argv, '--batch_size') or [None])[0],
-                    'epoch_samples': run.get('epoch_samples'),
+                    # Runs from before the floor trained on the whole subset each epoch.
+                    'epoch_samples': run.get('epoch_samples') or run.get('train_examples'),
                     'gpu_name': run.get('gpu_name') or '',
                     'sec_per_epoch': run['wall_time_s'] / run['epochs_run'],
                 }
