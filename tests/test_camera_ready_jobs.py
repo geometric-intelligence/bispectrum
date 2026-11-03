@@ -126,8 +126,7 @@ def test_two_small_jobs_share_a_40gb_gpu() -> None:
         job, target = next_placement(queue, [gpu], 39.0, 2)
         assert job == expected and target is gpu
         queue.remove(job)
-        gpu.jobs.append(job.id)
-        gpu.mem_gib += job.mem_gib
+        gpu.add(job, job.est_hours)
     assert simulate([_job('a', 18.0), _job('b', 18.0)], 1, 39.0, 2) == pytest.approx(1.0)
 
 
@@ -144,6 +143,17 @@ def test_head_of_queue_reserves_a_gpu() -> None:
     queue = [_job('big', 30.0, 5.0), _job('small', 8.0)]
     job, gpu = next_placement(queue, gpus, 39.0, 2)
     assert (job.id, gpu.index) == ('small', 1)
+
+
+def test_backfill_on_the_reserved_gpu_only_before_it_drains() -> None:
+    gpus = [GpuSlots(0, ['x'], 30.0, {'x': 5.0}), GpuSlots(1, ['y'], 30.0, {'y': 6.0})]
+    big = _job('big', 30.0, 9.0)
+    job, gpu = next_placement([big, _job('short', 8.0, 1.0)], gpus, 39.0, 2)
+    assert (job.id, gpu.index) == ('short', 0)
+    job, gpu = next_placement([big, _job('long', 8.0, 7.0)], gpus, 39.0, 2)
+    assert (job.id, gpu.index) == ('long', 1)
+    big_first = [_job('big', 30.0, 9.0), _job('a', 8.0, 4.0), _job('b', 8.0, 4.0)]
+    assert simulate(big_first, 1, 39.0, 2) == pytest.approx(9.0)
 
 
 FAKE_TRAIN = textwrap.dedent(

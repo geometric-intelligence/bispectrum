@@ -7,7 +7,8 @@ are assigned to; ``machines[<name>]`` gives the per-GPU memory budget and the nu
 concurrent jobs per GPU. Jobs start longest first on the GPU with the fewest running jobs
 whose running memory plus the job's stays within the budget, so two small runs share a
 40 GB A100 while a 48 GiB run waits for an 80 GB GPU of its own. When the longest queued job
-fits nowhere, the GPU it will get first (least memory in use) is kept free of new jobs.
+fits nowhere, the GPU expected to drain first is reserved for it: other jobs start there only
+if their estimate ends before that GPU drains (EASY backfilling).
 
 State lives in ``--state_dir``:
 
@@ -84,6 +85,17 @@ class GpuSlots:
     index: int
     jobs: list[str] = field(default_factory=list)
     mem_gib: float = 0.0
+    ends: dict[str, float] = field(default_factory=dict)  # job id -> estimated end (hours)
+
+    def add(self, job: Job, end: float) -> None:
+        self.jobs.append(job.id)
+        self.mem_gib += job.mem_gib
+        self.ends[job.id] = end
+
+    def remove(self, job: Job) -> None:
+        self.jobs.remove(job.id)
+        self.mem_gib -= job.mem_gib
+        self.ends.pop(job.id, None)
 
 
 def fits(job: Job, gpu: GpuSlots, gpu_mem_gib: float, max_workers: int) -> bool:
@@ -92,22 +104,35 @@ def fits(job: Job, gpu: GpuSlots, gpu_mem_gib: float, max_workers: int) -> bool:
 
 
 def next_placement(
-    queue: Sequence[Job], gpus: Sequence[GpuSlots], gpu_mem_gib: float, max_workers: int
+    queue: Sequence[Job],
+    gpus: Sequence[GpuSlots],
+    gpu_mem_gib: float,
+    max_workers: int,
+    now: float = 0.0,
+    speed: float = 1.0,
 ) -> tuple[Job, GpuSlots] | None:
     """The first job in queue order that fits a GPU, on the least loaded GPU it fits.
 
-    If the head of the queue fits nowhere right now, the GPU with the least memory in use is
-    reserved for it: later jobs are not placed there.
+    If the head of the queue fits nowhere right now, the GPU expected to drain first is
+    reserved for it: a later job goes there only if it is expected to end before the drain.
+    Times are hours on the clock of ``GpuSlots.ends``.
     """
-    reserved: int | None = None
+    reserved: GpuSlots | None = None
+    drain = now
     for position, job in enumerate(queue):
         candidates = [
-            g for g in gpus if g.index != reserved and fits(job, g, gpu_mem_gib, max_workers)
+            g
+            for g in gpus
+            if fits(job, g, gpu_mem_gib, max_workers)
+            and (g is not reserved or now + job.est_hours * speed <= drain)
         ]
         if candidates:
             return job, min(candidates, key=lambda g: (len(g.jobs), g.mem_gib, g.index))
         if position == 0 and job.mem_gib <= gpu_mem_gib and gpus:
-            reserved = min(gpus, key=lambda g: (g.mem_gib, len(g.jobs), g.index)).index
+            reserved = min(
+                gpus, key=lambda g: (max(g.ends.values(), default=now), g.mem_gib, g.index)
+            )
+            drain = max(reserved.ends.values(), default=now)
     return None
 
 
@@ -115,22 +140,24 @@ def simulate(
     jobs: Sequence[Job], n_gpus: int, gpu_mem_gib: float, max_workers: int, speed: float = 1.0
 ) -> float:
     """Makespan in hours of ``jobs`` under the runner's placement rule."""
+    by_id = {j.id: j for j in jobs}
     queue = sorted((j for j in jobs if j.mem_gib <= gpu_mem_gib), key=lambda j: -j.est_hours)
     gpus = [GpuSlots(i) for i in range(n_gpus)]
-    running: list[tuple[float, int, str, float]] = []  # (end, gpu, job id, mem)
+    running: list[tuple[float, int, str]] = []  # (end, gpu, job id)
     now = 0.0
     while queue or running:
-        while (placement := next_placement(queue, gpus, gpu_mem_gib, max_workers)) is not None:
+        while (
+            placement := next_placement(queue, gpus, gpu_mem_gib, max_workers, now, speed)
+        ) is not None:
             job, gpu = placement
             queue.remove(job)
-            gpu.jobs.append(job.id)
-            gpu.mem_gib += job.mem_gib
-            heapq.heappush(running, (now + job.est_hours * speed, gpu.index, job.id, job.mem_gib))
+            end = now + job.est_hours * speed
+            gpu.add(job, end)
+            heapq.heappush(running, (end, gpu.index, job.id))
         if not running:
             break
-        now, index, job_id, mem = heapq.heappop(running)
-        gpus[index].jobs.remove(job_id)
-        gpus[index].mem_gib -= mem
+        now, index, job_id = heapq.heappop(running)
+        gpus[index].remove(by_id[job_id])
     return now
 
 
@@ -204,8 +231,10 @@ class Runner:
         poll_s: float = 5.0,
         manifest: Path | None = None,
         machine: str = '',
+        speed: float = 1.0,
     ) -> None:
         self.gpus = [GpuSlots(i) for i in gpus]
+        self.speed = speed
         self.gpu_mem_gib = gpu_mem_gib
         self.max_workers = max_workers
         self.state_dir = state_dir
@@ -284,8 +313,7 @@ class Runner:
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
-        gpu.jobs.append(job.id)
-        gpu.mem_gib += job.mem_gib
+        gpu.add(job, time.time() / 3600 + job.est_hours * self.speed)
         self.running.append(Running(job, gpu, proc, log, time.time(), attempt))
         self.log(
             f'start GPU {gpu.index} ({gpu.mem_gib:.1f} GiB est) attempt {attempt}: {job.label}'
@@ -293,8 +321,7 @@ class Runner:
 
     def _finish(self, run: Running, code: int) -> None:
         run.log.close()
-        run.gpu.jobs.remove(run.job.id)
-        run.gpu.mem_gib -= run.job.mem_gib
+        run.gpu.remove(run.job)
         wall = time.time() - run.started
         results = find_results(run.job, run.started) if code == 0 else None
         record = {
@@ -392,7 +419,12 @@ class Runner:
             self._reload()
             while (
                 placement := next_placement(
-                    self.queue, self.gpus, self.gpu_mem_gib, self.max_workers
+                    self.queue,
+                    self.gpus,
+                    self.gpu_mem_gib,
+                    self.max_workers,
+                    time.time() / 3600,
+                    self.speed,
                 )
             ) is not None:
                 job, gpu = placement
@@ -478,6 +510,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.progress_every_s,
         manifest=args.manifest,
         machine=args.machine,
+        speed=float(spec.get('speed', 1.0)),
     )
     if args.dry_run:
         for job in runner.queue:
