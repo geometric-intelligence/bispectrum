@@ -8,6 +8,13 @@
 #   bash rebuttal/run_camera_ready.sh launch <bongo|h100|custom>  # one tmux window per GPU
 #   bash rebuttal/run_camera_ready.sh <pipeline>           # one pipeline, foreground
 #   bash rebuttal/run_camera_ready.sh analyze              # grid figure + significance + timings
+#   bash rebuttal/run_camera_ready.sh tmux <session> <subcommand>...  # any of these in tmux
+#
+# Job runner (PCam + OrganMNIST3D across machines; Spherical MNIST stays a pipeline):
+#   bash rebuttal/run_camera_ready.sh capture <dir> <pipeline>...  # train.py calls -> <dir>/*.tsv
+#   python rebuttal/camera_ready_manifest.py build|memory|assign   # -> $MANIFEST
+#   bash rebuttal/run_camera_ready.sh launch_jobs <l8a100|bongo|h100>  # tmux camera-ready-runs
+#   bash rebuttal/run_camera_ready.sh collect              # rsync + validate, on the H100
 #
 # Pipelines (every sweep skips runs whose results.json exists, so re-running
 # resumes):
@@ -41,6 +48,9 @@ SESSION="${SESSION:-camera-ready}"
 RESULTS="$REPO_ROOT/rebuttal/results"
 LOG_DIR="$RESULTS/logs_camera_ready"
 ENV_DIR="$RESULTS/environment_camera_ready/$(hostname -s)"
+JOBS_DIR="$RESULTS/camera_ready_jobs"
+export MANIFEST="${MANIFEST:-$JOBS_DIR/manifest.json}"
+RUNS_SESSION="${RUNS_SESSION:-camera-ready-runs}"
 SMOKE_DIR="${SMOKE_DIR:-${TMPDIR:-/tmp}/camera_ready_smoke}"
 
 SEEDS3="${SEEDS3:-42 123 456}"
@@ -68,6 +78,7 @@ banner() {
 # of this checkout), results must carry the floor provenance, CUDA must work.
 # ---------------------------------------------------------------------------
 preflight() {
+  [[ -z "${CAPTURE_JOBS:-}" ]] || return 0
   banner "preflight on $(hostname -s)"
   "$PYTHON" - <<'PY'
 import sys
@@ -110,6 +121,11 @@ if run.get('early_stopping_patience') != 0:
     problems.append(f"early_stopping_patience={run.get('early_stopping_patience')} != 0")
 if run.get('epochs_run') != run.get('epochs'):
     problems.append(f"epochs_run={run.get('epochs_run')} != epochs={run.get('epochs')}")
+head = run.get('bispectrum_head')
+if run.get('dataset') in ('pcam', 'organ3d') and run.get('model') == 'bispectrum' and (
+    not head or head.get('nonlin') != 'post'
+):
+    problems.append(f'bispectrum_head={head}: expected the fixed head (nonlin=post)')
 acc = run.get('best_val_accuracy')
 if acc is not None and acc < min_acc:
     problems.append(f'best_val_accuracy={acc:.3f} < {min_acc}')
@@ -124,6 +140,7 @@ PY
 # Smoke gates: one short run per dataset into $SMOKE_DIR, then the checks.
 # ---------------------------------------------------------------------------
 smoke_pcam() {
+  [[ -z "${CAPTURE_JOBS:-}" ]] || return 0
   banner "smoke: PCam bispectrum n=100, 1 epoch"
   rm -rf "$SMOKE_DIR/pcam"
   (cd "$EXP/pcam" && "$PYTHON" train.py --model bispectrum --growth_rate 4 --train_mode C \
@@ -133,6 +150,7 @@ smoke_pcam() {
 }
 
 smoke_organ3d() {
+  [[ -z "${CAPTURE_JOBS:-}" ]] || return 0
   banner "smoke: OrganMNIST3D bispectrum n=50, 1 epoch"
   rm -rf "$SMOKE_DIR/organ3d"
   (cd "$EXP/organ3d" && "$PYTHON" train.py --model bispectrum --channels 4 8 --train_mode C \
@@ -142,6 +160,7 @@ smoke_organ3d() {
 }
 
 smoke_smnist() {
+  [[ -z "${CAPTURE_JOBS:-}" ]] || return 0
   banner "smoke: Spherical MNIST dry runs (expect 760 invariant dims for the full model)"
   for features in bootstrap bootstrap_self bootstrap_self_cg full; do
     (cd "$EXP/spherical_mnist" && "$PYTHON" train.py --model bispectrum \
@@ -356,6 +375,123 @@ launch() {
   echo "  tail -f $LOG_DIR/*.log"
 }
 
+# ---------------------------------------------------------------------------
+# Job runner: the train.py calls of the PCam / OrganMNIST3D pipelines are
+# captured once, assigned across machines (camera_ready_manifest.py) and run
+# with memory-aware packing on every GPU of a machine (gpu_job_runner.py).
+# ---------------------------------------------------------------------------
+CAPTURABLE="pcam pcam_12500 pcam_full pcam_matched organ3d"
+
+capture() {
+  local out_dir pipeline
+  out_dir=$(realpath -m "${1:?usage: $0 capture <out_dir> <pipeline>...}")
+  shift
+  mkdir -p "$out_dir" "$LOG_DIR"
+  for pipeline in "$@"; do
+    if [[ " $CAPTURABLE " != *" $pipeline "* ]]; then
+      echo "capture: '$pipeline' is not one of: $CAPTURABLE" >&2
+      exit 1
+    fi
+    : >"$out_dir/$pipeline.tsv"
+    CAPTURE_JOBS="$out_dir/$pipeline.tsv" ORGAN3D_STREAMS=1 bash "$SCRIPT" "$pipeline" >/dev/null
+    echo "$pipeline: $(wc -l <"$out_dir/$pipeline.tsv") jobs -> $out_dir/$pipeline.tsv"
+  done
+}
+
+# Runs inside the camera-ready-runs tmux session (see launch_jobs).
+machine_jobs() {
+  local machine=$1
+  record_environment
+  preflight
+  if [[ "$machine" == h100 ]]; then
+    bash "$SCRIPT" smnist
+  fi
+  smoke_pcam
+  smoke_organ3d
+  banner "job runner: $machine ($MANIFEST)"
+  # shellcheck disable=SC2086  # RUNNER_ARGS is a flag list
+  "$PYTHON" "$REPO_ROOT/rebuttal/gpu_job_runner.py" --manifest "$MANIFEST" --machine "$machine" \
+    --state_dir "$JOBS_DIR/state/$machine" ${RUNNER_ARGS:-}
+}
+
+# Variables forwarded into tmux sessions: a running tmux server keeps the
+# environment it was started with, not the caller's.
+PASS_ENV=(PYTHON MANIFEST SEEDS3 SEEDS5 SEEDS10 PCAM_SIZES ORGAN3D_WIDTHS MATCHED_SEEDS
+  MODELS_FILTER SMNIST_DATA_DIR SMOKE_DIR OMP_NUM_THREADS SKIP_TESTS RUNNER_ARGS COLLECT_HOSTS)
+
+env_prefix() {
+  local var out="env"
+  for var in "${PASS_ENV[@]}"; do
+    if [[ -n "${!var+x}" ]]; then
+      out+=" $var=$(printf '%q' "${!var}")"
+    fi
+  done
+  echo "$out"
+}
+
+# new_session <session> <window> <subcommand>...: run this script's subcommand
+# in a detached tmux session; the window stays open after it exits.
+new_session() {
+  local session=$1 window=$2
+  shift 2
+  # "=" forces an exact match; a bare name also matches any session it prefixes.
+  if tmux has-session -t "=$session" 2>/dev/null; then
+    echo "tmux session '$session' already exists on $(hostname -s); attach with: tmux attach -t $session" >&2
+    exit 1
+  fi
+  mkdir -p "$LOG_DIR"
+  tmux new-session -d -s "$session" -n "$window" -c "$REPO_ROOT" \
+    "$(env_prefix) bash $(printf '%q ' "$SCRIPT" _step "$session" "$@"); sleep 86400"
+  echo "tmux session '$session' on $(hostname -s): $*"
+  echo "  log: $LOG_DIR/$session.log   attach: tmux attach -t $session"
+}
+
+_step() {
+  local session=$1 status=0
+  shift
+  local log="$LOG_DIR/$session.log"
+  mkdir -p "$LOG_DIR"
+  echo "=== $session started on $(hostname -s) at $(git -C "$REPO_ROOT" rev-parse --short HEAD): $* — $(date)" | tee -a "$log"
+  bash "$SCRIPT" "$@" 2>&1 | tee -a "$log" || status=$?
+  echo "=== $session exited $status — $(date)" | tee -a "$log"
+  return "$status"
+}
+
+launch_jobs() {
+  local machine=${1:?usage: $0 launch_jobs <l8a100|bongo|h100>} window=jobs
+  if [[ ! -f "$MANIFEST" ]]; then
+    echo "no manifest at $MANIFEST (rebuttal/camera_ready_manifest.py assign)" >&2
+    exit 1
+  fi
+  if [[ "$machine" == h100 ]]; then
+    window=smnist-then-jobs
+  fi
+  new_session "$RUNS_SESSION" "$window" machine_jobs "$machine"
+  tmux new-window -t "=$RUNS_SESSION:" -n monitor "watch -n 60 nvidia-smi"
+  echo "  runner state: $JOBS_DIR/state/$machine (done/, failed/, logs/, progress.json)"
+}
+
+collect() {
+  local host root
+  cd "$REPO_ROOT"
+  for host in ${COLLECT_HOSTS:-l8a100 bongo}; do
+    for root in experiments/pcam/pcam_results_data_pareto experiments/pcam/pcam_results_pareto \
+      experiments/organ3d/organ3d_results rebuttal/results/camera_ready_jobs/state; do
+      if ! ssh "$host" test -d "bispectrum/$root"; then
+        echo "$host: no $root"
+        continue
+      fi
+      banner "rsync $host:$root"
+      mkdir -p "$root"
+      rsync -a --ignore-existing --stats "$host:bispectrum/$root/" "$root/" | grep -E '^Number of (regular )?files transferred'
+    done
+  done
+  banner "validate against $MANIFEST"
+  "$PYTHON" rebuttal/camera_ready_manifest.py validate --manifest "$MANIFEST"
+  banner "stale results (expect none)"
+  "$PYTHON" rebuttal/archive_stale_results.py --dry_run
+}
+
 case "${1:-}" in
   archive)
     shift
@@ -379,9 +515,24 @@ case "${1:-}" in
     for pipeline in "$@"; do bash "$SCRIPT" "$pipeline"; done
     ;;
   launch) launch "${2:-}" ;;
+  capture)
+    shift
+    capture "$@"
+    ;;
+  machine_jobs) machine_jobs "${2:?usage: $0 machine_jobs <machine>}" ;;
+  launch_jobs) launch_jobs "${2:-}" ;;
+  collect) collect ;;
+  tmux)
+    shift
+    new_session "${1:?usage: $0 tmux <session> <subcommand>...}" main "${@:2}"
+    ;;
+  _step)
+    shift
+    _step "$@"
+    ;;
   analyze) analyze ;;
   *)
-    sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//' >&2
+    awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0" >&2
     exit 1
     ;;
 esac

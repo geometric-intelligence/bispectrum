@@ -23,6 +23,10 @@ cd "$SCRIPT_DIR"
 
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$REPO_ROOT/.venv/bin/activate"
+# CAPTURE_JOBS=<file>: record "<cwd>\t<quoted argv>" per run instead of training.
+if [[ -n "${CAPTURE_JOBS:-}" ]]; then
+    python() { printf '%s\t%s\n' "$PWD" "${*@Q}" >>"$CAPTURE_JOBS"; }
+fi
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
