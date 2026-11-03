@@ -13977,7 +13977,7 @@
     "--batch_size",
     "64"
    ],
-   "mem_gib": 75.0,
+   "mem_gib": 70.0,
    "est_hours": 6.247,
    "machine": "h100",
    "pipeline": "pcam_matched",
@@ -15124,7 +15124,7 @@
     "--batch_size",
     "64"
    ],
-   "mem_gib": 75.0,
+   "mem_gib": 70.0,
    "est_hours": 6.247,
    "machine": "h100",
    "pipeline": "pcam_matched",
@@ -16271,7 +16271,7 @@
     "--batch_size",
     "64"
    ],
-   "mem_gib": 75.0,
+   "mem_gib": 70.0,
    "est_hours": 6.247,
    "machine": "h100",
    "pipeline": "pcam_matched",
