@@ -21,7 +21,7 @@ A job with a done marker is skipped, so the runner can be restarted. A failed jo
 ``--retries`` times alone on a GPU (OOM from a bad memory estimate). The manifest is re-read
 when it changes (``camera_ready_manifest.py assign --remaining``): newly assigned jobs are
 queued, jobs moved to another machine leave the queue, running jobs are not interrupted.
-SIGINT/SIGTERM kill every running job's process group. Exit status is non-zero if any job
+SIGINT/SIGTERM/SIGHUP kill every running job's process group. Exit status is non-zero if any job
 failed.
 
 Usage (inside tmux via ``rebuttal/run_camera_ready.sh launch_jobs <machine>``)::
@@ -399,6 +399,7 @@ class Runner:
     def run(self) -> int:
         signal.signal(signal.SIGINT, self._terminate_all)
         signal.signal(signal.SIGTERM, self._terminate_all)
+        signal.signal(signal.SIGHUP, self._terminate_all)
         unrunnable = [j for j in self.queue if j.mem_gib > self.gpu_mem_gib]
         for job in unrunnable:
             self.queue.remove(job)
