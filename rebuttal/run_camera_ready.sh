@@ -12,7 +12,7 @@
 #
 # Job runner (PCam + OrganMNIST3D across machines; Spherical MNIST stays a pipeline):
 #   bash rebuttal/run_camera_ready.sh capture <dir> <pipeline>...  # train.py calls -> <dir>/*.tsv
-#   python rebuttal/camera_ready_manifest.py build|memory|assign   # -> $MANIFEST
+#   bash rebuttal/run_camera_ready.sh manifest build|memory|costs|assign|validate ...  # -> $MANIFEST
 #   bash rebuttal/run_camera_ready.sh launch_jobs <l8a100|bongo|h100>  # tmux camera-ready-runs
 #   bash rebuttal/run_camera_ready.sh collect              # rsync + validate, on the H100
 #
@@ -518,6 +518,10 @@ case "${1:-}" in
   capture)
     shift
     capture "$@"
+    ;;
+  manifest)
+    shift
+    cd "$REPO_ROOT" && "$PYTHON" rebuttal/camera_ready_manifest.py "$@"
     ;;
   machine_jobs) machine_jobs "${2:?usage: $0 machine_jobs <machine>}" ;;
   launch_jobs) launch_jobs "${2:-}" ;;
