@@ -1,0 +1,110 @@
+{
+  "dataset": "pcam",
+  "model": "bispectrum",
+  "group": "c8",
+  "seed": 123,
+  "train_mode": "C",
+  "geometry_group": "c8",
+  "growth_rate": 4,
+  "bispectrum_head": {
+    "nonlin": "post",
+    "power": false,
+    "scale": "log"
+  },
+  "n_params": 128345,
+  "invariant_dim": 544,
+  "train_size": 100,
+  "train_examples": 100,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 10000,
+  "bispectrum_version": "0.4.0",
+  "epochs": 30,
+  "early_stopping_patience": 0,
+  "best_epoch": 18,
+  "best_val_auc": 0.8471728437166283,
+  "test": {
+    "loss": 1.3712018152000383,
+    "accuracy": 0.75006103515625,
+    "auc": 0.8004261896792176
+  },
+  "test_c": {
+    "loss": 1.3712018152000383,
+    "accuracy": 0.75006103515625,
+    "auc": 0.8004261896792176
+  },
+  "test_final": {
+    "loss": 1.6531371225137264,
+    "accuracy": 0.74029541015625,
+    "auc": 0.7893265734501261
+  },
+  "test_r": {
+    "loss": 0.0,
+    "accuracy": 0.7422561645507812,
+    "auc": 0.7935651862423648
+  },
+  "rotation_robustness": {
+    "g00": {
+      "accuracy": 0.75006103515625,
+      "auc": 0.8004261896792176
+    },
+    "g01": {
+      "accuracy": 0.734588623046875,
+      "auc": 0.7867950258886676
+    },
+    "g02": {
+      "accuracy": 0.7498779296875,
+      "auc": 0.8004952565739586
+    },
+    "g03": {
+      "accuracy": 0.734588623046875,
+      "auc": 0.7868816575303719
+    },
+    "g04": {
+      "accuracy": 0.749847412109375,
+      "auc": 0.8004988440291708
+    },
+    "g05": {
+      "accuracy": 0.734619140625,
+      "auc": 0.7864391711932398
+    },
+    "g06": {
+      "accuracy": 0.7498779296875,
+      "auc": 0.8005057954221367
+    },
+    "g07": {
+      "accuracy": 0.734588623046875,
+      "auc": 0.7864795496221555
+    },
+    "mean_auc": 0.7935651862423648,
+    "std_auc": 0.006917711625828912,
+    "mean_accuracy": 0.7422561645507812,
+    "std_accuracy": 0.007660151474088963
+  },
+  "wall_time_s": 2896.2741560935974,
+  "epochs_run": 30,
+  "peak_train_alloc_bytes": 7676798976,
+  "peak_train_reserved_bytes": 9474932736,
+  "gpu_name": "NVIDIA A100-SXM4-40GB",
+  "cuda_total_memory_bytes": 42405855232,
+  "git_sha": "4cd2d7aa8fc154240b309dc7877f30eb808f1e7e",
+  "argv": [
+    "--model",
+    "bispectrum",
+    "--growth_rate",
+    "4",
+    "--train_mode",
+    "C",
+    "--epochs",
+    "30",
+    "--batch_size",
+    "64",
+    "--data_dir",
+    "./pcam_data",
+    "--train_size",
+    "100",
+    "--seed",
+    "123",
+    "--output_dir",
+    "/home/johmathe/bispectrum/rebuttal/results/head_ablation/pcam/n100/post_log/seed123"
+  ]
+}
