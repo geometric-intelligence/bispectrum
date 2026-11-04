@@ -5,6 +5,8 @@ Three model variants for comparing rotation invariance on spherical data:
     1. ``bispectrum``      - SO3onS2 augmented invariant features -> MLP
     2. ``power_spectrum``  - SH power spectrum -> MLP (invariant, incomplete)
     3. ``standard``        - CNN on equirectangular image (not rotation-invariant)
+
+plus the e3nn baselines ``s2cnn`` and ``tensor_product`` from ``baselines.py``.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from torch_harmonics import RealSHT
 
 from bispectrum import SO3onS2
 
-NonlinType = Literal['bispectrum', 'power_spectrum', 'standard']
+NonlinType = Literal['bispectrum', 'power_spectrum', 'standard', 's2cnn', 'tensor_product']
 BispectrumFeatureSet = Literal['bootstrap', 'bootstrap_self', 'bootstrap_self_cg', 'full']
 
 
@@ -189,8 +191,27 @@ def build_model(
     selective: bool = True,
     hidden: int = 256,
     bispectrum_features: BispectrumFeatureSet = 'full',
+    s2cnn_batch_norm: bool = False,
+    tp_channels: int = 16,
+    tp_lmax: int = 6,
+    tp_layers: int = 3,
 ) -> nn.Module:
     """Build a model for the Spherical MNIST experiment."""
+    if model_type in {'s2cnn', 'tensor_product'}:
+        # e3nn is only needed for these baselines.
+        from baselines import S2CNN, TensorProductNet
+
+        if model_type == 's2cnn':
+            return S2CNN(nlat=nlat, nlon=nlon, batch_norm=s2cnn_batch_norm)
+        return TensorProductNet(
+            lmax=lmax,
+            nlat=nlat,
+            nlon=nlon,
+            channels=tp_channels,
+            hidden_lmax=tp_lmax,
+            n_layers=tp_layers,
+            hidden=hidden,
+        )
     if model_type == 'bispectrum':
         return BispectrumClassifier(
             lmax=lmax,

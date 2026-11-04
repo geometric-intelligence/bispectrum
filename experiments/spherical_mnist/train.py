@@ -96,7 +96,42 @@ def _canonical_train_mode(train_mode: str) -> str:
     return 'C' if train_mode in {'C', 'NR'} else 'R'
 
 
+BASELINE_MODELS = ('s2cnn', 'tensor_product')
+
+
+def _build(args: argparse.Namespace) -> torch.nn.Module:
+    return build_model(
+        model_type=args.model,
+        lmax=args.lmax,
+        nlat=args.nlat,
+        nlon=args.nlon,
+        selective=not args.full_bispectrum,
+        hidden=args.hidden,
+        bispectrum_features=args.bispectrum_features,
+        s2cnn_batch_norm=args.s2cnn_batch_norm,
+        tp_channels=args.tp_channels,
+        tp_lmax=args.tp_lmax,
+        tp_layers=args.tp_layers,
+    )
+
+
+def _baseline_config(args: argparse.Namespace) -> dict | None:
+    if args.model == 's2cnn':
+        return {'features': [20, 40], 'bandwidths': [10, 6], 'batch_norm': args.s2cnn_batch_norm}
+    if args.model == 'tensor_product':
+        return {
+            'channels': args.tp_channels,
+            'hidden_lmax': args.tp_lmax,
+            'layers': args.tp_layers,
+            'input_lmax': args.lmax,
+        }
+    return None
+
+
 def _invariant_dim(model: torch.nn.Module) -> int | None:
+    invariant_features = getattr(model, 'invariant_features', None)
+    if isinstance(invariant_features, int):
+        return invariant_features
     bispectrum = getattr(model, 'bispectrum', None)
     if bispectrum is not None:
         return int(getattr(bispectrum, 'output_size', 0)) * 2
@@ -252,15 +287,7 @@ def memory_check(args: argparse.Namespace) -> dict:
         test_rotation_seed=args.test_rotation_seed,
         subset_dir=args.subset_dir,
     )
-    model = build_model(
-        model_type=args.model,
-        lmax=args.lmax,
-        nlat=args.nlat,
-        nlon=args.nlon,
-        selective=not args.full_bispectrum,
-        hidden=args.hidden,
-        bispectrum_features=args.bispectrum_features,
-    ).to(device)
+    model = _build(args).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     invariant_dim = _invariant_dim(model)
     active_invariant_dim = _active_invariant_dim(model)
@@ -350,16 +377,7 @@ def train(args: argparse.Namespace) -> dict:
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    model = build_model(
-        model_type=args.model,
-        lmax=args.lmax,
-        nlat=args.nlat,
-        nlon=args.nlon,
-        selective=not args.full_bispectrum,
-        hidden=args.hidden,
-        bispectrum_features=args.bispectrum_features,
-    )
-    model = model.to(device)
+    model = _build(args).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     invariant_dim = _invariant_dim(model)
     active_invariant_dim = _active_invariant_dim(model)
@@ -510,6 +528,9 @@ def train(args: argparse.Namespace) -> dict:
         'invariant_dim': invariant_dim,
         'active_invariant_dim': active_invariant_dim,
         'bispectrum_features': args.bispectrum_features,
+        'baseline_config': _baseline_config(args),
+        'lr': args.lr,
+        'batch_size': args.batch_size,
         'train_size': args.train_size,
         'train_examples': len(train_loader.dataset),
         'min_epoch_samples': args.min_epoch_samples,
@@ -597,8 +618,22 @@ def main():
     )
     parser.add_argument(
         '--model',
-        choices=['standard', 'power_spectrum', 'bispectrum'],
+        choices=['standard', 'power_spectrum', 'bispectrum', *BASELINE_MODELS],
         default='bispectrum',
+    )
+    parser.add_argument(
+        '--s2cnn_batch_norm',
+        action='store_true',
+        help='s2cnn: per-channel BatchNorm after each conv (absent in Cohen et al.).',
+    )
+    parser.add_argument(
+        '--tp_channels', type=int, default=16, help='tensor_product: multiplicity per degree.'
+    )
+    parser.add_argument(
+        '--tp_lmax', type=int, default=6, help='tensor_product: hidden max degree.'
+    )
+    parser.add_argument(
+        '--tp_layers', type=int, default=3, help='tensor_product: tensor-product layers.'
     )
     parser.add_argument(
         '--run_label',
