@@ -1,0 +1,12 @@
+{
+  "id": "2336b867e0eb",
+  "label": "pcam_fourier_elu_gr4_C_n2500_seed456",
+  "exit_code": 0,
+  "host": "lambda-1xh100",
+  "gpu": 0,
+  "git_sha": "9f8dda86918ba559411af2f94fa135f2326d4e66",
+  "attempt": 1,
+  "wall_time_s": 5320.2,
+  "finished": "2026-11-03T23:31:03",
+  "results_json": "experiments/pcam/pcam_results_data_pareto/n_2500/fourier_elu_c8_gr4_C_seed456_n2500/results.json"
+}

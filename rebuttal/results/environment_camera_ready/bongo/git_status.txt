@@ -1,0 +1,95 @@
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h128_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h128_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h128_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h256_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h256_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h256_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h32_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h32_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h32_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h512_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h512_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h512_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h64_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h64_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/bispectrum_h64_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h1024_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h1024_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h1024_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h128_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h128_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h128_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h2048_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h2048_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h2048_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h256_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h256_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h256_C_seed456/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h512_C_seed123/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h512_C_seed42/results.json
+ D experiments/spherical_mnist/smnist_results_capacity/power_spectrum_h512_C_seed456/results.json
+ D rebuttal/results/device_bench/a100_cuda.json
+ D rebuttal/results/device_bench/a100_host_cpu.json
+ D rebuttal/results/device_bench/combined.json
+ D rebuttal/results/device_bench/combined.md
+ D rebuttal/results/reconstruction/random_l15/results.json
+ D rebuttal/results/reconstruction/smnist_l15/results.json
+ D rebuttal/results/reconstruction/summary.json
+ D rebuttal/results/reconstruction_smoke/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_C_seed123/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_C_seed42/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_C_seed456/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_self_C_seed123/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_self_C_seed42/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_self_C_seed456/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_self_cg_C_seed123/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_self_cg_C_seed42/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_bootstrap_self_cg_C_seed456/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_full_C_seed123/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_full_C_seed42/results.json
+ D rebuttal/results/smnist_ablation/bispectrum_full_C_seed456/results.json
+?? experiments/organ3d/organ3d_results_bs16_control/
+?? experiments/organ3d/organ3d_results_diag_fixed/
+?? rebuttal/results/GIT_SHA
+?? rebuttal/results/camera_ready_jobs/state/
+?? rebuttal/results/environment/
+?? rebuttal/results/environment_camera_ready/
+?? rebuttal/results/organ3d_regularization/analysis/curves_and_sweep.pdf
+?? rebuttal/results/organ3d_regularization/analysis/curves_and_sweep.png
+?? rebuttal/results/organ3d_regularization/bsp_base_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_base_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_base_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_drop0.2_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_drop0.2_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_drop0.2_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_drop0.5_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_drop0.5_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_drop0.5_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-2_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-2_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-2_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-3_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-3_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-3_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-3_drop0.2_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-3_drop0.2_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization/bsp_wd1e-3_drop0.2_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization/max_base_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization/max_base_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization/max_base_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_base_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_base_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_base_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_drop0.2_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_drop0.2_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_drop0.2_C_ch16_32_seed456/
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_wd1e-2_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_wd1e-2_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_wd1e-2_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_wd1e-3_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_wd1e-3_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/bsp_wd1e-3_C_ch16_32_seed456/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/max_base_C_ch16_32_seed123/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/max_base_C_ch16_32_seed42/best_model.pt
+?? rebuttal/results/organ3d_regularization_broken_trainacc/max_base_C_ch16_32_seed456/best_model.pt
+?? rebuttal_results_10902.tar.gz

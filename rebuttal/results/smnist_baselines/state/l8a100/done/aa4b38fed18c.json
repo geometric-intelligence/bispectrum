@@ -1,0 +1,12 @@
+{
+  "id": "aa4b38fed18c",
+  "label": "tensor_product_R_seed123",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 6,
+  "git_sha": "2f417fd60e07cb340177c4d6a0170b8ec9d3fc03",
+  "attempt": 1,
+  "wall_time_s": 4575.3,
+  "finished": "2026-11-04T07:58:23",
+  "results_json": "experiments/spherical_mnist/smnist_results_baselines/tensor_product_R_seed123/results.json"
+}

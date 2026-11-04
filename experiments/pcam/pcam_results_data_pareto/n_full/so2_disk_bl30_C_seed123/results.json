@@ -1,0 +1,103 @@
+{
+  "dataset": "pcam",
+  "model": "so2_disk",
+  "group": "c8",
+  "seed": 123,
+  "train_mode": "C",
+  "geometry_group": "c8",
+  "growth_rate": 12,
+  "bispectrum_head": null,
+  "n_params": 99713,
+  "invariant_dim": null,
+  "train_size": null,
+  "train_examples": 262144,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 262144,
+  "bispectrum_version": "0.4.0",
+  "epochs": 10,
+  "early_stopping_patience": 0,
+  "best_epoch": 10,
+  "best_val_auc": 0.8542638317099294,
+  "test": {
+    "loss": 0.5639968627947383,
+    "accuracy": 0.71728515625,
+    "auc": 0.7906371308163531
+  },
+  "test_c": {
+    "loss": 0.5639968627947383,
+    "accuracy": 0.71728515625,
+    "auc": 0.7906371308163531
+  },
+  "test_final": {
+    "loss": 0.5639968627947383,
+    "accuracy": 0.71728515625,
+    "auc": 0.7906371308163531
+  },
+  "test_r": {
+    "loss": 0.0,
+    "accuracy": 0.7172126770019531,
+    "auc": 0.7906427224781118
+  },
+  "rotation_robustness": {
+    "g00": {
+      "accuracy": 0.71728515625,
+      "auc": 0.7906371308163531
+    },
+    "g01": {
+      "accuracy": 0.717254638671875,
+      "auc": 0.7906526503785695
+    },
+    "g02": {
+      "accuracy": 0.717132568359375,
+      "auc": 0.7906313491647545
+    },
+    "g03": {
+      "accuracy": 0.717254638671875,
+      "auc": 0.7906526503785695
+    },
+    "g04": {
+      "accuracy": 0.717132568359375,
+      "auc": 0.7906313491647545
+    },
+    "g05": {
+      "accuracy": 0.717254638671875,
+      "auc": 0.7906526503785695
+    },
+    "g06": {
+      "accuracy": 0.717132568359375,
+      "auc": 0.7906313491647545
+    },
+    "g07": {
+      "accuracy": 0.717254638671875,
+      "auc": 0.7906526503785695
+    },
+    "mean_auc": 0.7906427224781118,
+    "std_auc": 1.0084494790153136e-05,
+    "mean_accuracy": 0.7172126770019531,
+    "std_accuracy": 6.27978425337003e-05
+  },
+  "wall_time_s": 920.8210096359253,
+  "epochs_run": 10,
+  "peak_train_alloc_bytes": 120896512,
+  "peak_train_reserved_bytes": 138412032,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "9f8dda86918ba559411af2f94fa135f2326d4e66",
+  "argv": [
+    "--model",
+    "so2_disk",
+    "--bandlimit",
+    "30",
+    "--train_mode",
+    "C",
+    "--output_dir",
+    "./pcam_results_data_pareto/n_full",
+    "--seed",
+    "123",
+    "--epochs",
+    "10",
+    "--batch_size",
+    "64"
+  ],
+  "bandlimit": 30.0
+}

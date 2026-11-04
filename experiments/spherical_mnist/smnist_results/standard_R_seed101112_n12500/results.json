@@ -1,0 +1,65 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "standard",
+  "base_model": "standard",
+  "train_mode": "R",
+  "test_rotation_seed": 777,
+  "seed": 101112,
+  "lmax": 15,
+  "n_params": 184778,
+  "invariant_dim": null,
+  "active_invariant_dim": null,
+  "bispectrum_features": "full",
+  "train_size": 12500,
+  "train_examples": 12500,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 12500,
+  "bispectrum_version": "0.4.0",
+  "epochs": 30,
+  "early_stopping_patience": 0,
+  "best_epoch": 29,
+  "best_val_accuracy": 0.5885,
+  "test_final": {
+    "loss": 1.1682635055541992,
+    "accuracy": 0.5996
+  },
+  "test_c": {
+    "loss": 1.1699475120544434,
+    "accuracy": 0.5989
+  },
+  "test": {
+    "loss": 1.1699475120544434,
+    "accuracy": 0.5989
+  },
+  "test_nr": {
+    "loss": 1.1699475120544434,
+    "accuracy": 0.5989
+  },
+  "test_r": {
+    "loss": 1.1768485969543456,
+    "accuracy": 0.5765
+  },
+  "rotation_robustness": {},
+  "wall_time_s": 25.85160493850708,
+  "epochs_run": 30,
+  "peak_train_alloc_bytes": 788258816,
+  "peak_train_reserved_bytes": 1317011456,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "c215e2bd8eac926f5b83723926023629f86f9f7a",
+  "argv": [
+    "--model",
+    "standard",
+    "--train_mode",
+    "R",
+    "--output_dir",
+    "./smnist_results",
+    "--seed",
+    "101112",
+    "--train_size",
+    "12500",
+    "--skip_rotation",
+    "--epochs",
+    "30"
+  ]
+}

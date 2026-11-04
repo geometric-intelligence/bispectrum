@@ -1,0 +1,12 @@
+{
+  "id": "cc2a58d256da",
+  "label": "pcam_matched_fourier_elu_gr6_C_n12500_seed456",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 4,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 10402.3,
+  "finished": "2026-11-03T19:28:29",
+  "results_json": "experiments/pcam/pcam_results_pareto/fourier_elu_c8_gr6_C_seed456_n12500/results.json"
+}

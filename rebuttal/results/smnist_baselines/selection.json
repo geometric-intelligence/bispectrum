@@ -1,0 +1,43 @@
+{
+  "s2cnn_bn": {
+    "selected": "s2cnn_bn_bs32_lr5e-3",
+    "flags": [
+      "--model",
+      "s2cnn",
+      "--s2cnn_batch_norm",
+      "--batch_size",
+      "32",
+      "--lr",
+      "5e-3"
+    ],
+    "val_accuracy": {
+      "s2cnn_bn_bs32_lr1e-3": 0.9658,
+      "s2cnn_bn_bs32_lr5e-3": 0.9737,
+      "s2cnn_bn_bs256_lr1e-3": 0.9507,
+      "s2cnn_bn_bs256_lr5e-3": 0.9664
+    }
+  },
+  "tensor_product": {
+    "selected": "tp_c24_l6_lr3e-3",
+    "flags": [
+      "--model",
+      "tensor_product",
+      "--tp_channels",
+      "24",
+      "--tp_lmax",
+      "6",
+      "--lr",
+      "3e-3"
+    ],
+    "val_accuracy": {
+      "tp_c16_l4_lr1e-3": 0.959,
+      "tp_c16_l4_lr3e-3": 0.9637,
+      "tp_c16_l6_lr1e-3": 0.958,
+      "tp_c16_l6_lr3e-3": 0.9649,
+      "tp_c32_l4_lr1e-3": 0.9623,
+      "tp_c32_l4_lr3e-3": 0.9663,
+      "tp_c24_l6_lr1e-3": 0.9596,
+      "tp_c24_l6_lr3e-3": 0.9677
+    }
+  }
+}

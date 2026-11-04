@@ -1,0 +1,12 @@
+{
+  "id": "83f9832c5b3f",
+  "label": "pcam_matched_standard_gr20_R_n12500_seed42",
+  "exit_code": 0,
+  "host": "lambda-1xh100",
+  "gpu": 0,
+  "git_sha": "9f8dda86918ba559411af2f94fa135f2326d4e66",
+  "attempt": 1,
+  "wall_time_s": 1170.0,
+  "finished": "2026-11-03T12:21:16",
+  "results_json": "experiments/pcam/pcam_results_pareto/standard_c8_gr20_R_seed42_n12500/results.json"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "ddaba8afeba5",
+  "label": "tensor_product_C_seed101112_n500",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 7,
+  "git_sha": "6b872bf72b95394fc26faf450dfc13e521b22f2f",
+  "attempt": 1,
+  "wall_time_s": 1290.3,
+  "finished": "2026-11-04T20:53:30",
+  "results_json": "experiments/spherical_mnist/smnist_results_baselines_data/tensor_product_C_seed101112_n500/results.json"
+}

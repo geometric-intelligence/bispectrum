@@ -1,0 +1,103 @@
+{
+  "dataset": "pcam",
+  "model": "so2_disk",
+  "group": "c8",
+  "seed": 42,
+  "train_mode": "C",
+  "geometry_group": "c8",
+  "growth_rate": 12,
+  "bispectrum_head": null,
+  "n_params": 99713,
+  "invariant_dim": null,
+  "train_size": null,
+  "train_examples": 262144,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 262144,
+  "bispectrum_version": "0.4.0",
+  "epochs": 10,
+  "early_stopping_patience": 0,
+  "best_epoch": 7,
+  "best_val_auc": 0.8537309322113534,
+  "test": {
+    "loss": 0.5575078826514073,
+    "accuracy": 0.7197265625,
+    "auc": 0.7954734414003738
+  },
+  "test_c": {
+    "loss": 0.5575078826514073,
+    "accuracy": 0.7197265625,
+    "auc": 0.7954734414003738
+  },
+  "test_final": {
+    "loss": 0.5617163009010255,
+    "accuracy": 0.717315673828125,
+    "auc": 0.7918958693850696
+  },
+  "test_r": {
+    "loss": 0.0,
+    "accuracy": 0.7197227478027344,
+    "auc": 0.7954768118573866
+  },
+  "rotation_robustness": {
+    "g00": {
+      "accuracy": 0.7197265625,
+      "auc": 0.7954734414003738
+    },
+    "g01": {
+      "accuracy": 0.719696044921875,
+      "auc": 0.7954845241410348
+    },
+    "g02": {
+      "accuracy": 0.719757080078125,
+      "auc": 0.7954676522981933
+    },
+    "g03": {
+      "accuracy": 0.719696044921875,
+      "auc": 0.7954845241410348
+    },
+    "g04": {
+      "accuracy": 0.719757080078125,
+      "auc": 0.7954676522981933
+    },
+    "g05": {
+      "accuracy": 0.719696044921875,
+      "auc": 0.7954845241410348
+    },
+    "g06": {
+      "accuracy": 0.719757080078125,
+      "auc": 0.7954676522981933
+    },
+    "g07": {
+      "accuracy": 0.719696044921875,
+      "auc": 0.7954845241410348
+    },
+    "mean_auc": 0.7954768118573866,
+    "std_auc": 7.913357620207885e-06,
+    "mean_accuracy": 0.7197227478027344,
+    "std_accuracy": 2.8290552090056087e-05
+  },
+  "wall_time_s": 1411.8844838142395,
+  "epochs_run": 10,
+  "peak_train_alloc_bytes": 70827008,
+  "peak_train_reserved_bytes": 92274688,
+  "gpu_name": "NVIDIA A100-SXM4-40GB",
+  "cuda_total_memory_bytes": 42405855232,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "argv": [
+    "--model",
+    "so2_disk",
+    "--bandlimit",
+    "30",
+    "--train_mode",
+    "C",
+    "--output_dir",
+    "./pcam_results_data_pareto/n_full",
+    "--seed",
+    "42",
+    "--epochs",
+    "10",
+    "--batch_size",
+    "64"
+  ],
+  "bandlimit": 30.0
+}

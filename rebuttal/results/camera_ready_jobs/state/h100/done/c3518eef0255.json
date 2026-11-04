@@ -1,0 +1,12 @@
+{
+  "id": "c3518eef0255",
+  "label": "pcam_standard_gr12_R_n500_seed456",
+  "exit_code": 0,
+  "host": "lambda-1xh100",
+  "gpu": 0,
+  "git_sha": "9f8dda86918ba559411af2f94fa135f2326d4e66",
+  "attempt": 1,
+  "wall_time_s": 935.0,
+  "finished": "2026-11-03T12:52:11",
+  "results_json": "experiments/pcam/pcam_results_data_pareto/n_500/standard_c8_gr12_R_seed456_n500/results.json"
+}

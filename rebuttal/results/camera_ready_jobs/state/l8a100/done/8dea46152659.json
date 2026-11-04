@@ -1,0 +1,12 @@
+{
+  "id": "8dea46152659",
+  "label": "pcam_matched_bispectrum_gr3_C_n12500_seed123",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 3,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 4611.0,
+  "finished": "2026-11-04T04:12:59",
+  "results_json": "experiments/pcam/pcam_results_pareto/bispectrum_c8_gr3_C_seed123_n12500/results.json"
+}

@@ -1,0 +1,21 @@
+{
+  "host": "bongo",
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "time": "2026-11-03T20:39:33",
+  "total": 98,
+  "done": 98,
+  "failed": [],
+  "running": 0,
+  "queued": 0,
+  "queued_est_hours": 0,
+  "gpus": {
+    "0": {
+      "mem_gib_est": 0.0,
+      "jobs": []
+    },
+    "1": {
+      "mem_gib_est": -0.0,
+      "jobs": []
+    }
+  }
+}

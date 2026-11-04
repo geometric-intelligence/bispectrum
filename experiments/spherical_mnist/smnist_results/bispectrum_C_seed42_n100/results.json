@@ -1,0 +1,65 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "bispectrum",
+  "base_model": "bispectrum",
+  "train_mode": "C",
+  "test_rotation_seed": 777,
+  "seed": 42,
+  "lmax": 15,
+  "n_params": 229770,
+  "invariant_dim": 760,
+  "active_invariant_dim": 760,
+  "bispectrum_features": "full",
+  "train_size": 100,
+  "train_examples": 100,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 10000,
+  "bispectrum_version": "0.4.0",
+  "epochs": 30,
+  "early_stopping_patience": 0,
+  "best_epoch": 28,
+  "best_val_accuracy": 0.6124,
+  "test_final": {
+    "loss": 1.9587504232406616,
+    "accuracy": 0.6083
+  },
+  "test_c": {
+    "loss": 1.9584605588912964,
+    "accuracy": 0.6082
+  },
+  "test": {
+    "loss": 1.9584605588912964,
+    "accuracy": 0.6082
+  },
+  "test_nr": {
+    "loss": 1.9584605588912964,
+    "accuracy": 0.6082
+  },
+  "test_r": {
+    "loss": 1.9295985383987426,
+    "accuracy": 0.6074
+  },
+  "rotation_robustness": {},
+  "wall_time_s": 15.330904245376587,
+  "epochs_run": 30,
+  "peak_train_alloc_bytes": 600045568,
+  "peak_train_reserved_bytes": 849346560,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "6f4dd3fd61c5248835e205b5f3703aa95a00f9d3",
+  "argv": [
+    "--model",
+    "bispectrum",
+    "--train_mode",
+    "C",
+    "--output_dir",
+    "./smnist_results",
+    "--seed",
+    "42",
+    "--train_size",
+    "100",
+    "--skip_rotation",
+    "--epochs",
+    "30"
+  ]
+}

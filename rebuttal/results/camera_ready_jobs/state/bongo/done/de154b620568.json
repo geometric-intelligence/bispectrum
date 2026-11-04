@@ -1,0 +1,12 @@
+{
+  "id": "de154b620568",
+  "label": "pcam_standard_gr12_R_n100_seed123",
+  "exit_code": 0,
+  "host": "bongo",
+  "gpu": 0,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 1190.1,
+  "finished": "2026-11-03T17:40:42",
+  "results_json": "experiments/pcam/pcam_results_data_pareto/n_100/standard_c8_gr12_R_seed123_n100/results.json"
+}

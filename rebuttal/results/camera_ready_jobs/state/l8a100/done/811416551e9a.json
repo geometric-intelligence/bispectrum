@@ -1,0 +1,12 @@
+{
+  "id": "811416551e9a",
+  "label": "pcam_fourier_elu_gr4_C_n500_seed42",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 1,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 11757.1,
+  "finished": "2026-11-04T00:24:17",
+  "results_json": "experiments/pcam/pcam_results_data_pareto/n_500/fourier_elu_c8_gr4_C_seed42_n500/results.json"
+}

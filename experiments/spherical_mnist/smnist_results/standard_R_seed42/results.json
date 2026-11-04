@@ -1,0 +1,75 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "standard",
+  "base_model": "standard",
+  "train_mode": "R",
+  "test_rotation_seed": 777,
+  "seed": 42,
+  "lmax": 15,
+  "n_params": 184778,
+  "invariant_dim": null,
+  "active_invariant_dim": null,
+  "bispectrum_features": "full",
+  "train_size": null,
+  "train_examples": 50000,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 50000,
+  "bispectrum_version": "0.4.0",
+  "epochs": 30,
+  "early_stopping_patience": 0,
+  "best_epoch": 30,
+  "best_val_accuracy": 0.7829,
+  "test_final": {
+    "loss": 0.7497237106323242,
+    "accuracy": 0.7563
+  },
+  "test_c": {
+    "loss": 0.7497237106323242,
+    "accuracy": 0.7563
+  },
+  "test": {
+    "loss": 0.7497237106323242,
+    "accuracy": 0.7563
+  },
+  "test_nr": {
+    "loss": 0.7497237106323242,
+    "accuracy": 0.7563
+  },
+  "test_r": {
+    "loss": 0.711264256286621,
+    "accuracy": 0.7678
+  },
+  "rotation_robustness": {
+    "rot_00": 0.7586,
+    "rot_01": 0.7564,
+    "rot_02": 0.7596,
+    "rot_03": 0.783,
+    "rot_04": 0.7663,
+    "rot_05": 0.8168,
+    "rot_06": 0.7766,
+    "rot_07": 0.7942,
+    "rot_08": 0.7804,
+    "rot_09": 0.7742,
+    "mean_accuracy": 0.77661,
+    "std_accuracy": 0.017646781576253493
+  },
+  "wall_time_s": 86.17714142799377,
+  "epochs_run": 30,
+  "peak_train_alloc_bytes": 788258816,
+  "peak_train_reserved_bytes": 1317011456,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "c215e2bd8eac926f5b83723926023629f86f9f7a",
+  "argv": [
+    "--model",
+    "standard",
+    "--train_mode",
+    "R",
+    "--output_dir",
+    "./smnist_results",
+    "--seed",
+    "42",
+    "--epochs",
+    "30"
+  ]
+}

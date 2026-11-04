@@ -1,0 +1,12 @@
+{
+  "id": "3188d0cf59ee",
+  "label": "pcam_matched_so2_disk_bl15_C_n12500_seed456",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 0,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 485.3,
+  "finished": "2026-11-04T05:17:56",
+  "results_json": "experiments/pcam/pcam_results_pareto/so2_disk_bl15_C_seed456_n12500/results.json"
+}

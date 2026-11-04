@@ -1,0 +1,104 @@
+{
+  "dataset": "pcam",
+  "model": "fourier_elu",
+  "group": "c8",
+  "seed": 123,
+  "train_mode": "C",
+  "geometry_group": "c8",
+  "growth_rate": 4,
+  "bispectrum_head": null,
+  "n_params": 109815,
+  "invariant_dim": 34,
+  "train_size": 500,
+  "train_examples": 500,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 10000,
+  "bispectrum_version": "0.4.0",
+  "epochs": 30,
+  "early_stopping_patience": 0,
+  "best_epoch": 6,
+  "best_val_auc": 0.8777565639288235,
+  "test": {
+    "loss": 0.47908514700247906,
+    "accuracy": 0.788818359375,
+    "auc": 0.86804096599671
+  },
+  "test_c": {
+    "loss": 0.47908514700247906,
+    "accuracy": 0.788818359375,
+    "auc": 0.86804096599671
+  },
+  "test_final": {
+    "loss": 0.6683130826568231,
+    "accuracy": 0.76934814453125,
+    "auc": 0.8566499463314092
+  },
+  "test_r": {
+    "loss": 0.0,
+    "accuracy": 0.7725105285644531,
+    "auc": 0.8595964726814149
+  },
+  "rotation_robustness": {
+    "g00": {
+      "accuracy": 0.788818359375,
+      "auc": 0.86804096599671
+    },
+    "g01": {
+      "accuracy": 0.75634765625,
+      "auc": 0.851311872580207
+    },
+    "g02": {
+      "accuracy": 0.788604736328125,
+      "auc": 0.8678301853078569
+    },
+    "g03": {
+      "accuracy": 0.75634765625,
+      "auc": 0.8513124201979808
+    },
+    "g04": {
+      "accuracy": 0.78863525390625,
+      "auc": 0.8678278234733766
+    },
+    "g05": {
+      "accuracy": 0.75634765625,
+      "auc": 0.8513123531427432
+    },
+    "g06": {
+      "accuracy": 0.78863525390625,
+      "auc": 0.8678264227639687
+    },
+    "g07": {
+      "accuracy": 0.75634765625,
+      "auc": 0.8513097379884763
+    },
+    "mean_auc": 0.8595964726814149,
+    "std_auc": 0.008285133055479017,
+    "mean_accuracy": 0.7725105285644531,
+    "std_accuracy": 0.01616298305463634
+  },
+  "wall_time_s": 8829.852042675018,
+  "epochs_run": 30,
+  "peak_train_alloc_bytes": 21190124032,
+  "peak_train_reserved_bytes": 26780631040,
+  "gpu_name": "NVIDIA A100 80GB PCIe",
+  "cuda_total_memory_bytes": 85094825984,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "argv": [
+    "--model",
+    "fourier_elu",
+    "--growth_rate",
+    "4",
+    "--train_mode",
+    "C",
+    "--output_dir",
+    "./pcam_results_data_pareto/n_500",
+    "--seed",
+    "123",
+    "--epochs",
+    "30",
+    "--train_size",
+    "500",
+    "--batch_size",
+    "64"
+  ]
+}

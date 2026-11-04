@@ -1,0 +1,12 @@
+{
+  "id": "137da043dc17",
+  "label": "pcam_matched_norm_gr4_C_n12500_seed42",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 2,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 7341.6,
+  "finished": "2026-11-03T19:20:34",
+  "results_json": "experiments/pcam/pcam_results_pareto/norm_c8_gr4_C_seed42_n12500/results.json"
+}

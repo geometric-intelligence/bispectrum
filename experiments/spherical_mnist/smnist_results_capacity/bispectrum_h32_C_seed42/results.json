@@ -6,48 +6,60 @@
   "test_rotation_seed": 777,
   "seed": 42,
   "lmax": 15,
-  "n_params": 25402,
-  "invariant_dim": 768,
+  "n_params": 25146,
+  "invariant_dim": 760,
+  "active_invariant_dim": 760,
+  "bispectrum_features": "full",
   "train_size": null,
   "train_examples": 50000,
-  "best_val_accuracy": 0.9319,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 50000,
+  "bispectrum_version": "0.4.0",
+  "epochs": 30,
+  "early_stopping_patience": 0,
+  "best_epoch": 28,
+  "best_val_accuracy": 0.9441,
+  "test_final": {
+    "loss": 0.19325817922353744,
+    "accuracy": 0.9393
+  },
   "test_c": {
-    "loss": 0.24257210668325424,
-    "accuracy": 0.9268
+    "loss": 0.19397720333337784,
+    "accuracy": 0.9384
   },
   "test": {
-    "loss": 0.24257210668325424,
-    "accuracy": 0.9268
+    "loss": 0.19397720333337784,
+    "accuracy": 0.9384
   },
   "test_nr": {
-    "loss": 0.24257210668325424,
-    "accuracy": 0.9268
+    "loss": 0.19397720333337784,
+    "accuracy": 0.9384
   },
   "test_r": {
-    "loss": 0.24475418244600297,
-    "accuracy": 0.927
+    "loss": 0.19409936755895615,
+    "accuracy": 0.9386
   },
   "rotation_robustness": {
-    "rot_00": 0.9267,
-    "rot_01": 0.9264,
-    "rot_02": 0.9268,
-    "rot_03": 0.9264,
-    "rot_04": 0.9267,
-    "rot_05": 0.9267,
-    "rot_06": 0.9266,
-    "rot_07": 0.9269,
-    "rot_08": 0.9264,
-    "rot_09": 0.9266,
-    "mean_accuracy": 0.92662,
-    "std_accuracy": 0.0001661324772583432
+    "rot_00": 0.9384,
+    "rot_01": 0.9385,
+    "rot_02": 0.9385,
+    "rot_03": 0.9387,
+    "rot_04": 0.9382,
+    "rot_05": 0.9387,
+    "rot_06": 0.9384,
+    "rot_07": 0.9384,
+    "rot_08": 0.9385,
+    "rot_09": 0.9387,
+    "mean_accuracy": 0.9385,
+    "std_accuracy": 0.0001549193338482796
   },
-  "wall_time_s": 85.53799247741699,
-  "epochs_run": 20,
-  "peak_train_alloc_bytes": 418540032,
-  "peak_train_reserved_bytes": 891289600,
-  "gpu_name": "NVIDIA A100 80GB PCIe",
-  "cuda_total_memory_bytes": 85094825984,
-  "git_sha": "c21824e889a54833905c4b361773d3a77da79445",
+  "wall_time_s": 32.90838432312012,
+  "epochs_run": 30,
+  "peak_train_alloc_bytes": 596782080,
+  "peak_train_reserved_bytes": 1161822208,
+  "gpu_name": "NVIDIA H100 80GB HBM3",
+  "cuda_total_memory_bytes": 85028372480,
+  "git_sha": "c215e2bd8eac926f5b83723926023629f86f9f7a",
   "argv": [
     "--model",
     "bispectrum",
@@ -60,9 +72,7 @@
     "--seed",
     "42",
     "--epochs",
-    "50",
-    "--patience",
-    "10",
+    "30",
     "--output_dir",
     "./smnist_results_capacity"
   ]

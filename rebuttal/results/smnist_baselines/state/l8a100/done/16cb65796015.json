@@ -1,0 +1,12 @@
+{
+  "id": "16cb65796015",
+  "label": "bispectrum_bs32_lr1e-3_C_seed456_n12500",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 7,
+  "git_sha": "6b872bf72b95394fc26faf450dfc13e521b22f2f",
+  "attempt": 1,
+  "wall_time_s": 120.0,
+  "finished": "2026-11-04T20:34:00",
+  "results_json": "experiments/spherical_mnist/smnist_results_baselines_data/bispectrum_bs32_lr1e-3_C_seed456_n12500/results.json"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "d5e194dcb713",
+  "label": "organ3d_bispectrum_ch4_8_C_n100_seed3",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 0,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 850.2,
+  "finished": "2026-11-04T04:28:55",
+  "results_json": "experiments/organ3d/organ3d_results/bispectrum_C_ch4_8_seed3_n100/results.json"
+}

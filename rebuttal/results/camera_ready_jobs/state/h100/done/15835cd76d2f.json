@@ -1,0 +1,12 @@
+{
+  "id": "15835cd76d2f",
+  "label": "pcam_matched_bispectrum_gr12_C_n12500_seed42",
+  "exit_code": 0,
+  "host": "lambda-1xh100",
+  "gpu": 0,
+  "git_sha": "65509936e402052f684c2265795e951818467cab",
+  "attempt": 1,
+  "wall_time_s": 4790.2,
+  "finished": "2026-11-04T02:34:54",
+  "results_json": "experiments/pcam/pcam_results_pareto/bispectrum_c8_gr12_C_seed42_n12500/results.json"
+}

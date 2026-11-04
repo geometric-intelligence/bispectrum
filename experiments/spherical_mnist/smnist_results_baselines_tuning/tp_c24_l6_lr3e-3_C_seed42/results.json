@@ -1,0 +1,93 @@
+{
+  "dataset": "spherical_mnist",
+  "model": "tp_c24_l6_lr3e-3",
+  "base_model": "tensor_product",
+  "train_mode": "C",
+  "test_rotation_seed": 777,
+  "seed": 42,
+  "lmax": 15,
+  "n_params": 385819,
+  "invariant_dim": 72,
+  "active_invariant_dim": 72,
+  "bispectrum_features": "full",
+  "baseline_config": {
+    "channels": 24,
+    "hidden_lmax": 6,
+    "layers": 3,
+    "input_lmax": 15
+  },
+  "lr": 0.003,
+  "batch_size": 256,
+  "train_size": null,
+  "train_examples": 50000,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 50000,
+  "bispectrum_version": "0.4.0",
+  "epochs": 30,
+  "early_stopping_patience": 0,
+  "best_epoch": 20,
+  "best_val_accuracy": 0.9677,
+  "test_final": {
+    "loss": 0.2145504543185234,
+    "accuracy": 0.9605
+  },
+  "test_c": {
+    "loss": 0.17725120216608048,
+    "accuracy": 0.9596
+  },
+  "test": {
+    "loss": 0.17725120216608048,
+    "accuracy": 0.9596
+  },
+  "test_nr": {
+    "loss": 0.17725120216608048,
+    "accuracy": 0.9596
+  },
+  "test_r": {
+    "loss": 0.17509172681570054,
+    "accuracy": 0.9604
+  },
+  "rotation_robustness": {
+    "rot_00": 0.9603,
+    "rot_01": 0.9602,
+    "rot_02": 0.9602,
+    "rot_03": 0.9604,
+    "rot_04": 0.9603,
+    "rot_05": 0.9602,
+    "rot_06": 0.9603,
+    "rot_07": 0.9602,
+    "rot_08": 0.9606,
+    "rot_09": 0.9605,
+    "mean_accuracy": 0.9603200000000001,
+    "std_accuracy": 0.0001326649916142014
+  },
+  "wall_time_s": 4630.148785352707,
+  "epochs_run": 30,
+  "peak_train_alloc_bytes": 221918720,
+  "peak_train_reserved_bytes": 268435456,
+  "gpu_name": "NVIDIA A100-SXM4-40GB",
+  "cuda_total_memory_bytes": 42405855232,
+  "git_sha": "2f417fd60e07cb340177c4d6a0170b8ec9d3fc03",
+  "argv": [
+    "--model",
+    "tensor_product",
+    "--tp_channels",
+    "24",
+    "--tp_lmax",
+    "6",
+    "--lr",
+    "3e-3",
+    "--run_label",
+    "tp_c24_l6_lr3e-3",
+    "--train_mode",
+    "C",
+    "--seed",
+    "42",
+    "--output_dir",
+    "./smnist_results_baselines_tuning",
+    "--epochs",
+    "30",
+    "--data_dir",
+    "./smnist_data"
+  ]
+}

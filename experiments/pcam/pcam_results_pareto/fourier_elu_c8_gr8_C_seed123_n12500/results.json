@@ -1,0 +1,104 @@
+{
+  "dataset": "pcam",
+  "model": "fourier_elu",
+  "group": "c8",
+  "seed": 123,
+  "train_mode": "C",
+  "geometry_group": "c8",
+  "growth_rate": 8,
+  "bispectrum_head": null,
+  "n_params": 371787,
+  "invariant_dim": 62,
+  "train_size": 12500,
+  "train_examples": 12500,
+  "min_epoch_samples": 10000,
+  "epoch_samples": 12500,
+  "bispectrum_version": "0.4.0",
+  "epochs": 30,
+  "early_stopping_patience": 0,
+  "best_epoch": 26,
+  "best_val_auc": 0.9369944141199558,
+  "test": {
+    "loss": 0.42795062153891195,
+    "accuracy": 0.817169189453125,
+    "auc": 0.9058749317671048
+  },
+  "test_c": {
+    "loss": 0.42795062153891195,
+    "accuracy": 0.817169189453125,
+    "auc": 0.9058749317671048
+  },
+  "test_final": {
+    "loss": 0.4241739955468802,
+    "accuracy": 0.8197021484375,
+    "auc": 0.9108541445130597
+  },
+  "test_r": {
+    "loss": 0.0,
+    "accuracy": 0.810882568359375,
+    "auc": 0.896473975581023
+  },
+  "rotation_robustness": {
+    "g00": {
+      "accuracy": 0.817169189453125,
+      "auc": 0.9058749317671048
+    },
+    "g01": {
+      "accuracy": 0.803985595703125,
+      "auc": 0.8870798851062147
+    },
+    "g02": {
+      "accuracy": 0.8179931640625,
+      "auc": 0.9058581307047918
+    },
+    "g03": {
+      "accuracy": 0.803985595703125,
+      "auc": 0.8870901259311146
+    },
+    "g04": {
+      "accuracy": 0.8179931640625,
+      "auc": 0.90585827599114
+    },
+    "g05": {
+      "accuracy": 0.803955078125,
+      "auc": 0.8870825337881004
+    },
+    "g06": {
+      "accuracy": 0.8179931640625,
+      "auc": 0.9058559886624792
+    },
+    "g07": {
+      "accuracy": 0.803985595703125,
+      "auc": 0.8870919326972392
+    },
+    "mean_auc": 0.896473975581023,
+    "std_auc": 0.009387858421729525,
+    "mean_accuracy": 0.810882568359375,
+    "std_accuracy": 0.006909216082042368
+  },
+  "wall_time_s": 15645.069405317307,
+  "epochs_run": 30,
+  "peak_train_alloc_bytes": 36678939648,
+  "peak_train_reserved_bytes": 52915339264,
+  "gpu_name": "NVIDIA A100 80GB PCIe",
+  "cuda_total_memory_bytes": 85094825984,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "argv": [
+    "--model",
+    "fourier_elu",
+    "--growth_rate",
+    "8",
+    "--train_mode",
+    "C",
+    "--output_dir",
+    "./pcam_results_pareto",
+    "--seed",
+    "123",
+    "--train_size",
+    "12500",
+    "--epochs",
+    "30",
+    "--batch_size",
+    "64"
+  ]
+}

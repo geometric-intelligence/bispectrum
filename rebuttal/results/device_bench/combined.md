@@ -1,15 +1,15 @@
 | Device | Backend | PyTorch | Module | Median ms | Status |
 |---|---|---|---|---:|---|
-| NVIDIA A100 80GB PCIe | cuda | 2.11.0+cu130 | CnonCn | 0.158 | ok |
-| NVIDIA A100 80GB PCIe | cuda | 2.11.0+cu130 | TorusOnTorus | 0.098 | ok |
-| NVIDIA A100 80GB PCIe | cuda | 2.11.0+cu130 | DnonDn | 0.642 | ok |
-| NVIDIA A100 80GB PCIe | cuda | 2.11.0+cu130 | SO2onDisk | 0.342 | ok |
-| NVIDIA A100 80GB PCIe | cuda | 2.11.0+cu130 | SO3onS2 | 0.232 | ok |
-| NVIDIA A100 80GB PCIe | cuda | 2.11.0+cu130 | OctaonOcta | 0.812 | ok |
-| x86_64 | cpu | 2.11.0+cu130 | CnonCn | 0.082 | ok |
-| x86_64 | cpu | 2.11.0+cu130 | TorusOnTorus | 84.874 | ok |
-| x86_64 | cpu | 2.11.0+cu130 | DnonDn | 97.028 | ok |
-| x86_64 | cpu | 2.11.0+cu130 | SO2onDisk | 58.405 | ok |
-| x86_64 | cpu | 2.11.0+cu130 | SO3onS2 | 402.028 | ok |
-| x86_64 | cpu | 2.11.0+cu130 | OctaonOcta | 239.000 | ok |
+| NVIDIA H100 80GB HBM3 | cuda | 2.11.0+cu128 | CnonCn | 0.117 | ok |
+| NVIDIA H100 80GB HBM3 | cuda | 2.11.0+cu128 | TorusOnTorus | 0.069 | ok |
+| NVIDIA H100 80GB HBM3 | cuda | 2.11.0+cu128 | DnonDn | 0.460 | ok |
+| NVIDIA H100 80GB HBM3 | cuda | 2.11.0+cu128 | SO2onDisk | 0.205 | ok |
+| NVIDIA H100 80GB HBM3 | cuda | 2.11.0+cu128 | SO3onS2 | 0.198 | ok |
+| NVIDIA H100 80GB HBM3 | cuda | 2.11.0+cu128 | OctaonOcta | 0.576 | ok |
+| x86_64 | cpu | 2.11.0+cu128 | CnonCn | 0.057 | ok |
+| x86_64 | cpu | 2.11.0+cu128 | TorusOnTorus | 0.127 | ok |
+| x86_64 | cpu | 2.11.0+cu128 | DnonDn | 0.307 | ok |
+| x86_64 | cpu | 2.11.0+cu128 | SO2onDisk | 0.126 | ok |
+| x86_64 | cpu | 2.11.0+cu128 | SO3onS2 | 6.333 | ok |
+| x86_64 | cpu | 2.11.0+cu128 | OctaonOcta | 0.277 | ok |
 Wrote /home/johmathe/bispectrum/rebuttal/results/device_bench/combined.json

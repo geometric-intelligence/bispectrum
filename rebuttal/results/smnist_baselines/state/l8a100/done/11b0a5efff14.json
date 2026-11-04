@@ -1,0 +1,12 @@
+{
+  "id": "11b0a5efff14",
+  "label": "tp_c16_l4_lr3e-3_C_seed42",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 5,
+  "git_sha": "2f417fd60e07cb340177c4d6a0170b8ec9d3fc03",
+  "attempt": 1,
+  "wall_time_s": 2490.2,
+  "finished": "2026-11-04T06:03:22",
+  "results_json": "experiments/spherical_mnist/smnist_results_baselines_tuning/tp_c16_l4_lr3e-3_C_seed42/results.json"
+}

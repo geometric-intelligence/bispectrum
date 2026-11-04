@@ -1,0 +1,12 @@
+{
+  "id": "1fbb4b69f0f6",
+  "label": "pcam_full_fourier_elu_gr4_C_nfull_seed42",
+  "exit_code": 0,
+  "host": "bongo",
+  "gpu": 1,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 32791.9,
+  "finished": "2026-11-03T06:26:35",
+  "results_json": "experiments/pcam/pcam_results_data_pareto/n_full/fourier_elu_c8_gr4_C_seed42/results.json"
+}

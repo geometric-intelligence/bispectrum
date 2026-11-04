@@ -1,0 +1,12 @@
+{
+  "id": "28f650208821",
+  "label": "organ3d_bispectrum_ch4_8_C_n250_seed2",
+  "exit_code": 0,
+  "host": "bongo",
+  "gpu": 0,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 695.1,
+  "finished": "2026-11-03T18:35:43",
+  "results_json": "experiments/organ3d/organ3d_results/bispectrum_C_ch4_8_seed2_n250/results.json"
+}

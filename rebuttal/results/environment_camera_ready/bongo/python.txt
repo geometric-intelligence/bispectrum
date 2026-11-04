@@ -1,0 +1,8 @@
+Python: 3.12.13
+Platform: Linux-5.15.0-198-generic-x86_64-with-glibc2.35
+bispectrum: 0.4.0
+PyTorch: 2.11.0+cu130
+CUDA runtime: 13.0
+CUDA available: True
+GPU 0: NVIDIA A100 80GB PCIe (8, 0)
+GPU 1: NVIDIA A100 80GB PCIe (8, 0)

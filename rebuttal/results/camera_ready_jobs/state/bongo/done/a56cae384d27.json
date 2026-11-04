@@ -1,0 +1,12 @@
+{
+  "id": "a56cae384d27",
+  "label": "pcam_12500_so2_disk_bl30_C_n12500_seed123",
+  "exit_code": 0,
+  "host": "bongo",
+  "gpu": 0,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 310.0,
+  "finished": "2026-11-03T20:29:08",
+  "results_json": "experiments/pcam/pcam_results_data_pareto/n_12500/so2_disk_bl30_C_seed123_n12500/results.json"
+}

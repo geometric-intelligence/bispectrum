@@ -1,0 +1,12 @@
+{
+  "id": "3a36b6359d2b",
+  "label": "pcam_full_norm_gr4_C_nfull_seed456",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 3,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 27420.3,
+  "finished": "2026-11-03T12:57:24",
+  "results_json": "experiments/pcam/pcam_results_data_pareto/n_full/norm_c8_gr4_C_seed456/results.json"
+}

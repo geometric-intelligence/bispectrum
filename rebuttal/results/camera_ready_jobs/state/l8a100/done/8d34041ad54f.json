@@ -1,0 +1,12 @@
+{
+  "id": "8d34041ad54f",
+  "label": "organ3d_standard_ch4_8_R_n250_seed789",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 4,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 350.1,
+  "finished": "2026-11-03T18:34:28",
+  "results_json": "experiments/organ3d/organ3d_results/standard_R_ch4_8_seed789_n250/results.json"
+}

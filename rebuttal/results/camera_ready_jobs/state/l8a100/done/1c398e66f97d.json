@@ -1,0 +1,12 @@
+{
+  "id": "1c398e66f97d",
+  "label": "organ3d_max_pool_ch16_32_C_nfull_seed3",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 1,
+  "git_sha": "a814e56345485385b8bfaf4636f05fd37fe1c999",
+  "attempt": 1,
+  "wall_time_s": 4856.0,
+  "finished": "2026-11-03T16:46:51",
+  "results_json": "experiments/organ3d/organ3d_results/max_pool_C_ch16_32_seed3/results.json"
+}

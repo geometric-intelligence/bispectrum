@@ -1,0 +1,12 @@
+{
+  "id": "cd091e356d5d",
+  "label": "s2cnn_bn_C_seed123_n100",
+  "exit_code": 0,
+  "host": "l8a100",
+  "gpu": 5,
+  "git_sha": "6b872bf72b95394fc26faf450dfc13e521b22f2f",
+  "attempt": 1,
+  "wall_time_s": 155.0,
+  "finished": "2026-11-04T20:50:35",
+  "results_json": "experiments/spherical_mnist/smnist_results_baselines_data/s2cnn_bn_C_seed123_n100/results.json"
+}
