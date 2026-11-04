@@ -37,8 +37,8 @@
 #
 # Environment: SEEDS3 / SEEDS5 / SEEDS10 / MATCHED_SEEDS override the seed sets;
 # PCAM_SIZES / ORGAN3D_WIDTHS narrow a pipeline; MODELS_FILTER passes through to
-# run_matched_sweep.sh; SKIP_TESTS=1 skips pytest at launch; SESSION names the
-# tmux session.
+# run_matched_sweep.sh; BENCH_THREADS lists the pinned CPU thread counts for
+# device timings; SKIP_TESTS=1 skips pytest at launch; SESSION names the tmux session.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -60,6 +60,7 @@ PCAM_SIZES="${PCAM_SIZES:-100 500 2500}"
 ORGAN3D_WIDTHS="${ORGAN3D_WIDTHS:-4_8 8_16 16_32}"
 ORGAN3D_STREAMS="${ORGAN3D_STREAMS:-3}"
 MATCHED_SEEDS="${MATCHED_SEEDS:-$SEEDS3}"
+BENCH_THREADS="${BENCH_THREADS:-1 8}"
 SMOKE_MIN_VAL_ACC="${SMOKE_MIN_VAL_ACC:-0.2}"
 # One BLAS/OpenMP pool per CPU core oversubscribes the host once several runs
 # share it; 8 threads per run is faster on bongo even for a single run.
@@ -178,13 +179,16 @@ smoke_smnist() {
 # Device timings (same protocol as the rebuttal run, new library version).
 # ---------------------------------------------------------------------------
 device_timings() {
-  local tag=$1
-  banner "device timings: $tag"
+  local tag=$1 threads
+  banner "device timings: $tag (CPU threads: $BENCH_THREADS)"
   mkdir -p "$RESULTS/device_bench"
   "$PYTHON" "$REPO_ROOT/rebuttal/benchmark_devices.py" --device cuda \
     --output "$RESULTS/device_bench/${tag}_cuda.json" 2>&1 | tee "$RESULTS/device_bench/${tag}_cuda.log"
-  "$PYTHON" "$REPO_ROOT/rebuttal/benchmark_devices.py" --device cpu \
-    --output "$RESULTS/device_bench/${tag}_host_cpu.json" 2>&1 | tee "$RESULTS/device_bench/${tag}_host_cpu.log"
+  for threads in $BENCH_THREADS; do
+    "$PYTHON" "$REPO_ROOT/rebuttal/benchmark_devices.py" --device cpu --threads "$threads" \
+      --output "$RESULTS/device_bench/${tag}_host_cpu_t${threads}.json" 2>&1 |
+      tee "$RESULTS/device_bench/${tag}_host_cpu_t${threads}.log"
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -286,7 +290,8 @@ analyze() {
     --output "$RESULTS/smnist_ablation/summary.json"
   banner "device timings"
   local jsons=()
-  for f in "$RESULTS"/device_bench/*_cuda.json "$RESULTS"/device_bench/*_host_cpu.json; do
+  for f in "$RESULTS"/device_bench/*_cuda.json "$RESULTS"/device_bench/*_mps.json \
+    "$RESULTS"/device_bench/*_host_cpu_t*.json; do
     [[ -f "$f" ]] && jsons+=("$f")
   done
   if (( ${#jsons[@]} )); then

@@ -23,18 +23,20 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(combined, indent=2) + '\n')
 
-    print('| Device | Backend | PyTorch | Module | Median ms | Status |')
-    print('|---|---|---|---|---:|---|')
+    print('| Device | Backend | Threads | PyTorch | bispectrum | Module | Median ms | Status |')
+    print('|---|---|---:|---|---|---|---:|---|')
     for payload in payloads:
         environment = payload['environment']
         device = environment['device_name']
         backend = environment['device']
+        threads = environment.get('torch_num_threads') if backend == 'cpu' else '—'
         torch_version = environment['torch']
+        version = environment.get('bispectrum_version', '?')
         for result in payload['results']:
             median = '—' if result['median_ms'] is None else f'{result["median_ms"]:.3f}'
             status = result['error'] or 'ok'
             print(
-                f'| {device} | {backend} | {torch_version} | '
+                f'| {device} | {backend} | {threads} | {torch_version} | {version} | '
                 f'{result["module"]} | {median} | {status} |'
             )
     print(f'Wrote {args.output}')

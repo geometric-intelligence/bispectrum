@@ -9,6 +9,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/rebuttal/results/organ3d_regularization}"
 # Optional space-separated list of config labels to run (for splitting the
 # sweep across GPUs). Empty means run everything.
 CONFIG_LABELS="${CONFIG_LABELS:-}"
+SEEDS="${SEEDS:-42 123 456}"
 
 CONFIGS=(
   "max_base|max_pool|1e-4|0.0"
@@ -25,7 +26,7 @@ for config in "${CONFIGS[@]}"; do
   if [[ -n "$CONFIG_LABELS" && " $CONFIG_LABELS " != *" $label "* ]]; then
     continue
   fi
-  for seed in 42 123 456; do
+  for seed in $SEEDS; do
     result="$OUTPUT_DIR/${label}_C_ch16_32_seed${seed}/results.json"
     if [[ -f "$result" ]]; then
       echo "SKIP existing $result"

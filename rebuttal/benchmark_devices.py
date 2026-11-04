@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import statistics
+import subprocess  # nosec B404 - fixed sysctl and git queries
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -14,7 +16,10 @@ from typing import Any
 
 import torch
 
+import bispectrum
 from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onDisk, SO3onS2, TorusOnTorus
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass(frozen=True)
@@ -35,8 +40,41 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--warmup', type=int, default=10)
     parser.add_argument('--repeats', type=int, default=30)
     parser.add_argument('--inner-loops', type=int, default=20)
+    parser.add_argument(
+        '--threads',
+        type=int,
+        default=None,
+        help='torch intra-op threads (default: one per core, unstable on shared hosts)',
+    )
     parser.add_argument('--output', type=Path, required=True)
     return parser.parse_args()
+
+
+def _cpu_model() -> str:
+    if platform.system() == 'Darwin':
+        try:
+            return subprocess.check_output(  # nosec B603 B607 - fixed sysctl query
+                ['sysctl', '-n', 'machdep.cpu.brand_string'], text=True
+            ).strip()
+        except (OSError, subprocess.CalledProcessError):
+            pass
+    cpuinfo = Path('/proc/cpuinfo')
+    if cpuinfo.exists():
+        for line in cpuinfo.read_text().splitlines():
+            if line.startswith('model name'):
+                return line.split(':', 1)[1].strip()
+    return platform.processor() or platform.machine()
+
+
+def _git_sha() -> str | None:
+    try:
+        return subprocess.check_output(  # nosec B603 B607 - fixed git query
+            ['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD'],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
 
 
 def resolve_device(requested: str) -> torch.device:
@@ -159,6 +197,12 @@ def environment(device: torch.device, args: argparse.Namespace) -> dict[str, Any
         'platform': platform.platform(),
         'machine': platform.machine(),
         'processor': platform.processor(),
+        'host': platform.node().split('.')[0],
+        'cpu_model': _cpu_model(),
+        'cpu_count': os.cpu_count(),
+        'torch_num_threads': torch.get_num_threads(),
+        'bispectrum_version': bispectrum.__version__,
+        'git_sha': _git_sha(),
         'torch': torch.__version__,
         'device': str(device),
         'cuda_runtime': torch.version.cuda,
@@ -174,15 +218,16 @@ def environment(device: torch.device, args: argparse.Namespace) -> dict[str, Any
         metadata['device_name'] = torch.cuda.get_device_name(device)
         metadata['compute_capability'] = list(torch.cuda.get_device_capability(device))
     elif device.type == 'mps':
-        metadata['device_name'] = 'Apple Metal Performance Shaders'
+        metadata['device_name'] = f'{metadata["cpu_model"]} (MPS)'
     else:
-        metadata['device_name'] = platform.processor() or platform.machine()
-        metadata['torch_num_threads'] = torch.get_num_threads()
+        metadata['device_name'] = metadata['cpu_model']
     return metadata
 
 
 def main() -> int:
     args = parse_args()
+    if args.threads is not None:
+        torch.set_num_threads(args.threads)
     device = resolve_device(args.device)
     names = ['CnonCn', 'TorusOnTorus', 'DnonDn', 'SO2onDisk', 'SO3onS2', 'OctaonOcta']
     results = [
@@ -204,7 +249,9 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2) + '\n')
 
-    print(f'Device: {payload["environment"]["device_name"]} ({device})')
+    print(
+        f'Device: {payload["environment"]["device_name"]} ({device}, {torch.get_num_threads()} threads)'
+    )
     print('| Module | Settings | Output | Median ms | IQR ms |')
     print('|---|---|---:|---:|---:|')
     for row in results:
