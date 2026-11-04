@@ -112,6 +112,11 @@ class SO2onDisk(nn.Module):
         had ``cond ~ 1e16``.  The default ``output_size`` and feature layout
         change (e.g. 76 instead of 105 at ``L=16``).  Pass ``bandlimit``
         explicitly to reproduce a specific truncation.
+
+    .. versionchanged:: 0.4.1
+        The disk harmonic transform runs in the dtype of the module's buffers
+        instead of always float64, so ``.to(dtype=torch.float32)`` yields
+        complex64 output and the module runs on MPS.
     """
 
     def __init__(
@@ -288,7 +293,7 @@ class SO2onDisk(nn.Module):
         """
         re_part = x[:, self._rc_re_idx]
         im_part = x[:, self._rc_im_idx] * self._rc_is_complex.unsqueeze(0).to(x.dtype)
-        return (re_part + 1j * im_part).to(torch.complex128)
+        return torch.complex(re_part, im_part)
 
     def _complex_to_real(self, a: torch.Tensor) -> torch.Tensor:
         """Convert complex DH coefficients (n >= 0) to real parameter vector.
@@ -301,7 +306,7 @@ class SO2onDisk(nn.Module):
         """
         batch = a.shape[0]
         d_real = self._phi.shape[1]
-        x = torch.zeros(batch, d_real, dtype=torch.float64, device=a.device)
+        x = torch.zeros(batch, d_real, dtype=self._phi.dtype, device=a.device)
         x.scatter_(1, self._rc_re_idx.unsqueeze(0).expand(batch, -1), a.real)
         cmask = self._rc_is_complex
         if cmask.any():
@@ -321,7 +326,7 @@ class SO2onDisk(nn.Module):
             Complex DH coefficients (n >= 0), shape (batch, m_nonneg).
         """
         mask = self._disk_mask
-        f_disk = f[:, mask].to(torch.float64)  # (batch, p_disk)
+        f_disk = f[:, mask].to(self._phi_pinv.dtype)  # (batch, p_disk)
         x_real = f_disk @ self._phi_pinv.T  # (batch, d_real)
         return self._real_to_complex(x_real)
 
@@ -400,7 +405,8 @@ class SO2onDisk(nn.Module):
         batch = beta.shape[0]
         device = beta.device
 
-        a = torch.zeros(batch, self._m_nonneg, dtype=torch.complex128, device=device)
+        complex_dtype = torch.complex64 if self._phi.dtype == torch.float32 else torch.complex128
+        a = torch.zeros(batch, self._m_nonneg, dtype=complex_dtype, device=device)
 
         K_0 = K[0]
         offset = 0

@@ -59,6 +59,19 @@ Or with [uv](https://github.com/astral-sh/uv):
 uv pip install bispectrum
 ```
 
+### Apple silicon (MPS)
+
+`torch-harmonics>=0.9` publishes Linux x86_64 wheels only, so on macOS build it from source before installing `bispectrum`:
+
+```bash
+pip install "torch>=2.10,<2.12" numpy setuptools setuptools-scm
+SETUPTOOLS_SCM_PRETEND_VERSION=0.9.2 pip install --no-build-isolation \
+  "torch-harmonics @ https://github.com/NVIDIA/torch-harmonics/archive/refs/tags/v0.9.2.tar.gz"
+pip install bispectrum
+```
+
+MPS has no float64, and the precomputed tables are float64, so move modules with `module.to(device='mps', dtype=torch.float32)`.
+
 ### Development
 
 ```bash
