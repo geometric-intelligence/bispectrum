@@ -2,22 +2,23 @@
     \centering
     \caption{Benchmark summary for the \texttt{bispectrum} library.
     Coefficient counts compare the selective ($O(|G|)$) and full ($O(|G|^2)$) bispectra.
-    Timings are median wall-clock on a single NVIDIA A100 GPU (batch\,=\,16 for forward, 4 for inversion).
+    Timings are median wall-clock on a single NVIDIA H100 80GB HBM3 (batch\,=\,16 for forward, 4 for inversion),
+    with autograd enabled (Sel.) and under \texttt{torch.inference\_mode()} (Inf.).
     ``--'' indicates the mode is not implemented.}
     \label{tab:benchmarks}
     \small
-    \begin{tabular}{llrrrrrr}
+    \begin{tabular}{llrrrrrrr}
         \toprule
-        Module & $G$ & $|G|$ & \multicolumn{2}{c}{Coefs} & \multicolumn{2}{c}{Fwd (ms)} & Inv (ms) \\
-        \cmidrule(lr){4-5} \cmidrule(lr){6-7}
-         & & & Sel. & Full & Sel. & Full & Sel. \\
+        Module & $G$ & $|G|$ & \multicolumn{2}{c}{Coefs} & \multicolumn{3}{c}{Fwd (ms)} & Inv (ms) \\
+        \cmidrule(lr){4-5} \cmidrule(lr){6-8}
+         & & & Sel. & Full & Sel. & Inf. & Full & Sel. \\
         \midrule
-        \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8256 & 0.15 & 9.17 & 8.56 \\
-        \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 524800 & 0.08 & 0.71 & 68.02 \\
-        \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 2.52 & -- & 42.33 \\
-        \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & 1024 & 411 & -- & 1.94 & -- & 17.69 \\
-        \texttt{SO3onS2} & $\mathrm{SO}(3)$ & 289 & 430 & -- & 26.54 & -- & -- \\
-        \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.70 & -- & 2172.76 \\
+        \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8256 & 0.14 & 0.13 & 8.81 & 9.18 \\
+        \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1024 & 1024 & 524800 & 0.08 & 0.07 & 0.31 & 66.55 \\
+        \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 0.54 & 0.48 & -- & 45.35 \\
+        \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & 256 & 76 & -- & 0.22 & 0.21 & -- & 2.17 \\
+        \texttt{SO3onS2} & $\mathrm{SO}(3)$ & 289 & 426 & -- & 0.63 & 0.20 & -- & -- \\
+        \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.68 & 0.61 & -- & 915.13 \\
         \bottomrule
     \end{tabular}
 \end{table}

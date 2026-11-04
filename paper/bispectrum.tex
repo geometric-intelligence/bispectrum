@@ -161,7 +161,7 @@ PyTorch library that implements \emph{selective} $G$-bispectra as differentiable
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Software: Pytorch Library.} We implement selective
     $G$-bispectra for \emph{seven group actions} as drop-in differentiable modules with a
-    uniform API unlocking practical deployment across machine learning and deep learning pipelines. We provide an efficient implementation with sub-millisecond GPU forward passes  and a fully unit-tested codebase (96 \% line coverage).
+    uniform API unlocking practical deployment across machine learning and deep learning pipelines. We provide an efficient implementation with sub-millisecond GPU forward passes  and a fully unit-tested codebase (98.4\% line coverage).
   \item \textbf{Theory: Selective Bispectrum for Spherical Rotations}
     We introduce the first selective bispectrum for 3D rotations acting on spherical images, at bandlimit $L$, reducing the cost from $O(L^3)$ to $O(L^2)$ and empirically demonstrate its completeness when augmented with a few power coefficients.
  \item \textbf{Experiments: Unified Evaluation.} We evaluate bispectral
@@ -410,7 +410,7 @@ $O(|G|^2)$ set), precompute CG matrices / DFT kernels / Bessel
 roots as non-learnable buffers, and depend only on
 PyTorch~\citep{paszke2019pytorch}, NumPy~\citep{harris2020numpy},
 and \texttt{torch\_harmonics}~\citep{bonev2023spherical} (for
-\texttt{SO3onS2}). Test suite line coverage is 96.8\%; a minimal
+\texttt{SO3onS2}). Test suite line coverage is 98.4\%; a minimal
 usage example is in Appendix~\ref{app:api-example}.
 
 \begin{table}[tbp]
@@ -438,17 +438,18 @@ usage example is in Appendix~\ref{app:api-example}.
 
 
 \paragraph{Profiling.} \label{sec:benchmarks} We profile the library on a single NVIDIA H100 80\,GB GPU
-(PyTorch 2.10, batch\,=\,16 for the forward pass and 4 for inversion,
+(PyTorch 2.11, \texttt{bispectrum} 0.4.1, batch\,=\,16 for the forward pass and 4 for inversion,
 median wall-clock via \texttt{torch.utils.benchmark}); results are in
 Table~\ref{tab:benchmarks}.
-The selective forward pass is sub-millisecond for all six modules:
-finite abelian groups ($C_n$: 0.14\,ms, $\mathbb{T}^2$: 0.07\,ms),
+With autograd enabled, as in training, the selective forward pass is sub-millisecond for all six modules:
+finite abelian groups ($C_n$: 0.14\,ms, $\mathbb{T}^2$: 0.08\,ms),
 $D_n$ (0.54\,ms), $\mathrm{SO}(2)$ on the disk (0.22\,ms),
-$\mathrm{SO}(3)$ on $S^2$ at $L{=}16$ (0.48\,ms), and the octahedral
-group (0.68\,ms), making it negligible relative to backbone computation.
-GPU throughput scales linearly with batch size, exceeding
-$10^7$~samples/s for $C_n$ and $\mathbb{T}^2$
-(Appendix~\ref{app:bench}). Six modules are presented; the seventh,
+$\mathrm{SO}(3)$ on $S^2$ at $L{=}16$ (0.63\,ms; 0.20\,ms in inference mode, where it replays a
+CUDA graph), and the octahedral group (0.68\,ms), making it negligible relative to backbone computation.
+GPU throughput exceeds $10^7$~samples/s for $C_n$ and $\mathbb{T}^2$
+(Appendix~\ref{app:bench}). The same configurations stay sub-millisecond on an A100 and on Apple
+silicon (MPS); on CPU all but $\mathrm{SO}(3)$ on $S^2$ do
+(Appendix~\ref{app:portability}). Six modules are presented; the seventh,
 \texttt{SO2onS1}, subclasses \texttt{CnonCn} with $n = L{+}1$ and has
 identical runtime to the corresponding \texttt{CnonCn} row at matched
 $|G|$. Coefficient-count scaling and additional plots are in
@@ -458,23 +459,24 @@ Appendix~\ref{app:bench} (Figure~\ref{fig:coeff-scaling}).
   \centering
   \caption{Selective forward pass is sub-millisecond for all modules;
     selectivity reduces coefficients by up to $512\times$.
-    Median wall-clock, NVIDIA H100, batch\,=\,16.
-    ``--'': not implemented.}
+    Median wall-clock, NVIDIA H100, PyTorch 2.11, batch\,=\,16, with autograd
+    enabled (Sel.) and in inference mode (Inf.), where \texttt{SO3onS2} replays a
+    CUDA graph. ``--'': not implemented.}
   \label{tab:benchmarks}
   \small
   \setlength{\tabcolsep}{3.5pt}
-  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}llrrrrr@{}}
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}llrrrrrr@{}}
     \toprule
-    Module & $G$ & $|G|/L$ & \multicolumn{2}{c}{Coefs} & \multicolumn{2}{c}{Fwd (ms)} \\
-    \cmidrule(lr){4-5} \cmidrule(lr){6-7}
-     & & & Sel. & Full & Sel. & Full \\
+    Module & $G$ & $|G|/L$ & \multicolumn{2}{c}{Coefs} & \multicolumn{3}{c}{Fwd (ms)} \\
+    \cmidrule(lr){4-5} \cmidrule(lr){6-8}
+     & & & Sel. & Full & Sel. & Inf. & Full \\
     \midrule
-    \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8{,}256 & 0.14 & 8.90 \\
-    \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1{,}024 & 1{,}024 & 524{,}800 & 0.07 & 0.31 \\
-    \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 0.54 & -- \\
-    \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & $L{=}16$ & 105 & -- & 0.22 & -- \\
-    \texttt{SO3onS2} & $\mathrm{SO}(3)$ & $L{=}16$ & 430 & -- & 0.48 & -- \\
-    \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.68 & -- \\
+    \texttt{CnonCn} & $C_{128}$ & 128 & 128 & 8{,}256 & 0.14 & 0.13 & 8.81 \\
+    \texttt{TorusOnTorus} & $C_{32}{\times}C_{32}$ & 1{,}024 & 1{,}024 & 524{,}800 & 0.08 & 0.07 & 0.31 \\
+    \texttt{DnonDn} & $D_{32}$ & 64 & 245 & -- & 0.54 & 0.48 & -- \\
+    \texttt{SO2onDisk} & $\mathrm{SO}(2)$ & $L{=}16$ & 76 & -- & 0.22 & 0.21 & -- \\
+    \texttt{SO3onS2} & $\mathrm{SO}(3)$ & $L{=}16$ & 426 & -- & 0.63 & 0.20 & -- \\
+    \texttt{OctaonOcta} & $O$ & 24 & 172 & -- & 0.68 & 0.61 & -- \\
     \bottomrule
   \end{tabular*}
 \end{table}
@@ -542,7 +544,7 @@ selective invariant} rather than a bispectrum; the term
 $\mathcal{S}_\beta$. The total size is
 $|\Phi_{\mathrm{sel}}| = \Theta(L^2)$
 (Proposition~\ref{prop:app-output-size}); concretely, at $L=15$
-(resp.\ $L=16$) it produces $384$ (resp.\ $430$) real scalars vs.\
+(resp.\ $L=16$) it produces $380$ (resp.\ $426$) real scalars vs.\
 $2{,}056$ admissible triples in the full bispectrum at $L=15$
 (Table~\ref{tab:app-counts}). Algorithm~\ref{alg:selective-bsp-so3}
 below summarises the bispectral-triple selection; the full index
@@ -741,13 +743,13 @@ rotation invariance on $S^2$.
 \paragraph{Setup.}
 MNIST digits are stereographically projected onto a
 $64\times 128$ equiangular grid; we compute
-$\Phi_{\mathrm{sel}}$ at $\ell_{\max}=15$ ($N=384$ live real
-components, stored as 384 complex tensors by the library), apply
+$\Phi_{\mathrm{sel}}$ at $\ell_{\max}=15$ ($N=380$ live real
+components, stored as 380 complex tensors by the library), apply
 sign-preserving $\operatorname{sign}(x)\log(1+|x|)$ to real and
-imaginary parts ($2N=768$ real channels; one channel per
+imaginary parts ($2N=760$ real channels; one channel per
 bispectral entry is structurally zero by parity but we feed both
 since the log transform is per-channel injective and cheap), and
-feed a 3-layer MLP (232K params). Controls: a power-spectrum MLP at 11K
+feed a 3-layer MLP (230K params). Controls: a power-spectrum MLP at 11K
 params (equally invariant but \emph{incomplete}, discarding
 inter-harmonic phase), a matched 166K-param version isolating
 capacity vs.\ completeness, and a non-invariant CNN directly on the
@@ -785,7 +787,7 @@ measured over 10 random $\SO(3)$ rotations of the test set.
     Power Spec.\ + MLP (matched) & 166K
       & $0.794 {\pm} 0.011$ & $0.794 {\pm} 0.011$ & $0.792 {\pm} 0.010$
       & $3{\times}10^{-4}$ \\
-    \textbf{\texttt{SO3onS2} Bispectrum + MLP (ours)} & 232K
+    \textbf{\texttt{SO3onS2} Bispectrum + MLP (ours)} & 230K
       & $0.950 {\pm} 0.000$ & $\mathbf{0.949 {\pm} 0.002}$
       & $\mathbf{0.951 {\pm} 0.001}$ & $\mathbf{1{\times}10^{-4}}$ \\
     \bottomrule
@@ -1165,10 +1167,10 @@ structurally zero.
     $L$ & Bispectral & CG-power & Total $N=|\Phi_{\mathrm{sel}}|$
         & Stored channels ($2N$) \\
     \midrule
-    $4$  & $24$  & $10$  & $34$  & $68$  \\
-    $5$  & $37$  & $17$  & $54$  & $108$ \\
-    $15$ & $307$ & $77$  & $384$ & $768$ \\
-    $16$ & $348$ & $82$  & $430$ & $860$ \\
+    $4$  & $22$  & $10$  & $32$  & $64$  \\
+    $5$  & $35$  & $17$  & $52$  & $104$ \\
+    $15$ & $303$ & $77$  & $380$ & $760$ \\
+    $16$ & $344$ & $82$  & $426$ & $852$ \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -1508,7 +1510,8 @@ $65\times$ reduction.
 This appendix supplements the summary in Table~\ref{tab:benchmarks}
 (main text) with scaling plots produced by
 \texttt{benchmarks/benchmark.py} on a single NVIDIA H100 80\,GB GPU
-(PyTorch 2.10).
+(PyTorch 2.11, \texttt{bispectrum} 0.4.1), with autograd enabled as during
+training. Section~\ref{app:portability} covers other devices.
 
 \subsection{Coefficient-count scaling}
 
@@ -1534,7 +1537,7 @@ This appendix supplements the summary in Table~\ref{tab:benchmarks}
     ${\sim}$0.14\,ms regardless of $n$, while the full bispectrum
     grows super-linearly (17\,ms at $n{=}256$).
     \textbf{(b)}~$\mathbb{T}^2$: selective is constant at
-    ${\sim}$0.08\,ms up to $|G|{=}65{,}536$.}
+    ${\sim}$0.07\,ms up to $|G|{=}65{,}536$.}
   \label{fig:forward-timing}
 \end{figure}
 
@@ -1551,17 +1554,69 @@ growth and becomes impractical beyond $|G| \approx 256$ for $C_n$.
   \caption{\textbf{(a)}~GPU throughput (samples/s) vs.\ batch size for
     the selective forward pass. $C_n$ and $\mathbb{T}^2$ exceed
     $10^7$~samples/s; the octahedral module reaches
-    $5.7 \times 10^6$~samples/s. All modules scale linearly with batch
-    size.
+    $6.1 \times 10^6$~samples/s. $\SO(3)$ on $S^2$ saturates near
+    $1.9 \times 10^5$~samples/s.
     \textbf{(b)}~Inversion wall-clock time. Abelian groups ($C_n$,
     $D_n$, $\SO(2)$/disk) scale roughly linearly. $\SO(3)$ on $S^2$
     inversion is not yet implemented.}
   \label{fig:gpu-scaling}
 \end{figure}
 
-All modules exhibit linear throughput scaling with batch size, confirming
-that the implementation is memory-bandwidth-bound rather than
-compute-bound at these scales.
+Throughput grows linearly with batch size up to 4{,}096 for $C_n$, $D_n$
+and $O$, and up to 1{,}024 for $\mathbb{T}^2$: per-call cost stays nearly
+constant, consistent with the launch-dominated forward pass above.
+$\SO(3)$ on $S^2$ stops scaling at batch ${\approx}256$, where its
+spherical harmonic transform and Clebsch--Gordan contractions, rather than launch
+overhead, set the cost.
+
+\subsection{Portability across devices and backends}
+\label{app:portability}
+
+Table~\ref{tab:portability} times the selective configurations of
+Table~\ref{tab:benchmarks} on three GPU backends and three host CPUs with a
+single script (\texttt{rebuttal/benchmark\_devices.py}): batch\,=\,16, float32
+input, \texttt{torch.inference\_mode()}, median over 30 repetitions of 20
+forward passes after 10 warm-up passes, PyTorch 2.11, \texttt{bispectrum}
+0.4.1 (0.4.0 on the Linux hosts; the two releases differ only on MPS). Every
+module runs on every backend. All modules are sub-millisecond on the three GPU
+backends, which span two CUDA versions (12.8 and 13.0) and Apple MPS. On CPU,
+every module except \texttt{SO3onS2} is sub-millisecond, and \texttt{SO3onS2}
+takes 2.2--32\,ms depending on host and thread count. CPU rows fix the number
+of intra-op threads: with PyTorch's default of one thread per core, a shared
+128-core host took 402\,ms for \texttt{SO3onS2}. MPS has no float64, so modules
+are cast to float32 there (\texttt{bispectrum} $\geq$ 0.4.1); on CPU and CUDA the
+precomputed tables keep the dtype they are built with, and \texttt{SO2onDisk}
+computes its disk harmonic transform in float64, so the MPS row is not
+precision-matched with the others. We have not measured a consumer NVIDIA GPU.
+
+\begin{table}[h]
+  \centering
+  \caption{Selective forward pass (ms, median) across devices and backends;
+    batch\,=\,16, inference mode. Groups and sizes as in
+    Table~\ref{tab:benchmarks} ($C_{128}$, $C_{32}{\times}C_{32}$, $D_{32}$,
+    disk and $S^2$ at $L{=}16$, $O$), except that $S^2$ is sampled on the
+    $64{\times}128$ Spherical MNIST grid instead of $34{\times}68$;
+    on the H100 both grids take 0.20\,ms.}
+  \label{tab:portability}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lllrrrrrr@{}}
+    \toprule
+    Device & Backend & Threads & $C_n$ & $\mathbb{T}^2$ & $D_n$ & Disk & $S^2$ & $O$ \\
+    \midrule
+    H100 80\,GB & CUDA 12.8 & -- & 0.12 & 0.07 & 0.48 & 0.21 & 0.20 & 0.60 \\
+    A100 80\,GB PCIe & CUDA 13.0 & -- & 0.16 & 0.10 & 0.64 & 0.31 & 0.26 & 0.82 \\
+    Apple M5 Pro & MPS (fp32) & -- & 0.08 & 0.07 & 0.30 & 0.69 & 0.82 & 0.41 \\
+    \midrule
+    Intel Xeon 8480+ & CPU & 1 & 0.05 & 0.18 & 0.29 & 0.16 & 27.8 & 0.25 \\
+     & & 8 & 0.08 & 0.14 & 0.32 & 0.13 & 7.36 & 0.28 \\
+    AMD EPYC 7763 & CPU & 1 & 0.06 & 0.22 & 0.37 & 0.16 & 32.2 & 0.35 \\
+     & & 8 & 0.08 & 0.17 & 0.45 & 0.19 & 5.46 & 0.45 \\
+    Apple M5 Pro & CPU & 1 & 0.02 & 0.10 & 0.10 & 0.04 & 5.75 & 0.11 \\
+     & & 8 & 0.02 & 0.15 & 0.14 & 0.07 & 2.22 & 0.12 \\
+    \bottomrule
+  \end{tabular*}
+\end{table}
 
 \section{PCam: Extended Results}
 \label{app:pcam-details}
@@ -1848,12 +1903,12 @@ permutations on the $3^3$ grid, avoiding interpolation artifacts.
 MNIST digits are projected onto the sphere via stereographic
 projection following \citet{cohen2018spherical} and sampled on a
 $64 \times 128$ equiangular grid. The selective bispectrum is
-computed at $\ell_{\max} = 15$, producing 384 complex invariant
+computed at $\ell_{\max} = 15$, producing 380 complex invariant
 coefficients. The model input is obtained by applying
 $\operatorname{sign}(x)\log(1+|x|)$ separately to the real and
 imaginary parts of each coefficient (a sign-preserving, per-channel
-injective transform), giving 768 real features. These features are
-fed to a 3-layer MLP: Linear(768, 256)--BN--ReLU--Linear(256,
+injective transform), giving 760 real features. These features are
+fed to a 3-layer MLP: Linear(760, 256)--BN--ReLU--Linear(256,
 128)--BN--ReLU--Linear(128, 10). The power spectrum MLP uses the
 same structure with hidden=128: Linear(16, 128)--BN--ReLU--Linear(128,
 64)--BN--ReLU--Linear(64, 10). The standard CNN has 4 convolutional

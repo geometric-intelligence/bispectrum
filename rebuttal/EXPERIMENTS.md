@@ -44,39 +44,42 @@ Purpose: answer yWuC Q4 and fill `[[E1]]`. The script benchmarks the exact
 paper-scale selective configurations at batch 16, including the SHT inside
 `SO3onS2`, and records the environment in each JSON.
 
-On the H100:
+On a Linux GPU host (CUDA, then the host CPU at each of `BENCH_THREADS`, default
+`1 8`):
 
 ```bash
-mkdir -p rebuttal/results/device_bench
-python rebuttal/benchmark_devices.py \
-  --device cuda \
-  --output rebuttal/results/device_bench/h100_cuda.json \
-  | tee rebuttal/results/device_bench/h100_cuda.log
-python rebuttal/benchmark_devices.py \
-  --device cpu \
-  --output rebuttal/results/device_bench/h100_host_cpu.json \
-  | tee rebuttal/results/device_bench/h100_host_cpu.log
+CUDA_VISIBLE_DEVICES=0 bash rebuttal/run_camera_ready.sh timings <tag>  # e.g. h100, a100
 ```
 
-On a consumer NVIDIA GPU, run the same first command but write
-`consumer_cuda.json`. On the Mac, use `--device mps` and `--device cpu` and
-write `mac_mps.json`/`mac_cpu.json`. Unsupported operations are retained as
-explicit errors rather than silently dropped.
+This writes `<tag>_cuda.json` and `<tag>_host_cpu_t<n>.json`. Pin the CPU
+threads: the default (one per core) gave 402 ms for `SO3onS2` on a shared
+128-core host, against 5.5 ms at 8 threads. On a consumer NVIDIA GPU, use a tag
+such as `rtx4090`.
 
-After copying all device JSON files into `rebuttal/results/device_bench/`:
+On the Mac (bispectrum >= 0.4.1; 0.4.0 fails on 4 of the 6 modules under MPS):
+
+```bash
+bash rebuttal/run_device_bench_mac.sh  # m5pro_mps.json, m5pro_host_cpu_t<n>.json
+```
+
+MPS has no float64, so the MPS rows cast each module to float32
+(`environment.module_cast_dtype`); CPU and CUDA keep the float64 tables as built.
+Unsupported operations are retained as explicit errors rather than silently
+dropped.
+
+With all device JSON files in `rebuttal/results/device_bench/`:
 
 ```bash
 python rebuttal/analyze_device_benchmarks.py \
   rebuttal/results/device_bench/*_cuda.json \
   rebuttal/results/device_bench/*_mps.json \
-  rebuttal/results/device_bench/*_cpu.json \
+  rebuttal/results/device_bench/*_host_cpu_t*.json \
   --output rebuttal/results/device_bench/combined.json \
   | tee rebuttal/results/device_bench/combined.md
 ```
 
-If a glob has no matches, list only the files that exist. Expected runtime:
-roughly 5--20 minutes per device; first-time CG/Bessel cache construction can
-dominate.
+Expected runtime: a few minutes per device; first-time CG/Bessel cache
+construction can dominate.
 
 Bring back:
 
@@ -191,21 +194,15 @@ history, then tests five stronger-regularization settings for the bispectral
 model. Model selection remains validation-AUC based; test data are evaluated
 only after training.
 
-Memory smoke tests:
-
-```bash
-python experiments/organ3d/train.py \
-  --model max_pool --channels 16 32 --batch_size 8 \
-  --data_dir experiments/organ3d/organ3d_data --memory_check
-python experiments/organ3d/train.py \
-  --model bispectrum --channels 16 32 --batch_size 4 \
-  --data_dir experiments/organ3d/organ3d_data --memory_check
-```
+Runs use the camera-ready protocol (70 epochs, batch 16, no early stopping);
+each takes ~9 GB of GPU memory, so three fit on a 40 GB A100.
 
 Run 7 configurations x 3 seeds = 21 runs:
 
 ```bash
 bash rebuttal/run_organ3d_regularization.sh
+# or one run per GPU slot:
+CUDA_VISIBLE_DEVICES=3 CONFIG_LABELS=bsp_base SEEDS=42 bash rebuttal/run_organ3d_regularization.sh
 ```
 
 The configurations are max baseline; bispectrum baseline; weight decay

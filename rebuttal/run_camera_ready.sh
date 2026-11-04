@@ -404,9 +404,10 @@ CAPTURABLE="pcam pcam_12500 pcam_full pcam_matched organ3d"
 
 capture() {
   local out_dir pipeline
-  out_dir=$(realpath -m "${1:?usage: $0 capture <out_dir> <pipeline>...}")
+  out_dir="${1:?usage: $0 capture <out_dir> <pipeline>...}"
   shift
   mkdir -p "$out_dir" "$LOG_DIR"
+  out_dir=$(cd "$out_dir" && pwd)
   for pipeline in "$@"; do
     if [[ " $CAPTURABLE " != *" $pipeline "* ]]; then
       echo "capture: '$pipeline' is not one of: $CAPTURABLE" >&2
