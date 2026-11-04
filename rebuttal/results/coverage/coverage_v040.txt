@@ -1,0 +1,45 @@
+bringing up nodes...
+bringing up nodes...
+
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 25%]
+........................................................................ [ 34%]
+........................................................................ [ 42%]
+........................................................................ [ 51%]
+........................................................................ [ 60%]
+........................................................................ [ 68%]
+........................................................................ [ 77%]
+.......sssssss.sssssss.sssss.............s.............................s [ 85%]
+...........s...........................................................s [ 94%]
+................................................                         [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/torch/jit/_script.py:365: 364 warnings
+  /home/johmathe/bispectrum/.venv/lib/python3.12/site-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+tests/test_octa_on_octa.py: 90 warnings
+  /home/johmathe/bispectrum/.venv/lib/python3.12/site-packages/torch/jit/_script.py:1488: DeprecationWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.3-final-0 ________________
+
+Name                               Stmts   Miss  Cover   Missing
+----------------------------------------------------------------
+src/bispectrum/__init__.py            15      0   100%
+src/bispectrum/_bessel.py            129      0   100%
+src/bispectrum/_cg.py                314      4    99%   295-296, 321, 536
+src/bispectrum/cn_on_cn.py            69      0   100%
+src/bispectrum/dn_on_dn.py           402     13    97%   90-92, 117, 135, 137, 178-183, 203
+src/bispectrum/octa_on_octa.py       284     11    96%   261-269, 296, 307
+src/bispectrum/rotation.py            57      0   100%
+src/bispectrum/so2_on_disk.py        213      0   100%
+src/bispectrum/so2_on_s1.py            4      0   100%
+src/bispectrum/so3_on_s2.py          582      5    99%   365, 746-748, 1147
+src/bispectrum/torus_on_torus.py     138      0   100%
+----------------------------------------------------------------
+TOTAL                               2207     33    99%
+Coverage JSON written to file rebuttal/results/coverage/coverage_v040.json
+817 passed, 23 skipped, 454 warnings in 166.74s (0:02:46)
