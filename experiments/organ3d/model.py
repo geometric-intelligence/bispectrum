@@ -42,8 +42,8 @@ class BispectrumHead:
     Attributes:
         nonlin: ``'post'`` applies the ReLU after the 1x1 projection. ``'pre'`` is the
             original head: ReLU on the signed-log bispectrum *before* the projection,
-            which zeroes every negative entry and so discards most of the phase
-            information that makes the bispectrum complete.
+            which zeroes every negative entry, so the projection sees an
+            input-dependent subset of the invariant.
         power: Append the per-irrep power spectrum ``||F(rho_k)||_F^2`` of each channel.
             The selective bispectrum reaches rho_2..rho_4 only through ``F(rho_1)``, so a
             channel with small ``F(rho_1)`` is otherwise nearly invisible.

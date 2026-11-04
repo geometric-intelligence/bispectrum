@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Build the 3x3 experiment grid figure (bars + param/data efficiency curves).
+"""Build the 2x3 G-bispectral pooling grid figure (bars + param/data efficiency curves).
 
-Rows: PCam (C8), OrganMNIST3D (octahedral O), Spherical MNIST (SO(3)).
+Rows (ROW_ORDER): OrganMNIST3D (octahedral O), PCam (C8). Spherical MNIST is not a
+pooling experiment (fixed invariant + MLP head) and has its own figure and protocol
+table in make_smnist_figure.py, which reuses the loaders and drawing helpers below.
 Columns:
     1. OOD rotation robustness — canonical vs rotated test, bar pairs.
     2. Parameter efficiency    — rotated-test metric vs trainable params.
@@ -12,8 +14,6 @@ Protocol (consistent across rows):
       G-augmentation (train_mode R); invariant models are C-trained.
     - All line plots report the rotated (OOD) test metric, mean +/- std
       over seeds.
-    - Cohen et al. (2018) S2CNN is shown as a published-reference dashed
-      line in the Spherical MNIST row (cited, not re-run).
 
 Usage:
     # Real data (after syncing results dirs from the GPU machines):
@@ -27,7 +27,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -40,16 +42,21 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, NullFormatter, NullLocator
 from numpy.typing import NDArray
 
 FloatArray = NDArray[np.float64]
 LegendHandle = Line2D | Patch
 
 EXPERIMENTS_DIR: Final = Path(__file__).parent
-PANEL_SIZE: Final = (4.0, 3.0)
-
-COHEN_S2CNN_NRR: Final = 0.94  # Cohen et al. (2018), NR/R accuracy, published.
+# Final print size: NeurIPS text width is 5.5 in.
+PANEL_SIZE: Final = (1.75, 1.35)
+SHEET_WIDTH: Final = 5.5
+SHEET_ROW_HEIGHT: Final = 0.851  # inches per axes row; 2 rows -> a 5.5 x 3.3 in sheet
+SHEET_HSPACE: Final = 0.62
+SHEET_BOTTOM: Final = 0.36
+LEGEND_ROW_HEIGHT: Final = 0.13
+BAR_YLIM: Final = (0.5, 1.0)
 
 # Protocol markers used to reject stale results.json files (see _is_current).
 SAMPLE_FLOOR: Final = 10_000  # default --min_epoch_samples in experiments/*/train.py
@@ -71,13 +78,6 @@ class MethodStyle:
 
 
 @dataclass(frozen=True)
-class ReferenceLine:
-    value: float
-    label: str
-    linestyle: str = '--'
-
-
-@dataclass(frozen=True)
 class BarPanel:
     methods: tuple[str, ...]
     original: FloatArray
@@ -85,8 +85,6 @@ class BarPanel:
     original_error: FloatArray
     ood_error: FloatArray
     ylabel: str
-    ylim: tuple[float, float]
-    reference: ReferenceLine | None = None
 
 
 @dataclass(frozen=True)
@@ -101,50 +99,62 @@ class CurveSeries:
 class CurvePanel:
     series: tuple[CurveSeries, ...]
     ylabel: str
-    ylim: tuple[float, float]
+    ylim: tuple[float, float] | None = None
     xticks: tuple[float, ...] | None = None
     xticklabels: tuple[str, ...] | None = None
-    reference: ReferenceLine | None = None
 
 
 @dataclass(frozen=True)
 class RowData:
+    dataset: str
     bar: BarPanel
     params: CurvePanel
     data: CurvePanel
 
 
-GridData = tuple[RowData, RowData, RowData]
+GridData = tuple[RowData, ...]
 
 
 METHOD_STYLE: Final[dict[str, MethodStyle]] = {
-    # Non-equivariant CNN baselines, trained with G-augmentation.
+    # Non-equivariant CNN baselines (3D for OrganMNIST3D), trained with G-augmentation.
     'standard': MethodStyle('Aug. CNN', '#888888', 's'),
-    'standard_3d': MethodStyle('Aug. 3D CNN', '#888888', 's'),
+    'standard_3d': MethodStyle('Aug. CNN', '#888888', 's'),
     'standard_s2': MethodStyle('Aug. CNN', '#888888', 's'),
     # Equivariant-pooling baselines.
     'norm': MethodStyle('NormReLU', '#2196F3', 'o'),
     'gate': MethodStyle('Gated', '#FF9800', '^'),
     'fourier_elu': MethodStyle('Fourier-ELU', '#9C27B0', 'D'),
-    'max_pool': MethodStyle('Max Pool', '#00897B', 'P'),
-    # Incomplete second-order invariants (shared color family across rows).
-    'norm_pool': MethodStyle('Norm pool', '#5C6BC0', 'v'),
-    'power_spectrum': MethodStyle('Power spectrum', '#5C6BC0', 'v'),
+    'max_pool': MethodStyle('Max pool', '#00897B', 'P'),
+    # Incomplete second-order invariants (shared style across rows).
+    'norm_pool': MethodStyle('Norm pool', '#6D4C41', 'v'),
+    'power_spectrum': MethodStyle('Power spectrum', '#6D4C41', 'v'),
     # Complete invariant (ours).
     'bispectrum': MethodStyle('Bispectrum', '#E53935', '*'),
 }
 
-ROW_METHODS: Final[tuple[tuple[str, ...], ...]] = (
-    ('standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum'),
-    ('standard_3d', 'norm_pool', 'max_pool', 'bispectrum'),
-    ('standard_s2', 'power_spectrum', 'bispectrum'),
+SHARED_LEGEND: Final = (
+    ('bispectrum', 'Bispectrum (ours)'),
+    ('max_pool', 'Max pool'),
+    ('norm_pool', 'Norm pool'),
+    ('standard', 'Aug. CNN'),
+    ('norm', 'NormReLU'),
+    ('gate', 'Gated'),
+    ('fourier_elu', 'Fourier-ELU'),
 )
 
-ROW_LABELS: Final = (
-    r'PCam — $C_8$ rotations',
-    r'OrganMNIST3D — octahedral $O$',
-    r'Spherical MNIST — $\mathrm{SO}(3)$',
-)
+ROW_ORDER: Final = ('organ3d', 'pcam')
+
+ROW_METHODS: Final[dict[str, tuple[str, ...]]] = {
+    'pcam': ('standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum'),
+    'organ3d': ('standard_3d', 'norm_pool', 'max_pool', 'bispectrum'),
+    'smnist': ('standard_s2', 'power_spectrum', 'bispectrum'),
+}
+
+ROW_LABELS: Final[dict[str, str]] = {
+    'pcam': 'PCam\n' + r'$C_8$, test AUC',
+    'organ3d': 'OrganMNIST3D\n' + r'octahedral $O$, accuracy',
+    'smnist': 'Spherical MNIST\n' + r'$\mathrm{SO}(3)$, accuracy',
+}
 
 COLUMN_LABELS: Final = (
     'OOD rotation robustness',
@@ -152,41 +162,21 @@ COLUMN_LABELS: Final = (
     'Data efficiency',
 )
 
-# Shared across rows so vertical distances are comparable within each column.
-COLUMN_YLIMS: Final[tuple[tuple[float, float], ...]] = (
-    (0.5, 1.0),
-    (0.5, 1.0),
-    (0.0, 1.0),
-)
-
-PANEL_FILENAMES: Final = (
-    ('grid_r1c1_pcam_ood.pdf', 'grid_r1c2_pcam_params.pdf', 'grid_r1c3_pcam_data.pdf'),
-    ('grid_r2c1_organ3d_ood.pdf', 'grid_r2c2_organ3d_params.pdf', 'grid_r2c3_organ3d_data.pdf'),
-    ('grid_r3c1_smnist_ood.pdf', 'grid_r3c2_smnist_params.pdf', 'grid_r3c3_smnist_data.pdf'),
-)
-
-COHEN_REFERENCE: Final = ReferenceLine(COHEN_S2CNN_NRR, r'Cohen S$^2$CNN (published)')
+COLUMN_KINDS: Final = ('ood', 'params', 'data')
 
 CAPTION_TEXT: Final = """\
-Consistent comparison of invariant pooling strategies across three
-group-structured benchmarks: PatchCamelyon (planar C8 rotations, test AUC),
-OrganMNIST3D (octahedral rotations, test accuracy), and Spherical MNIST
-(SO(3) rotations, test accuracy). Columns: (left) canonical vs rotated
-(OOD) test performance as paired bars; (middle) parameter efficiency;
-(right) data efficiency. Line plots report the rotated-test metric,
-mean +/- std over 3 seeds. "Aug. CNN" denotes the non-equivariant CNN
-baseline trained with G-augmentation; all invariant models are trained on
-canonical (non-augmented) data. "Norm pool" (finite groups) and "Power
-spectrum" (SO(3)) are incomplete second-order invariant baselines with
-matched backbones; the bispectrum is the complete invariant. The dashed
-line marks the published Spherical CNN result of Cohen et al. (2018)
-(NR/R = 0.94), cited rather than re-run. We include equivariant
-architectures in every row: the NormReLU, Gated, Fourier-ELU, Max-Pool,
-and Norm-Pool variants are G-equivariant networks differing only in
-their invariant map. The S2CNN reference appears only in the Spherical
-MNIST row because it is the canonical published architecture designed
-specifically for spherical images; rows 1-2 have no comparably canonical
-external baseline, and their equivariant variants already fill that role.
+G-bispectral pooling in G-CNNs on OrganMNIST3D (octahedral rotations, test
+accuracy, 10 seeds) and PatchCamelyon (planar C8 rotations, test AUC, 5 seeds
+at n <= 2.5K, 3 above). Left: canonical (solid) vs rotated (hatched, OOD) test
+metric on the full training set, at the smallest width for OrganMNIST3D and
+matched ~100K-parameter configs for PCam. Middle and right: rotated test
+metric, mean +/- sample std over seeds, against trainable parameters (full
+training set for OrganMNIST3D, n = 12.5K for PCam) and training-set size
+(smallest width for OrganMNIST3D, ~100K-parameter configs for PCam). "Aug. CNN" is a
+non-equivariant CNN (3D for OrganMNIST3D) trained with group augmentation; the
+invariant models are trained on canonical data and share a G-equivariant
+backbone, differing only in the invariant map. Norm pool is an incomplete
+second-order invariant; the G-bispectrum is complete.
 """
 
 
@@ -342,8 +332,6 @@ def _build_bar_panel(
     methods: tuple[str, ...],
     aggregates: dict[str, Aggregate],
     ylabel: str,
-    ylim: tuple[float, float],
-    reference: ReferenceLine | None = None,
 ) -> BarPanel:
     present = tuple(m for m in methods if m in aggregates)
     missing = [m for m in methods if m not in aggregates]
@@ -356,19 +344,25 @@ def _build_bar_panel(
         original_error=np.asarray([aggregates[m].canonical_std for m in present]),
         ood_error=np.asarray([aggregates[m].ood_std for m in present]),
         ylabel=ylabel,
-        ylim=ylim,
-        reference=reference,
     )
+
+
+def _size_tick(n: float) -> str:
+    return f'{n / 1000:g}K' if n >= 1000 else f'{n:g}'
+
+
+def _data_ticks(sizes: Sequence[float], full_size: float) -> tuple[tuple[float, ...], tuple[str, ...]]:
+    ticks = tuple(sorted(set(sizes)))
+    return ticks, tuple('full' if t == full_size else _size_tick(t) for t in ticks)
 
 
 def _build_curve_panel(
     methods: tuple[str, ...],
     points: dict[str, list[tuple[float, float, float]]],
     ylabel: str,
-    ylim: tuple[float, float],
+    ylim: tuple[float, float] | None = None,
     xticks: tuple[float, ...] | None = None,
     xticklabels: tuple[str, ...] | None = None,
-    reference: ReferenceLine | None = None,
 ) -> CurvePanel:
     """Build a curve panel from per-method (x, y_mean, y_std) points."""
     series: list[CurveSeries] = []
@@ -392,7 +386,6 @@ def _build_curve_panel(
         ylim=ylim,
         xticks=xticks,
         xticklabels=xticklabels,
-        reference=reference,
     )
 
 
@@ -428,7 +421,7 @@ def _is_full_train(run: dict) -> bool:
 
 
 def load_pcam(pareto_dir: Path, data_pareto_dir: Path, include_stale: bool = False) -> RowData:
-    """Row 1: PCam. Bars from matched-budget full-data runs, curves from sweeps."""
+    """PCam. Bars from matched-budget full-data runs, curves from sweeps."""
     pareto_runs = _group_runs(_load_runs(pareto_dir, include_stale), PCAM_METHODS)
     data_runs = _group_runs(_load_runs(data_pareto_dir, include_stale), PCAM_METHODS)
 
@@ -443,12 +436,7 @@ def load_pcam(pareto_dir: Path, data_pareto_dir: Path, include_stale: bool = Fal
         if agg is not None:
             aggregates[method] = agg
 
-    bar = _build_bar_panel(
-        PCAM_METHODS,
-        aggregates,
-        ylabel='Test AUC',
-        ylim=(0.82, 0.97),
-    )
+    bar = _build_bar_panel(PCAM_METHODS, aggregates, ylabel='Test AUC')
 
     # Param curves: pareto sweep grouped by growth rate.
     param_points: dict[str, list[tuple[float, float, float]]] = defaultdict(list)
@@ -461,12 +449,7 @@ def load_pcam(pareto_dir: Path, data_pareto_dir: Path, include_stale: bool = Fal
             if agg is not None:
                 param_points[method].append((agg.n_params, agg.ood_mean, agg.ood_std))
 
-    params = _build_curve_panel(
-        PCAM_METHODS,
-        param_points,
-        ylabel='Rotated test AUC',
-        ylim=(0.85, 0.97),
-    )
+    params = _build_curve_panel(PCAM_METHODS, param_points, ylabel='Rotated test AUC')
 
     # Data curves: data-pareto sweep grouped by training-set size.
     data_points: dict[str, list[tuple[float, float, float]]] = defaultdict(list)
@@ -479,17 +462,20 @@ def load_pcam(pareto_dir: Path, data_pareto_dir: Path, include_stale: bool = Fal
             if agg is not None:
                 data_points[method].append((float(size), agg.ood_mean, agg.ood_std))
 
+    sizes = [x for pts in data_points.values() for x, _, _ in pts]
+    xticks, xticklabels = _data_ticks(sizes, FULL_TRAIN_SIZE['pcam'])
     data = _build_curve_panel(
         PCAM_METHODS,
         data_points,
         ylabel='Rotated test AUC',
-        ylim=(0.6, 0.98),
+        xticks=xticks,
+        xticklabels=xticklabels,
     )
-    return RowData(bar=bar, params=params, data=data)
+    return RowData('pcam', bar=bar, params=params, data=data)
 
 
 def load_organ3d(results_dir: Path, include_stale: bool = False) -> RowData:
-    """Row 2: OrganMNIST3D. Bars from ch(4,8) full-data runs, curves from sweeps."""
+    """OrganMNIST3D. Bars from ch(4,8) full-data runs, curves from sweeps."""
     grouped = _group_runs(_load_runs(results_dir, include_stale), ORGAN3D_METHODS)
 
     aggregates: dict[str, Aggregate] = {}
@@ -532,29 +518,22 @@ def load_organ3d(results_dir: Path, include_stale: bool = False) -> RowData:
     param_points = {remap.get(k, k): v for k, v in param_points.items()}
     data_points = {remap.get(k, k): v for k, v in data_points.items()}
 
-    bar = _build_bar_panel(
-        ROW_METHODS[1],
-        aggregates,
-        ylabel='Test accuracy',
-        ylim=(0.0, 0.88),
-    )
-    params = _build_curve_panel(
-        ROW_METHODS[1],
-        param_points,
-        ylabel='Rotated test accuracy',
-        ylim=(0.3, 0.86),
-    )
+    bar = _build_bar_panel(ROW_METHODS['organ3d'], aggregates, ylabel='Test accuracy')
+    params = _build_curve_panel(ROW_METHODS['organ3d'], param_points, ylabel='Rotated test accuracy')
+    sizes = [x for pts in data_points.values() for x, _, _ in pts]
+    xticks, xticklabels = _data_ticks(sizes, FULL_TRAIN_SIZE['organ3d'])
     data = _build_curve_panel(
-        ROW_METHODS[1],
+        ROW_METHODS['organ3d'],
         data_points,
         ylabel='Rotated test accuracy',
-        ylim=(0.05, 0.82),
+        xticks=xticks,
+        xticklabels=xticklabels,
     )
-    return RowData(bar=bar, params=params, data=data)
+    return RowData('organ3d', bar=bar, params=params, data=data)
 
 
 def load_smnist(results_dir: Path, capacity_dir: Path, include_stale: bool = False) -> RowData:
-    """Row 3: Spherical MNIST. Bars + data from main sweep, params from capacity."""
+    """Spherical MNIST. Bars + data from main sweep, params from capacity."""
     main_runs = _load_runs(results_dir, include_stale)
     capacity_runs = _load_runs(capacity_dir, include_stale)
 
@@ -568,6 +547,7 @@ def load_smnist(results_dir: Path, capacity_dir: Path, include_stale: bool = Fal
 
     aggregates: dict[str, Aggregate] = {}
     data_points: dict[str, list[tuple[float, float, float]]] = defaultdict(list)
+    full_examples = math.nan
 
     for method, runs in grouped_main.items():
         full = [r for r in runs if _is_full_train(r)]
@@ -581,6 +561,7 @@ def load_smnist(results_dir: Path, capacity_dir: Path, include_stale: bool = Fal
         for r in subset:
             by_size[r.get('train_examples')].append(r)
         if full:
+            full_examples = float(full[0].get('train_examples'))
             by_size[full[0].get('train_examples')] = full
         for size, size_runs in by_size.items():
             size_agg = _aggregate(size_runs, 'test_nr', 'accuracy')
@@ -609,28 +590,18 @@ def load_smnist(results_dir: Path, capacity_dir: Path, include_stale: bool = Fal
     param_points = {remap.get(k, k): v for k, v in param_points.items()}
     data_points = {remap.get(k, k): v for k, v in data_points.items()}
 
-    bar = _build_bar_panel(
-        ROW_METHODS[2],
-        aggregates,
-        ylabel='Test accuracy',
-        ylim=(0.0, 1.08),
-        reference=COHEN_REFERENCE,
-    )
-    params = _build_curve_panel(
-        ROW_METHODS[2],
-        param_points,
-        ylabel='Rotated test accuracy',
-        ylim=(0.1, 1.0),
-        reference=COHEN_REFERENCE,
-    )
+    bar = _build_bar_panel(ROW_METHODS['smnist'], aggregates, ylabel='Test accuracy')
+    params = _build_curve_panel(ROW_METHODS['smnist'], param_points, ylabel='Rotated test accuracy')
+    sizes = [x for pts in data_points.values() for x, _, _ in pts]
+    xticks, xticklabels = _data_ticks(sizes, full_examples)
     data = _build_curve_panel(
-        ROW_METHODS[2],
+        ROW_METHODS['smnist'],
         data_points,
         ylabel='Rotated test accuracy',
-        ylim=(0.05, 1.0),
-        reference=COHEN_REFERENCE,
+        xticks=xticks,
+        xticklabels=xticklabels,
     )
-    return RowData(bar=bar, params=params, data=data)
+    return RowData('smnist', bar=bar, params=params, data=data)
 
 
 # --------------------------------------------------------------------------
@@ -645,14 +616,14 @@ def _array(values: list[float]) -> FloatArray:
 def mock_grid_data() -> GridData:
     """Deterministic mock numbers exercising the exact real-data layout."""
     pcam = RowData(
+        'pcam',
         bar=BarPanel(
-            methods=ROW_METHODS[0],
+            methods=ROW_METHODS['pcam'],
             original=_array([0.896, 0.942, 0.941, 0.945, 0.930, 0.941]),
             ood=_array([0.861, 0.941, 0.940, 0.944, 0.929, 0.941]),
             original_error=_array([0.010, 0.004, 0.009, 0.004, 0.007, 0.004]),
             ood_error=_array([0.013, 0.004, 0.008, 0.004, 0.007, 0.004]),
             ylabel='Test AUC',
-            ylim=(0.82, 0.97),
         ),
         params=CurvePanel(
             series=(
@@ -743,14 +714,14 @@ def mock_grid_data() -> GridData:
     )
 
     organ3d = RowData(
+        'organ3d',
         bar=BarPanel(
-            methods=ROW_METHODS[1],
+            methods=ROW_METHODS['organ3d'],
             original=_array([0.601, 0.568, 0.730, 0.726]),
             ood=_array([0.576, 0.568, 0.730, 0.726]),
             original_error=_array([0.017, 0.099, 0.033, 0.027]),
             ood_error=_array([0.021, 0.099, 0.033, 0.027]),
             ylabel='Test accuracy',
-            ylim=(0.0, 0.88),
         ),
         params=CurvePanel(
             series=(
@@ -817,15 +788,14 @@ def mock_grid_data() -> GridData:
     )
 
     smnist = RowData(
+        'smnist',
         bar=BarPanel(
-            methods=ROW_METHODS[2],
+            methods=ROW_METHODS['smnist'],
             original=_array([0.460, 0.792, 0.950]),
             ood=_array([0.230, 0.790, 0.951]),
             original_error=_array([0.012, 0.010, 0.001]),
             ood_error=_array([0.015, 0.010, 0.001]),
             ylabel='Test accuracy',
-            ylim=(0.0, 1.08),
-            reference=COHEN_REFERENCE,
         ),
         params=CurvePanel(
             series=(
@@ -845,7 +815,6 @@ def mock_grid_data() -> GridData:
             ),
             ylabel='Rotated test accuracy',
             ylim=(0.1, 1.0),
-            reference=COHEN_REFERENCE,
         ),
         data=CurvePanel(
             series=(
@@ -872,11 +841,11 @@ def mock_grid_data() -> GridData:
             ylim=(0.05, 1.0),
             xticks=(100, 500, 2_500, 12_500, 60_000),
             xticklabels=('100', '500', '2.5K', '12.5K', 'full'),
-            reference=COHEN_REFERENCE,
         ),
     )
 
-    return (pcam, organ3d, smnist)
+    rows = {'pcam': pcam, 'organ3d': organ3d, 'smnist': smnist}
+    return tuple(rows[dataset] for dataset in ROW_ORDER)
 
 
 # --------------------------------------------------------------------------
@@ -892,16 +861,18 @@ def configure_style() -> None:
             'ps.fonttype': 42,
             'font.family': 'sans-serif',
             'font.sans-serif': ['Helvetica', 'Arial', 'DejaVu Sans'],
-            'font.size': 9,
-            'axes.labelsize': 10,
-            'axes.linewidth': 0.65,
-            'xtick.labelsize': 8,
-            'ytick.labelsize': 8,
-            'xtick.major.width': 0.6,
-            'ytick.major.width': 0.6,
-            'xtick.major.size': 3,
-            'ytick.major.size': 3,
-            'lines.linewidth': 1.6,
+            'font.size': 6.5,
+            'axes.labelsize': 6.5,
+            'axes.linewidth': 0.5,
+            'xtick.labelsize': 5.5,
+            'ytick.labelsize': 5.5,
+            'xtick.major.width': 0.5,
+            'ytick.major.width': 0.5,
+            'xtick.major.size': 2,
+            'ytick.major.size': 2,
+            'xtick.minor.size': 1.2,
+            'xtick.minor.width': 0.4,
+            'lines.linewidth': 1.0,
             'figure.dpi': 150,
             'savefig.dpi': 300,
             'savefig.bbox': 'tight',
@@ -914,27 +885,45 @@ def style_axes(ax: Axes) -> None:
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.set_axisbelow(True)
-    ax.yaxis.grid(True, color='#D9D9D9', linewidth=0.5, alpha=0.8)
-    ax.tick_params(axis='x', pad=2)
-    ax.tick_params(axis='y', pad=2)
+    ax.yaxis.grid(True, color='#D9D9D9', linewidth=0.4, alpha=0.8)
+    ax.tick_params(axis='x', pad=1.5)
+    ax.tick_params(axis='y', pad=1.5)
 
 
-def add_reference(ax: Axes, reference: ReferenceLine | None) -> None:
-    if reference is None:
-        return
-    ax.axhline(
-        reference.value,
-        color='#666666',
-        linestyle=reference.linestyle,
-        linewidth=1.0,
-        zorder=1,
-    )
+@dataclass(frozen=True)
+class LineWeight:
+    linewidth: float
+    markersize: float
+    elinewidth: float
+    capsize: float
+    alpha: float
+    zorder: int
+
+
+# The bispectrum is drawn on top in full weight; baselines stay legible but recede.
+OURS: Final = 'bispectrum'
+OURS_WEIGHT: Final = LineWeight(linewidth=1.5, markersize=5.0, elinewidth=0.7, capsize=1.2, alpha=1.0, zorder=4)
+BASELINE_WEIGHT: Final = LineWeight(linewidth=0.8, markersize=2.4, elinewidth=0.5, capsize=0.0, alpha=0.55, zorder=2)
+# Horizontal spread (log10 units) between methods that share x-values on the data panels.
+DODGE_DECADES: Final = 0.035
+# A single unconnected point has no line to carry it, so it needs a larger marker.
+LONE_MARKER_SIZE: Final = 4.0
+
+
+def _line_weight(method: str) -> LineWeight:
+    return OURS_WEIGHT if method == OURS else BASELINE_WEIGHT
+
+
+def _percent_axis(ax: Axes, label: str) -> None:
+    if 'accuracy' in label.lower():
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _position: f'{value:.0%}'))
 
 
 def draw_bar_panel(ax: Axes, panel: BarPanel) -> None:
     """Draw one canonical-vs-rotated grouped bar panel."""
     x = np.arange(len(panel.methods), dtype=np.float64)
     width = 0.35
+    error_kw = {'elinewidth': 0.6, 'capthick': 0.6}
 
     for index, method in enumerate(panel.methods):
         style = METHOD_STYLE[method]
@@ -945,9 +934,9 @@ def draw_bar_panel(ax: Axes, panel: BarPanel) -> None:
             yerr=panel.original_error[index],
             color=style.color,
             edgecolor=style.color,
-            linewidth=0.8,
-            capsize=2,
-            error_kw={'elinewidth': 0.8, 'capthick': 0.8},
+            linewidth=0.5,
+            capsize=1.2,
+            error_kw=error_kw,
             zorder=3,
         )
         ax.bar(
@@ -957,55 +946,69 @@ def draw_bar_panel(ax: Axes, panel: BarPanel) -> None:
             yerr=panel.ood_error[index],
             color=style.color,
             edgecolor=style.color,
-            linewidth=0.8,
+            linewidth=0.5,
             hatch='////',
             alpha=0.42,
-            capsize=2,
-            error_kw={'elinewidth': 0.8, 'capthick': 0.8},
+            capsize=1.2,
+            error_kw=error_kw,
             zorder=3,
         )
 
     ax.set_xticks(x)
-    ax.set_xticklabels([METHOD_STYLE[method].label for method in panel.methods], rotation=24, ha='right')
+    ax.set_xticklabels(
+        [METHOD_STYLE[method].label for method in panel.methods],
+        rotation=35,
+        ha='right',
+        rotation_mode='anchor',
+    )
+    ax.tick_params(axis='x', length=0)
     ax.set_ylabel(panel.ylabel)
-    ax.set_ylim(panel.ylim)
-    if 'accuracy' in panel.ylabel.lower():
-        ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _position: f'{value:.0%}'))
-    add_reference(ax, panel.reference)
+    ax.set_ylim(BAR_YLIM)
+    _percent_axis(ax, panel.ylabel)
     style_axes(ax)
 
 
-def draw_curve_panel(ax: Axes, panel: CurvePanel, *, xlabel: str) -> None:
-    """Draw one parameter- or data-efficiency curve panel."""
-    for series in panel.series:
+def draw_curve_panel(ax: Axes, panel: CurvePanel, *, xlabel: str, dodge: bool = False) -> None:
+    """Draw one parameter- or data-efficiency curve panel.
+
+    With *dodge*, methods sharing x-values are spread horizontally so their
+    error bars do not stack.
+    """
+    count = len(panel.series)
+    for index, series in enumerate(panel.series):
         style = METHOD_STYLE[series.method]
-        line_style = '-' if len(series.x) > 1 else 'none'
+        weight = _line_weight(series.method)
+        shift = 10 ** ((index - (count - 1) / 2) * DODGE_DECADES) if dodge else 1.0
+        connected = len(series.x) > 1
         ax.errorbar(
-            series.x,
+            series.x * shift,
             series.y,
             yerr=series.error,
             color=style.color,
             marker=style.marker,
-            linestyle=line_style,
-            markersize=6.5 if style.marker == '*' else 4.5,
-            markeredgewidth=0.7,
+            linestyle='-' if connected else 'none',
+            linewidth=weight.linewidth,
+            markersize=weight.markersize if connected else max(weight.markersize, LONE_MARKER_SIZE),
+            markeredgewidth=0.4,
             markeredgecolor='white',
-            capsize=2,
-            elinewidth=0.7,
-            zorder=3,
+            capsize=weight.capsize,
+            elinewidth=weight.elinewidth,
+            alpha=weight.alpha,
+            zorder=weight.zorder,
         )
 
     ax.set_xscale('log')
     ax.set_xlabel(xlabel)
     ax.set_ylabel(panel.ylabel)
-    ax.set_ylim(panel.ylim)
+    if panel.ylim is not None:
+        ax.set_ylim(panel.ylim)
     if panel.xticks is not None:
         ax.set_xticks(panel.xticks)
+        ax.xaxis.set_minor_locator(NullLocator())
+        ax.xaxis.set_minor_formatter(NullFormatter())
     if panel.xticklabels is not None:
-        ax.set_xticklabels(panel.xticklabels)
-    if 'accuracy' in panel.ylabel.lower():
-        ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _position: f'{value:.0%}'))
-    add_reference(ax, panel.reference)
+        ax.set_xticklabels(panel.xticklabels, rotation=35, ha='right', rotation_mode='anchor')
+    _percent_axis(ax, panel.ylabel)
     style_axes(ax)
 
 
@@ -1015,94 +1018,75 @@ def draw_panel(ax: Axes, row: RowData, column: int) -> None:
     elif column == 1:
         draw_curve_panel(ax, row.params, xlabel='Trainable parameters')
     else:
-        draw_curve_panel(ax, row.data, xlabel='Training examples')
-    ax.set_ylim(COLUMN_YLIMS[column])
+        draw_curve_panel(ax, row.data, xlabel='Training examples', dodge=True)
 
 
-def method_legend_handle(method: str) -> Line2D:
-    style = METHOD_STYLE[method]
-    return Line2D(
-        [0],
-        [0],
-        color=style.color,
-        marker=style.marker,
-        linewidth=1.6,
-        markersize=7 if style.marker == '*' else 5,
-        markeredgecolor='white',
-        markeredgewidth=0.7,
-        label=style.label,
-    )
+def _legend_key(method: str) -> str:
+    return 'standard' if method.startswith('standard') else method
 
 
-def row_legend_handles(row_index: int) -> list[LegendHandle]:
-    handles: list[LegendHandle] = [method_legend_handle(method) for method in ROW_METHODS[row_index]]
+def legend_handles(datasets: Sequence[str] = ROW_ORDER) -> list[LegendHandle]:
+    present = {_legend_key(method) for dataset in datasets for method in ROW_METHODS[dataset]}
+    handles: list[LegendHandle] = [
+        Line2D(
+            [0],
+            [0],
+            color=METHOD_STYLE[method].color,
+            marker=METHOD_STYLE[method].marker,
+            linewidth=_line_weight(method).linewidth,
+            markersize=_line_weight(method).markersize + 0.6,
+            markeredgecolor='white',
+            markeredgewidth=0.4,
+            label=label,
+        )
+        for method, label in SHARED_LEGEND
+        if method in present
+    ]
     handles.extend(
         [
             Patch(facecolor='#777777', edgecolor='#777777', label='Canonical test'),
-            Patch(
-                facecolor='#D8D8D8',
-                edgecolor='#777777',
-                hatch='////',
-                linewidth=0.8,
-                label='Rotated test (OOD)',
-            ),
+            Patch(facecolor='#D8D8D8', edgecolor='#777777', hatch='////', linewidth=0.5, label='Rotated test (OOD)'),
         ]
     )
-    if row_index == 2:
-        handles.append(
-            Line2D(
-                [0],
-                [0],
-                color='#666666',
-                linestyle='--',
-                linewidth=1.0,
-                label=COHEN_REFERENCE.label,
-            )
-        )
     return handles
 
 
+def _panel_filename(row_index: int, column: int, dataset: str) -> str:
+    return f'grid_r{row_index + 1}c{column + 1}_{dataset}_{COLUMN_KINDS[column]}.pdf'
+
+
 def save_panels(grid: GridData, output_dir: Path) -> None:
-    """Save title-free, legend-free vector panels plus per-row legends."""
+    """Save title-free, legend-free vector panels plus the shared legend."""
     for row_index, row in enumerate(grid):
         for column in range(3):
             fig, ax = plt.subplots(figsize=PANEL_SIZE, constrained_layout=True)
             draw_panel(ax, row, column)
-            fig.savefig(output_dir / PANEL_FILENAMES[row_index][column])
+            fig.savefig(output_dir / _panel_filename(row_index, column, row.dataset))
             plt.close(fig)
 
-        handles = row_legend_handles(row_index)
-        height = 0.30 * len(handles) + 0.25
-        fig = plt.figure(figsize=(2.45, height))
-        fig.legend(
-            handles=handles,
-            labels=[handle.get_label() for handle in handles],
-            loc='center left',
-            bbox_to_anchor=(0.02, 0.5),
-            frameon=False,
-            handlelength=2.1,
-            handletextpad=0.8,
-            borderaxespad=0.0,
-            labelspacing=0.7,
-            fontsize=9,
-        )
-        fig.savefig(output_dir / f'legend_row{row_index + 1}.pdf')
-        plt.close(fig)
+    handles = legend_handles()
+    fig = plt.figure(figsize=(SHEET_WIDTH, 0.35))
+    fig.legend(handles=handles, loc='center', ncol=5, frameon=False, fontsize=6, handlelength=1.8)
+    fig.savefig(output_dir / 'legend.pdf')
+    plt.close(fig)
 
 
-def save_contact_sheet(grid: GridData, output_dir: Path, *, mock: bool) -> None:
-    """Save an assembled 3x3 sheet with column headers and side legends."""
-    fig = plt.figure(figsize=(15.2, 9.6), constrained_layout=False)
+def save_contact_sheet(grid: GridData, output_dir: Path, *, mock: bool, stem: str = 'grid_contact_sheet') -> None:
+    """Save the assembled grid at print size, with a legend on top listing only the methods in `grid`."""
+    handles = legend_handles([row.dataset for row in grid])
+    ncol = len(handles) if len(handles) <= 6 else 5
+    top = 0.45 + LEGEND_ROW_HEIGHT * math.ceil(len(handles) / ncol)
+    height = SHEET_BOTTOM + top + SHEET_ROW_HEIGHT * (len(grid) + SHEET_HSPACE * (len(grid) - 1))
+    fig = plt.figure(figsize=(SHEET_WIDTH, height), constrained_layout=False)
     gridspec = fig.add_gridspec(
+        len(grid),
         3,
-        4,
-        width_ratios=(1.0, 1.0, 1.0, 0.58),
-        left=0.075,
-        right=0.985,
-        bottom=0.07,
-        top=0.91,
-        wspace=0.34,
-        hspace=0.42,
+        left=0.13,
+        right=0.99,
+        bottom=SHEET_BOTTOM / height,
+        top=1.0 - top / height,
+        wspace=0.42,
+        hspace=SHEET_HSPACE,
     )
 
     axes: list[list[Axes]] = []
@@ -1114,57 +1098,55 @@ def save_contact_sheet(grid: GridData, output_dir: Path, *, mock: bool) -> None:
             row_axes.append(ax)
         axes.append(row_axes)
 
-        legend_ax = fig.add_subplot(gridspec[row_index, 3])
-        legend_ax.axis('off')
-        handles = row_legend_handles(row_index)
-        legend_ax.legend(
-            handles=handles,
-            labels=[handle.get_label() for handle in handles],
-            loc='center left',
-            frameon=False,
-            handlelength=2.0,
-            handletextpad=0.7,
-            labelspacing=0.55,
-            fontsize=8.5,
-        )
+    fig.legend(
+        handles=handles,
+        loc='upper center',
+        bbox_to_anchor=(0.55, 1.0),
+        ncol=ncol,
+        frameon=False,
+        fontsize=6,
+        handlelength=1.8,
+        columnspacing=1.2,
+    )
 
     for column, label in enumerate(COLUMN_LABELS):
         position = axes[0][column].get_position()
         fig.text(
             (position.x0 + position.x1) / 2,
-            0.945,
+            position.y1 + 0.066 / height,
             label,
             ha='center',
-            va='center',
-            fontsize=13,
+            va='bottom',
+            fontsize=7.5,
             fontweight='medium',
         )
 
-    for row_index, label in enumerate(ROW_LABELS):
+    for row_index, row in enumerate(grid):
         position = axes[row_index][0].get_position()
         fig.text(
-            0.018,
+            0.012,
             (position.y0 + position.y1) / 2,
-            label,
+            ROW_LABELS[row.dataset],
             ha='center',
             va='center',
             rotation=90,
-            fontsize=11,
+            fontsize=7,
             fontweight='medium',
+            linespacing=1.3,
         )
 
     if mock:
         fig.text(
-            0.985,
-            0.015,
+            0.99,
+            0.005,
             'MOCK DATA — layout preview only',
             ha='right',
             va='bottom',
-            fontsize=8,
+            fontsize=6,
             color='#777777',
         )
-    fig.savefig(output_dir / 'grid_contact_sheet.png', dpi=300, bbox_inches='tight')
-    fig.savefig(output_dir / 'grid_contact_sheet.pdf', bbox_inches='tight')
+    fig.savefig(output_dir / f'{stem}.png', dpi=300, bbox_inches='tight')
+    fig.savefig(output_dir / f'{stem}.pdf', bbox_inches='tight')
     plt.close(fig)
 
 
@@ -1174,7 +1156,7 @@ def save_contact_sheet(grid: GridData, output_dir: Path, *, mock: bool) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Build the 3x3 experiment grid figure')
+    parser = argparse.ArgumentParser(description='Build the 2x3 pooling grid figure')
     parser.add_argument(
         '--mock',
         action='store_true',
@@ -1194,16 +1176,6 @@ def main() -> None:
         '--organ3d_dir',
         type=Path,
         default=EXPERIMENTS_DIR / 'organ3d' / 'organ3d_results',
-    )
-    parser.add_argument(
-        '--smnist_dir',
-        type=Path,
-        default=EXPERIMENTS_DIR / 'spherical_mnist' / 'smnist_results',
-    )
-    parser.add_argument(
-        '--smnist_capacity_dir',
-        type=Path,
-        default=EXPERIMENTS_DIR / 'spherical_mnist' / 'smnist_results_capacity',
     )
     parser.add_argument(
         '--output_dir',
@@ -1227,14 +1199,16 @@ def main() -> None:
     if args.mock:
         grid = mock_grid_data()
     else:
-        grid = (
-            load_pcam(args.pcam_pareto_dir, args.pcam_data_pareto_dir, args.include_stale),
-            load_organ3d(args.organ3d_dir, args.include_stale),
-            load_smnist(args.smnist_dir, args.smnist_capacity_dir, args.include_stale),
-        )
+        rows = {
+            'pcam': load_pcam(args.pcam_pareto_dir, args.pcam_data_pareto_dir, args.include_stale),
+            'organ3d': load_organ3d(args.organ3d_dir, args.include_stale),
+        }
+        grid = tuple(rows[dataset] for dataset in ROW_ORDER)
 
     save_panels(grid, output_dir)
     save_contact_sheet(grid, output_dir, mock=args.mock)
+    for row in grid:
+        save_contact_sheet((row,), output_dir, mock=args.mock, stem=f'grid_row_{row.dataset}')
     (output_dir / 'caption.txt').write_text(CAPTION_TEXT)
 
     print(f'Wrote grid assets to {output_dir}')
