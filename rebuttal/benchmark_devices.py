@@ -99,44 +99,51 @@ def synchronize(device: torch.device) -> None:
         torch.mps.synchronize()
 
 
+def module_cast_dtype(device: torch.device) -> torch.dtype | None:
+    # MPS has no float64, so the float64 precomputed tables must be cast; CPU/CUDA keep
+    # them as constructed so these timings stay comparable with the A100/H100 runs.
+    return torch.float32 if device.type == 'mps' else None
+
+
 def build_case(
     name: str,
     batch_size: int,
     device: torch.device,
 ) -> tuple[torch.nn.Module, torch.Tensor, str]:
+    dtype = module_cast_dtype(device)
     if name == 'CnonCn':
         return (
-            CnonCn(n=128, selective=True).to(device),
+            CnonCn(n=128, selective=True).to(device=device, dtype=dtype),
             torch.randn(batch_size, 128, device=device),
             'n=128',
         )
     if name == 'TorusOnTorus':
         return (
-            TorusOnTorus(ns=(32, 32), selective=True).to(device),
+            TorusOnTorus(ns=(32, 32), selective=True).to(device=device, dtype=dtype),
             torch.randn(batch_size, 32, 32, device=device),
             'ns=(32,32)',
         )
     if name == 'DnonDn':
         return (
-            DnonDn(n=32, selective=True).to(device),
+            DnonDn(n=32, selective=True).to(device=device, dtype=dtype),
             torch.randn(batch_size, 64, device=device),
             'n=32',
         )
     if name == 'SO2onDisk':
         return (
-            SO2onDisk(L=16, selective=True).to(device),
+            SO2onDisk(L=16, selective=True).to(device=device, dtype=dtype),
             torch.randn(batch_size, 16, 16, device=device),
             'L=16',
         )
     if name == 'SO3onS2':
         return (
-            SO3onS2(lmax=16, nlat=64, nlon=128, selective=True).to(device),
+            SO3onS2(lmax=16, nlat=64, nlon=128, selective=True).to(device=device, dtype=dtype),
             torch.randn(batch_size, 64, 128, device=device),
             'lmax=16, grid=64x128',
         )
     if name == 'OctaonOcta':
         return (
-            OctaonOcta(selective=True).to(device),
+            OctaonOcta(selective=True).to(device=device, dtype=dtype),
             torch.randn(batch_size, 24, device=device),
             '|O|=24',
         )
@@ -213,6 +220,11 @@ def environment(device: torch.device, args: argparse.Namespace) -> dict[str, Any
         'repeats': args.repeats,
         'inner_loops': args.inner_loops,
         'dtype': 'float32',
+        'module_cast_dtype': (
+            str(cast_dtype).removeprefix('torch.')
+            if (cast_dtype := module_cast_dtype(device)) is not None
+            else None
+        ),
     }
     if device.type == 'cuda':
         metadata['device_name'] = torch.cuda.get_device_name(device)
