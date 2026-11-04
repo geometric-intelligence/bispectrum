@@ -4,6 +4,7 @@
 #   bash rebuttal/run_smnist_baselines.sh tmux <session> <subcommand>...
 #   bash rebuttal/run_smnist_baselines.sh train     # l8a100: wait for the camera-ready runner,
 #                                                   # tune, select, final seeds
+#   bash rebuttal/run_smnist_baselines.sh data      # l8a100: selected configs at n=100..12.5K
 #   bash rebuttal/run_smnist_baselines.sh bench     # h100: wait for an idle GPU, time all models
 #   bash rebuttal/run_smnist_baselines.sh collect   # h100: rsync results from l8a100
 #   bash rebuttal/run_smnist_baselines.sh analyze   # h100: Table 4 rows with the baselines
@@ -61,6 +62,13 @@ train() {
   banner "train DONE"
 }
 
+data() {
+  check_cache
+  "$PYTHON" "$REPO_ROOT/rebuttal/smnist_baselines_manifest.py" data_efficiency --out "$OUT/data_efficiency.json"
+  run_stage data_efficiency
+  banner "data DONE"
+}
+
 bench() {
   wait_for_camera_ready
   while [[ -n "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)" ]]; do
@@ -74,7 +82,7 @@ bench() {
 
 collect() {
   local host=${COLLECT_HOST:-l8a100} remote=${REMOTE_ROOT:-bispectrum-crb}
-  for d in smnist_results_baselines smnist_results_baselines_tuning; do
+  for d in smnist_results_baselines smnist_results_baselines_tuning smnist_results_baselines_data; do
     rsync -a "$host:$remote/experiments/spherical_mnist/$d/" "$SMNIST/$d/"
   done
   rsync -a --exclude logs/ "$host:$remote/rebuttal/results/smnist_baselines/" "$OUT/"
@@ -100,9 +108,9 @@ case "${1:-}" in
       "bash $(printf '%q ' "$SCRIPT" "$@") 2>&1 | tee -a $(printf '%q' "$LOG_DIR/$session.log"); echo \"=== $session exited \${PIPESTATUS[0]}\" | tee -a $(printf '%q' "$LOG_DIR/$session.log"); sleep 86400"
     echo "tmux session '$session' on $(hostname -s): $*  (log: $LOG_DIR/$session.log)"
     ;;
-  train | bench | collect | analyze) "$1" ;;
+  train | data | bench | collect | analyze) "$1" ;;
   *)
-    sed -n '2,9p' "$SCRIPT"
+    sed -n '2,10p' "$SCRIPT"
     exit 1
     ;;
 esac
