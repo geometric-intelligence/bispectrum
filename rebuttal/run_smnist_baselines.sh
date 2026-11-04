@@ -23,7 +23,8 @@ export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}" PYTHONUNBUFFERED=1
 banner() { echo "=== $* — $(date -u +%FT%TZ)"; }
 
 wait_for_camera_ready() {
-  while pgrep -f 'gpu_job_runner.py --manifest .*camera_ready_jobs/manifest.json' >/dev/null; do
+  # Anchored on the interpreter: wrapper shells (bash -c '...runner...; sleep') keep the argv alive.
+  while pgrep -f '^[^ ]*python[^ ]* [^ ]*gpu_job_runner\.py --manifest [^ ]*camera_ready_jobs/manifest\.json' >/dev/null; do
     sleep 300
   done
   banner "camera-ready runner gone on $(hostname -s)"
