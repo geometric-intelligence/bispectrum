@@ -2,62 +2,62 @@
   "rows": [
     {
       "feature_set": "bootstrap",
-      "active_real_channels": 496,
-      "canonical_seeds": 3,
+      "active_real_channels": 480,
+      "canonical_seeds": 5,
       "rotated_seeds": 0,
       "c_over_c": {
-        "mean": 0.9408666666666666,
-        "std": 0.0008339997335464653
+        "mean": 0.95198,
+        "std": 0.0009217374897442192
       },
       "r_over_r": null,
       "c_over_r": {
-        "mean": 0.9408666666666666,
-        "std": 0.0017613126418163812
+        "mean": 0.95182,
+        "std": 0.0010721940122944038
       }
     },
     {
       "feature_set": "bootstrap_self",
-      "active_real_channels": 604,
-      "canonical_seeds": 3,
+      "active_real_channels": 584,
+      "canonical_seeds": 5,
       "rotated_seeds": 0,
       "c_over_c": {
-        "mean": 0.9448,
-        "std": 0.0013366625103842192
+        "mean": 0.9522600000000001,
+        "std": 0.000964572444143002
       },
       "r_over_r": null,
       "c_over_r": {
-        "mean": 0.9449,
-        "std": 0.001469693845669881
+        "mean": 0.95192,
+        "std": 0.0007782030583337447
       }
     },
     {
       "feature_set": "bootstrap_self_cg",
-      "active_real_channels": 758,
-      "canonical_seeds": 3,
+      "active_real_channels": 738,
+      "canonical_seeds": 5,
       "rotated_seeds": 0,
       "c_over_c": {
-        "mean": 0.9500333333333334,
-        "std": 0.0006236095644623044
+        "mean": 0.9549800000000002,
+        "std": 0.00047074409183759096
       },
       "r_over_r": null,
       "c_over_r": {
-        "mean": 0.9499666666666666,
-        "std": 0.0003091206165165413
+        "mean": 0.9550599999999999,
+        "std": 0.0005276362383308983
       }
     },
     {
       "feature_set": "full",
-      "active_real_channels": 768,
-      "canonical_seeds": 3,
+      "active_real_channels": 760,
+      "canonical_seeds": 5,
       "rotated_seeds": 0,
       "c_over_c": {
-        "mean": 0.9478333333333332,
-        "std": 0.0006236095644623438
+        "mean": 0.9558399999999999,
+        "std": 0.0009891410415102488
       },
       "r_over_r": null,
       "c_over_r": {
-        "mean": 0.9476333333333334,
-        "std": 0.0006599663291074613
+        "mean": 0.95576,
+        "std": 0.0007657675887630639
       }
     }
   ]

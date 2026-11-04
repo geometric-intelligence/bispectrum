@@ -7,7 +7,7 @@
 #   bash rebuttal/run_camera_ready.sh smoke <pcam|organ3d|smnist>...
 #   bash rebuttal/run_camera_ready.sh launch <bongo|h100|custom>  # one tmux window per GPU
 #   bash rebuttal/run_camera_ready.sh <pipeline>           # one pipeline, foreground
-#   bash rebuttal/run_camera_ready.sh analyze              # grid figure + significance + timings
+#   bash rebuttal/run_camera_ready.sh analyze              # grid, significance, paper figures -> results/camera_ready
 #   bash rebuttal/run_camera_ready.sh tmux <session> <subcommand>...  # any of these in tmux
 #
 # Job runner (PCam + OrganMNIST3D across machines; Spherical MNIST stays a pipeline):
@@ -273,11 +273,14 @@ reconstruction_pipeline() {
 # Analysis: grid figure, significance table, combined device timings.
 # ---------------------------------------------------------------------------
 analyze() {
+  local out="$RESULTS/camera_ready"
   cd "$REPO_ROOT"
+  mkdir -p "$out"
   banner "grid figure"
-  "$PYTHON" experiments/make_grid_figure.py
+  "$PYTHON" experiments/make_grid_figure.py --output_dir "$out/grid_figure"
   banner "significance table"
-  "$PYTHON" experiments/significance.py --output "$RESULTS/significance.md"
+  "$PYTHON" experiments/significance.py --output "$out/significance.md"
+  "$PYTHON" experiments/significance.py --canonical --output "$out/significance_canonical.md"
   banner "ablation summary"
   "$PYTHON" rebuttal/analyze_smnist_ablation.py --results-dir "$RESULTS/smnist_ablation" \
     --output "$RESULTS/smnist_ablation/summary.json"
@@ -292,6 +295,18 @@ analyze() {
   else
     echo "no device_bench/*.json yet"
   fi
+  # The PCam scripts write next to themselves; OrganMNIST3D writes data_efficiency.png to the cwd.
+  banner "paper figures -> $out"
+  "$PYTHON" experiments/pcam/analyze_pareto.py | tee "$out/pcam_pareto.txt"
+  mv experiments/pcam/pareto_analysis.png experiments/pcam/pareto_analysis.pdf "$out/"
+  "$PYTHON" experiments/pcam/analyze_data_pareto.py | tee "$out/pcam_data_pareto.txt"
+  mv experiments/pcam/data_pareto_analysis.png "$out/"
+  (cd "$out" && "$PYTHON" "$REPO_ROOT/experiments/organ3d/analyze_results.py" \
+    --results_dir "$REPO_ROOT/experiments/organ3d/organ3d_results" \
+    --output_plot organ3d_analysis.png) | tee "$out/organ3d.txt"
+  "$PYTHON" experiments/spherical_mnist/analyze_results.py \
+    --results_dir experiments/spherical_mnist/smnist_results \
+    --output "$out/smnist_analysis.png" | tee "$out/smnist.txt"
 }
 
 record_environment() {

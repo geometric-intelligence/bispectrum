@@ -1,0 +1,37 @@
+Saved to /home/johmathe/bispectrum/experiments/pcam/pareto_analysis.png (+ PDF)
+
+======================================================================
+KEY FINDINGS
+======================================================================
+
+1. PARETO RANKING (full sweep, 10% data):
+   Aug. CNN                   best AUC=0.9293 +/- 0.0106 at    582,073 params (3 seeds)
+   NormReLU                   best AUC=0.9135 +/- 0.0084 at     68,935 params (3 seeds)
+   Gated                      best AUC=0.9210 +/- 0.0045 at    135,682 params (3 seeds)
+   Fourier-ELU                best AUC=0.9266 +/- 0.0192 at     68,722 params (3 seeds)
+   Norm pool                  best AUC=0.9350 +/- 0.0148 at    109,815 params (3 seeds)
+   Bispectrum                 best AUC=0.9506 +/- 0.0173 at     80,413 params (3 seeds)
+
+2. HEAD-TO-HEAD at ~100K params:
+   Bispectrum                 AUC=0.9506 +/- 0.0173  (80,413 params)
+   Norm pool                  AUC=0.9350 +/- 0.0148  (109,815 params)
+   Aug. CNN                   AUC=0.9283 +/- 0.0094  (101,959 params)
+   Fourier-ELU                AUC=0.9223 +/- 0.0256  (109,815 params)
+   Gated                      AUC=0.9210 +/- 0.0045  (135,682 params)
+   NormReLU                   AUC=0.9125 +/- 0.0129  (110,093 params)
+
+3. SCALING BEHAVIOR:
+   Aug. CNN                   0.9156 -> 0.9281  (improves, +0.0126)
+   NormReLU                   0.9135 -> 0.8999  (degrades, -0.0136)
+   Gated                      0.9210 -> 0.9153  (degrades, -0.0057)
+   Fourier-ELU                0.9266 -> 0.9083  (degrades, -0.0184)
+   Norm pool                  0.9247 -> 0.9119  (degrades, -0.0127)
+   Bispectrum                 0.9506 -> 0.9332  (degrades, -0.0174)
+
+4. DATA EFFICIENCY (matched ~100K params):
+   Aug. CNN                   n=100=0.8075+/-0.0397  n=500=0.8747+/-0.0206  n=2,500=0.9121+/-0.0178  n=12,500=0.9247+/-0.0038  full=0.9311+/-0.0080
+   NormReLU                   n=100=0.8094+/-0.0328  n=500=0.8839+/-0.0201  n=2,500=0.9027+/-0.0212  n=12,500=0.9135+/-0.0121  full=0.9539+/-0.0063
+   Gated                      n=100=0.8244+/-0.0323  n=500=0.8830+/-0.0442  n=2,500=0.9235+/-0.0134  n=12,500=0.9174+/-0.0150  full=0.9522+/-0.0058
+   Fourier-ELU                n=100=0.8045+/-0.0241  n=500=0.8682+/-0.0362  n=2,500=0.9111+/-0.0061  n=12,500=0.9198+/-0.0237  full=0.9431+/-0.0036
+   Norm pool                  n=100=0.8005+/-0.0430  n=500=0.8809+/-0.0256  n=2,500=0.9138+/-0.0243  n=12,500=0.9397+/-0.0054  full=0.9341+/-0.0229
+   Bispectrum                 n=100=0.8308+/-0.0215  n=500=0.8880+/-0.0078  n=2,500=0.9305+/-0.0121  n=12,500=0.9367+/-0.0126  full=0.9328+/-0.0131
