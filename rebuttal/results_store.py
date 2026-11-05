@@ -81,11 +81,13 @@ def link(repo: Path, store: Path) -> None:
 
 
 def _files(store: Path) -> Iterator[Path]:
-    # Dot-directories are tool state, e.g. the .cache/ that `hf download --local-dir` writes.
+    # Dot-entries are hosting state: the .cache/ that `hf download --local-dir` writes and the
+    # dataset repo's .gitattributes.
     for dirpath, dirnames, filenames in os.walk(store):
         dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
         for name in sorted(filenames):
-            yield Path(dirpath, name)
+            if not name.startswith('.'):
+                yield Path(dirpath, name)
 
 
 def _sha256(path: Path) -> str:
