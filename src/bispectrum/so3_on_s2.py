@@ -46,7 +46,6 @@ from pathlib import Path
 from typing import Literal
 
 import torch
-import torch.nn as nn
 from torch_harmonics import RealSHT
 
 from bispectrum._cg import (
@@ -55,6 +54,7 @@ from bispectrum._cg import (
     compute_sparse_cg_parallel,
     load_cg_matrices,
 )
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 logger = logging.getLogger(__name__)
 
@@ -427,7 +427,7 @@ def _build_cg_power_index_map(lmax: int) -> list[tuple[int, int, int]]:
     return entries
 
 
-class SO3onS2(nn.Module):
+class SO3onS2(CUDAGraphModule):
     """Bispectrum of SO(3) acting on S^2.
 
     Takes a real-valued signal on the sphere f(theta, phi) sampled on an
@@ -719,13 +719,14 @@ class SO3onS2(nn.Module):
 
         return reduced_cgs
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the augmented SO(3)-bispectrum of a signal on S^2.
 
         Dispatch priority (inference on CUDA, i.e. ``torch.no_grad()``):
           1. **CUDA Graph** — replays a captured graph of the sparse or
              Python-loop computation, eliminating kernel-launch overhead.
-             Works at any lmax and for a fixed batch size.
+             Bound to the first input signature (see ``CUDAGraphModule``).
           2. **Sparse** — vectorized gather-multiply-scatter using
              precomputed sparse CG indices. Default for selective=True.
           3. **Python loop** — always-available fallback for selective=False,
@@ -746,11 +747,6 @@ class SO3onS2(nn.Module):
             coeffs = self._sht(f)
             return torch.zeros(batch_size, 0, dtype=coeffs.dtype, device=f.device)
 
-        if f.is_cuda and not torch.is_grad_enabled():
-            graph_result = self._forward_cuda_graph(f, batch_size, num_entries)
-            if graph_result is not None:
-                return graph_result
-
         coeffs = self._sht(f)
 
         if self._has_sparse:
@@ -758,80 +754,6 @@ class SO3onS2(nn.Module):
 
         f_coeffs = _get_full_sh_coefficients(coeffs)
         return self._forward_python(f_coeffs, coeffs.dtype, f.device, batch_size, num_entries)
-
-    def _forward_cuda_graph(
-        self,
-        f: torch.Tensor,
-        batch_size: int,
-        num_entries: int,
-    ) -> torch.Tensor | None:
-        """Try the CUDA-graph path.
-
-        Returns None if capture fails or is skipped.  The captured graph is
-        bound to the input's shape, dtype and device (``static_input.copy_``
-        would otherwise silently cast a float64 input into a float32 graph);
-        a different input signature falls back to the eager paths until
-        :meth:`reset_cuda_graph_cache` is called.
-        """
-        key = self._cuda_graph_key(f)
-        cache = getattr(self, '_cuda_graph_cache', None)
-        if cache is not None and cache['key'] == key:
-            cache['static_input'].copy_(f)
-            cache['graph'].replay()
-            return cache['static_output'].clone()
-
-        if cache is not None:
-            return None
-
-        try:
-            static_input = torch.empty_like(f)
-            static_input.copy_(f)
-
-            if self._has_sparse:
-
-                def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
-                    coeffs = self._sht(inp)
-                    return self._forward_sparse_fast(coeffs, batch_size, num_entries)
-            else:
-
-                def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
-                    coeffs = self._sht(inp)
-                    f_coeffs = _get_full_sh_coefficients(coeffs)
-                    return self._forward_python(
-                        f_coeffs, coeffs.dtype, inp.device, batch_size, num_entries
-                    )
-
-            # Warmup run (required before capture to initialize cuDNN/cuBLAS plans)
-            s = torch.cuda.Stream()
-            s.wait_stream(torch.cuda.current_stream())
-            with torch.cuda.stream(s):
-                _ = _run_fwd(static_input)
-            torch.cuda.current_stream().wait_stream(s)
-
-            g = torch.cuda.CUDAGraph()
-            with torch.cuda.graph(g):
-                static_output = _run_fwd(static_input)
-
-            self._cuda_graph_cache = {
-                'graph': g,
-                'static_input': static_input,
-                'static_output': static_output,
-                'key': key,
-            }
-
-            static_input.copy_(f)
-            g.replay()
-            return static_output.clone()
-
-        except Exception:
-            logger.debug('CUDA graph capture failed, disabling for this module', exc_info=True)
-            self._cuda_graph_cache = {'key': None}
-            return None
-
-    @staticmethod
-    def _cuda_graph_key(f: torch.Tensor) -> tuple[tuple[int, ...], torch.dtype, torch.device]:
-        """Input signature a captured CUDA graph is valid for."""
-        return (tuple(f.shape), f.dtype, f.device)
 
     def _forward_python(
         self,
@@ -1104,11 +1026,6 @@ class SO3onS2(nn.Module):
             result[:, self._sc_pw_eids] = norms
 
         return result
-
-    def reset_cuda_graph_cache(self) -> None:
-        """Invalidate the cached CUDA graph (e.g. after changing batch size)."""
-        if hasattr(self, '_cuda_graph_cache'):
-            del self._cuda_graph_cache
 
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
         """Inversion is an open problem for SO(3) on S^2.

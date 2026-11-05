@@ -18,9 +18,9 @@ Total selective coefficient count: N = sum_{n=0}^{N_m} K_n.
 import math
 
 import torch
-import torch.nn as nn
 
 from bispectrum._bessel import bessel_jn, compute_all_bessel_roots
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 
 def default_bandlimit(L: int) -> float:
@@ -86,7 +86,7 @@ def _build_truncated_indices(
     return indices, K, N_m
 
 
-class SO2onDisk(nn.Module):
+class SO2onDisk(CUDAGraphModule):
     """Bispectrum of SO(2) acting on the unit disk.
 
     Takes a square grayscale image f of shape (batch, L, L), computes the
@@ -166,6 +166,11 @@ class SO2onDisk(nn.Module):
         disk_mask = r_grid < 1.0
 
         self.register_buffer('_disk_mask', disk_mask)
+        # Gathering by index instead of boolean mask avoids a host sync, so forward can be
+        # captured in a CUDA graph.
+        self.register_buffer(
+            '_disk_flat_idx', torch.nonzero(disk_mask.flatten()).squeeze(-1), persistent=False
+        )
 
         pixel_r = r_grid[disk_mask]
         pixel_theta = theta_grid[disk_mask]
@@ -325,8 +330,7 @@ class SO2onDisk(nn.Module):
         Returns:
             Complex DH coefficients (n >= 0), shape (batch, m_nonneg).
         """
-        mask = self._disk_mask
-        f_disk = f[:, mask].to(self._phi_pinv.dtype)  # (batch, p_disk)
+        f_disk = f.flatten(1).index_select(1, self._disk_flat_idx).to(self._phi_pinv.dtype)
         x_real = f_disk @ self._phi_pinv.T  # (batch, d_real)
         return self._real_to_complex(x_real)
 
@@ -346,6 +350,7 @@ class SO2onDisk(nn.Module):
         f[:, self._disk_mask] = f_disk
         return f
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the SO(2) selective disk bispectrum.
 

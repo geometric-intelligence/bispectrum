@@ -11,10 +11,11 @@ Reference: Kakarala (2009), Mataigne et al. (2024) Algorithms 1-2.
 """
 
 import torch
-import torch.nn as nn
+
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 
-class CnonCn(nn.Module):
+class CnonCn(CUDAGraphModule):
     """Bispectrum of C_n acting on Z/nZ.
 
     C_n is commutative, so no Clebsch-Gordan matrices are needed — the
@@ -47,6 +48,7 @@ class CnonCn(nn.Module):
         else:
             self._index_map = [(k1, k2) for k1 in range(n) for k2 in range(k1, n)]
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the C_n-bispectrum of a signal on Z/nZ.
 

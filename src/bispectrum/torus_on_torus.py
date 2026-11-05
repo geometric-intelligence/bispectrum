@@ -16,7 +16,8 @@ import math
 import warnings
 
 import torch
-import torch.nn as nn
+
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 
 def _ravel(multi_idx: tuple[int, ...], ns: tuple[int, ...]) -> int:
@@ -41,7 +42,7 @@ def _add_mod(a: tuple[int, ...], b: tuple[int, ...], ns: tuple[int, ...]) -> tup
     return tuple((ai + bi) % n for ai, bi, n in zip(a, b, ns, strict=False))
 
 
-class TorusOnTorus(nn.Module):
+class TorusOnTorus(CUDAGraphModule):
     """Bispectrum of the discrete d-torus C_{n_1} × ··· × C_{n_d} acting on itself.
 
     The discrete d-torus is a finite abelian group. All irreps are 1D characters,
@@ -160,6 +161,7 @@ class TorusOnTorus(nn.Module):
 
         return idx_k1, idx_k2, idx_sum, index_map
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the bispectrum of a signal on the torus.
 
