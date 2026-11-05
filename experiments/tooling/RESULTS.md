@@ -58,7 +58,7 @@ python experiments/tooling/results_store.py link
 
 **Only JSON is published** (`*.json`, `*.jsonl`: about 1,900 files, 32 MiB). Every figure, table and significance test is computed from these. Checkpoints, training logs, derived tables and environment captures stay in the local stores on the machines that produced them, and the manifest records their hashes.
 
-Published revision: [`95a2b26`](https://huggingface.co/datasets/geometric-intelligence/bispectrum/commit/95a2b26fc953a2ec46a8ba771147f59e8aaf4198) (2026-11-05), matching this manifest. `results-json.tar.gz` there has sha256 `b95ca34dec0af671c06fe68a49d6a0a556dc5b335f5cd64f3094bf5fdd33140e`. Downloaded into a fresh clone, it passes `verify` and rebuilds `make_grid_figure.py`'s outputs byte for byte, apart from PDF creation dates.
+Published revision: [`05f9f54`](https://huggingface.co/datasets/geometric-intelligence/bispectrum/commit/05f9f543b6b496272cd7a4c3788c9deac9e92f5f) (2026-11-05), matching this manifest. `results-json.tar.gz` there has sha256 `a5b94104dd3d4c733bda3954c82396c47e6a642b9bd062c650dbcc2fbe35decc`. Downloaded into a fresh clone, it passes `verify` and rebuilds `make_grid_figure.py`'s outputs byte for byte, apart from PDF creation dates.
 
 `hf` is the Hugging Face CLI (`pip install -U huggingface_hub`, or run it as `uvx --from huggingface_hub hf`). The token needs write access to the dataset.
 
