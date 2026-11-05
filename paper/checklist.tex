@@ -5,7 +5,7 @@
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and introduction list three contributions (PyTorch library for seven group actions, selective $\SO(3)$ bispectrum theory, and unified evaluation on three benchmarks) that are substantiated in Sections~4--6 and Appendices~A--E.
+    \item[] Justification: The abstract and introduction list three contributions (a PyTorch library for seven group actions, the augmented selective $\SO(3)$ invariant with $\Theta(L^2)$ coefficients, and an evaluation on PCam, OrganMNIST3D and Spherical MNIST) that are substantiated in Sections~\ref{sec:library}--\ref{sec:experiments} and Appendices~\ref{app:so3-proof}--\ref{app:exp}. Empirical claims are stated at the resolution of the Welch tests in Section~\ref{sec:experiments}, and completeness of the $\SO(3)$ invariant is stated as a conjecture.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the abstract and introduction do not include the claims made in the paper.
@@ -17,7 +17,7 @@
 \item {\bf Limitations}
     \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~7 (Discussion and Conclusion) contains a dedicated ``Limitations and future work'' paragraph discussing: inversion not shipped as a library API, the absence of a formal completeness proof for the $\SO(3)$ construction, numerical-conditioning analysis at large band-limits, and missing comparisons against tensor-product architectures and wavelet scattering. Section~4 notes the genericity assumption for selective bispectra on finite groups.
+    \item[] Justification: Section~\ref{sec:discussion} has ``When not to use the bispectrum'' and ``Limitations and future work'' paragraphs: invariance to one specific group, lower sample efficiency than a learned spherical CNN on $S^2$, inversion of the spherical invariant living in experiment code, no formal completeness proof, open numerical-conditioning analysis at large band-limits, a single tensor-product baseline (no MACE or wavelet scattering), and an MLP head only on $S^2$. Section~\ref{sec:pooling} and Appendix~\ref{app:pooling-grid} state the statistical power of the PCam comparisons. Sections~\ref{sec:background} and~\ref{sec:related} note the genericity assumption for selective bispectra on finite groups, and Appendix~\ref{app:changes} records the bugs fixed since submission.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper has no limitation while the answer \answerNo{} means that the paper has limitations, but those are not discussed in the paper. 
@@ -33,7 +33,7 @@
 \item {\bf Theory assumptions and proofs}
     \item[] Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof?
     \item[] Answer: \answerYes{}
-    \item[] Justification: All theoretical results (Propositions~\ref{prop:app-lower-bound}--\ref{prop:app-output-size}, Lemmas~\ref{lem:app-parity}--\ref{lem:app-P-invariant}, Proposition~\ref{prop:app-odd-vanishing}) state their assumptions explicitly. Section~6 gives the construction and Algorithm~\ref{alg:selective-bsp-so3}; Appendix~A provides the full structural background with proofs. The empirical completeness evidence is in Section~6.2 (reconstruction experiment).
+    \item[] Justification: All theoretical results (Propositions~\ref{prop:app-lower-bound}--\ref{prop:app-output-size}, Lemmas~\ref{lem:app-parity}--\ref{lem:app-P-invariant}, Proposition~\ref{prop:app-odd-vanishing}) state their assumptions explicitly. Section~\ref{sec:so3-selective} gives the construction and Algorithm~\ref{alg:selective-bsp-so3}; Appendix~\ref{app:so3-proof} provides the structural background with proofs. Generic completeness is stated as a conjecture; the empirical evidence (full per-degree Jacobian rank and exact reconstruction at $L{=}15$) is in Section~\ref{sec:so3-recon} and Appendix~\ref{app:so3-recon}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include theoretical results. 
@@ -47,7 +47,7 @@
     \item {\bf Experimental result reproducibility}
     \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
     \item[] Answer: \answerYes{}
-    \item[] Justification: All hyperparameters are in Appendix~E (Table~\ref{tab:hyperparams}), architectures in Appendices~C--D, optimizer and scheduler details in Table~\ref{tab:hyperparams}, and random seeds are specified. The code is provided as an anonymous repository.
+    \item[] Justification: The training protocol and all hyperparameters, including the tuning grids, are in Appendix~\ref{app:exp} (Table~\ref{tab:hyperparams}); model variants are in Appendix~\ref{app:pooling}, and seed counts and statistical tests in Appendix~\ref{app:exp}. The library, training scripts and figure generators are public at \url{https://github.com/geometric-intelligence/bispectrum/}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -67,7 +67,7 @@
 \item {\bf Open access to data and code}
     \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
     \item[] Answer: \answerYes{}
-    \item[] Justification: An anonymous code repository is provided with the submission, and the code is also attached as a supplementary zip file. All three datasets (PCam, OrganMNIST3D, Spherical MNIST) are publicly available. Sweep scripts and training code are included.
+    \item[] Justification: The library and all experiment code (training, sweep scripts, and the scripts that generate every figure and table) are released at \url{https://github.com/geometric-intelligence/bispectrum/}. All three datasets (PCam, OrganMNIST3D, Spherical MNIST) are publicly available.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that paper does not include experiments requiring code.
@@ -84,7 +84,7 @@
 \item {\bf Experimental setting/details}
     \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer) necessary to understand the results?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Sections~5.1--5.3 describe experimental setups. Full hyperparameters are in Table~\ref{tab:hyperparams} (Appendix~E), architecture details in Appendices~C--D, data preprocessing and splits in Appendix~E.
+    \item[] Justification: Section~\ref{sec:experiments} describes the experimental setups. Full hyperparameters are in Table~\ref{tab:hyperparams} (Appendix~\ref{app:exp}), model variants in Appendix~\ref{app:pooling}, and data preprocessing and splits in Appendix~\ref{app:exp}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -95,7 +95,7 @@
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Tables~\ref{tab:organ3d-results}--\ref{tab:smnist-results} (OrganMNIST3D, Spherical MNIST) report mean $\pm$ standard deviation over 3 seeds. Table~\ref{tab:pcam-results} (PCam) reports mean $\pm$ std over 3 seeds at matched parameters; the Pareto sweep uses a single seed, which is noted in Appendix~E. The aggregation procedure is described in Appendix~E.
+    \item[] Justification: Figure~\ref{fig:pooling-grid}, Figure~\ref{fig:smnist} and Table~\ref{tab:smnist-results} report mean $\pm$ sample standard deviation over 10 seeds (OrganMNIST3D), 3--5 seeds (PCam) and 5 seeds (Spherical MNIST). Differences are tested with two-sided Welch $t$-tests; the Spherical MNIST data-efficiency tests are Holm-corrected, and Appendix~\ref{app:pooling-grid} states the power of the PCam tests. The procedure is described in Appendix~\ref{app:exp}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -112,7 +112,7 @@
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Appendix~E states that all experiments were run on a single NVIDIA H100 GPU (80\,GB). Wall-clock training times are reported in Appendix~E and benchmark timings in Table~\ref{tab:benchmarks}.
+    \item[] Justification: Appendix~\ref{app:exp} lists the training hardware ($8\times$ A100 40\,GB, $2\times$ A100 80\,GB and one H100 80\,GB). Benchmark timings are in Table~\ref{tab:benchmarks} and Appendix~\ref{app:bench}, and Spherical MNIST inference latencies in Table~\ref{tab:smnist-results}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -162,7 +162,7 @@
 \item {\bf Licenses for existing assets}
     \item[] Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected?
     \item[] Answer: \answerYes{}
-    \item[] Justification: All datasets are cited (PCam: CC0 1.0, OrganMNIST3D: CC BY 4.0, MNIST: public domain for research). Dataset licenses are listed in Appendix~E.
+    \item[] Justification: All datasets are cited (PCam: CC0 1.0, OrganMNIST3D: CC BY 4.0, MNIST: public domain for research). Dataset licenses are listed in Appendix~\ref{app:exp}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not use existing assets.
@@ -178,7 +178,7 @@
 \item {\bf New assets}
     \item[] Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The library is released under the MIT license with documentation, API reference, and usage examples. Section~4 describes the design and interface; Appendix~F provides a minimal code example.
+    \item[] Justification: The library is released under the MIT license with documentation, API reference, and usage examples. Section~\ref{sec:library} describes the design and interface; Appendix~\ref{app:api-example} provides a minimal code example.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not release new assets.
