@@ -400,7 +400,7 @@ def draw_latency_panel(ax: Axes, results: dict[str, ProtocolStats]) -> None:
             va=va,
             fontsize=5,
             fontfamily=brand.MONO,
-            color=brand.TERRACOTTA_TEXT if ours else brand.MUTED,
+            color=brand.ORANGE_TEXT if ours else brand.MUTED,
             linespacing=1.1,
         )
     ax.set_xscale('log')
