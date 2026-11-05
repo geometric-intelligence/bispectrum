@@ -30,6 +30,7 @@ MODEL_LABELS = {
 }
 
 DEFAULT_TRAIN_MODE = 'C'
+ORGAN_FULL_TRAIN = 971
 
 
 def _canonical_train_mode(mode: str) -> str:
@@ -142,17 +143,27 @@ def _train_size_value(record: dict) -> int | None:
     return n if n > 0 else None
 
 
-def _baseline_runs(
-    grouped: dict[str, list[dict]],
-    train_mode: str = 'C',
-) -> dict[str, list[dict]]:
-    """Filter to channels=[4,8], full-set runs, and *train_mode* runs."""
+def _data_sizes(grouped: dict[str, list[dict]]) -> list[int]:
+    """Subset sizes present among the [4, 8] runs, then the full training set."""
+    sizes = {
+        n
+        for runs in grouped.values()
+        for r in runs
+        if r.get('channels', [4, 8]) == [4, 8] and (n := _train_size_value(r)) is not None
+    }
+    return [*sorted(sizes), ORGAN_FULL_TRAIN]
+
+
+def _baseline_runs(grouped: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Filter to channels=[4,8], full-set runs, each model in its protocol train mode."""
     filtered: dict[str, list[dict]] = {}
     for model, runs in grouped.items():
         f = [
             r
             for r in runs
-            if r.get('channels', [4, 8]) == [4, 8] and _is_full_train(r) and _result_train_mode(r) == train_mode
+            if r.get('channels', [4, 8]) == [4, 8]
+            and _is_full_train(r)
+            and _result_train_mode(r) == _expected_train_mode(model)
         ]
         if f:
             filtered[model] = f
@@ -160,10 +171,10 @@ def _baseline_runs(
 
 
 def print_our_results(grouped: dict[str, list[dict]]):
-    """Print table of our experimental results (baseline channels, C-trained)."""
-    baseline = _baseline_runs(grouped, train_mode='C')
+    """Print table of our experimental results (baseline channels, protocol train modes)."""
+    baseline = _baseline_runs(grouped)
     print('\n' + '=' * 90)
-    print('OUR RESULTS (controlled ablation — same backbone, different pooling, C-trained)')
+    print('OUR RESULTS (controlled ablation — same backbone, different pooling; Aug. CNN R-trained)')
     print('=' * 90)
     header = f'{"Model":<25} {"Params":>8} {"Test ACC":>12} {"Test AUC":>12} {"Rot ACC":>12} {"Rot \u03c3_ACC":>10}'
     print(header)
@@ -219,8 +230,8 @@ def print_published_baselines():
 
 
 def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
-    """Generate bar chart: C-trained accuracy on canonical vs octahedrally rotated test."""
-    grouped = _baseline_runs(grouped, train_mode='C')
+    """Generate bar chart: accuracy on canonical vs octahedrally rotated test."""
+    grouped = _baseline_runs(grouped)
     models_with_data = [m for m in MODEL_ORDER if m in grouped]
     if not models_with_data:
         print('No data to plot.')
@@ -377,8 +388,8 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
         }
     )
 
-    organ_full = 971
-    sizes = [100, 500, organ_full]
+    organ_full = ORGAN_FULL_TRAIN
+    sizes = _data_sizes(grouped)
     models_to_plot = ['standard', 'norm_pool', 'max_pool', 'bispectrum']
     colors = {
         'standard': '#888888',
@@ -473,12 +484,12 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
 
 def print_tier1_summary(grouped: dict[str, list[dict]]):
     """Print summary tables for tier 1 experiments."""
-    organ_full = 971
-    sizes = [100, 500, organ_full]
-    models = ['standard', 'max_pool', 'bispectrum']
+    organ_full = ORGAN_FULL_TRAIN
+    sizes = _data_sizes(grouped)
+    models = MODEL_ORDER
 
     print('\n' + '=' * 90)
-    print('DATA EFFICIENCY (channels [4,8], C-trained)')
+    print('DATA EFFICIENCY (channels [4,8]; Aug. CNN R-trained)')
     print('=' * 90)
     print(f'{"Model":<15} {"N":>6} {"Params":>10} {"Test ACC":>18} {"Test AUC":>18} {"Rot ACC":>10}')
     print('-' * 85)
@@ -512,11 +523,13 @@ def print_tier1_summary(grouped: dict[str, list[dict]]):
     print('-' * 85)
 
     for ch in [[4, 8], [8, 16], [16, 32]]:
-        for model in ['max_pool', 'bispectrum']:
+        for model in MODEL_ORDER:
             runs = [
                 r
                 for r in grouped.get(model, [])
-                if r.get('channels', [4, 8]) == ch and _is_full_train(r) and _result_train_mode(r) == 'C'
+                if r.get('channels', [4, 8]) == ch
+                and _is_full_train(r)
+                and _result_train_mode(r) == _expected_train_mode(model)
             ]
             if runs:
                 accs = [_test_c(r).get('accuracy', 0.0) for r in runs]

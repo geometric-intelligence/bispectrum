@@ -2,9 +2,11 @@
 
 Three model variants for comparing rotation invariance on spherical data:
 
-    1. ``bispectrum``      - SO3onS2 bispectrum features -> MLP (invariant, complete)
+    1. ``bispectrum``      - SO3onS2 augmented invariant features -> MLP
     2. ``power_spectrum``  - SH power spectrum -> MLP (invariant, incomplete)
     3. ``standard``        - CNN on equirectangular image (not rotation-invariant)
+
+plus the e3nn baselines ``s2cnn`` and ``tensor_product`` from ``baselines.py``.
 """
 
 from __future__ import annotations
@@ -17,7 +19,8 @@ from torch_harmonics import RealSHT
 
 from bispectrum import SO3onS2
 
-NonlinType = Literal['bispectrum', 'power_spectrum', 'standard']
+NonlinType = Literal['bispectrum', 'power_spectrum', 'standard', 's2cnn', 'tensor_product']
+BispectrumFeatureSet = Literal['bootstrap', 'bootstrap_self', 'bootstrap_self_cg', 'full']
 
 
 class BispectrumClassifier(nn.Module):
@@ -35,14 +38,21 @@ class BispectrumClassifier(nn.Module):
         selective: bool = True,
         hidden: int = 256,
         num_classes: int = 10,
-    ):
+        feature_set: BispectrumFeatureSet = 'full',
+    ) -> None:
         super().__init__()
+        if not selective and feature_set != 'full':
+            raise ValueError('Feature-set ablations require selective=True')
         self.bispectrum = SO3onS2(
             lmax=lmax,
             nlat=nlat,
             nlon=nlon,
             selective=selective,
         )
+        self.feature_set = feature_set
+        feature_mask = self._build_feature_mask(feature_set)
+        self.register_buffer('_feature_mask', feature_mask, persistent=False)
+        self.active_feature_count = int(feature_mask.sum().item())
         n_features = self.bispectrum.output_size * 2
         self.mlp = nn.Sequential(
             nn.Linear(n_features, hidden),
@@ -54,10 +64,26 @@ class BispectrumClassifier(nn.Module):
             nn.Linear(hidden // 2, num_classes),
         )
 
+    def _build_feature_mask(self, feature_set: BispectrumFeatureSet) -> torch.Tensor:
+        """Return a cumulative ablation mask while preserving the MLP width."""
+        if feature_set == 'full':
+            return torch.ones(self.bispectrum.output_size, dtype=torch.bool)
+
+        mask = torch.zeros(self.bispectrum.output_size, dtype=torch.bool)
+        allowed_tags = {'bootstrap'}
+        if feature_set in {'bootstrap_self', 'bootstrap_self_cg'}:
+            allowed_tags.add('mandatory_even_self')
+        for idx, tag in enumerate(self.bispectrum.bispec_feature_tags):
+            mask[idx] = tag in allowed_tags
+        if feature_set == 'bootstrap_self_cg':
+            mask[self.bispectrum.n_bispec :] = True
+        return mask
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         with torch.amp.autocast('cuda', enabled=False):
             x = x.float()
             beta = self.bispectrum(x)
+            beta = beta * self._feature_mask
             real = torch.sign(beta.real) * torch.log1p(beta.real.abs())
             imag = torch.sign(beta.imag) * torch.log1p(beta.imag.abs())
             features = torch.cat([real, imag], dim=-1)
@@ -164,8 +190,28 @@ def build_model(
     nlon: int = 128,
     selective: bool = True,
     hidden: int = 256,
+    bispectrum_features: BispectrumFeatureSet = 'full',
+    s2cnn_batch_norm: bool = False,
+    tp_channels: int = 16,
+    tp_lmax: int = 6,
+    tp_layers: int = 3,
 ) -> nn.Module:
     """Build a model for the Spherical MNIST experiment."""
+    if model_type in {'s2cnn', 'tensor_product'}:
+        # e3nn is only needed for these baselines.
+        from baselines import S2CNN, TensorProductNet
+
+        if model_type == 's2cnn':
+            return S2CNN(nlat=nlat, nlon=nlon, batch_norm=s2cnn_batch_norm)
+        return TensorProductNet(
+            lmax=lmax,
+            nlat=nlat,
+            nlon=nlon,
+            channels=tp_channels,
+            hidden_lmax=tp_lmax,
+            n_layers=tp_layers,
+            hidden=hidden,
+        )
     if model_type == 'bispectrum':
         return BispectrumClassifier(
             lmax=lmax,
@@ -173,6 +219,7 @@ def build_model(
             nlon=nlon,
             selective=selective,
             hidden=hidden,
+            feature_set=bispectrum_features,
         )
     elif model_type == 'power_spectrum':
         return PowerSpectrumClassifier(
