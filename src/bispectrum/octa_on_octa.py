@@ -29,7 +29,8 @@ with CnonCn and DnonDn modules.
 import math
 
 import torch
-import torch.nn as nn
+
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 _S3_2 = math.sqrt(3.0) / 2.0
 
@@ -324,7 +325,7 @@ def _batched_kron_3x3(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
     return torch.einsum('bij,bkl->bikjl', A, B).reshape(A.shape[0], 9, 9)
 
 
-class OctaonOcta(nn.Module):
+class OctaonOcta(CUDAGraphModule):
     """Bispectrum of the octahedral group O acting on R^3.
 
     Signal f: O -> R has length 24 (one value per group element).
@@ -508,6 +509,7 @@ class OctaonOcta(nn.Module):
 
         return Fplus
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the O-Bispectrum of signal f.
 
@@ -685,6 +687,11 @@ class OctaonOcta(nn.Module):
         if not self.selective:
             raise NotImplementedError('Inversion only implemented for selective bispectrum.')
 
+        # The bispectrum is homogeneous of degree three. Normalize each sample
+        # so absolute damping and bootstrap cutoffs do not depend on signal units.
+        signal_scale = beta.real.abs().amax(dim=-1).pow(1.0 / 3.0)
+        signal_scale = torch.where(signal_scale > 0, signal_scale, torch.ones_like(signal_scale))
+        beta = beta / signal_scale[:, None].pow(3)
         target_real = beta.real
         f_init = self._bootstrap_init(beta)
         fhat_init = self._group_dft(f_init.to(torch.float64))
@@ -723,7 +730,7 @@ class OctaonOcta(nn.Module):
                     best_f[improved] = f[improved]
                     best_loss[improved] = residuals[improved]
 
-        return best_f
+        return best_f * signal_scale[:, None]
 
     def _lm_step(
         self,

@@ -1,7 +1,7 @@
 """Tests for SO2onS1 bispectrum module.
 
 SO2onS1 is a thin subclass of CnonCn. These tests verify the subclass relationship holds and that
-the continuous-group wrapper behaves identically to the underlying discrete implementation.
+the historical naming wrapper behaves identically to the underlying discrete implementation.
 """
 
 import pytest
@@ -11,6 +11,18 @@ from bispectrum import CnonCn, SO2onS1
 
 ATOL = 1e-4
 RTOL = 1e-4
+
+
+def test_continuous_rotation_is_not_the_supported_discrete_action():
+    """The n=3 modular beta_11 term aliases, despite a degree-one real input."""
+    theta = 2 * torch.pi * torch.arange(3, dtype=torch.float64) / 3
+    alpha = torch.tensor([0.0, 0.37, 2 * torch.pi / 3], dtype=torch.float64)
+    f = 1 + torch.cos(theta[None] - alpha[:, None])
+    beta = SO2onS1(3)(f)
+    expected = (3 / 2) ** 3 * torch.exp(-3j * alpha)
+    torch.testing.assert_close(beta[:, 2], expected, atol=1e-13, rtol=1e-13)
+    assert not torch.allclose(beta[0], beta[1])
+    torch.testing.assert_close(beta[0], beta[2], atol=1e-13, rtol=1e-13)
 
 
 class TestSO2onS1IsACnonCn:

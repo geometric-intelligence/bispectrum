@@ -2,7 +2,8 @@
 
 Pure torch implementation — no scipy, and no ``torch.special.bessel_j0/j1``
 (which are only ~5e-7 accurate in float64 on parts of the real line).  All
-orders are evaluated with Miller's backward recurrence.  Used by SO2onDisk
+orders are evaluated with Miller's backward recurrence and a local series
+near the origin. Used by SO2onDisk
 for disk harmonic computations. Not part of the public API.
 
 Provides:
@@ -20,7 +21,8 @@ def bessel_jn(n: int, x: torch.Tensor) -> torch.Tensor:
     """Compute J_n(x) for integer order n >= 0 to double precision.
 
     Every order, including n = 0 and n = 1, is evaluated with Miller's
-    backward recurrence (see :func:`_bessel_jn_multi`).  The recurrence is
+    backward recurrence, with a local power series near zero to preserve
+    derivatives (see :func:`_bessel_jn_multi`). The recurrence is
     started above both ``n`` and ``max|x|`` so it is stable in the
     ``x < n`` regime (where the forward recurrence diverges) and in the
     oscillatory regime alike.  ``torch.special.bessel_j0/j1`` are
@@ -68,7 +70,7 @@ def _bessel_jn_multi(orders: tuple[int, ...], x: torch.Tensor) -> list[torch.Ten
     # ratio 2k/x would overflow between two rescales otherwise.
     is_zero = ax < 1e-30
     inv_x = torch.where(is_zero, torch.ones_like(ax), ax).reciprocal()
-    x_max = float(ax.max()) if ax.numel() > 0 else 0.0
+    x_max = float(ax.detach().max()) if ax.numel() > 0 else 0.0
     m_start = _miller_start_order(n_max, x_max)
 
     wanted = set(orders)
@@ -105,6 +107,17 @@ def _bessel_jn_multi(orders: tuple[int, ...], x: torch.Tensor) -> list[torch.Ten
         val = torch.where(is_zero, at_zero, val)
         if n % 2 == 1:
             val = torch.where(xw < 0, -val, val)
+        # Miller normalization cancels almost all digits of small derivatives
+        # (notably J_0'), and abs(x) loses J_1'(0). Use the convergent series
+        # near the origin, retaining the signed argument for odd orders.
+        small = ax < 0.1
+        xs = torch.where(small, xw, torch.zeros_like(xw))
+        term = (xs / 2).pow(n) * math.exp(-math.lgamma(n + 1))
+        series = term
+        for k in range(1, 6):
+            term = term * (-xs.square() / (4 * k * (n + k)))
+            series = series + term
+        val = torch.where(small, series, val)
         out.append(val.to(in_dtype))
     return out
 

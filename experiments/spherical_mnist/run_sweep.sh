@@ -35,7 +35,9 @@ TRAIN_MODES=(${TRAIN_MODES:-C R})
 # shellcheck disable=SC2206
 SEEDS=(${SEEDS:-42 123 456})
 OUTPUT_DIR="./smnist_results"
-COMMON="--patience 10 --epochs 50"
+# Same protocol for every model: 30 epochs (SGDR cycle end 10 + 20), no early stopping
+# (best-validation checkpoint), batch size 256 (train.py default).
+COMMON="--epochs 30"
 
 run_single() {
     local model=$1 mode=$2 seed=$3

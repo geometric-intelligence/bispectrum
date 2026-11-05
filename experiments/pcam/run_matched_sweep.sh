@@ -33,6 +33,10 @@ cd "$SCRIPT_DIR"
 
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$REPO_ROOT/.venv/bin/activate"
+# CAPTURE_JOBS=<file>: record "<cwd>\t<quoted argv>" per run instead of training.
+if [[ -n "${CAPTURE_JOBS:-}" ]]; then
+    python() { printf '%s\t%s\n' "$PWD" "${*@Q}" >>"$CAPTURE_JOBS"; }
+fi
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
@@ -43,30 +47,11 @@ EQUIVARIANT_MODELS=(norm gate fourier_elu norm_pool bispectrum)
 
 OUTPUT_DIR="./pcam_results_pareto"
 TRAIN_SIZE=12500
-COMMON="--train_size ${TRAIN_SIZE} --patience 10 --epochs 50"
+# Same protocol for every model: 30 epochs (SGDR cycle end 10 + 20), no early stopping
+# (best-validation checkpoint), one batch size. Fourier-ELU gr=12 needs ~49 GB at batch 64,
+# so 64 is the largest batch every configuration fits at on an 80 GB GPU.
+COMMON="--train_size ${TRAIN_SIZE} --epochs 30 --batch_size 64"
 N_TAG="_n${TRAIN_SIZE}"
-
-batch_size_for() {
-    local model=$1 gr=$2
-    if [[ "$model" == "fourier_elu" ]]; then
-        # Fourier-ELU's irfft upsample is memory-hungry; gr=6 at bs=128
-        # OOMs when sharing a GPU.
-        if (( gr >= 6 )); then echo 64
-        else echo 128
-        fi
-    elif [[ "$model" == "bispectrum" || "$model" == "norm" || "$model" == "norm_pool" ]]; then
-        if (( gr >= 8 )); then echo 64
-        else echo 128
-        fi
-    elif [[ "$model" == "gate" ]] && (( gr >= 12 )); then
-        echo 64
-    elif [[ "$model" == "gate" ]] && (( gr >= 6 )); then
-        # gate gr=6 at bs=256 needs >52 GB and OOMs when sharing a GPU.
-        echo 128
-    else
-        echo 256
-    fi
-}
 
 run_single() {
     local model=$1 gr=$2 seed=$3 mode=${4:-C}
@@ -75,14 +60,12 @@ run_single() {
         echo "SKIP (already done): model=$model gr=$gr mode=$mode seed=$seed"
         return 0
     fi
-    local bs
-    bs=$(batch_size_for "$model" "$gr")
     echo ""
     echo "============================================================"
-    echo "  model=$model  gr=$gr  mode=$mode  seed=$seed  bs=$bs  $(date)"
+    echo "  model=$model  gr=$gr  mode=$mode  seed=$seed  $(date)"
     echo "============================================================"
     python train.py --model "$model" --growth_rate "$gr" --train_mode "$mode" \
-        --output_dir "$OUTPUT_DIR" --seed "$seed" --batch_size "$bs" $COMMON
+        --output_dir "$OUTPUT_DIR" --seed "$seed" $COMMON
 }
 
 run_so2_disk() {
@@ -97,7 +80,7 @@ run_so2_disk() {
     echo "  model=so2_disk  bl=$bl  seed=$seed  $(date)"
     echo "============================================================"
     python train.py --model so2_disk --bandlimit "$bl" --train_mode C \
-        --output_dir "$OUTPUT_DIR" --seed "$seed" --batch_size 256 $COMMON
+        --output_dir "$OUTPUT_DIR" --seed "$seed" $COMMON
 }
 
 # Optional env override to run a disjoint subset of models in a parallel

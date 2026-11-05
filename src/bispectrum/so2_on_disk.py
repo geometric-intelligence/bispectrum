@@ -18,9 +18,9 @@ Total selective coefficient count: N = sum_{n=0}^{N_m} K_n.
 import math
 
 import torch
-import torch.nn as nn
 
 from bispectrum._bessel import bessel_jn, compute_all_bessel_roots
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 
 def default_bandlimit(L: int) -> float:
@@ -86,7 +86,7 @@ def _build_truncated_indices(
     return indices, K, N_m
 
 
-class SO2onDisk(nn.Module):
+class SO2onDisk(CUDAGraphModule):
     """Bispectrum of SO(2) acting on the unit disk.
 
     Takes a square grayscale image f of shape (batch, L, L), computes the
@@ -112,6 +112,11 @@ class SO2onDisk(nn.Module):
         had ``cond ~ 1e16``.  The default ``output_size`` and feature layout
         change (e.g. 76 instead of 105 at ``L=16``).  Pass ``bandlimit``
         explicitly to reproduce a specific truncation.
+
+    .. versionchanged:: 0.4.1
+        The disk harmonic transform runs in the dtype of the module's buffers
+        instead of always float64, so ``.to(dtype=torch.float32)`` yields
+        complex64 output and the module runs on MPS.
     """
 
     def __init__(
@@ -161,6 +166,11 @@ class SO2onDisk(nn.Module):
         disk_mask = r_grid < 1.0
 
         self.register_buffer('_disk_mask', disk_mask)
+        # Gathering by index instead of boolean mask avoids a host sync, so forward can be
+        # captured in a CUDA graph.
+        self.register_buffer(
+            '_disk_flat_idx', torch.nonzero(disk_mask.flatten()).squeeze(-1), persistent=False
+        )
 
         pixel_r = r_grid[disk_mask]
         pixel_theta = theta_grid[disk_mask]
@@ -288,7 +298,7 @@ class SO2onDisk(nn.Module):
         """
         re_part = x[:, self._rc_re_idx]
         im_part = x[:, self._rc_im_idx] * self._rc_is_complex.unsqueeze(0).to(x.dtype)
-        return (re_part + 1j * im_part).to(torch.complex128)
+        return torch.complex(re_part, im_part)
 
     def _complex_to_real(self, a: torch.Tensor) -> torch.Tensor:
         """Convert complex DH coefficients (n >= 0) to real parameter vector.
@@ -301,7 +311,7 @@ class SO2onDisk(nn.Module):
         """
         batch = a.shape[0]
         d_real = self._phi.shape[1]
-        x = torch.zeros(batch, d_real, dtype=torch.float64, device=a.device)
+        x = torch.zeros(batch, d_real, dtype=self._phi.dtype, device=a.device)
         x.scatter_(1, self._rc_re_idx.unsqueeze(0).expand(batch, -1), a.real)
         cmask = self._rc_is_complex
         if cmask.any():
@@ -320,8 +330,7 @@ class SO2onDisk(nn.Module):
         Returns:
             Complex DH coefficients (n >= 0), shape (batch, m_nonneg).
         """
-        mask = self._disk_mask
-        f_disk = f[:, mask].to(torch.float64)  # (batch, p_disk)
+        f_disk = f.flatten(1).index_select(1, self._disk_flat_idx).to(self._phi_pinv.dtype)
         x_real = f_disk @ self._phi_pinv.T  # (batch, d_real)
         return self._real_to_complex(x_real)
 
@@ -341,6 +350,7 @@ class SO2onDisk(nn.Module):
         f[:, self._disk_mask] = f_disk
         return f
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the SO(2) selective disk bispectrum.
 
@@ -400,7 +410,8 @@ class SO2onDisk(nn.Module):
         batch = beta.shape[0]
         device = beta.device
 
-        a = torch.zeros(batch, self._m_nonneg, dtype=torch.complex128, device=device)
+        complex_dtype = torch.complex64 if self._phi.dtype == torch.float32 else torch.complex128
+        a = torch.zeros(batch, self._m_nonneg, dtype=complex_dtype, device=device)
 
         K_0 = K[0]
         offset = 0
@@ -432,7 +443,8 @@ class SO2onDisk(nn.Module):
         # Step 5: sequential for n=1..N_m-1
         for n in range(1, N_m):
             K_np1 = K.get(n + 1, 0)
-            a_n1 = a[:, nonneg_to_idx[(n, 1)]]
+            # Later writes to a must not invalidate this divisor in autograd.
+            a_n1 = a[:, nonneg_to_idx[(n, 1)]].clone()
             for k in range(1, K_np1 + 1):
                 b_idx = offset + k - 1
                 a[:, nonneg_to_idx[(n + 1, k)]] = (beta[:, b_idx] / (a_11 * a_n1)).conj()
