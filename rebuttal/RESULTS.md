@@ -8,12 +8,12 @@ Run outputs are not in git: `results.json`, training logs, best-model checkpoint
 | `rebuttal/results`                      | `results/rebuttal/results`                      |
 | `benchmarks/figures/paper_timings.json` | `results/benchmarks/figures/paper_timings.json` |
 
-`rebuttal/results_manifest.tsv` (in git) lists the path, size and sha256 of every stored file. At the camera-ready freeze the store held 3,410 files, 3.39 GiB in total:
+`rebuttal/results_manifest.tsv` (in git) lists the path, size and sha256 of every stored file. At the camera-ready freeze the store held 3,412 files, 3.39 GiB in total:
 
 | Kind                                                | Files |     Size |
 | --------------------------------------------------- | ----: | -------: |
 | Checkpoints and replot caches (`*.pt`)              |   928 | 3.34 GiB |
-| `results.json` and other JSON (`*.json`, `*.jsonl`) | 1,884 |   32 MiB |
+| `results.json` and other JSON (`*.json`, `*.jsonl`) | 1,886 |   32 MiB |
 | Training logs                                       |   555 |   19 MiB |
 | Tables, figures, environment captures, dataset card |    43 |    2 MiB |
 
@@ -45,11 +45,11 @@ git pull
 
 **Only JSON is published** (`*.json`, `*.jsonl`: about 1,900 files, 32 MiB). Every figure, table and significance test is computed from these. Checkpoints, training logs, derived tables and environment captures stay in the local stores on the machines that produced them, and the manifest records their hashes.
 
-Published revision: [`e1df662`](https://huggingface.co/datasets/geometric-intelligence/bispectrum/commit/e1df6621c3e512d36158f1033d15b022ad2ea2c0) (2026-11-05). It has the loose files from code commit `d1d39f3` and `results-json.tar.gz`, sha256 `7634c85b9d6d17c5a12bb62a0e669d245926809ea2a9ca62c34e9080a7ae07ce`. Downloaded into a fresh clone, it passes `verify` and rebuilds `make_grid_figure.py`'s outputs byte for byte, apart from PDF creation dates.
+Published revision: [`95a2b26`](https://huggingface.co/datasets/geometric-intelligence/bispectrum/commit/95a2b26fc953a2ec46a8ba771147f59e8aaf4198) (2026-11-05), matching this manifest. `results-json.tar.gz` there has sha256 `b95ca34dec0af671c06fe68a49d6a0a556dc5b335f5cd64f3094bf5fdd33140e`. Downloaded into a fresh clone, it passes `verify` and rebuilds `make_grid_figure.py`'s outputs byte for byte, apart from PDF creation dates.
 
 `hf` is the Hugging Face CLI (`pip install -U huggingface_hub`, or run it as `uvx --from huggingface_hub hf`). The token needs write access to the dataset.
 
-The dataset carries the JSON twice: as loose files for browsing and partial fetches, and as `results-json.tar.gz` (6.4 MiB) for a one-request download. The archive is built with `pack`, which fixes owners, permissions and the gzip header, so an unchanged store packs to the same bytes.
+The dataset carries the JSON twice: as loose files for browsing and partial fetches, and as `results-json.tar.gz` (6.5 MiB) for a one-request download. The archive is built with `pack`, which fixes owners, permissions and the gzip header, so an unchanged store packs to the same bytes.
 
 ```bash
 # Publish or update: the loose files, then the archive
