@@ -98,6 +98,22 @@ uv.lock
 *.toc
 *.vrb
 
-# Experiment figure outputs
+# Experiment and benchmark figure outputs (paper_timings.json is the --replot cache)
 experiments/grid_mockup/
 experiments/grid_figure/
+experiments/smnist_figure/
+benchmarks/figures/paper_*
+benchmarks/figures/caption_*.tex
+
+# Run outputs (results.json, logs, checkpoints) stay out of git. No trailing slash, so a
+# symlink to an external results store is ignored too.
+/results
+experiments/**/*_results
+experiments/**/*_results_*
+experiments/tooling/results
+
+# camera-ready reruns: stale results moved aside by experiments/tooling/archive_stale_results.py
+*_pre040/
+*_prefloor/
+*_earlystop/
+*_preheadfix/

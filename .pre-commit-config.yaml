@@ -1,6 +1,7 @@
 default_stages: [pre-commit]
 fail_fast: false
-exclude: ^(docs/|paper/|experiments/)
+# experiments/tooling/ is linted like the library; the per-dataset experiment code is not.
+exclude: ^(docs/|paper/|experiments/(?!tooling/))
 
 default_language_version:
   python: python3
@@ -20,6 +21,7 @@ repos:
       - id: check-toml
       - id: check-case-conflict
       - id: check-added-large-files
+        exclude: ^experiments/tooling/results_manifest\.tsv$
       - id: check-merge-conflict
 
   - repo: https://github.com/gitleaks/gitleaks

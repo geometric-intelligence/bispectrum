@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -25,6 +26,10 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import brand  # noqa: E402
 
 MODEL_ORDER = ['standard', 'power_spectrum', 's2cnn', 's2cnn_bn', 'tensor_product', 'bispectrum']
 MODEL_LABELS = {
@@ -104,10 +109,6 @@ def _is_full_train(record: dict) -> bool:
 
 
 NEURIPS_RCPARAMS = {
-    'font.family': 'serif',
-    'font.serif': ['Computer Modern Roman', 'CMU Serif', 'DejaVu Serif'],
-    'mathtext.fontset': 'cm',
-    'text.usetex': False,
     'font.size': 8,
     'axes.labelsize': 9,
     'axes.titlesize': 9,
@@ -126,23 +127,24 @@ NEURIPS_RCPARAMS = {
     'lines.linewidth': 0.8,
     'patch.linewidth': 0.4,
     'grid.linewidth': 0.3,
-    'grid.alpha': 0.4,
 }
 
-COLORS = {
-    'standard': '#7f7f7f',
-    'power_spectrum': '#1f77b4',
-    's2cnn': '#8c564b',
-    's2cnn_bn': '#c49c94',
-    'tensor_product': '#2ca02c',
-    'bispectrum': '#d62728',
-}
+COLORS = {model: brand.METHOD_COLORS[model] for model in MODEL_ORDER}
 
 PROTOCOL_COLORS = {
-    'C/C': '#2D6A9F',
-    'R/R': '#4CAF50',
-    'C/R': '#D4722A',
+    'C/C': brand.GRAPHITE,
+    'R/R': brand.ASH,
+    'C/R': brand.NEUTRAL_LIGHT,
 }
+
+
+def _use_paper_style() -> None:
+    brand.use_style()
+    plt.rcParams.update(NEURIPS_RCPARAMS)
+
+
+def _text_color(model: str) -> str:
+    return brand.ORANGE_TEXT if model == 'bispectrum' else brand.MUTED
 
 
 def load_results(
@@ -305,15 +307,11 @@ def plot_data_efficiency(
     output_path: str,
 ):
     """Two-panel figure: C/C and C/R accuracy vs absolute training size."""
-    plt.rcParams.update(NEURIPS_RCPARAMS)
+    _use_paper_style()
 
     sizes_to_plot = [100, 500, 2500, 12500, SMNIST_FULL_TRAIN]
     models_to_plot = ['standard', 'power_spectrum', 'bispectrum']
-    colors = {
-        'standard': '#7f7f7f',
-        'power_spectrum': '#1f77b4',
-        'bispectrum': '#d62728',
-    }
+    colors = {model: COLORS[model] for model in models_to_plot}
     markers = {'standard': 's', 'power_spectrum': 'D', 'bispectrum': 'o'}
     labels = {
         'standard': 'Standard CNN',
@@ -379,6 +377,7 @@ def plot_data_efficiency(
     )
 
     fig.tight_layout()
+    brand.finish(fig)
     fig.savefig(output_path, dpi=300)
     pdf_path = output_path.replace('.png', '.pdf')
     fig.savefig(pdf_path)
@@ -425,10 +424,7 @@ def print_data_efficiency_table(
 
 
 def _clean_axes(ax: plt.Axes):
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.yaxis.grid(True, zorder=0)
-    ax.set_axisbelow(True)
+    brand.style_axes(ax, grid='y')
 
 
 def plot_combined_figure(
@@ -436,7 +432,7 @@ def plot_combined_figure(
     output_path: str,
 ):
     """NeurIPS-quality 2-panel figure: (a) Cohen protocol, (b) rotation robustness."""
-    plt.rcParams.update(NEURIPS_RCPARAMS)
+    _use_paper_style()
 
     models_with_data = [m for m in MODEL_ORDER if grouped.get((m, 'C')) or grouped.get((m, 'R'))]
     if not models_with_data:
@@ -460,7 +456,7 @@ def plot_combined_figure(
         '(a)',
         transform=ax_a.transAxes,
         fontsize=10,
-        fontweight='bold',
+        fontweight='semibold',
         va='bottom',
     )
     ax_b.text(
@@ -469,10 +465,11 @@ def plot_combined_figure(
         '(b)',
         transform=ax_b.transAxes,
         fontsize=10,
-        fontweight='bold',
+        fontweight='semibold',
         va='bottom',
     )
 
+    brand.finish(fig)
     fig.savefig(output_path, dpi=300)
     pdf_path = output_path.replace('.png', '.pdf')
     fig.savefig(pdf_path)
@@ -515,7 +512,7 @@ def _plot_cohen_panel(
             yerr=errs,
             label=proto,
             color=PROTOCOL_COLORS[proto],
-            edgecolor='white',
+            edgecolor=brand.surface_color(),
             linewidth=0.4,
             capsize=2,
             error_kw={'linewidth': 0.6, 'capthick': 0.6},
@@ -538,13 +535,14 @@ def _plot_cohen_panel(
                     ha='center',
                     va='bottom',
                     fontsize=5.5,
+                    fontfamily=brand.MONO,
                 )
         vals_prev = vals
 
     cohen_s2 = COHEN_RESULTS['Cohen spherical CNN (NR/X)']
     ax.axhline(
         cohen_s2['C/C'],
-        color='#888888',
+        color=brand.MUTED,
         linewidth=0.6,
         linestyle='--',
         zorder=2,
@@ -553,7 +551,7 @@ def _plot_cohen_panel(
     )
     ax.axhline(
         cohen_s2['C/R'],
-        color='#888888',
+        color=brand.MUTED,
         linewidth=0.6,
         linestyle=':',
         zorder=2,
@@ -585,7 +583,7 @@ def _plot_cohen_panel(
         handlelength=1.5,
         fontsize=6,
         loc='upper center',
-        bbox_to_anchor=(0.5, -0.18),
+        bbox_to_anchor=(0.5, -0.30),
         columnspacing=1.2,
     )
 
@@ -620,7 +618,7 @@ def _plot_rotation_panel(
             s=12,
             alpha=0.55,
             color=color,
-            edgecolors='white',
+            edgecolors=brand.surface_color(),
             linewidths=0.3,
             zorder=3,
         )
@@ -641,9 +639,9 @@ def _plot_rotation_panel(
             mean_val + y_offset,
             f'{mean_val:.1%}',
             fontsize=6.5,
-            color=color,
+            color=_text_color(m),
             va='bottom',
-            fontweight='medium',
+            fontfamily=brand.MONO,
         )
 
     def _label_for(m: str) -> str:
@@ -663,13 +661,13 @@ def _plot_rotation_panel(
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f'{v:.0%}'))
     _clean_axes(ax)
 
-    ax.axhline(0.10, color='#aaaaaa', linewidth=0.5, linestyle=':', zorder=1)
+    ax.axhline(0.10, color=brand.MUTED, linewidth=0.5, linestyle=':', zorder=1)
     ax.text(
         len(models) - 0.5,
         0.115,
         'chance (10%)',
         fontsize=6,
-        color='#aaaaaa',
+        color=brand.MUTED,
         ha='right',
     )
 

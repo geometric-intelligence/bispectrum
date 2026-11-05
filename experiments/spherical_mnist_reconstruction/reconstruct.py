@@ -47,13 +47,13 @@ from torch_harmonics import InverseRealSHT, RealSHT
 
 from bispectrum import SO3onS2, random_rotation_matrix, rotate_spherical_function
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import brand  # noqa: E402
+
 logger = logging.getLogger('so3_reconstruct')
 
 NEURIPS_RCPARAMS: dict[str, object] = {
-    'font.family': 'serif',
-    'font.serif': ['Computer Modern Roman', 'CMU Serif', 'DejaVu Serif'],
-    'mathtext.fontset': 'cm',
-    'text.usetex': False,
     'font.size': 8,
     'axes.labelsize': 9,
     'axes.titlesize': 9,
@@ -66,6 +66,11 @@ NEURIPS_RCPARAMS: dict[str, object] = {
     'savefig.pad_inches': 0.02,
     'axes.linewidth': 0.5,
 }
+
+
+def _use_paper_style() -> None:
+    brand.use_style()
+    plt.rcParams.update(NEURIPS_RCPARAMS)
 
 
 @dataclass
@@ -868,7 +873,7 @@ def _draw_sphere(
     disk = _orthographic_project(f, view_size, elev_deg=elev_deg, azim_deg=azim_deg)
     ax.imshow(
         disk,
-        cmap='RdBu_r',
+        cmap=brand.DIVERGING,
         vmin=vmin,
         vmax=vmax,
         extent=(-1.0, 1.0, -1.0, 1.0),
@@ -877,8 +882,8 @@ def _draw_sphere(
     )
     if grid_lines is not None:
         for u, v in grid_lines:
-            ax.plot(u, v, color='gray', linewidth=0.25, alpha=0.45, zorder=2)
-    circle = plt.Circle((0, 0), 1.0, fill=False, color='black', linewidth=0.6, zorder=3)
+            ax.plot(u, v, color=brand.MUTED, linewidth=0.25, alpha=0.45, zorder=2)
+    circle = plt.Circle((0, 0), 1.0, fill=False, color=brand.INK, linewidth=0.6, zorder=3)
     ax.add_patch(circle)
     ax.set_xlim(-1.05, 1.05)
     ax.set_ylim(-1.05, 1.05)
@@ -906,7 +911,7 @@ def _draw_panel(
     else:
         ax.imshow(
             f,
-            cmap='RdBu_r',
+            cmap=brand.DIVERGING,
             vmin=vmin,
             vmax=vmax,
             aspect='auto',
@@ -937,7 +942,7 @@ def make_orbits_figure(
     ``(elev_deg, azim_deg)``. A faint lat/lon graticule is overlaid for
     rotation reference.
     """
-    plt.rcParams.update(NEURIPS_RCPARAMS)
+    _use_paper_style()
     n_targets = 1 + n_rotations
     n_cols = 3 * n_targets
 
@@ -1058,7 +1063,7 @@ def make_convergence_figure(results: list[ReconResult], path: Path) -> None:
 
     step.
     """
-    plt.rcParams.update(NEURIPS_RCPARAMS)
+    _use_paper_style()
     if not results:
         return
 
@@ -1071,19 +1076,17 @@ def make_convergence_figure(results: list[ReconResult], path: Path) -> None:
     p75 = np.percentile(traces, 75, axis=0)
 
     fig, ax = plt.subplots(figsize=(3.6, 2.4))
-    ax.fill_between(steps, p25, p75, color='#2D6A9F', alpha=0.20, linewidth=0, label='IQR')
-    ax.plot(steps, med, color='#2D6A9F', linewidth=1.2, label='median')
+    ax.fill_between(steps, p25, p75, color=brand.ORANGE, alpha=0.20, linewidth=0, label='IQR')
+    ax.plot(steps, med, color=brand.ORANGE_TEXT, linewidth=1.2, label='median')
 
     ax.set_xlabel('Adam step')
     ax.set_ylabel(r'$\|\beta(\hat f) - \beta(f)\| / \|\beta(f)\|$')
     ax.set_yscale('log')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.yaxis.grid(True, linewidth=0.3, alpha=0.4)
-    ax.set_axisbelow(True)
+    brand.style_axes(ax, grid='y')
     ax.legend(frameon=False, loc='upper right')
 
     fig.tight_layout()
+    brand.finish(fig)
     fig.savefig(path)
     fig.savefig(str(path).replace('.pdf', '.png'))
     plt.close(fig)
@@ -1095,26 +1098,26 @@ def make_invariance_figure(results: list[ReconResult], path: Path) -> None:
 
     recon residual per (digit, rot).
     """
-    plt.rcParams.update(NEURIPS_RCPARAMS)
+    _use_paper_style()
     inv = np.array([r.invariance_rel for r in results if r.rot_idx > 0])
     rec = np.array([r.final_recon_rel for r in results if r.rot_idx > 0])
     if inv.size == 0:
         return
 
     fig, ax = plt.subplots(figsize=(3.4, 2.4))
-    ax.scatter(inv, rec, s=10, color='#2D6A9F', alpha=0.7, edgecolor='none')
+    ax.scatter(inv, rec, s=10, color=brand.ORANGE_TEXT, alpha=0.7, edgecolor='none')
     lo = max(min(inv.min(), rec.min()) * 0.5, 1e-8)
     hi = max(inv.max(), rec.max()) * 2.0
-    ax.plot([lo, hi], [lo, hi], color='gray', linestyle='--', linewidth=0.6, label='$y=x$')
+    ax.plot([lo, hi], [lo, hi], color=brand.MUTED, linestyle='--', linewidth=0.6, label='$y=x$')
 
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_xlabel(r'invariance $\|\beta(R_k f) - \beta(f)\| / \|\beta(f)\|$')
     ax.set_ylabel(r'recon $\|\beta(\hat f_k) - \beta(R_k f)\| / \|\beta(R_k f)\|$')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    brand.style_axes(ax, grid=None)
     ax.legend(frameon=False, loc='upper left')
     fig.tight_layout()
+    brand.finish(fig)
     fig.savefig(path)
     fig.savefig(str(path).replace('.pdf', '.png'))
     plt.close(fig)
@@ -1130,17 +1133,18 @@ def make_paper_figure(
     auto_center: bool = True,
     elev_deg: float = 25.0,
     azim_deg: float = 30.0,
+    rot_idx: int | None = None,
 ) -> None:
     """Compact ``2 x len(digit_indices)`` figure for the NeurIPS paper.
 
     Rows: ``Target f`` / ``Recon \\hat R \\cdot \\hat f``. Columns: one per
-    requested ``digit_idx`` (we keep the rotation with the lowest aligned
-    image residual). Both rows of a column share the *target's* camera so
-    any visible mismatch is a true reconstruction error rather than a
-    viewpoint difference. Sized for ``\\includegraphics[width=\\linewidth]``
-    inclusion in a NeurIPS column.
+    requested ``digit_idx``, showing orientation ``rot_idx`` (``None``: the
+    orientation with the lowest aligned image residual). Both rows of a column
+    share the *target's* camera so any visible mismatch is a true
+    reconstruction error rather than a viewpoint difference. Sized for
+    ``\\includegraphics[width=\\linewidth]`` inclusion in a NeurIPS column.
     """
-    plt.rcParams.update(NEURIPS_RCPARAMS)
+    _use_paper_style()
 
     by_digit: dict[int, list[ReconResult]] = {}
     for r in results:
@@ -1150,8 +1154,13 @@ def make_paper_figure(
     for d in digit_indices:
         if d not in by_digit:
             raise ValueError(f'digit_idx {d} not in results (available: {sorted(by_digit)})')
-        best = min(by_digit[d], key=lambda r: r.aligned_image_space_rel)
-        picks.append(best)
+        if rot_idx is None:
+            picks.append(min(by_digit[d], key=lambda r: r.aligned_image_space_rel))
+            continue
+        match = [r for r in by_digit[d] if r.rot_idx == rot_idx]
+        if not match:
+            raise ValueError(f'digit_idx {d} has no record with rot_idx {rot_idx}')
+        picks.append(match[0])
 
     n_cols = len(picks)
     n_rows = 2
@@ -1183,8 +1192,10 @@ def make_paper_figure(
 
         axes[0][j].set_title(f'class {r.label}', fontsize=9, pad=3)
         axes[1][j].set_xlabel(
-            rf'${r.aligned_image_space_rel:.2f}$',
+            f'{r.aligned_image_space_rel:.3f}',
             fontsize=8,
+            fontfamily=brand.MONO,
+            color=brand.MUTED,
             labelpad=2,
         )
 

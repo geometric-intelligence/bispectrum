@@ -10,20 +10,43 @@ Usage:
     python benchmarks/benchmark.py              # all benchmarks, GPU included
     python benchmarks/benchmark.py --cpu-only   # skip GPU benchmarks
     python benchmarks/benchmark.py --bench 1 3  # run only benchmarks 1 and 3
+    python benchmarks/benchmark.py --paper      # paper figures + table; caches figures/paper_timings.json
+    python benchmarks/benchmark.py --replot     # redraw them from the cache, no GPU
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import math
+import subprocess  # nosec B404
+import sys
+from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Final, TypedDict
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.utils.benchmark as torchbench
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.ticker import LogLocator
 
 from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onDisk, SO3onS2, TorusOnTorus
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import brand  # noqa: E402
+from experiments.make_grid_figure import (  # noqa: E402
+    LEGEND_FONT_SIZE,
+    SUBTITLE_FONT_SIZE,
+    TITLE_FONT_SIZE,
+    _warn_if_clipped,
+    configure_style,
+)
 
 FIGURES_DIR = Path(__file__).parent / 'figures'
 
@@ -126,7 +149,6 @@ def bench_coefficient_count() -> plt.Figure:
     fig, ax = plt.subplots(1, 1, figsize=(10, 7))
 
     markers = ['o', 's', '^', 'D', 'v', 'P', 'X', '*']
-    colors = plt.cm.tab10.colors  # type: ignore[attr-defined]
 
     line_idx = 0
     for module_name, param_list in selective_configs:
@@ -143,7 +165,7 @@ def bench_coefficient_count() -> plt.Figure:
             group_orders,
             output_sizes,
             marker=markers[line_idx % len(markers)],
-            color=colors[line_idx % len(colors)],
+            color=brand.GROUP_COLORS[module_name],
             label=label,
             linewidth=2,
             markersize=6,
@@ -168,7 +190,8 @@ def bench_coefficient_count() -> plt.Figure:
             group_orders,
             output_sizes,
             marker=markers[line_idx % len(markers)],
-            color=colors[line_idx % len(colors)],
+            color=brand.GROUP_COLORS[module_name],
+            alpha=0.5,
             label=label,
             linewidth=2,
             markersize=6,
@@ -187,7 +210,7 @@ def bench_coefficient_count() -> plt.Figure:
         [bsp_octa.output_size],
         marker='*',
         s=200,
-        color=colors[line_idx % len(colors)],
+        color=brand.GROUP_COLORS['OctaonOcta'],
         label=f'OctaonOcta selective ({bsp_octa.output_size})',
         zorder=5,
     )
@@ -196,8 +219,8 @@ def bench_coefficient_count() -> plt.Figure:
 
     # Reference slopes
     x_ref = [4, 1024]
-    ax.plot(x_ref, x_ref, 'k:', alpha=0.4, label='O(|G|)')
-    ax.plot(x_ref, [x**2 for x in x_ref], 'k--', alpha=0.4, label='O(|G|²)')
+    ax.plot(x_ref, x_ref, color=brand.MUTED, linestyle=':', label='O(|G|)')
+    ax.plot(x_ref, [x**2 for x in x_ref], color=brand.MUTED, linestyle='--', label='O(|G|²)')
 
     ax.set_xscale('log')
     ax.set_yscale('log')
@@ -205,7 +228,7 @@ def bench_coefficient_count() -> plt.Figure:
     ax.set_ylabel('output_size (# coefficients)', fontsize=13)
     ax.set_title('Coefficient Count: Selective vs Full Bispectrum', fontsize=14)
     ax.legend(fontsize=9, loc='upper left')
-    ax.grid(True, alpha=0.3, which='both')
+    brand.style_axes(ax, grid='both')
     fig.tight_layout()
     return fig
 
@@ -276,9 +299,9 @@ def bench_forward_pass(device: torch.device) -> plt.Figure:
         ax = axes_flat[ax_idx]
         ax_idx += 1
 
-        for sel_mode, sel_label, plist, mk, ls in [
-            (True, 'selective', sel_param_list, 'o', '-'),
-            (False, 'full', full_param_list, 's', '--'),
+        for sel_mode, sel_label, plist, mk, ls, color in [
+            (True, 'selective', sel_param_list, 'o', '-', brand.ORANGE_TEXT),
+            (False, 'full', full_param_list, 's', '--', brand.MUTED),
         ]:
             if plist is None:
                 continue
@@ -300,7 +323,13 @@ def bench_forward_pass(device: torch.device) -> plt.Figure:
 
             if group_orders:
                 ax.plot(
-                    group_orders, times_ms, marker=mk, linestyle=ls, label=sel_label, linewidth=2
+                    group_orders,
+                    times_ms,
+                    marker=mk,
+                    linestyle=ls,
+                    color=color,
+                    label=sel_label,
+                    linewidth=2,
                 )
                 print(f'\n{module_name} {sel_label} ({dev_name}):')
                 print(f'  {"|G|":>10s}  {"time_ms":>10s}')
@@ -313,17 +342,18 @@ def bench_forward_pass(device: torch.device) -> plt.Figure:
         ax.set_ylabel('time (ms)')
         ax.set_title(module_name)
         ax.legend()
-        ax.grid(True, alpha=0.3, which='both')
+        brand.style_axes(ax, grid='both')
 
     # OctaonOcta: single bar
     ax = axes_flat[ax_idx]
     bsp = OctaonOcta(selective=True).to(device)
     f = _make_input('OctaonOcta', {}, batch, device)
     t = _time_fn('bsp(f)', {'bsp': bsp, 'f': f}, 'OctaonOcta', device)
-    ax.bar(['selective'], [t], color='steelblue')
+    ax.bar(['selective'], [t], color=brand.ORANGE)
     ax.set_ylabel('time (ms)')
     ax.set_title('OctaonOcta (|G|=24)')
-    ax.text(0, t * 1.05, f'{t:.3f} ms', ha='center', fontsize=10)
+    ax.text(0, t * 1.05, f'{t:.3f} ms', ha='center', fontsize=10, fontfamily=brand.MONO)
+    brand.style_axes(ax)
     print(f'\nOctaonOcta selective ({dev_name}): {t:.3f} ms')
 
     fig.suptitle(f'Forward Pass Timing — batch={batch}, {dev_name}', fontsize=14, y=1.01)
@@ -387,7 +417,7 @@ def bench_inversion(device: torch.device) -> plt.Figure:
         ax.set_ylabel('time (ms)')
         ax.set_title(module_name)
         ax.legend()
-        ax.grid(True, alpha=0.3, which='both')
+        brand.style_axes(ax, grid='both')
 
         print(f'\n{module_name} inversion ({dev_name}):')
         print(f'  {"|G|":>10s}  {"fwd_ms":>10s}  {"inv_ms":>10s}')
@@ -408,11 +438,12 @@ def bench_inversion(device: torch.device) -> plt.Figure:
         'OctaonOcta_inv',
         device,
     )
-    ax.bar(['forward', 'invert'], [t_fwd, t_inv], color=['steelblue', 'darkorange'])
+    ax.bar(['forward', 'invert'], [t_fwd, t_inv], color=[brand.GRAPHITE, brand.ASH])
     ax.set_ylabel('time (ms)')
     ax.set_title('OctaonOcta (|G|=24, LM inversion)')
     for i, (_lbl, val) in enumerate([('fwd', t_fwd), ('inv', t_inv)]):
-        ax.text(i, val * 1.05, f'{val:.2f}', ha='center', fontsize=9)
+        ax.text(i, val * 1.05, f'{val:.2f}', ha='center', fontsize=9, fontfamily=brand.MONO)
+    brand.style_axes(ax)
     print(f'\nOctaonOcta ({dev_name}): fwd={t_fwd:.3f} ms, inv={t_inv:.3f} ms')
 
     # SO3onS2 note
@@ -426,7 +457,7 @@ def bench_inversion(device: torch.device) -> plt.Figure:
         fontsize=14,
         transform=ax.transAxes,
         style='italic',
-        color='gray',
+        color=brand.MUTED,
     )
     ax.set_frame_on(False)
     ax.set_xticks([])
@@ -458,7 +489,6 @@ def bench_gpu_scaling() -> plt.Figure:
     batch_sizes = [1, 4, 16, 64, 256, 1024, 4096]
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 7))
-    colors = plt.cm.tab10.colors  # type: ignore[attr-defined]
     markers = ['o', 's', '^', 'D', 'v', 'P']
 
     for midx, (module_name, params) in enumerate(module_configs):
@@ -492,7 +522,7 @@ def bench_gpu_scaling() -> plt.Figure:
             valid_batches,
             throughputs,
             marker=markers[midx % len(markers)],
-            color=colors[midx % len(colors)],
+            color=brand.GROUP_COLORS[module_name],
             label=f'{module_name} (|G|={g})',
             linewidth=2,
             markersize=7,
@@ -504,48 +534,23 @@ def bench_gpu_scaling() -> plt.Figure:
     ax.set_ylabel('throughput (samples/sec)', fontsize=13)
     ax.set_title('GPU Batch Scaling — Forward Pass Throughput', fontsize=14)
     ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3, which='both')
+    brand.style_axes(ax, grid='both')
     fig.tight_layout()
     return fig
 
 
-OKABE_ITO = [
-    '#E69F00',  # orange
-    '#56B4E9',  # sky blue
-    '#009E73',  # bluish green
-    '#F0E442',  # yellow
-    '#0072B2',  # blue
-    '#D55E00',  # vermilion
-    '#CC79A7',  # reddish purple
-    '#000000',  # black
-]
-
-
 def _paper_rc() -> None:
-    """Set matplotlib rcParams for NeurIPS publication figures."""
-    # Try usetex first; fall back to mathtext if LaTeX fonts are missing.
-    use_tex = True
-    try:
-        import subprocess  # nosec B404
-
-        subprocess.run(['kpsewhich', 'type1ec.sty'], check=True, capture_output=True)  # nosec B603 B607
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        use_tex = False
-
+    """Brand style at print sizes for the paper figures."""
+    brand.use_style()
     plt.rcParams.update(
         {
-            'font.family': 'serif',
-            'font.serif': ['DejaVu Serif', 'Computer Modern Roman', 'Times New Roman'],
-            'mathtext.fontset': 'cm',
-            'text.usetex': use_tex,
             'font.size': 9,
             'axes.titlesize': 10,
             'axes.labelsize': 9,
             'xtick.labelsize': 8,
             'ytick.labelsize': 8,
             'legend.fontsize': 7.5,
-            'legend.framealpha': 0.8,
-            'legend.edgecolor': '0.8',
+            'legend.framealpha': 0.9,
             'figure.dpi': 300,
             'lines.linewidth': 1.2,
             'lines.markersize': 4,
@@ -560,41 +565,36 @@ def _paper_rc() -> None:
 
 
 def _panel_label(ax: plt.Axes, label: str) -> None:  # type: ignore[name-defined]
-    if plt.rcParams.get('text.usetex'):
-        txt = rf'\textbf{{({label})}}'
-    else:
-        txt = f'({label})'
     ax.text(
         0.03,
         0.93,
-        txt,
+        f'({label})',
         transform=ax.transAxes,
         fontsize=10,
-        fontweight='bold',
+        fontweight='semibold',
         va='top',
         ha='left',
     )
 
 
 def _grid(ax: plt.Axes) -> None:  # type: ignore[name-defined]
-    ax.grid(True, which='major', alpha=0.15, linewidth=0.4)
-    ax.grid(False, which='minor')
+    brand.style_axes(ax, grid='both')
 
 
-def paper_figures(device: torch.device) -> None:
-    """Generate NeurIPS-quality composite figures and LaTeX table."""
+def _save_figure(fig: plt.Figure, stem: str, dpi: int = 300) -> None:  # type: ignore[name-defined]
+    brand.finish(fig)
+    fig.savefig(FIGURES_DIR / f'{stem}.pdf', bbox_inches='tight')
+    fig.savefig(FIGURES_DIR / f'{stem}.png', bbox_inches='tight', dpi=dpi)
+    plt.close(fig)
+    print(f'\nSaved: {FIGURES_DIR / f"{stem}.pdf"}')
+
+
+def paper_fig_coefficients() -> None:
+    """Paper Figure 1: selective vs full coefficient counts (no timing, CPU-only)."""
     _paper_rc()
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    c = brand.GROUP_COLORS
 
-    batch_fwd = 16
-    batch_inv = 4
-    c = OKABE_ITO
-
-    print('\n' + '=' * 70)
-    print('PAPER FIGURES')
-    print('=' * 70)
-
-    # === Figure 1: Coefficient count (standalone) =========================
     fig1, ax1 = plt.subplots(figsize=(5.5, 2.8))
 
     sel_modules: list[tuple[str, str, list[dict[str, Any]], str, str]] = [
@@ -602,23 +602,29 @@ def paper_figures(device: torch.device) -> None:
             r'$C_n$',
             'CnonCn',
             [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256, 512, 1024]],
-            c[4],
+            c['CnonCn'],
             'o',
         ),
         (
             r'$\mathbb{T}^2$',
             'TorusOnTorus',
             [{'ns': (n, n)} for n in [4, 8, 16, 32, 64, 128, 256]],
-            c[0],
+            c['TorusOnTorus'],
             's',
         ),
-        (r'$D_n$', 'DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256]], c[2], '^'),
-        (r'$\mathrm{SO}(2)/D^2$', 'SO2onDisk', [{'L': L} for L in [8, 16, 32]], c[6], 'v'),
+        (r'$D_n$', 'DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256]], c['DnonDn'], '^'),
+        (
+            r'$\mathrm{SO}(2)/D^2$',
+            'SO2onDisk',
+            [{'L': L} for L in [8, 16, 32]],
+            c['SO2onDisk'],
+            'v',
+        ),
         (
             r'$\mathrm{SO}(3)/S^2$',
             'SO3onS2',
             [_so3_params(l) for l in [2, 4, 8, 16, 32]],
-            c[3],
+            c['SO3onS2'],
             'D',
         ),
     ]
@@ -653,30 +659,42 @@ def paper_figures(device: torch.device) -> None:
 
     bsp_octa = OctaonOcta(selective=True)
     ax1.scatter(
-        [24], [bsp_octa.output_size], marker='*', s=80, color=c[5], zorder=5, label=r'$O$ sel.'
+        [24],
+        [bsp_octa.output_size],
+        marker='*',
+        s=80,
+        color=c['OctaonOcta'],
+        edgecolor=brand.surface_color(),
+        linewidth=0.4,
+        zorder=5,
+        label=r'$O$ sel.',
     )
 
     x_lo, x_hi = 4, max(all_gs_flat) * 2
     xs = [x_lo, x_hi]
-    ax1.plot(xs, xs, color='0.55', linestyle=':', linewidth=0.8, label=r'$O(|G|)$')
+    ax1.plot(xs, xs, color=brand.MUTED, linestyle=':', linewidth=0.8, label=r'$O(|G|)$')
     ax1.fill_between(
         xs,
         [x**2 for x in xs],
         [x_hi**2] * 2,
-        color='0.88',
-        alpha=0.3,
+        color=brand.SAND,
+        alpha=0.6,
         linewidth=0,
         label=r'full $O(|G|^2)$ region',
     )
     ax1.plot(
-        xs, [x**2 for x in xs], color='0.55', linestyle='-.', linewidth=0.8, label=r'$O(|G|^2)$'
+        xs,
+        [x**2 for x in xs],
+        color=brand.MUTED,
+        linestyle='-.',
+        linewidth=0.8,
+        label=r'$O(|G|^2)$',
     )
 
     ax1.set_xscale('log')
     ax1.set_yscale('log')
     ax1.set_xlabel(r'$|G|$')
-    ylab = r'$\#$ coefficients' if plt.rcParams.get('text.usetex') else '# coefficients'
-    ax1.set_ylabel(ylab)
+    ax1.set_ylabel('# coefficients')
     ax1.set_title('Bispectral coefficient count: selective vs. full')
     ax1.legend(
         fontsize=7, ncol=3, columnspacing=1.0, handlelength=1.5, loc='upper left', framealpha=0.9
@@ -685,253 +703,440 @@ def paper_figures(device: torch.device) -> None:
     _grid(ax1)
 
     fig1.tight_layout()
-    fig1.savefig(FIGURES_DIR / 'paper_fig1.pdf', bbox_inches='tight')
-    fig1.savefig(FIGURES_DIR / 'paper_fig1.png', bbox_inches='tight', dpi=300)
-    plt.close(fig1)
-    print(f'\nSaved: {FIGURES_DIR / "paper_fig1.pdf"}')
+    _save_figure(fig1, 'paper_fig1')
 
-    # === Figure 2: Forward timing (2 panels) ============================
-    fig2, (ax_b, ax_c) = plt.subplots(1, 2, figsize=(5.5, 2.4))
 
-    # Panel (a): CnonCn forward selective vs full (GPU)
-    _panel_label(ax_b, 'a')
-    cn_sel_ns = [8, 16, 32, 64, 128, 256, 512, 1024]
-    cn_full_ns = [8, 16, 32, 64, 128, 256]
+FORWARD_BATCH: Final = 16
+INVERSION_BATCH: Final = 4
+TIMINGS_PATH: Final = FIGURES_DIR / 'paper_timings.json'
 
-    cn_sel_times: list[float] = []
-    for n in cn_sel_ns:
-        bsp = CnonCn(n=n, selective=True).to(device)
-        f = torch.randn(batch_fwd, n, device=device)
-        cn_sel_times.append(_time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'cn_sel_{n}', device))
-        print(f'  CnonCn sel n={n}: {cn_sel_times[-1]:.3f} ms')
+CN_NS: Final = (8, 16, 32, 64, 128, 256, 512, 1024)
+TORUS_NS: Final = (8, 16, 32, 64, 128, 256)
+# The full torus map indexes every frequency pair in a Python list: 8.4M at |G|=4096, 134M at 16384.
+TORUS_FULL_NS: Final = (8, 16, 32, 64)
+THROUGHPUT_BATCHES: Final = (1, 4, 16, 64, 256, 1024, 4096)
+THROUGHPUT_CONFIGS: Final[tuple[tuple[str, dict[str, Any]], ...]] = (
+    ('CnonCn', {'n': 128}),
+    ('TorusOnTorus', {'ns': (32, 32)}),
+    ('DnonDn', {'n': 32}),
+    ('SO3onS2', _so3_params(16)),
+    ('OctaonOcta', {}),
+)
+INVERSION_CONFIGS: Final[tuple[tuple[str, tuple[dict[str, Any], ...]], ...]] = (
+    ('CnonCn', tuple({'n': n} for n in CN_NS)),
+    ('TorusOnTorus', tuple({'ns': (n, n)} for n in TORUS_NS)),
+    ('DnonDn', tuple({'n': n} for n in (4, 8, 16, 32, 64, 128))),
+    ('SO2onDisk', tuple({'L': L} for L in _SO2ONDISK_LS)),
+    ('OctaonOcta', ({},)),
+)
+TABLE_CONFIGS: Final[tuple[tuple[str, str, str, dict[str, Any], bool, bool], ...]] = (
+    (r'\texttt{CnonCn}', r'$C_{128}$', 'CnonCn', {'n': 128}, True, True),
+    (
+        r'\texttt{TorusOnTorus}',
+        r'$C_{32}{\times}C_{32}$',
+        'TorusOnTorus',
+        {'ns': (32, 32)},
+        True,
+        True,
+    ),
+    (r'\texttt{DnonDn}', r'$D_{32}$', 'DnonDn', {'n': 32}, True, False),
+    (r'\texttt{SO2onDisk}', r'$\mathrm{SO}(2)$', 'SO2onDisk', {'L': 16}, True, False),
+    (r'\texttt{SO3onS2}', r'$\mathrm{SO}(3)$', 'SO3onS2', _so3_params(16), False, False),
+    (r'\texttt{OctaonOcta}', r'$O$', 'OctaonOcta', {}, True, False),
+)
 
-    cn_full_times: list[float] = []
-    for n in cn_full_ns:
-        bsp = CnonCn(n=n, selective=False).to(device)
-        f = torch.randn(batch_fwd, n, device=device)
-        cn_full_times.append(_time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'cn_full_{n}', device))
-        print(f'  CnonCn full n={n}: {cn_full_times[-1]:.3f} ms')
+# Legend order and marks for the library modules; colors come from brand.GROUP_COLORS. Adjacent grays
+# alternate solid/filled and dashed/hollow so coinciding curves (C_n and T^2 inversion) stay separable.
+GROUP_STYLE: Final[dict[str, tuple[str, str, bool]]] = {
+    'CnonCn': (r'$C_n$', 'o', False),
+    'TorusOnTorus': (r'$\mathbb{T}^2$', 's', True),
+    'DnonDn': (r'$D_n$', '^', False),
+    'SO2onDisk': (r'SO(2) on disk', 'v', True),
+    'SO3onS2': (r'SO(3) on $S^2$', 'D', False),
+    'OctaonOcta': (r'$O$', '*', True),
+}
+CAPTION_NAMES: Final[dict[str, str]] = {
+    'CnonCn': r'$C_n$',
+    'TorusOnTorus': r'$\mathbb{T}^2$',
+    'DnonDn': r'$D_n$',
+    'SO2onDisk': 'the disk',
+    'SO3onS2': r'$\mathrm{SO}(3)$ on $S^2$',
+    'OctaonOcta': r'$O$',
+}
 
-    ax_b.plot(cn_sel_ns, cn_sel_times, marker='o', color=c[4], label='selective')
-    ax_b.plot(cn_full_ns, cn_full_times, marker='s', color=c[5], linestyle='--', label='full')
-    ax_b.set_xscale('log')
-    ax_b.set_yscale('log')
-    ax_b.set_xlabel(r'$n$')
-    ax_b.set_ylabel('time (ms)')
-    ax_b.set_title(r'Forward pass: $C_n$ on $C_n$')
-    ax_b.legend(fontsize=7.5)
-    _grid(ax_b)
+TIMING_FIGURE_SIZE: Final = (5.5, 1.8)
+TIMING_MARGINS: Final = {'left': 0.42, 'right': 0.03, 'bottom': 0.33, 'top': 0.47}
 
-    # Panel (b): TorusOnTorus forward selective vs full (GPU)
-    _panel_label(ax_c, 'b')
-    tor_sel_ns = [8, 16, 32, 64, 128, 256]
-    tor_full_ns = [8, 16, 32]
 
-    tor_sel_gs: list[int] = []
-    tor_sel_times: list[float] = []
-    for n in tor_sel_ns:
-        bsp = TorusOnTorus(ns=(n, n), selective=True).to(device)
-        f = torch.randn(batch_fwd, n, n, device=device)
-        g = n * n
-        tor_sel_gs.append(g)
-        tor_sel_times.append(_time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'tor_sel_{n}', device))
-        print(f'  Torus sel n={n} |G|={g}: {tor_sel_times[-1]:.3f} ms')
+type Curve = list[list[float]]
 
-    tor_full_gs: list[int] = []
-    tor_full_times: list[float] = []
-    for n in tor_full_ns:
-        bsp = TorusOnTorus(ns=(n, n), selective=False).to(device)
-        f = torch.randn(batch_fwd, n, n, device=device)
-        g = n * n
-        tor_full_gs.append(g)
-        tor_full_times.append(_time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'tor_full_{n}', device))
-        print(f'  Torus full n={n} |G|={g}: {tor_full_times[-1]:.3f} ms')
 
-    ax_c.plot(tor_sel_gs, tor_sel_times, marker='o', color=c[4], label='selective')
-    ax_c.plot(tor_full_gs, tor_full_times, marker='s', color=c[5], linestyle='--', label='full')
-    ax_c.set_xscale('log')
-    ax_c.set_xlabel(r'$|G| = n^2$')
-    ax_c.set_ylabel('time (ms)')
-    ax_c.set_title(r'Forward pass: $\mathbb{T}^2$')
-    ax_c.legend(fontsize=7.5)
-    _grid(ax_c)
+class ThroughputCurve(TypedDict):
+    group_order: int
+    batch: list[int]
+    ms: list[float]
 
-    fig2.tight_layout()
-    fig2.savefig(FIGURES_DIR / 'paper_fig2.pdf', bbox_inches='tight')
-    fig2.savefig(FIGURES_DIR / 'paper_fig2.png', bbox_inches='tight', dpi=300)
-    plt.close(fig2)
-    print(f'\nSaved: {FIGURES_DIR / "paper_fig2.pdf"}')
 
-    # === Figure 3: 2 panels ============================================
-    fig3, (ax_d, ax_e) = plt.subplots(1, 2, figsize=(5.5, 2.4))
+class TableRow(TypedDict):
+    tex_name: str
+    group_tex: str
+    module: str
+    group_order: int
+    coefs_sel: int
+    coefs_full: int | None
+    fwd_sel: float
+    fwd_inf: float
+    fwd_full: float | None
+    inv: float | None
 
-    # Panel (a): GPU batch scaling (finite groups)
-    _panel_label(ax_d, 'a')
-    batch_sizes = [1, 4, 16, 64, 256, 1024, 4096]
-    gpu_configs: list[tuple[str, str, dict[str, Any], str, str]] = [
-        (r'$C_n$', 'CnonCn', {'n': 128}, c[4], 'o'),
-        (r'$\mathbb{T}^2$', 'TorusOnTorus', {'ns': (32, 32)}, c[0], 's'),
-        (r'$D_n$', 'DnonDn', {'n': 32}, c[2], '^'),
-        (r'$\mathrm{SO}(3)/S^2$', 'SO3onS2', _so3_params(16), c[3], 'v'),
-        (r'$O$', 'OctaonOcta', {}, c[5], 'D'),
-    ]
 
-    for label, mod_name, params, color, marker in gpu_configs:
-        bsp = _build_module(mod_name, params, selective=True).to(device)
-        g = _group_order(mod_name, params)
-        throughputs: list[float] = []
-        valid_batches: list[int] = []
-        for bs in batch_sizes:
-            try:
-                f = _make_input(mod_name, params, bs, device)
-                t = _time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'{mod_name}_b{bs}', device)
-            except RuntimeError:
-                break
-            throughputs.append(bs / (t / 1e3))
-            valid_batches.append(bs)
-        ax_d.plot(
-            valid_batches, throughputs, marker=marker, color=color, label=rf'{label} ($|G|$={g})'
-        )
-        print(f'  GPU scaling {mod_name}: max throughput = {max(throughputs):.0f} samples/s')
+class PaperTimings(TypedDict):
+    meta: dict[str, str | int | float]
+    forward: dict[str, dict[str, Curve]]
+    throughput: dict[str, ThroughputCurve]
+    inversion: dict[str, Curve]
+    table: list[TableRow]
 
-    ax_d.set_xscale('log')
-    ax_d.set_yscale('log')
-    ax_d.set_xlabel('batch size')
-    ax_d.set_ylabel('throughput (samples/s)')
-    ax_d.set_title('GPU batch scaling')
-    ax_d.set_ylim(top=1e10)
-    ax_d.legend(
-        fontsize=5.5,
-        loc='upper right',
-        ncol=2,
-        handlelength=1.0,
-        handletextpad=0.4,
-        columnspacing=0.5,
-        labelspacing=0.25,
-        borderpad=0.3,
+
+def _forward_curve(
+    module: str, params_list: Sequence[dict[str, Any]], *, selective: bool, device: torch.device
+) -> Curve:
+    mode = 'selective' if selective else 'full'
+    points: Curve = []
+    for params in params_list:
+        try:
+            bsp = _build_module(module, params, selective=selective).to(device)
+            f = _make_input(module, params, FORWARD_BATCH, device)
+            ms = _time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'{module}_{mode}', device)
+        except torch.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            print(f'  {module} {mode} {params}: out of memory, curve stops here')
+            break
+        g = _group_order(module, params)
+        points.append([g, ms])
+        print(f'  forward {module} {mode} |G|={g}: {ms:.3f} ms')
+    return points
+
+
+def _throughput_curve(
+    module: str, params: dict[str, Any], device: torch.device
+) -> ThroughputCurve:
+    bsp = _build_module(module, params, selective=True).to(device)
+    batches: list[int] = []
+    times: list[float] = []
+    for batch in THROUGHPUT_BATCHES:
+        try:
+            f = _make_input(module, params, batch, device)
+            ms = _time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'{module}_b{batch}', device)
+        except torch.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            break
+        batches.append(batch)
+        times.append(ms)
+    best = max(b / (t / 1e3) for b, t in zip(batches, times, strict=True))
+    print(f'  throughput {module}: max {best:.3g} samples/s')
+    return {'group_order': _group_order(module, params), 'batch': batches, 'ms': times}
+
+
+def _inversion_curve(
+    module: str, params_list: Sequence[dict[str, Any]], device: torch.device
+) -> Curve:
+    points: Curve = []
+    for params in params_list:
+        bsp = _build_module(module, params, selective=True).to(device)
+        f = _make_input(module, params, INVERSION_BATCH, device)
+        with torch.no_grad():
+            beta = bsp(f)
+        ms = _time_fn('bsp.invert(beta)', {'bsp': bsp, 'beta': beta}, f'{module}_inv', device)
+        g = _group_order(module, params)
+        points.append([g, ms])
+        print(f'  inversion {module} |G|={g}: {ms:.2f} ms')
+    return points
+
+
+def _table_row(
+    tex_name: str,
+    group_tex: str,
+    module: str,
+    params: dict[str, Any],
+    has_inv: bool,
+    has_full: bool,
+    device: torch.device,
+) -> TableRow:
+    g = _group_order(module, params)
+    bsp = _build_module(module, params, selective=True).to(device)
+    f = _make_input(module, params, FORWARD_BATCH, device)
+    fwd_sel = _time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'tab_{module}_sel', device)
+    fwd_inf = _time_fn('bsp(f)', {'bsp': bsp, 'f': f}, f'tab_{module}_inf', device, inference=True)
+    fwd_full = None
+    if has_full:
+        bsp_full = _build_module(module, params, selective=False).to(device)
+        fwd_full = _time_fn('bsp(f)', {'bsp': bsp_full, 'f': f}, f'tab_{module}_full', device)
+    inv = None
+    if has_inv:
+        with torch.no_grad():
+            beta = bsp(f)
+        inv = _time_fn('bsp.invert(beta)', {'bsp': bsp, 'beta': beta}, f'tab_{module}_inv', device)
+    return {
+        'tex_name': tex_name,
+        'group_tex': group_tex,
+        'module': module,
+        'group_order': g,
+        'coefs_sel': bsp.output_size,
+        'coefs_full': g * (g + 1) // 2 if has_full else None,
+        'fwd_sel': fwd_sel,
+        'fwd_inf': fwd_inf,
+        'fwd_full': fwd_full,
+        'inv': inv,
+    }
+
+
+def _git_revision() -> str:
+    def git(*args: str) -> str:
+        return subprocess.run(  # nosec B603 B607
+            ['git', *args], cwd=FIGURES_DIR.parent, capture_output=True, text=True, check=False
+        ).stdout.strip()
+
+    dirty = git('status', '--porcelain', '--', '../src')
+    return git('rev-parse', '--short', 'HEAD') + ('+dirty-src' if dirty else '')
+
+
+def measure_paper_timings(device: torch.device) -> PaperTimings:
+    """Time everything behind paper Figures 5-6 and the benchmark table (GPU, ~10 min)."""
+    print('\nForward pass')
+    forward = {
+        'CnonCn': {
+            'selective': _forward_curve(
+                'CnonCn', [{'n': n} for n in CN_NS], selective=True, device=device
+            ),
+            'full': _forward_curve(
+                'CnonCn', [{'n': n} for n in CN_NS], selective=False, device=device
+            ),
+        },
+        'TorusOnTorus': {
+            'selective': _forward_curve(
+                'TorusOnTorus', [{'ns': (n, n)} for n in TORUS_NS], selective=True, device=device
+            ),
+            'full': _forward_curve(
+                'TorusOnTorus',
+                [{'ns': (n, n)} for n in TORUS_FULL_NS],
+                selective=False,
+                device=device,
+            ),
+        },
+    }
+    print('\nThroughput')
+    throughput = {
+        module: _throughput_curve(module, params, device) for module, params in THROUGHPUT_CONFIGS
+    }
+    print('\nInversion')
+    inversion = {
+        module: _inversion_curve(module, params_list, device)
+        for module, params_list in INVERSION_CONFIGS
+    }
+    print('\nTable')
+    table = [_table_row(*config, device=device) for config in TABLE_CONFIGS]
+    meta: dict[str, str | int | float] = {
+        'device': torch.cuda.get_device_name(device),
+        'torch': torch.__version__,
+        'cuda': str(torch.version.cuda),
+        'revision': _git_revision(),
+        'date': datetime.now().astimezone().isoformat(timespec='seconds'),
+        'forward_batch': FORWARD_BATCH,
+        'inversion_batch': INVERSION_BATCH,
+        'statistic': 'median of torch.utils.benchmark blocked_autorange(min_run_time=0.5), one thread',
+    }
+    return {
+        'meta': meta,
+        'forward': forward,
+        'throughput': throughput,
+        'inversion': inversion,
+        'table': table,
+    }
+
+
+def _timing_figure(*, sharey: bool, wspace: float) -> tuple[Figure, tuple[Axes, Axes]]:
+    width, height = TIMING_FIGURE_SIZE
+    fig = plt.figure(figsize=TIMING_FIGURE_SIZE)
+    grid = fig.add_gridspec(
+        1,
+        2,
+        left=TIMING_MARGINS['left'] / width,
+        right=1.0 - TIMING_MARGINS['right'] / width,
+        bottom=TIMING_MARGINS['bottom'] / height,
+        top=1.0 - TIMING_MARGINS['top'] / height,
+        wspace=wspace,
     )
-    _grid(ax_d)
+    left = fig.add_subplot(grid[0, 0])
+    right = fig.add_subplot(grid[0, 1], sharey=left if sharey else None)
+    return fig, (left, right)
 
-    # Panel (b): Inversion timing overlay (all modules with inversion)
-    _panel_label(ax_e, 'b')
-    inv_configs: list[tuple[str, str, list[dict[str, Any]], str, str]] = [
-        (r'$C_n$', 'CnonCn', [{'n': n} for n in [8, 16, 32, 64, 128, 256, 512, 1024]], c[4], 'o'),
-        (
-            r'$\mathbb{T}^2$',
-            'TorusOnTorus',
-            [{'ns': (n, n)} for n in [8, 16, 32, 64, 128, 256]],
-            c[0],
-            's',
+
+def _title(ax: Axes, title: str, subtitle: str) -> None:
+    ax.set_title(title, fontsize=TITLE_FONT_SIZE, fontweight='medium', pad=10)
+    ax.annotate(
+        subtitle,
+        xy=(0.5, 1.0),
+        xycoords='axes fraction',
+        xytext=(0, 3.5),
+        textcoords='offset points',
+        ha='center',
+        va='bottom',
+        fontsize=SUBTITLE_FONT_SIZE,
+        color=brand.MUTED,
+    )
+
+
+def _log_axes(ax: Axes, xs: Sequence[float], pad: float = 1.35) -> None:
+    """Log-log axes whose x-range hugs the data, so no tick label overhangs the canvas."""
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlim(min(xs) / pad, max(xs) * pad)
+    ax.xaxis.set_major_locator(LogLocator(base=10))
+    ax.yaxis.set_major_locator(LogLocator(base=10))
+    brand.style_axes(ax, grid='both')
+
+
+def _top_legend(fig: Figure, handles: Sequence[Line2D]) -> None:
+    fig.legend(
+        handles=handles,
+        loc='upper center',
+        bbox_to_anchor=(
+            0.5 + (TIMING_MARGINS['left'] - TIMING_MARGINS['right']) / 2 / fig.get_figwidth(),
+            1.0,
         ),
-        (r'$D_n$', 'DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128]], c[2], '^'),
-        (r'$\mathrm{SO}(2)/D^2$', 'SO2onDisk', [{'L': L} for L in _SO2ONDISK_LS], c[6], 'v'),
+        ncol=len(handles),
+        frameon=False,
+        borderaxespad=0.0,
+        fontsize=LEGEND_FONT_SIZE,
+        handlelength=1.8,
+        columnspacing=1.4,
+    )
+
+
+def _save_timing_figure(fig: Figure, stem: str) -> None:
+    brand.finish(fig)
+    _warn_if_clipped(fig, stem)
+    with plt.rc_context({'savefig.bbox': 'standard'}):
+        fig.savefig(FIGURES_DIR / f'{stem}.pdf')
+        fig.savefig(FIGURES_DIR / f'{stem}.png', dpi=300)
+    plt.close(fig)
+    print(f'Saved: {FIGURES_DIR / f"{stem}.pdf"}')
+
+
+def _mode_style(mode: str) -> dict[str, Any]:
+    if mode == 'selective':
+        return {
+            'color': brand.ORANGE_TEXT,
+            'marker': 'o',
+            'markersize': 3.2,
+            'markeredgecolor': brand.surface_color(),
+            'markeredgewidth': 0.4,
+            'linewidth': 1.3,
+        }
+    return {
+        'color': brand.INK,
+        'marker': 's',
+        'markersize': 2.8,
+        'markerfacecolor': brand.surface_color(),
+        'markeredgewidth': 0.8,
+        'linewidth': 0.9,
+        'linestyle': (0, (3, 1.5)),
+    }
+
+
+def plot_forward_figure(data: PaperTimings) -> None:
+    """Paper Figure 5: selective vs. full forward time on C_n and the torus."""
+    fig, axes = _timing_figure(sharey=True, wspace=0.12)
+    panels = (
+        ('CnonCn', '(a) Cyclic group $C_n$', '$n$'),
+        ('TorusOnTorus', r'(b) Torus $\mathbb{T}^2 = C_n \times C_n$', r'$|G| = n^2$'),
+    )
+    for ax, (module, title, xlabel) in zip(axes, panels, strict=True):
+        for mode in ('full', 'selective'):
+            xs, ys = zip(*data['forward'][module][mode], strict=True)
+            ax.plot(xs, ys, **_mode_style(mode), zorder=3 if mode == 'selective' else 2)
+        _log_axes(ax, [x for x, _ in data['forward'][module]['selective']])
+        ax.set_xlabel(xlabel)
+        _title(ax, title, f'forward pass, batch {data["meta"]["forward_batch"]}')
+    axes[0].set_ylabel('Forward time (ms)')
+    axes[1].tick_params(labelleft=False)
+    handles = [
+        Line2D([], [], **_mode_style('selective'), label='Selective (ours)'),
+        Line2D([], [], **_mode_style('full'), label='Full bispectrum'),
     ]
+    _top_legend(fig, handles)
+    _save_timing_figure(fig, 'paper_fig2')
 
-    for label, mod_name, params_list, color, marker in inv_configs:
-        gs: list[int] = []
-        inv_times: list[float] = []
-        for params in params_list:
-            bsp = _build_module(mod_name, params, selective=True).to(device)
-            f = _make_input(mod_name, params, batch_inv, device)
-            g = _group_order(mod_name, params)
-            with torch.no_grad():
-                beta = bsp(f)
-            t = _time_fn(
-                'bsp.invert(beta)', {'bsp': bsp, 'beta': beta}, f'{mod_name}_inv_{g}', device
-            )
-            gs.append(g)
-            inv_times.append(t)
-        ax_e.plot(gs, inv_times, marker=marker, color=color, label=label)
-        print(f'  Inversion {mod_name}: {gs[-1]} -> {inv_times[-1]:.2f} ms')
 
-    # OctaonOcta single point
-    bsp_o = OctaonOcta(selective=True).to(device)
-    f_o = torch.randn(batch_inv, 24, device=device)
-    with torch.no_grad():
-        beta_o = bsp_o(f_o)
-    t_o = _time_fn('bsp.invert(beta)', {'bsp': bsp_o, 'beta': beta_o}, 'octa_inv', device)
-    ax_e.scatter([24], [t_o], marker='*', s=50, color=c[5], zorder=5, label=rf'$O$ ({t_o:.0f} ms)')
-    print(f'  Inversion OctaonOcta: 24 -> {t_o:.2f} ms')
+def _group_line(module: str) -> dict[str, Any]:
+    label, marker, dashed = GROUP_STYLE[module]
+    color = brand.GROUP_COLORS[module]
+    style: dict[str, Any] = {
+        'color': color,
+        'marker': marker,
+        'markersize': 5.0 if marker == '*' else 3.2,
+        'linewidth': 1.1,
+        'label': label,
+    }
+    if dashed:
+        hollow = {
+            'markerfacecolor': brand.surface_color(),
+            'markeredgecolor': color,
+            'markeredgewidth': 0.8,
+        }
+        return style | hollow | {'linestyle': (0, (3, 1.5))}
+    return style | {'markeredgecolor': brand.surface_color(), 'markeredgewidth': 0.4}
 
-    ax_e.set_xscale('log')
-    ax_e.set_yscale('log')
-    ax_e.set_xlabel(r'$|G|$')
-    ax_e.set_ylabel('inversion time (ms)')
-    ax_e.set_title('Selective inversion')
-    ax_e.legend(fontsize=6, loc='lower right')
-    _grid(ax_e)
 
-    fig3.tight_layout()
-    fig3.savefig(FIGURES_DIR / 'paper_fig3.pdf', bbox_inches='tight')
-    fig3.savefig(FIGURES_DIR / 'paper_fig3.png', bbox_inches='tight', dpi=300)
-    plt.close(fig3)
-    print(f'\nSaved: {FIGURES_DIR / "paper_fig3.pdf"}')
+def plot_scaling_figure(data: PaperTimings) -> None:
+    """Paper Figure 6: selective throughput against batch size, and inversion time against |G|."""
+    fig, (ax_throughput, ax_inversion) = _timing_figure(sharey=False, wspace=0.32)
+    for module, curve in data['throughput'].items():
+        rates = [b / (ms / 1e3) for b, ms in zip(curve['batch'], curve['ms'], strict=True)]
+        ax_throughput.plot(curve['batch'], rates, **_group_line(module))
+    _log_axes(ax_throughput, [b for c in data['throughput'].values() for b in c['batch']])
+    ax_throughput.set_xlabel('Batch size')
+    ax_throughput.set_ylabel('Throughput (samples/s)')
+    _title(ax_throughput, '(a) Throughput', 'selective forward pass')
 
-    # === LaTeX table ===================================================
-    print('\nGenerating LaTeX table...')
-    table_configs: list[tuple[str, str, str, dict[str, Any], bool, bool]] = [
-        (r'\texttt{CnonCn}', r'$C_{128}$', 'CnonCn', {'n': 128}, True, True),
-        (
-            r'\texttt{TorusOnTorus}',
-            r'$C_{32}{\times}C_{32}$',
-            'TorusOnTorus',
-            {'ns': (32, 32)},
-            True,
-            True,
-        ),
-        (r'\texttt{DnonDn}', r'$D_{32}$', 'DnonDn', {'n': 32}, True, False),
-        (r'\texttt{SO2onDisk}', r'$\mathrm{SO}(2)$', 'SO2onDisk', {'L': 16}, True, False),
-        (r'\texttt{SO3onS2}', r'$\mathrm{SO}(3)$', 'SO3onS2', _so3_params(16), False, False),
-        (r'\texttt{OctaonOcta}', r'$O$', 'OctaonOcta', {}, True, False),
+    for module, points in data['inversion'].items():
+        xs, ys = zip(*points, strict=True)
+        style = _group_line(module)
+        if len(xs) == 1:
+            style['linestyle'] = 'none'
+        ax_inversion.plot(xs, ys, **style)
+    _log_axes(ax_inversion, [x for points in data['inversion'].values() for x, _ in points])
+    ax_inversion.set_xlabel('$|G|$')
+    ax_inversion.set_ylabel('Inversion time (ms)')
+    _title(
+        ax_inversion,
+        '(b) Inversion',
+        f'signal from selective invariant, batch {data["meta"]["inversion_batch"]}',
+    )
+
+    handles = [Line2D([], [], **_group_line(module)) for module in GROUP_STYLE]
+    _top_legend(fig, handles)
+    _save_timing_figure(fig, 'paper_fig3')
+
+
+def write_benchmark_table(data: PaperTimings) -> None:
+    def cell(value: float | None) -> str:
+        return '--' if value is None else f'{value:.2f}'
+
+    rows = [
+        f'        {r["tex_name"]} & {r["group_tex"]} & {r["group_order"]} & {r["coefs_sel"]} '
+        f'& {"--" if r["coefs_full"] is None else r["coefs_full"]} & {cell(r["fwd_sel"])} '
+        f'& {cell(r["fwd_inf"])} & {cell(r["fwd_full"])} & {cell(r["inv"])} \\\\'
+        for r in data['table']
     ]
-
-    rows: list[str] = []
-    for tex_name, group_tex, mod_name, params, has_inv, has_full in table_configs:
-        g = _group_order(mod_name, params)
-        bsp_sel = _build_module(mod_name, params, selective=True).to(device)
-        coefs_sel = bsp_sel.output_size
-
-        if has_full:
-            coefs_full = str(g * (g + 1) // 2)
-        else:
-            coefs_full = '--'
-
-        f = _make_input(mod_name, params, batch_fwd, device)
-        t_fwd_sel = _time_fn('bsp(f)', {'bsp': bsp_sel, 'f': f}, f'tab_{mod_name}_sel', device)
-        t_fwd_inf = _time_fn(
-            'bsp(f)', {'bsp': bsp_sel, 'f': f}, f'tab_{mod_name}_inf', device, inference=True
-        )
-
-        if has_full:
-            try:
-                bsp_full = _build_module(mod_name, params, selective=False).to(device)
-                f2 = _make_input(mod_name, params, batch_fwd, device)
-                t_fwd_full = f'{_time_fn("bsp(f)", {"bsp": bsp_full, "f": f2}, f"tab_{mod_name}_full", device):.2f}'
-            except NotImplementedError:
-                t_fwd_full = '--'
-        else:
-            t_fwd_full = '--'
-
-        if has_inv:
-            with torch.no_grad():
-                beta = bsp_sel(f)
-            t_inv = f'{_time_fn("bsp.invert(beta)", {"bsp": bsp_sel, "beta": beta}, f"tab_{mod_name}_inv", device):.2f}'
-        else:
-            t_inv = '--'
-
-        rows.append(
-            f'        {tex_name} & {group_tex} & {g} & {coefs_sel} & {coefs_full} '
-            f'& {t_fwd_sel:.2f} & {t_fwd_inf:.2f} & {t_fwd_full} & {t_inv} \\\\'
-        )
-
-    device_name = torch.cuda.get_device_name(device)
     table_tex = (
         r"""\begin{table}[t]
     \centering
     \caption{Benchmark summary for the \texttt{bispectrum} library.
     Coefficient counts compare the selective ($O(|G|)$) and full ($O(|G|^2)$) bispectra.
     Timings are median wall-clock on a single """
-        + device_name
+        + str(data['meta']['device'])
         + r""" (batch\,=\,16 for forward, 4 for inversion),
     with autograd enabled (Sel.) and under \texttt{torch.inference\_mode()} (Inf.).
     ``--'' indicates the mode is not implemented.}
@@ -944,17 +1149,126 @@ def paper_figures(device: torch.device) -> None:
          & & & Sel. & Full & Sel. & Inf. & Full & Sel. \\
         \midrule
 """
-    )
-    table_tex += '\n'.join(rows)
-    table_tex += r"""
+        + '\n'.join(rows)
+        + r"""
         \bottomrule
     \end{tabular}
 \end{table}
 """
-
+    )
     table_path = FIGURES_DIR / 'table_benchmarks.tex'
     table_path.write_text(table_tex)
     print(f'Saved: {table_path}')
+
+
+def _tex_int(value: float) -> str:
+    return f'{round(value):,}'.replace(',', '{,}')
+
+
+def _tex_sci(value: float) -> str:
+    mantissa, exponent = f'{value:.1e}'.split('e')
+    return rf'{mantissa}{{\times}}10^{{{int(exponent)}}}'
+
+
+def _ms(value: float) -> str:
+    if value < 1:
+        return f'{value:.2g}'
+    return f'{value:.1f}' if value < 10 else f'{value:.0f}'
+
+
+def _ms_range(values: Sequence[float]) -> str:
+    lo, hi = _ms(min(values)), _ms(max(values))
+    return lo if lo == hi else f'{lo}--{hi}'
+
+
+def _and(items: Sequence[str]) -> str:
+    return items[0] if len(items) == 1 else ', '.join(items[:-1]) + ' and ' + items[-1]
+
+
+def _slope(points: Curve) -> float:
+    xs, ys = np.log(np.asarray(points, dtype=float).T)
+    return float(np.polyfit(xs, ys, 1)[0])
+
+
+def _check(claim: bool, message: str) -> None:
+    if not claim:
+        print(f'WARNING: caption claim no longer holds: {message}')
+
+
+def write_timing_captions(data: PaperTimings) -> None:
+    """Captions for Figures 5-6 with every number read from the timings."""
+    meta = data['meta']
+    device = str(meta['device']).replace('NVIDIA ', '').replace(' 80GB HBM3', '')
+
+    cn_sel = [ms for _, ms in data['forward']['CnonCn']['selective']]
+    cn_full = data['forward']['CnonCn']['full']
+    t_sel = data['forward']['TorusOnTorus']['selective']
+    t_full = data['forward']['TorusOnTorus']['full']
+    cn_full_n, cn_full_ms = cn_full[-1]
+    cn_sel_at = dict(map(tuple, data['forward']['CnonCn']['selective']))[cn_full_n]
+    t_full_g, t_full_ms = t_full[-1]
+    t_sel_at = dict(map(tuple, t_sel))[t_full_g]
+    t_sel_ms = [ms for _, ms in t_sel]
+    _check(max(cn_sel) / min(cn_sel) < 1.5, 'C_n selective is flat')
+    _check(max(t_sel_ms) / min(t_sel_ms) < 1.5, 'torus selective is flat')
+    forward = rf"""\caption{{\textbf{{The selective forward pass costs the same at every group size; the full
+    bispectrum grows with it.}} Median forward time, {device}, batch {meta['forward_batch']}, autograd enabled.
+    (a)~$C_n$: the selective pass takes {_ms_range(cn_sel)}\,ms at every $n$ from 8 to
+    {_tex_int(data['forward']['CnonCn']['selective'][-1][0])}; at $n{{=}}{_tex_int(cn_full_n)}$ the full bispectrum
+    takes {_ms(cn_full_ms)}\,ms, ${round(cn_full_ms / cn_sel_at):,}\times$ longer.
+    (b)~$\mathbb{{T}}^2$: {_ms_range(t_sel_ms)}\,ms up to $|G|{{=}}{_tex_int(t_sel[-1][0])}$; the full
+    bispectrum, run up to $|G|{{=}}{_tex_int(t_full_g)}$ ({_tex_int(t_full_g * (t_full_g + 1) // 2)} coefficients),
+    takes {_ms(t_full_ms)}\,ms there, ${round(t_full_ms / t_sel_at):,}\times$ longer.}}
+  \label{{fig:forward-timing}}
+"""
+
+    rates = {
+        module: max(b / (ms / 1e3) for b, ms in zip(c['batch'], c['ms'], strict=True))
+        for module, c in data['throughput'].items()
+    }
+    fast = [CAPTION_NAMES[m] for m, r in rates.items() if r >= 1e7]
+    _check(len(fast) >= 2, '>= 2 modules above 1e7 samples/s')
+    s2 = data['throughput']['SO3onS2']
+    s2_rates = [b / (ms / 1e3) for b, ms in zip(s2['batch'], s2['ms'], strict=True)]
+    _check(s2_rates[-1] / s2_rates[-3] < 1.5, 'SO(3) throughput saturates')
+    inv = data['inversion']
+    slopes = {module: _slope(points) for module, points in inv.items() if len(points) > 2}
+    linear = [m for m, k in slopes.items() if 0.8 <= k <= 1.2]
+    o_ms = inv['OctaonOcta'][0][1]
+    slope_text = _and([rf'{k:.1f} for {CAPTION_NAMES[m]}' for m, k in slopes.items()])
+    scaling = rf"""\caption{{\textbf{{Millions of signals per second on one GPU, and invertible.}}
+    (a)~Selective forward throughput against batch size, {device}, autograd enabled ($C_{{128}}$,
+    $C_{{32}}{{\times}}C_{{32}}$, $D_{{32}}$, $S^2$ at $L{{=}}16$, $O$): {_and(fast)} exceed $10^7$ samples/s,
+    $O$ reaches ${_tex_sci(rates['OctaonOcta'])}$, and $\mathrm{{SO}}(3)$ on $S^2$ saturates near
+    ${_tex_sci(rates['SO3onS2'])}$. (b)~Time to recover a signal from its selective invariant (batch
+    {meta['inversion_batch']}); log--log slopes against $|G|$ are {slope_text}. $O$ ({_ms(o_ms)}\,ms) uses
+    iterative Levenberg--Marquardt corrections; $\mathrm{{SO}}(3)$ on $S^2$ has no closed-form inversion.}}
+  \label{{fig:gpu-scaling}}
+"""
+    _check(len(linear) >= 2, 'at least two inversion curves are roughly linear')
+    for name, text in (('caption_forward.tex', forward), ('caption_scaling.tex', scaling)):
+        (FIGURES_DIR / name).write_text(text)
+        print(f'Saved: {FIGURES_DIR / name}')
+
+
+def replot_paper_figures(data: PaperTimings) -> None:
+    paper_fig_coefficients()
+    configure_style()
+    plot_forward_figure(data)
+    plot_scaling_figure(data)
+    write_benchmark_table(data)
+    write_timing_captions(data)
+
+
+def paper_figures(device: torch.device) -> None:
+    """Measure on the GPU, cache the raw timings, then draw from the cache."""
+    print('\n' + '=' * 70)
+    print('PAPER FIGURES')
+    print('=' * 70)
+    data = measure_paper_timings(device)
+    TIMINGS_PATH.write_text(json.dumps(data, indent=1) + '\n')
+    print(f'Saved: {TIMINGS_PATH}')
+    replot_paper_figures(data)
     print('\nPaper figures complete.')
 
 
@@ -977,6 +1291,11 @@ def main() -> None:
         action='store_true',
         help='Generate NeurIPS publication figures and LaTeX table only',
     )
+    parser.add_argument(
+        '--replot',
+        action='store_true',
+        help=f'Redraw the paper figures, table and captions from {TIMINGS_PATH.name} (no GPU)',
+    )
     args = parser.parse_args()
 
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
@@ -990,6 +1309,10 @@ def main() -> None:
     if has_cuda:
         print(f'GPU: {torch.cuda.get_device_name(0)}')
 
+    if args.replot:
+        replot_paper_figures(json.loads(TIMINGS_PATH.read_text()))
+        return
+
     if args.paper:
         if not has_cuda:
             print('ERROR: --paper requires CUDA. Remove --cpu-only or use a GPU machine.')
@@ -998,50 +1321,25 @@ def main() -> None:
         print('\nDone.')
         return
 
+    brand.use_style()
     print(f'Running benchmarks: {args.bench}')
 
     if 1 in args.bench:
-        fig = bench_coefficient_count()
-        fig.savefig(FIGURES_DIR / 'bench1_coefficient_count.pdf', bbox_inches='tight')
-        fig.savefig(FIGURES_DIR / 'bench1_coefficient_count.png', bbox_inches='tight', dpi=150)
-        plt.close(fig)
-        print(f'\nSaved: {FIGURES_DIR / "bench1_coefficient_count.pdf"}')
+        _save_figure(bench_coefficient_count(), 'bench1_coefficient_count', dpi=150)
 
     if 2 in args.bench:
-        fig_cpu = bench_forward_pass(cpu)
-        fig_cpu.savefig(FIGURES_DIR / 'bench2_forward_cpu.pdf', bbox_inches='tight')
-        fig_cpu.savefig(FIGURES_DIR / 'bench2_forward_cpu.png', bbox_inches='tight', dpi=150)
-        plt.close(fig_cpu)
-        print(f'\nSaved: {FIGURES_DIR / "bench2_forward_cpu.pdf"}')
-
+        _save_figure(bench_forward_pass(cpu), 'bench2_forward_cpu', dpi=150)
         if has_cuda:
-            fig_gpu = bench_forward_pass(gpu)  # type: ignore[arg-type]
-            fig_gpu.savefig(FIGURES_DIR / 'bench2_forward_gpu.pdf', bbox_inches='tight')
-            fig_gpu.savefig(FIGURES_DIR / 'bench2_forward_gpu.png', bbox_inches='tight', dpi=150)
-            plt.close(fig_gpu)
-            print(f'\nSaved: {FIGURES_DIR / "bench2_forward_gpu.pdf"}')
+            _save_figure(bench_forward_pass(gpu), 'bench2_forward_gpu', dpi=150)  # type: ignore[arg-type]
 
     if 3 in args.bench:
-        fig_cpu = bench_inversion(cpu)
-        fig_cpu.savefig(FIGURES_DIR / 'bench3_inversion_cpu.pdf', bbox_inches='tight')
-        fig_cpu.savefig(FIGURES_DIR / 'bench3_inversion_cpu.png', bbox_inches='tight', dpi=150)
-        plt.close(fig_cpu)
-        print(f'\nSaved: {FIGURES_DIR / "bench3_inversion_cpu.pdf"}')
-
+        _save_figure(bench_inversion(cpu), 'bench3_inversion_cpu', dpi=150)
         if has_cuda:
-            fig_gpu = bench_inversion(gpu)  # type: ignore[arg-type]
-            fig_gpu.savefig(FIGURES_DIR / 'bench3_inversion_gpu.pdf', bbox_inches='tight')
-            fig_gpu.savefig(FIGURES_DIR / 'bench3_inversion_gpu.png', bbox_inches='tight', dpi=150)
-            plt.close(fig_gpu)
-            print(f'\nSaved: {FIGURES_DIR / "bench3_inversion_gpu.pdf"}')
+            _save_figure(bench_inversion(gpu), 'bench3_inversion_gpu', dpi=150)  # type: ignore[arg-type]
 
     if 4 in args.bench:
         if has_cuda:
-            fig = bench_gpu_scaling()
-            fig.savefig(FIGURES_DIR / 'bench4_gpu_scaling.pdf', bbox_inches='tight')
-            fig.savefig(FIGURES_DIR / 'bench4_gpu_scaling.png', bbox_inches='tight', dpi=150)
-            plt.close(fig)
-            print(f'\nSaved: {FIGURES_DIR / "bench4_gpu_scaling.pdf"}')
+            _save_figure(bench_gpu_scaling(), 'bench4_gpu_scaling', dpi=150)
         else:
             print('\nBenchmark 4 (GPU scaling) skipped: no CUDA device available.')
 
