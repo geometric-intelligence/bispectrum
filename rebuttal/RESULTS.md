@@ -8,13 +8,13 @@ Run outputs are not in git: `results.json`, training logs, best-model checkpoint
 | `rebuttal/results`                      | `results/rebuttal/results`                      |
 | `benchmarks/figures/paper_timings.json` | `results/benchmarks/figures/paper_timings.json` |
 
-`rebuttal/results_manifest.tsv` (in git) lists the path, size and sha256 of every stored file. At the camera-ready freeze the store held 3,412 files, 3.39 GiB in total:
+`rebuttal/results_manifest.tsv` (in git) lists the path, size and sha256 of every stored file. At the camera-ready freeze the store held 3,446 files, 3.39 GiB in total:
 
 | Kind                                                | Files |     Size |
 | --------------------------------------------------- | ----: | -------: |
 | Checkpoints and replot caches (`*.pt`)              |   928 | 3.34 GiB |
 | `results.json` and other JSON (`*.json`, `*.jsonl`) | 1,886 |   32 MiB |
-| Training logs                                       |   555 |   19 MiB |
+| Training and solver logs                            |   589 |   19 MiB |
 | Tables, figures, environment captures, dataset card |    43 |    2 MiB |
 
 ## Commands
