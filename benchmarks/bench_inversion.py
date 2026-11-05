@@ -16,19 +16,12 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from types import ModuleType
 
-import matplotlib
-
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
 from bispectrum import OctaonOcta
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-import brand  # noqa: E402
 
 NEURIPS_RCPARAMS = {
     'font.size': 8,
@@ -48,20 +41,26 @@ NEURIPS_RCPARAMS = {
 def recovery_error_up_to_group_action(
     f_orig: torch.Tensor,
     f_recovered: torch.Tensor,
+    cayley: torch.Tensor,
 ) -> torch.Tensor:
-    """Min L2 error over 24 cyclic shifts (group actions on the signal vector).
+    """Min relative L2 error over the O-orbit of the recovered signal.
 
-    For each sample, tries all 24 cyclic permutations and returns the minimum relative error.
+    The bispectrum is invariant under left translation (T_h f)(g) = f(h^{-1} g). With
+    cayley[i, j] = index of g_i g_j, the orbit of f is {f[:, cayley[k]] : k in O}.
+
+    Args:
+        f_orig: (batch, 24) original signals.
+        f_recovered: (batch, 24) recovered signals.
+        cayley: (24, 24) Cayley table of O, e.g. ``OctaonOcta()._cayley``.
+
+    Returns:
+        (batch,) minimum relative error over the 24 group translates.
     """
-    batch = f_orig.shape[0]
-    best_err = torch.full((batch,), float('inf'), device=f_orig.device)
-
-    for shift in range(24):
-        f_shifted = torch.roll(f_recovered, shifts=shift, dims=-1)
-        err = (f_orig - f_shifted).norm(dim=-1) / f_orig.norm(dim=-1).clamp(min=1e-12)
-        best_err = torch.minimum(best_err, err)
-
-    return best_err
+    # orbit[b, k] = T_{g_k^{-1}} f_recovered[b], shape (batch, 24, 24)
+    orbit = f_recovered[:, cayley.to(f_recovered.device)]
+    scale = f_orig.norm(dim=-1, keepdim=True).clamp(min=1e-12)
+    err = (orbit - f_orig.unsqueeze(1)).norm(dim=-1) / scale
+    return err.min(dim=1).values
 
 
 def invert_with_convergence(
@@ -172,7 +171,7 @@ def run_benchmark(
 
         with torch.no_grad():
             residuals = (bsp(f_rec).real - beta.real).norm(dim=-1)
-            rec_errors = recovery_error_up_to_group_action(f_batch, f_rec)
+            rec_errors = recovery_error_up_to_group_action(f_batch, f_rec, bsp._cayley)
 
         all_residual_norms.extend(residuals.cpu().tolist())
         all_recovery_errors.extend(rec_errors.cpu().tolist())
@@ -262,7 +261,7 @@ def _write_latex_table(stats: dict, path: Path) -> None:
 
     for thresh_str, rate in stats['success_rates'].items():
         lines.append(
-            rf'Success rate (error {thresh_str}) & \multicolumn{{2}}{{c}}{{{rate:.1%}}} \\'
+            rf'Success rate (error ${thresh_str}$) & \multicolumn{{2}}{{c}}{{{100 * rate:.1f}\%}} \\'
         )
 
     lines.extend(
@@ -277,12 +276,32 @@ def _write_latex_table(stats: dict, path: Path) -> None:
     print(f'\nLaTeX table written to {path}')
 
 
+def _pyplot() -> ModuleType:
+    """Matplotlib is imported lazily: the recovery metric is tested on CI without it."""
+    import matplotlib
+
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    return plt
+
+
+def _brand() -> ModuleType:
+    """The brand style imports matplotlib, so it is loaded lazily for the same reason."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import brand
+
+    brand.use_style()
+    return brand
+
+
 def _plot_convergence(traces: list[list[float]], path: Path) -> None:
     """Plot median residual vs.
 
     LM step for each restart.
     """
-    brand.use_style()
+    plt = _pyplot()
+    brand = _brand()
     plt.rcParams.update(NEURIPS_RCPARAMS)
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
 
@@ -322,7 +341,8 @@ def _plot_convergence(traces: list[list[float]], path: Path) -> None:
 
 def _plot_error_histogram(errors: np.ndarray, path: Path) -> None:
     """Histogram of recovery errors (log scale)."""
-    brand.use_style()
+    plt = _pyplot()
+    brand = _brand()
     plt.rcParams.update(NEURIPS_RCPARAMS)
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
 

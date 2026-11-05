@@ -21,7 +21,8 @@ import math
 from typing import NamedTuple
 
 import torch
-import torch.nn as nn
+
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 
 class _CGBlock(NamedTuple):
@@ -210,7 +211,7 @@ def _batched_kron_2x2(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
     return torch.einsum('bij,bkl->bikjl', A, B).reshape(A.shape[0], 4, 4)
 
 
-class DnonDn(nn.Module):
+class DnonDn(CUDAGraphModule):
     """Bispectrum of D_n acting on D_n.
 
     Signal f: D_n -> R has length 2n.
@@ -440,6 +441,7 @@ class DnonDn(nn.Module):
                     Fplus[:, r, r] = fhat[:, 1, 1, 0]
         return Fplus
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the D_n selective bispectrum.
 
@@ -532,7 +534,8 @@ class DnonDn(nn.Module):
             offset += 16
 
             C = self._cg_matrices[m].to(dtype)
-            A = _batched_kron_2x2(fhat[:, :, :, 1], fhat[:, :, :, k_prev])
+            # Chain extraction writes to fhat again; save independent tensors for backward.
+            A = _batched_kron_2x2(fhat[:, :, :, 1].clone(), fhat[:, :, :, k_prev].clone())
             A_inv = torch.linalg.inv(A)
 
             # beta = C (oplus F^T) C^T A  =>  oplus F = [C^T beta A^{-1} C]^T
@@ -664,12 +667,9 @@ class DnonDn(nn.Module):
                 r0, r1 = fold_2d.rows
                 W = lb[:, r0 : r1 + 1, r0 : r1 + 1]
                 Mw = W @ torch.linalg.inv(fhat_base[:, :, :, n2d])
-                U, _sv, Vh = torch.linalg.svd(Mw)
-                det = torch.linalg.det(U @ Vh)
-                U2 = U.clone()
-                U2[:, :, 1] = U2[:, :, 1] * det.unsqueeze(-1)
-                R = U2 @ Vh
-                phi = torch.atan2(R[:, 1, 0], R[:, 0, 0])
+                # Closed-form nearest rotation (2-D Kabsch). For consistent data Mw is itself a
+                # rotation, so an SVD would have tied singular values and a NaN backward.
+                phi = torch.atan2(Mw[:, 1, 0] - Mw[:, 0, 1], Mw[:, 0, 0] + Mw[:, 1, 1])
 
             for mshift in range(n_shift):
                 for sign in (1.0, -1.0):

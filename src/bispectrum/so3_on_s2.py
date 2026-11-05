@@ -43,10 +43,9 @@ import os
 import pickle  # nosec B403 — only used for UnpicklingError type reference
 from collections import OrderedDict
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import torch
-import torch.nn as nn
 from torch_harmonics import RealSHT
 
 from bispectrum._cg import (
@@ -55,6 +54,7 @@ from bispectrum._cg import (
     compute_sparse_cg_parallel,
     load_cg_matrices,
 )
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 logger = logging.getLogger(__name__)
 
@@ -427,7 +427,7 @@ def _build_cg_power_index_map(lmax: int) -> list[tuple[int, int, int]]:
     return entries
 
 
-class SO3onS2(nn.Module):
+class SO3onS2(CUDAGraphModule):
     """Bispectrum of SO(3) acting on S^2.
 
     Takes a real-valued signal on the sphere f(theta, phi) sampled on an
@@ -719,13 +719,14 @@ class SO3onS2(nn.Module):
 
         return reduced_cgs
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the augmented SO(3)-bispectrum of a signal on S^2.
 
         Dispatch priority (inference on CUDA, i.e. ``torch.no_grad()``):
           1. **CUDA Graph** — replays a captured graph of the sparse or
              Python-loop computation, eliminating kernel-launch overhead.
-             Works at any lmax and for a fixed batch size.
+             Bound to the first input signature (see ``CUDAGraphModule``).
           2. **Sparse** — vectorized gather-multiply-scatter using
              precomputed sparse CG indices. Default for selective=True.
           3. **Python loop** — always-available fallback for selective=False,
@@ -746,11 +747,6 @@ class SO3onS2(nn.Module):
             coeffs = self._sht(f)
             return torch.zeros(batch_size, 0, dtype=coeffs.dtype, device=f.device)
 
-        if f.is_cuda and not torch.is_grad_enabled():
-            graph_result = self._forward_cuda_graph(f, batch_size, num_entries)
-            if graph_result is not None:
-                return graph_result
-
         coeffs = self._sht(f)
 
         if self._has_sparse:
@@ -758,80 +754,6 @@ class SO3onS2(nn.Module):
 
         f_coeffs = _get_full_sh_coefficients(coeffs)
         return self._forward_python(f_coeffs, coeffs.dtype, f.device, batch_size, num_entries)
-
-    def _forward_cuda_graph(
-        self,
-        f: torch.Tensor,
-        batch_size: int,
-        num_entries: int,
-    ) -> torch.Tensor | None:
-        """Try the CUDA-graph path.
-
-        Returns None if capture fails or is skipped.  The captured graph is
-        bound to the input's shape, dtype and device (``static_input.copy_``
-        would otherwise silently cast a float64 input into a float32 graph);
-        a different input signature falls back to the eager paths until
-        :meth:`reset_cuda_graph_cache` is called.
-        """
-        key = self._cuda_graph_key(f)
-        cache = getattr(self, '_cuda_graph_cache', None)
-        if cache is not None and cache['key'] == key:
-            cache['static_input'].copy_(f)
-            cache['graph'].replay()
-            return cache['static_output'].clone()
-
-        if cache is not None:
-            return None
-
-        try:
-            static_input = torch.empty_like(f)
-            static_input.copy_(f)
-
-            if self._has_sparse:
-
-                def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
-                    coeffs = self._sht(inp)
-                    return self._forward_sparse_fast(coeffs, batch_size, num_entries)
-            else:
-
-                def _run_fwd(inp: torch.Tensor) -> torch.Tensor:
-                    coeffs = self._sht(inp)
-                    f_coeffs = _get_full_sh_coefficients(coeffs)
-                    return self._forward_python(
-                        f_coeffs, coeffs.dtype, inp.device, batch_size, num_entries
-                    )
-
-            # Warmup run (required before capture to initialize cuDNN/cuBLAS plans)
-            s = torch.cuda.Stream()
-            s.wait_stream(torch.cuda.current_stream())
-            with torch.cuda.stream(s):
-                _ = _run_fwd(static_input)
-            torch.cuda.current_stream().wait_stream(s)
-
-            g = torch.cuda.CUDAGraph()
-            with torch.cuda.graph(g):
-                static_output = _run_fwd(static_input)
-
-            self._cuda_graph_cache = {
-                'graph': g,
-                'static_input': static_input,
-                'static_output': static_output,
-                'key': key,
-            }
-
-            static_input.copy_(f)
-            g.replay()
-            return static_output.clone()
-
-        except Exception:
-            logger.debug('CUDA graph capture failed, disabling for this module', exc_info=True)
-            self._cuda_graph_cache = {'key': None}
-            return None
-
-    @staticmethod
-    def _cuda_graph_key(f: torch.Tensor) -> tuple[tuple[int, ...], torch.dtype, torch.device]:
-        """Input signature a captured CUDA graph is valid for."""
-        return (tuple(f.shape), f.dtype, f.device)
 
     def _forward_python(
         self,
@@ -863,6 +785,36 @@ class SO3onS2(nn.Module):
                     result[:, out_idx] = torch.sum(block * torch.conj(f_coeffs[l_val]), dim=-1)
 
         return result
+
+    _DERIVED_INDEX_BUFFERS: tuple[str, ...] = (
+        '_sparse_fl1_abs',
+        '_sparse_fl2_abs',
+        '_sparse_fl_abs',
+        '_sparse_entry_ids',
+        '_sparse_is_power',
+        '_sparse_bispec_idx',
+        '_flat_src_l',
+        '_flat_src_m',
+        '_flat_conj_sign',
+    )
+
+    def _load_from_state_dict(
+        self,
+        state_dict: dict[str, Any],
+        prefix: str,
+        local_metadata: dict[str, Any],
+        strict: bool,
+        missing_keys: list[str],
+        unexpected_keys: list[str],
+        error_msgs: list[str],
+    ) -> None:
+        # <= 0.4.1 persisted these lazily built indices once forward had run; they are
+        # rebuilt from the sparse CG buffers, so drop them for strict loading.
+        for name in self._DERIVED_INDEX_BUFFERS:
+            state_dict.pop(prefix + name, None)
+        super()._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+        )
 
     def _build_sparse_global_indices(self) -> None:
         """Convert per-entry (l, m) indices to global flat-array indices.
@@ -910,14 +862,16 @@ class SO3onS2(nn.Module):
             entry_ids[start:end] = eidx
             is_power_mask[eidx] = bool(is_power)
 
-        self.register_buffer('_sparse_fl1_abs', fl1_abs)
-        self.register_buffer('_sparse_fl2_abs', fl2_abs)
-        self.register_buffer('_sparse_fl_abs', fl_abs)
-        self.register_buffer('_sparse_entry_ids', entry_ids)
-        self.register_buffer('_sparse_is_power', is_power_mask)
+        self.register_buffer('_sparse_fl1_abs', fl1_abs, persistent=False)
+        self.register_buffer('_sparse_fl2_abs', fl2_abs, persistent=False)
+        self.register_buffer('_sparse_fl_abs', fl_abs, persistent=False)
+        self.register_buffer('_sparse_entry_ids', entry_ids, persistent=False)
+        self.register_buffer('_sparse_is_power', is_power_mask, persistent=False)
 
         bispec_elem_mask = ~is_power_mask[entry_ids]
-        self.register_buffer('_sparse_bispec_idx', torch.where(bispec_elem_mask)[0])
+        self.register_buffer(
+            '_sparse_bispec_idx', torch.where(bispec_elem_mask)[0], persistent=False
+        )
 
         self._build_sht_to_flat_map(lmax, off)
 
@@ -943,9 +897,15 @@ class SO3onS2(nn.Module):
                 else:
                     conj_sign.append(0.0)
 
-        self.register_buffer('_flat_src_l', torch.tensor(src_l, dtype=torch.long))
-        self.register_buffer('_flat_src_m', torch.tensor(src_m, dtype=torch.long))
-        self.register_buffer('_flat_conj_sign', torch.tensor(conj_sign, dtype=torch.float64))
+        self.register_buffer(
+            '_flat_src_l', torch.tensor(src_l, dtype=torch.long), persistent=False
+        )
+        self.register_buffer(
+            '_flat_src_m', torch.tensor(src_m, dtype=torch.long), persistent=False
+        )
+        self.register_buffer(
+            '_flat_conj_sign', torch.tensor(conj_sign, dtype=torch.float64), persistent=False
+        )
 
     def _sht_to_flat(self, coeffs: torch.Tensor) -> torch.Tensor:
         """Convert SHT half-spectrum to flat complex coefficients using precomputed maps.
@@ -1104,11 +1064,6 @@ class SO3onS2(nn.Module):
             result[:, self._sc_pw_eids] = norms
 
         return result
-
-    def reset_cuda_graph_cache(self) -> None:
-        """Invalidate the cached CUDA graph (e.g. after changing batch size)."""
-        if hasattr(self, '_cuda_graph_cache'):
-            del self._cuda_graph_cache
 
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
         """Inversion is an open problem for SO(3) on S^2.

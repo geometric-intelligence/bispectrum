@@ -11,10 +11,11 @@ Reference: Kakarala (2009), Mataigne et al. (2024) Algorithms 1-2.
 """
 
 import torch
-import torch.nn as nn
+
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 
-class CnonCn(nn.Module):
+class CnonCn(CUDAGraphModule):
     """Bispectrum of C_n acting on Z/nZ.
 
     C_n is commutative, so no Clebsch-Gordan matrices are needed — the
@@ -47,6 +48,7 @@ class CnonCn(nn.Module):
         else:
             self._index_map = [(k1, k2) for k1 in range(n) for k2 in range(k1, n)]
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the C_n-bispectrum of a signal on Z/nZ.
 
@@ -146,7 +148,7 @@ class CnonCn(nn.Module):
 
         # Step 2: recover |fhat[1]| from beta_{0,1} = fhat[0]*|fhat[1]|^2
         # Phase of fhat[1] fixed to 0 (absorbed by the character action indeterminacy)
-        fhat[:, 1] = torch.sqrt(torch.abs(beta[:, 1] / fhat[:, 0]))
+        fhat[:, 1] = torch.sqrt(torch.abs(beta[:, 1] / fhat[:, 0].clone()))
         if torch.any(torch.abs(fhat[:, 1]) < eps):
             raise ValueError('Cannot invert: fhat[1] is zero or near-zero.')
 
@@ -157,7 +159,8 @@ class CnonCn(nn.Module):
         for k in range(1, n - 1):
             if k > 1 and torch.any(torch.abs(fhat[:, k]) < eps):
                 raise ValueError(f'Cannot invert: pivot fhat[{k}] is zero or near-zero.')
-            fhat[:, k + 1] = torch.conj(beta[:, k + 1] / (fhat[:, 1] * fhat[:, k]))
+            # Later writes to fhat must not invalidate the saved divisors in autograd.
+            fhat[:, k + 1] = torch.conj(beta[:, k + 1] / (fhat[:, 1].clone() * fhat[:, k].clone()))
 
         return torch.fft.ifft(fhat, dim=-1)
 

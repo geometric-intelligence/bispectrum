@@ -18,6 +18,42 @@ import torch
 # ---------------------------------------------------------------------------
 _LOG_FACT: list[float] = [0.0]  # _LOG_FACT[n] = log(n!)
 
+# Above this conservative crossover, log-factorials do not protect the
+# alternating Racah sum from catastrophic cancellation. Keep low-degree
+# vectorized kernels, and use exact integer sums for larger triples.
+_EXACT_RACAH_MIN_SUM = 64
+
+
+def _wigner3j_exact(*, j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
+    """Evaluate a valid integer-angular-momentum triple without cancellation.
+
+    Pairing the six denominator factorials in Racah's sum turns each term into three binomial
+    coefficients over a common factorial denominator. Sum that numerator as an exact Python
+    integer. Include its square in the final integer ratio before conversion to float to avoid
+    overflow or underflow of the separate prefactor and numerator.
+    """
+    a, b, c = j1 + j2 - j3, j1 - j2 + j3, -j1 + j2 + j3
+    lo = max(0, j2 - j3 - m1, j1 - j3 + m2)
+    hi = min(a, j1 - m1, j2 + m2)
+    numerator = sum(
+        (-1) ** t * math.comb(a, t) * math.comb(b, j1 - m1 - t) * math.comb(c, j2 + m2 - t)
+        for t in range(lo, hi + 1)
+    )
+    if numerator == 0:
+        return 0.0
+    factorials = math.prod(
+        math.factorial(j + m) * math.factorial(j - m) for j, m in ((j1, m1), (j2, m2), (j3, m3))
+    )
+    denominator = (
+        math.factorial(j1 + j2 + j3 + 1)
+        * math.factorial(a)
+        * math.factorial(b)
+        * math.factorial(c)
+    )
+    magnitude = math.sqrt(numerator * numerator * factorials / denominator)
+    sign = (-1) ** (j1 - j2 - m3) * (1 if numerator > 0 else -1)
+    return sign * magnitude
+
 
 def _ensure_log_fact(n: int) -> None:
     """Extend the log-factorial table so that _LOG_FACT[n] is available."""
@@ -37,7 +73,8 @@ def wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
 
         \begin{pmatrix} j_1 & j_2 & j_3 \\ m_1 & m_2 & m_3 \end{pmatrix}
 
-    Uses log-factorials for numerical stability at large j.
+    Uses log-factorials at low degrees and an exact integer Racah numerator
+    at high degrees, where the floating alternating sum loses accuracy.
 
     Returns 0.0 when selection rules are violated.
     """
@@ -48,6 +85,8 @@ def wigner3j(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float:
         return 0.0
     if j3 < abs(j1 - j2) or j3 > j1 + j2:
         return 0.0
+    if j1 + j2 + j3 >= _EXACT_RACAH_MIN_SUM:
+        return _wigner3j_exact(j1=j1, j2=j2, j3=j3, m1=m1, m2=m2, m3=m3)
     # j1, j2, j3 must satisfy the triangle inequality (already implied above)
     # and j1+j2+j3 must be an integer (always true for integer j).
 
@@ -177,6 +216,9 @@ def _compute_cg_matrix_fast(l1: int, l2: int) -> torch.Tensor:
     Same result as ``compute_cg_matrix`` but avoids per-call overhead in
     the Racah summation by inlining the hot loop.
     """
+    if 2 * (l1 + l2) >= _EXACT_RACAH_MIN_SUM:
+        return _compute_cg_columns_vectorized(l1, l2, list(range(abs(l1 - l2), l1 + l2 + 1)))
+
     d1 = 2 * l1 + 1
     d2 = 2 * l2 + 1
     D = d1 * d2
@@ -277,6 +319,13 @@ def _compute_cg_columns_vectorized(l1: int, l2: int, l_vals: list[int]) -> torch
         if l_val not in needed:
             continue
 
+        if l1 + l2 + l_val >= _EXACT_RACAH_MIN_SUM:
+            m1_idx, m_idx, values = compute_sparse_cg_entry(l1, l2, l_val)
+            m2_idx = m_idx - l_val - m1_idx + l1 + l2
+            C[m1_idx * d2 + m2_idx, col + m_idx] = values
+            col += 2 * l_val + 1
+            continue
+
         sqrt_2l1 = math.sqrt(2 * l_val + 1)
         log_tri = (
             lf[l1 + l2 - l_val]
@@ -369,6 +418,9 @@ def compute_cg_columns(l1: int, l2: int, l_vals: list[int]) -> torch.Tensor:
     Returns:
         Tensor of shape ((2l1+1)(2l2+1), c), dtype float64.
     """
+    if any(l1 + l2 + lv >= _EXACT_RACAH_MIN_SUM for lv in l_vals):
+        return _compute_cg_columns_vectorized(l1, l2, l_vals)
+
     d1 = 2 * l1 + 1
     d2 = 2 * l2 + 1
     d = d1 * d2
@@ -491,6 +543,34 @@ def compute_sparse_cg_entry(
         cg_values: float64 array of CG coefficient values.
         All three arrays have the same length (number of nonzero CG entries).
     """
+    if l_val < abs(l1 - l2) or l_val > l1 + l2:
+        return (
+            np.empty(0, dtype=np.int32),
+            np.empty(0, dtype=np.int32),
+            np.empty(0, dtype=np.float64),
+        )
+    if l1 + l2 + l_val >= _EXACT_RACAH_MIN_SUM:
+        m1_indices: list[int] = []
+        m_indices: list[int] = []
+        cg_values: list[float] = []
+        scale = math.sqrt(2 * l_val + 1)
+        for m in range(-l_val, l_val + 1):
+            for m1 in range(max(-l1, m - l2), min(l1, m + l2) + 1):
+                value = (
+                    (-1) ** (l1 - l2 + m)
+                    * scale
+                    * _wigner3j_exact(j1=l1, j2=l2, j3=l_val, m1=m1, m2=m - m1, m3=-m)
+                )
+                if value != 0:
+                    m1_indices.append(m1 + l1)
+                    m_indices.append(m + l_val)
+                    cg_values.append(value)
+        return (
+            np.asarray(m1_indices, dtype=np.int32),
+            np.asarray(m_indices, dtype=np.int32),
+            np.asarray(cg_values, dtype=np.float64),
+        )
+
     max_n = 2 * (l1 + l2) + 2
     _ensure_log_fact(max_n)
     lf = np.array(_LOG_FACT[: max_n + 1])
@@ -665,7 +745,10 @@ def compute_reduced_cg_parallel(
 # Disk cache for CG matrices
 # ---------------------------------------------------------------------------
 
-_CACHE_DIR = Path.home() / '.cache' / 'bispectrum'
+# Shared by dense, sparse and reduced spherical caches. The exact Racah
+# implementation changes high-degree coefficients; never reuse old tables.
+_CG_CACHE_VERSION = 2
+_CACHE_DIR = Path.home() / '.cache' / 'bispectrum' / f'cg_v{_CG_CACHE_VERSION}'
 
 
 def _cache_path(lmax: int) -> Path:
@@ -716,7 +799,7 @@ def load_cg_matrices(lmax: int) -> dict[tuple[int, int], torch.Tensor]:
     """Compute (or load from cache) CG matrices for l1 <= l2 <= lmax.
 
     On first call for a given lmax, computes all matrices analytically and
-    caches them to ``~/.cache/bispectrum/cg_lmax{N}.pt``.  Subsequent calls
+    caches them under ``~/.cache/bispectrum/cg_v2/cg_lmax{N}.pt``. Subsequent calls
     load directly from the cache file.
 
     Returns:

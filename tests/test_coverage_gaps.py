@@ -5,6 +5,7 @@ These tests exercise edge cases and rarely-hit code paths to bring coverage clos
 
 from __future__ import annotations
 
+import functools
 import tempfile
 import warnings
 from pathlib import Path
@@ -362,6 +363,11 @@ class TestSO3onS2EdgeCases:
         assert len(bsp.index_map) == bsp.output_size
 
 
+def _eager(bsp):
+    """Undecorated forward bound to ``bsp``: what the CUDA graph captures."""
+    return functools.partial(type(bsp).forward.__wrapped__, bsp)
+
+
 class TestSO3CudaGraphPaths:
     """Cover CUDA graph code paths without requiring a GPU."""
 
@@ -386,7 +392,7 @@ class TestSO3CudaGraphPaths:
         f = torch.randn(2, 16, 32)
         fake_output = torch.randn(2, bsp.output_size)
         bsp._cuda_graph_cache = self._fake_cache(f, fake_output)
-        result = bsp._forward_cuda_graph(f, 2, bsp.output_size)
+        result = bsp._forward_cuda_graph(f, _eager(bsp))
         bsp._cuda_graph_cache['graph'].replay.assert_called_once()
         assert result.shape == fake_output.shape
         assert result is not fake_output
@@ -398,7 +404,7 @@ class TestSO3CudaGraphPaths:
         bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
         f8 = torch.randn(8, 16, 32)
         bsp._cuda_graph_cache = self._fake_cache(f8, torch.randn(8, bsp.output_size))
-        result = bsp._forward_cuda_graph(torch.randn(2, 16, 32), 2, bsp.output_size)
+        result = bsp._forward_cuda_graph(torch.randn(2, 16, 32), _eager(bsp))
         assert result is None
         bsp._cuda_graph_cache['graph'].replay.assert_not_called()
 
@@ -414,7 +420,7 @@ class TestSO3CudaGraphPaths:
         f32 = torch.randn(2, 16, 32, dtype=torch.float32)
         bsp._cuda_graph_cache = self._fake_cache(f32, torch.randn(2, bsp.output_size))
         f64 = torch.randn(2, 16, 32, dtype=torch.float64)
-        result = bsp._forward_cuda_graph(f64, 2, bsp.output_size)
+        result = bsp._forward_cuda_graph(f64, _eager(bsp))
         assert result is None
         bsp._cuda_graph_cache['graph'].replay.assert_not_called()
 
@@ -425,7 +431,7 @@ class TestSO3CudaGraphPaths:
         bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
         f = torch.randn(2, 16, 32)
         bsp._cuda_graph_cache = self._fake_cache(f, torch.randn(2, bsp.output_size))
-        result = bsp._forward_cuda_graph(torch.randn(2, 32, 64), 2, bsp.output_size)
+        result = bsp._forward_cuda_graph(torch.randn(2, 32, 64), _eager(bsp))
         assert result is None
 
     def test_cuda_graph_capture_failure_disables(self):
@@ -434,11 +440,11 @@ class TestSO3CudaGraphPaths:
 
         bsp = SO3onS2(lmax=3, nlat=16, nlon=32, selective=True)
         with patch('torch.cuda.Stream', side_effect=RuntimeError('no CUDA')):
-            result = bsp._forward_cuda_graph(torch.randn(2, 16, 32), 2, bsp.output_size)
+            result = bsp._forward_cuda_graph(torch.randn(2, 16, 32), _eager(bsp))
         assert result is None
         assert bsp._cuda_graph_cache == {'key': None}
         # Sentinel stays disabled on the next call too.
-        assert bsp._forward_cuda_graph(torch.randn(2, 16, 32), 2, bsp.output_size) is None
+        assert bsp._forward_cuda_graph(torch.randn(2, 16, 32), _eager(bsp)) is None
 
     def test_reset_cuda_graph_cache(self):
         """reset_cuda_graph_cache removes the cache attribute."""
@@ -479,8 +485,10 @@ class TestSO3CudaGraphPaths:
             patch('torch.cuda.stream', return_value=MagicMock()),
             patch('torch.cuda.CUDAGraph', return_value=graph),
             patch('torch.cuda.graph', return_value=MagicMock()),
+            patch('torch.cuda.current_device', return_value=0),
+            patch('torch.cuda.default_generators', (MagicMock(),)),
         ):
-            out = bsp._forward_cuda_graph(f, 2, bsp.output_size)
+            out = bsp._forward_cuda_graph(f, _eager(bsp))
 
         assert out is not None
         torch.testing.assert_close(out, expected)
@@ -491,7 +499,7 @@ class TestSO3CudaGraphPaths:
         graph.replay.assert_called_once()
 
         # A second call with the same signature replays instead of re-capturing.
-        out2 = bsp._forward_cuda_graph(f.clone(), 2, bsp.output_size)
+        out2 = bsp._forward_cuda_graph(f.clone(), _eager(bsp))
         assert graph.replay.call_count == 2
         torch.testing.assert_close(out2, expected)
 
