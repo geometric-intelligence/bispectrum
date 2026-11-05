@@ -1,0 +1,86 @@
+{
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "host": "f5097aa40d20",
+    "cpu_model": "AMD EPYC 7K62 48-Core Processor",
+    "cpu_count": 96,
+    "torch_num_threads": 48,
+    "bispectrum_version": "0.4.1",
+    "git_sha": "801c37ca53d238ec1af29e1d78050264bf7005d9",
+    "torch": "2.11.0+cu128",
+    "device": "cuda",
+    "cuda_runtime": "12.8",
+    "cudnn": 91900,
+    "mps_available": false,
+    "batch_size": 16,
+    "warmup": 10,
+    "repeats": 30,
+    "inner_loops": 20,
+    "dtype": "float32",
+    "module_cast_dtype": null,
+    "device_name": "NVIDIA GeForce RTX 4090",
+    "compute_capability": [
+      8,
+      9
+    ]
+  },
+  "results": [
+    {
+      "module": "CnonCn",
+      "settings": "n=128",
+      "output_size": 128,
+      "median_ms": 0.2017899532802403,
+      "p25_ms": 0.20026978163514286,
+      "p75_ms": 0.204768156982027,
+      "error": null
+    },
+    {
+      "module": "TorusOnTorus",
+      "settings": "ns=(32,32)",
+      "output_size": 1024,
+      "median_ms": 0.11698025045916438,
+      "p25_ms": 0.11631620000116527,
+      "p75_ms": 0.11731175472959876,
+      "error": null
+    },
+    {
+      "module": "DnonDn",
+      "settings": "n=32",
+      "output_size": 245,
+      "median_ms": 0.7587909989524633,
+      "p25_ms": 0.7318168791243806,
+      "p75_ms": 0.7692118029808626,
+      "error": null
+    },
+    {
+      "module": "SO2onDisk",
+      "settings": "L=16",
+      "output_size": 76,
+      "median_ms": 0.3444452246185392,
+      "p25_ms": 0.34204177209176123,
+      "p75_ms": 0.3479772567516193,
+      "error": null
+    },
+    {
+      "module": "SO3onS2",
+      "settings": "lmax=16, grid=64x128",
+      "output_size": 426,
+      "median_ms": 0.17898447695188224,
+      "p25_ms": 0.178816364496015,
+      "p75_ms": 0.17918799712788314,
+      "error": null
+    },
+    {
+      "module": "OctaonOcta",
+      "settings": "|O|=24",
+      "output_size": 172,
+      "median_ms": 0.916651269653812,
+      "p25_ms": 0.9105445496970788,
+      "p75_ms": 0.9302879625465721,
+      "error": null
+    }
+  ]
+}
