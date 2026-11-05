@@ -1076,8 +1076,8 @@ def make_convergence_figure(results: list[ReconResult], path: Path) -> None:
     p75 = np.percentile(traces, 75, axis=0)
 
     fig, ax = plt.subplots(figsize=(3.6, 2.4))
-    ax.fill_between(steps, p25, p75, color=brand.TERRACOTTA, alpha=0.20, linewidth=0, label='IQR')
-    ax.plot(steps, med, color=brand.TERRACOTTA, linewidth=1.2, label='median')
+    ax.fill_between(steps, p25, p75, color=brand.ORANGE, alpha=0.20, linewidth=0, label='IQR')
+    ax.plot(steps, med, color=brand.ORANGE_TEXT, linewidth=1.2, label='median')
 
     ax.set_xlabel('Adam step')
     ax.set_ylabel(r'$\|\beta(\hat f) - \beta(f)\| / \|\beta(f)\|$')
@@ -1105,7 +1105,7 @@ def make_invariance_figure(results: list[ReconResult], path: Path) -> None:
         return
 
     fig, ax = plt.subplots(figsize=(3.4, 2.4))
-    ax.scatter(inv, rec, s=10, color=brand.TERRACOTTA, alpha=0.7, edgecolor='none')
+    ax.scatter(inv, rec, s=10, color=brand.ORANGE_TEXT, alpha=0.7, edgecolor='none')
     lo = max(min(inv.min(), rec.min()) * 0.5, 1e-8)
     hi = max(inv.max(), rec.max()) * 2.0
     ax.plot([lo, hi], [lo, hi], color=brand.MUTED, linestyle='--', linewidth=0.6, label='$y=x$')

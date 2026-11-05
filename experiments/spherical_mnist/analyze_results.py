@@ -144,7 +144,7 @@ def _use_paper_style() -> None:
 
 
 def _text_color(model: str) -> str:
-    return brand.TERRACOTTA_TEXT if model == 'bispectrum' else brand.MUTED
+    return brand.ORANGE_TEXT if model == 'bispectrum' else brand.MUTED
 
 
 def load_results(

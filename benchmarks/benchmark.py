@@ -300,7 +300,7 @@ def bench_forward_pass(device: torch.device) -> plt.Figure:
         ax_idx += 1
 
         for sel_mode, sel_label, plist, mk, ls, color in [
-            (True, 'selective', sel_param_list, 'o', '-', brand.TERRACOTTA),
+            (True, 'selective', sel_param_list, 'o', '-', brand.ORANGE_TEXT),
             (False, 'full', full_param_list, 's', '--', brand.MUTED),
         ]:
             if plist is None:
@@ -349,7 +349,7 @@ def bench_forward_pass(device: torch.device) -> plt.Figure:
     bsp = OctaonOcta(selective=True).to(device)
     f = _make_input('OctaonOcta', {}, batch, device)
     t = _time_fn('bsp(f)', {'bsp': bsp, 'f': f}, 'OctaonOcta', device)
-    ax.bar(['selective'], [t], color=brand.TERRACOTTA)
+    ax.bar(['selective'], [t], color=brand.ORANGE)
     ax.set_ylabel('time (ms)')
     ax.set_title('OctaonOcta (|G|=24)')
     ax.text(0, t * 1.05, f'{t:.3f} ms', ha='center', fontsize=10, fontfamily=brand.MONO)
@@ -1027,7 +1027,7 @@ def _save_timing_figure(fig: Figure, stem: str) -> None:
 def _mode_style(mode: str) -> dict[str, Any]:
     if mode == 'selective':
         return {
-            'color': brand.TERRACOTTA,
+            'color': brand.ORANGE_TEXT,
             'marker': 'o',
             'markersize': 3.2,
             'markeredgecolor': brand.surface_color(),

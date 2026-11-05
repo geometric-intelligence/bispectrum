@@ -6,13 +6,13 @@ Scripts outside this directory put the repo root on ``sys.path`` and call ``use_
     sys.path.insert(0, str(REPO_ROOT))
     import brand  # noqa: E402
 
-    brand.use_style()  # white "paper" surface; BISPECTRUM_SURFACE=screen for cream
+    brand.use_style()  # white "paper" surface; BISPECTRUM_SURFACE=screen for beige
     ...
     brand.finish(fig)  # tick labels in Plex Mono
     fig.savefig(...)
 
-Tokens follow the Lettermark sheet: cream paper, near-black ink, one terracotta accent.
-Terracotta is reserved for the bispectrum ("ours"); baselines get warm grays from ``RAMP``.
+Colours follow ``assets/brand/README.md``: ink, beige, and one orange accent. The orange is
+reserved for the bispectrum ("ours"); baselines get warm grays from ``RAMP``.
 """
 
 from __future__ import annotations
@@ -40,38 +40,39 @@ FONT_DIR: Final = BRAND_DIR / 'fonts'
 LOGO_DIR: Final = BRAND_DIR / 'logo'
 
 # --------------------------------------------------------------------------
-# Core tokens (sampled from the Lettermark sheet)
+# Core tokens (assets/brand/README.md)
 # --------------------------------------------------------------------------
 
-INK: Final = '#18130F'
-CREAM: Final = '#F7F3EA'
+INK: Final = '#1C1C1A'
+BEIGE: Final = '#F7F3EB'
 SAND: Final = '#EAE6DB'
 MUTED: Final = '#5D5852'
-TERRACOTTA: Final = '#D7654A'
+ORANGE: Final = '#F57050'
 WHITE: Final = '#FFFFFF'
 
-# Terracotta is 3.6:1 on white and 3.2:1 on cream: fine for marks, too light for small text.
-TERRACOTTA_TEXT: Final = '#B24A30'  # 5.4:1 on white, 4.8:1 on cream
+# Orange is 2.9:1 on white and 2.6:1 on beige: area fills only. Lines, markers and text that
+# carry the accent use ORANGE_TEXT, as assets/brand prescribes for highlighted plot lines.
+ORANGE_TEXT: Final = '#B53E20'  # 5.7:1 on white, 5.2:1 on beige
 RULE: Final = '#DDD6CA'  # gridlines, legend frames, separators
 NEUTRAL_LIGHT: Final = '#D6CFC3'
 
 # --------------------------------------------------------------------------
 # Categorical ramp: the sheet has one hue, so everything that is not ours is a warm gray on
-# its ink -> muted -> sand line (CIELAB), 14-18 L* apart. Ink vs. terracotta is the logo's
+# its ink -> muted -> sand line (CIELAB), 14-18 L* apart. Ink vs. orange is the logo's
 # own pairing. Grays survive any CVD and grayscale print, but adjacent steps blur on thin
 # lines: always pair with distinct markers, and avoid alpha (it compresses the L* range).
 # --------------------------------------------------------------------------
 
 GRAPHITE: Final = '#3D3834'  # L* 24
 ASH: Final = '#807B74'  # L* 52
-STONE: Final = '#A8A298'  # L* 67; 2.3:1 on cream, marks only
+STONE: Final = '#A8A298'  # L* 67; 2.3:1 on beige, marks only
 
 RAMP: Final = (INK, GRAPHITE, MUTED, ASH, STONE)
 CYCLE: Final = RAMP
 
 METHOD_COLORS: Final[dict[str, str]] = {
     # Complete invariant (ours).
-    'bispectrum': TERRACOTTA,
+    'bispectrum': ORANGE_TEXT,
     # Incomplete second-order invariants: the direct foil, so the strongest mark.
     'norm_pool': INK,
     'power_spectrum': INK,
@@ -96,20 +97,20 @@ GROUP_COLORS: Final[dict[str, str]] = {
     'TorusOnTorus': MUTED,
     'DnonDn': ASH,
     'SO2onDisk': STONE,
-    'SO3onS2': TERRACOTTA,
+    'SO3onS2': ORANGE_TEXT,
     'OctaonOcta': GRAPHITE,
 }
 
-SURFACES: Final[dict[Surface, str]] = {'paper': WHITE, 'screen': CREAM}
+SURFACES: Final[dict[Surface, str]] = {'paper': WHITE, 'screen': BEIGE}
 
 SANS: Final = 'IBM Plex Sans'
 MONO: Final = 'IBM Plex Mono'
 
-# Terracotta alone reaches only L*=56 against ink's 6; deepening the positive end keeps both
+# Orange alone reaches only L*=63 against ink's 10; deepening the positive end keeps both
 # halves legible for mostly-positive fields.
 DIVERGING: Final = LinearSegmentedColormap.from_list(
     'bispectrum_diverging',
-    [(0.0, INK), (0.5, CREAM), (0.8, TERRACOTTA), (1.0, TERRACOTTA_TEXT)],
+    [(0.0, INK), (0.5, BEIGE), (0.8, ORANGE), (1.0, ORANGE_TEXT)],
 )
 
 _MATHTEXT_NOISE: Final = re.compile(r'\\mathdefault|\\times|\\cdot|[${}\s]')

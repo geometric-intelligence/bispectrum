@@ -305,7 +305,7 @@ def _plot_convergence(traces: list[list[float]], path: Path) -> None:
     plt.rcParams.update(NEURIPS_RCPARAMS)
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
 
-    colors = [brand.TERRACOTTA, *brand.RAMP]
+    colors = [brand.ORANGE_TEXT, *brand.RAMP]
 
     for i, trace in enumerate(traces):
         steps = list(range(len(trace)))
@@ -350,7 +350,7 @@ def _plot_error_histogram(errors: np.ndarray, path: Path) -> None:
     ax.hist(
         log_errors,
         bins=50,
-        color=brand.TERRACOTTA,
+        color=brand.ORANGE,
         edgecolor=brand.surface_color(),
         linewidth=0.3,
         zorder=3,
@@ -361,14 +361,14 @@ def _plot_error_histogram(errors: np.ndarray, path: Path) -> None:
 
     for thresh in [-1, -2, -3]:
         pct = (log_errors < thresh).mean()
-        ax.axvline(thresh, color=brand.TERRACOTTA, linewidth=0.6, linestyle='--', zorder=4)
+        ax.axvline(thresh, color=brand.ORANGE_TEXT, linewidth=0.6, linestyle='--', zorder=4)
         ax.text(
             thresh + 0.1,
             ax.get_ylim()[1] * 0.9,
             f'{pct:.0%}',
             fontsize=6,
             fontfamily=brand.MONO,
-            color=brand.TERRACOTTA_TEXT,
+            color=brand.ORANGE_TEXT,
             va='top',
         )
 
