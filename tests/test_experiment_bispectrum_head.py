@@ -211,13 +211,20 @@ def test_compress_is_odd_monotone_and_differentiable_at_zero(name: str) -> None:
 
 
 def test_cbrt_scale_is_linear_in_the_input(pcam: ModuleType) -> None:
-    """Scaling the signal by s scales the cube-rooted bispectrum by ~s (log does not)."""
-    x = torch.randn(1, 1, 8, 1, 1) * 3
+    """Scaling the signal by s scales the cube-rooted bispectrum by s (log does not).
+
+    ``_compress`` subtracts ``eps**(1/3)``, so doubling the input maps c to ~2c + eps**(1/3):
+    the ratio is exact only after adding the offset back.
+    """
+    x = torch.randn(1, 1, 8, 1, 1, generator=torch.Generator().manual_seed(0)) * 3
     cbrt = pcam.BispectrumPool('c8', 1, pcam.BispectrumHead(scale='cbrt'))
     captured: list[torch.Tensor] = []
     cbrt.proj.register_forward_hook(lambda _m, inputs, _o: captured.append(inputs[0]))
     cbrt(x)
     cbrt(2 * x)
-    ratio = captured[1] / captured[0]
+    offset = pcam._SCALE_EPS ** (1 / 3)
     mask = captured[0].abs() > 0.5
-    assert torch.allclose(ratio[mask], torch.full_like(ratio[mask], 2.0), rtol=0.05)
+    assert mask.sum() > 0
+    assert torch.equal(torch.sign(captured[1][mask]), torch.sign(captured[0][mask]))
+    ratio = (captured[1].abs() + offset) / (captured[0].abs() + offset)
+    torch.testing.assert_close(ratio[mask], torch.full_like(ratio[mask], 2.0), rtol=1e-2, atol=0.0)
