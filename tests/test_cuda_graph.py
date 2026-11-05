@@ -133,3 +133,19 @@ def test_reallocated_buffers_recapture():
         out = module(f)
     del junk
     torch.testing.assert_close(out, ref, rtol=1e-4, atol=1e-5)
+
+
+@cuda
+def test_eager_call_in_other_dtype_keeps_graph_inputs_alive():
+    """A float64 eager call rebinds SO3onS2's lazy device caches; the float32 graph still reads the
+    tensors it captured."""
+    module = SO3onS2(lmax=16, nlat=64, nlon=128).cuda()
+    f = torch.randn(64, 64, 128, device='cuda')
+    with torch.no_grad():
+        ref = module(f)
+        module(f.double())
+        torch.cuda.empty_cache()
+        junk = [torch.full((1 << 20,), float('nan'), device='cuda') for _ in range(64)]
+        out = module(f)
+    del junk
+    torch.testing.assert_close(out, ref, rtol=1e-4, atol=1e-5)

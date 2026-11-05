@@ -34,6 +34,19 @@ class CUDAGraphModule(nn.Module):
         self.reset_cuda_graph_cache()
         return super()._apply(fn, recurse)
 
+    def _held_tensors(self) -> list[torch.Tensor]:
+        """Tensors held by this module and its children: attributes, buffers and parameters."""
+        held: list[torch.Tensor] = []
+        for m in self.modules():
+            for v in vars(m).values():
+                if isinstance(v, torch.Tensor):
+                    held.append(v)
+                elif isinstance(v, list | tuple):
+                    held.extend(t for t in v if isinstance(t, torch.Tensor))
+                elif isinstance(v, dict):
+                    held.extend(t for t in v.values() if isinstance(t, torch.Tensor))
+        return held
+
     @staticmethod
     def _cuda_graph_key(f: torch.Tensor) -> tuple[tuple[int, ...], torch.dtype, torch.device]:
         """Input signature a captured CUDA graph is valid for."""
@@ -87,6 +100,9 @@ class CUDAGraphModule(nn.Module):
                 'static_input': static_input,
                 'static_output': static_output,
                 'key': key,
+                # Eager calls in another dtype rebind lazy device caches (SO3onS2); keep the
+                # tensors this graph addresses alive.
+                'held': self._held_tensors(),
             }
             static_input.copy_(f)
             g.replay()
