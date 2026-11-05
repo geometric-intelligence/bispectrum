@@ -216,8 +216,16 @@ def _time_fn(
     label: str,
     device: torch.device,
     min_run_time: float = 0.5,
+    inference: bool = False,
 ) -> float:
-    """Time a statement, returning median time in milliseconds."""
+    """Time a statement, returning median time in milliseconds.
+
+    ``inference`` runs it under ``torch.inference_mode()``; ``SO3onS2`` replays a CUDA graph
+    only when autograd is off, so its training-mode forward is ~3x slower on GPU.
+    """
+    if inference:
+        stmt = f'with torch.inference_mode():\n    {stmt}'
+        globs = {**globs, 'torch': torch}
     timer = torchbench.Timer(
         stmt=stmt,
         globals=globs,
@@ -791,7 +799,17 @@ def paper_figures(device: torch.device) -> None:
     ax_d.set_xlabel('batch size')
     ax_d.set_ylabel('throughput (samples/s)')
     ax_d.set_title('GPU batch scaling')
-    ax_d.legend(fontsize=6.5, loc='upper left')
+    ax_d.set_ylim(top=1e10)
+    ax_d.legend(
+        fontsize=5.5,
+        loc='upper right',
+        ncol=2,
+        handlelength=1.0,
+        handletextpad=0.4,
+        columnspacing=0.5,
+        labelspacing=0.25,
+        borderpad=0.3,
+    )
     _grid(ax_d)
 
     # Panel (b): Inversion timing overlay (all modules with inversion)
@@ -862,7 +880,7 @@ def paper_figures(device: torch.device) -> None:
             True,
         ),
         (r'\texttt{DnonDn}', r'$D_{32}$', 'DnonDn', {'n': 32}, True, False),
-        (r'\texttt{SO2onDisk}', r'$\mathrm{SO}(2)$', 'SO2onDisk', {'L': 32}, True, False),
+        (r'\texttt{SO2onDisk}', r'$\mathrm{SO}(2)$', 'SO2onDisk', {'L': 16}, True, False),
         (r'\texttt{SO3onS2}', r'$\mathrm{SO}(3)$', 'SO3onS2', _so3_params(16), False, False),
         (r'\texttt{OctaonOcta}', r'$O$', 'OctaonOcta', {}, True, False),
     ]
@@ -880,6 +898,9 @@ def paper_figures(device: torch.device) -> None:
 
         f = _make_input(mod_name, params, batch_fwd, device)
         t_fwd_sel = _time_fn('bsp(f)', {'bsp': bsp_sel, 'f': f}, f'tab_{mod_name}_sel', device)
+        t_fwd_inf = _time_fn(
+            'bsp(f)', {'bsp': bsp_sel, 'f': f}, f'tab_{mod_name}_inf', device, inference=True
+        )
 
         if has_full:
             try:
@@ -900,24 +921,30 @@ def paper_figures(device: torch.device) -> None:
 
         rows.append(
             f'        {tex_name} & {group_tex} & {g} & {coefs_sel} & {coefs_full} '
-            f'& {t_fwd_sel:.2f} & {t_fwd_full} & {t_inv} \\\\'
+            f'& {t_fwd_sel:.2f} & {t_fwd_inf:.2f} & {t_fwd_full} & {t_inv} \\\\'
         )
 
-    table_tex = r"""\begin{table}[t]
+    device_name = torch.cuda.get_device_name(device)
+    table_tex = (
+        r"""\begin{table}[t]
     \centering
     \caption{Benchmark summary for the \texttt{bispectrum} library.
     Coefficient counts compare the selective ($O(|G|)$) and full ($O(|G|^2)$) bispectra.
-    Timings are median wall-clock on a single NVIDIA A100 GPU (batch\,=\,16 for forward, 4 for inversion).
+    Timings are median wall-clock on a single """
+        + device_name
+        + r""" (batch\,=\,16 for forward, 4 for inversion),
+    with autograd enabled (Sel.) and under \texttt{torch.inference\_mode()} (Inf.).
     ``--'' indicates the mode is not implemented.}
     \label{tab:benchmarks}
     \small
-    \begin{tabular}{llrrrrrr}
+    \begin{tabular}{llrrrrrrr}
         \toprule
-        Module & $G$ & $|G|$ & \multicolumn{2}{c}{Coefs} & \multicolumn{2}{c}{Fwd (ms)} & Inv (ms) \\
-        \cmidrule(lr){4-5} \cmidrule(lr){6-7}
-         & & & Sel. & Full & Sel. & Full & Sel. \\
+        Module & $G$ & $|G|$ & \multicolumn{2}{c}{Coefs} & \multicolumn{3}{c}{Fwd (ms)} & Inv (ms) \\
+        \cmidrule(lr){4-5} \cmidrule(lr){6-8}
+         & & & Sel. & Full & Sel. & Inf. & Full & Sel. \\
         \midrule
 """
+    )
     table_tex += '\n'.join(rows)
     table_tex += r"""
         \bottomrule
