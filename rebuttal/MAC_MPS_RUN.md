@@ -1,6 +1,6 @@
 # Apple-silicon (MPS) device timings
 
-On the Mac, from a checkout of the camera-ready branch:
+On the Mac, from a checkout of this repository:
 
 ```bash
 bash rebuttal/run_device_bench_mac.sh
@@ -13,6 +13,7 @@ is available, and writes `rebuttal/results/device_bench/m5pro_mps.json` and
 override the defaults.
 
 MPS rows cast each module to float32 (MPS has no float64); see
-`environment.module_cast_dtype` in the JSON. Ship the JSON back with
-`git add -f` + push, then regenerate `combined.json` / `combined.md` as described
-in `EXPERIMENTS.md` (E1).
+`environment.module_cast_dtype` in the JSON. Copy the JSON files into
+`rebuttal/results/device_bench/` on the machine that holds the results store (see
+`RESULTS.md`), then regenerate `combined.json` / `combined.md` as described in
+`EXPERIMENTS.md` (E1).

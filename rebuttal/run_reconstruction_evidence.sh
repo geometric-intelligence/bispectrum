@@ -83,4 +83,4 @@ march random 16 0
 "$PYTHON" "$MARCH" plot \
   --results "$OUTPUT_ROOT/smnist_l15_marching/results.json" \
   --rot_idx 0 \
-  --paper_figure_path "$REPO_ROOT/paper/experiments/spherical_mnist_reconstruction/figures/paper_orbits.pdf"
+  --paper_figure_path "${PAPER_FIGURE:-$OUTPUT_ROOT/smnist_l15_marching/paper_orbits.pdf}"
