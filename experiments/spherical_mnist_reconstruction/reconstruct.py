@@ -1133,15 +1133,16 @@ def make_paper_figure(
     auto_center: bool = True,
     elev_deg: float = 25.0,
     azim_deg: float = 30.0,
+    rot_idx: int | None = None,
 ) -> None:
     """Compact ``2 x len(digit_indices)`` figure for the NeurIPS paper.
 
     Rows: ``Target f`` / ``Recon \\hat R \\cdot \\hat f``. Columns: one per
-    requested ``digit_idx`` (we keep the rotation with the lowest aligned
-    image residual). Both rows of a column share the *target's* camera so
-    any visible mismatch is a true reconstruction error rather than a
-    viewpoint difference. Sized for ``\\includegraphics[width=\\linewidth]``
-    inclusion in a NeurIPS column.
+    requested ``digit_idx``, showing orientation ``rot_idx`` (``None``: the
+    orientation with the lowest aligned image residual). Both rows of a column
+    share the *target's* camera so any visible mismatch is a true
+    reconstruction error rather than a viewpoint difference. Sized for
+    ``\\includegraphics[width=\\linewidth]`` inclusion in a NeurIPS column.
     """
     _use_paper_style()
 
@@ -1153,8 +1154,13 @@ def make_paper_figure(
     for d in digit_indices:
         if d not in by_digit:
             raise ValueError(f'digit_idx {d} not in results (available: {sorted(by_digit)})')
-        best = min(by_digit[d], key=lambda r: r.aligned_image_space_rel)
-        picks.append(best)
+        if rot_idx is None:
+            picks.append(min(by_digit[d], key=lambda r: r.aligned_image_space_rel))
+            continue
+        match = [r for r in by_digit[d] if r.rot_idx == rot_idx]
+        if not match:
+            raise ValueError(f'digit_idx {d} has no record with rot_idx {rot_idx}')
+        picks.append(match[0])
 
     n_cols = len(picks)
     n_rows = 2
@@ -1186,7 +1192,7 @@ def make_paper_figure(
 
         axes[0][j].set_title(f'class {r.label}', fontsize=9, pad=3)
         axes[1][j].set_xlabel(
-            f'{r.aligned_image_space_rel:.2f}',
+            f'{r.aligned_image_space_rel:.3f}',
             fontsize=8,
             fontfamily=brand.MONO,
             color=brand.MUTED,

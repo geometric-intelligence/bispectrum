@@ -110,3 +110,10 @@ benchmarks/figures/caption_*.tex
 /results
 experiments/**/*_results
 experiments/**/*_results_*
+rebuttal/results
+
+# camera-ready reruns: stale results moved aside by rebuttal/archive_stale_results.py
+*_pre040/
+*_prefloor/
+*_earlystop/
+*_preheadfix/
