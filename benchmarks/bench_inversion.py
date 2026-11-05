@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 from types import ModuleType
@@ -23,10 +24,6 @@ import torch
 from bispectrum import OctaonOcta
 
 NEURIPS_RCPARAMS = {
-    'font.family': 'serif',
-    'font.serif': ['Computer Modern Roman', 'CMU Serif', 'DejaVu Serif'],
-    'mathtext.fontset': 'cm',
-    'text.usetex': False,
     'font.size': 8,
     'axes.labelsize': 9,
     'axes.titlesize': 9,
@@ -289,16 +286,26 @@ def _pyplot() -> ModuleType:
     return plt
 
 
+def _brand() -> ModuleType:
+    """The brand style imports matplotlib, so it is loaded lazily for the same reason."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import brand
+
+    brand.use_style()
+    return brand
+
+
 def _plot_convergence(traces: list[list[float]], path: Path) -> None:
     """Plot median residual vs.
 
     LM step for each restart.
     """
     plt = _pyplot()
+    brand = _brand()
     plt.rcParams.update(NEURIPS_RCPARAMS)
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
 
-    colors = ['#2D6A9F', '#D4722A', '#4CAF50', '#9C27B0', '#E53935']
+    colors = [brand.TERRACOTTA, *brand.RAMP]
 
     for i, trace in enumerate(traces):
         steps = list(range(len(trace)))
@@ -309,6 +316,8 @@ def _plot_convergence(traces: list[list[float]], path: Path) -> None:
             trace,
             marker='o',
             markersize=3,
+            markeredgecolor=brand.surface_color(),
+            markeredgewidth=0.3,
             linewidth=1.0,
             color=color,
             label=label,
@@ -319,13 +328,11 @@ def _plot_convergence(traces: list[list[float]], path: Path) -> None:
     ax.set_ylabel('Median residual')
     ax.set_yscale('log')
     ax.set_xticks(range(len(traces[0])))
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.yaxis.grid(True, linewidth=0.3, alpha=0.4, zorder=0)
-    ax.set_axisbelow(True)
+    brand.style_axes(ax, grid='y')
     ax.legend(frameon=False, fontsize=6, loc='upper right')
 
     fig.tight_layout()
+    brand.finish(fig)
     fig.savefig(path)
     fig.savefig(str(path).replace('.pdf', '.png'), dpi=300)
     print(f'Convergence plot saved to {path}')
@@ -335,30 +342,38 @@ def _plot_convergence(traces: list[list[float]], path: Path) -> None:
 def _plot_error_histogram(errors: np.ndarray, path: Path) -> None:
     """Histogram of recovery errors (log scale)."""
     plt = _pyplot()
+    brand = _brand()
     plt.rcParams.update(NEURIPS_RCPARAMS)
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
 
     log_errors = np.log10(errors.clip(min=1e-15))
-    ax.hist(log_errors, bins=50, color='#2D6A9F', edgecolor='white', linewidth=0.3, zorder=3)
+    ax.hist(
+        log_errors,
+        bins=50,
+        color=brand.TERRACOTTA,
+        edgecolor=brand.surface_color(),
+        linewidth=0.3,
+        zorder=3,
+    )
     ax.set_xlabel('log10(recovery error)')
     ax.set_ylabel('Count')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.set_axisbelow(True)
+    brand.style_axes(ax, grid=None)
 
     for thresh in [-1, -2, -3]:
         pct = (log_errors < thresh).mean()
-        ax.axvline(thresh, color='#D4722A', linewidth=0.6, linestyle='--', zorder=4)
+        ax.axvline(thresh, color=brand.TERRACOTTA, linewidth=0.6, linestyle='--', zorder=4)
         ax.text(
             thresh + 0.1,
             ax.get_ylim()[1] * 0.9,
             f'{pct:.0%}',
             fontsize=6,
-            color='#D4722A',
+            fontfamily=brand.MONO,
+            color=brand.TERRACOTTA_TEXT,
             va='top',
         )
 
     fig.tight_layout()
+    brand.finish(fig)
     fig.savefig(path)
     fig.savefig(str(path).replace('.pdf', '.png'), dpi=300)
     print(f'Error histogram saved to {path}')

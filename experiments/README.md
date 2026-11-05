@@ -105,4 +105,4 @@ python experiments/make_grid_figure.py           # real data -> experiments/grid
 python experiments/make_grid_figure.py --mock    # layout preview -> experiments/grid_mockup/
 ```
 
-Outputs: per-panel PDFs (`grid_r{row}c{col}_*.pdf`), per-row legends, an assembled contact sheet (PNG + PDF), and `caption.txt` with the figure caption including the S²CNN justification.
+Outputs: per-panel PDFs (`grid_r{row}c{col}_*.pdf`), per-row legends, an assembled contact sheet (PNG + PDF), `caption.tex` (the LaTeX `\caption`/`\label` to `\input` in the paper; its numbers are recomputed from the results, with a warning if a claim stops holding), `caption_details.tex` (the appendix subsection it points to), and `preview.tex`, which typesets all of it on NeurIPS pages.

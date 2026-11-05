@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -20,6 +21,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import brand  # noqa: E402
 
 MODEL_ORDER = ['standard', 'norm_pool', 'max_pool', 'bispectrum']
 MODEL_LABELS = {
@@ -237,11 +242,9 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
         print('No data to plot.')
         return
 
+    brand.use_style()
     plt.rcParams.update(
         {
-            'font.family': 'serif',
-            'font.serif': ['Times New Roman', 'DejaVu Serif'],
-            'mathtext.fontset': 'cm',
             'font.size': 11,
             'axes.labelsize': 13,
             'axes.titlesize': 14,
@@ -288,8 +291,8 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
     x = np.arange(len(labels))
     width = 0.32
 
-    c_orig = '#2D6A9F'
-    c_rot = '#D4722A'
+    c_orig = brand.MUTED
+    c_rot = brand.NEUTRAL_LIGHT
 
     fig, ax = plt.subplots(figsize=(5.5, 3.5))
 
@@ -300,7 +303,7 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
         yerr=orig_stds,
         capsize=3,
         color=c_orig,
-        edgecolor='white',
+        edgecolor=brand.surface_color(),
         linewidth=0.6,
         error_kw={'linewidth': 0.9, 'capthick': 0.9},
         label='Original test',
@@ -315,7 +318,7 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
         yerr=rot_err,
         capsize=3,
         color=c_rot,
-        edgecolor='white',
+        edgecolor=brand.surface_color(),
         linewidth=0.6,
         error_kw={'linewidth': 0.9, 'capthick': 0.9},
         label='Rotated test (24 oct. rotations)',
@@ -331,8 +334,8 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
             f'{val:.1%}',
             ha='center',
             va='bottom',
-            fontsize=8,
-            fontweight='medium',
+            fontsize=6.5,
+            fontfamily=brand.MONO,
         )
 
     for bar, v, s in zip(bars1, orig_accs, orig_stds, strict=False):
@@ -341,7 +344,7 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
         if v > 0:
             annotate_bar(bar, v, s)
 
-    ax.set_ylabel('Accuracy')
+    ax.set_ylabel('Test accuracy')
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_ylim(0, 1.05)
@@ -349,24 +352,20 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
 
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
 
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    brand.style_axes(ax, grid='y')
     ax.spines['left'].set_linewidth(0.6)
     ax.spines['bottom'].set_linewidth(0.6)
     ax.tick_params(width=0.6, length=3)
 
-    ax.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
-    ax.set_axisbelow(True)
-
     ax.legend(
         frameon=True,
         fancybox=False,
-        edgecolor='#cccccc',
         framealpha=0.95,
         loc='upper left',
     )
 
     fig.tight_layout()
+    brand.finish(fig)
     fig.savefig(output_path, dpi=300)
     fig.savefig(output_path.replace('.png', '.pdf'))
     print(f'\nPlot saved to {output_path} (+ PDF)')
@@ -375,9 +374,9 @@ def plot_rotation_comparison(grouped: dict[str, list[dict]], output_path: str):
 
 def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
     """Plot data efficiency curves: test accuracy vs train fraction for each model."""
+    brand.use_style()
     plt.rcParams.update(
         {
-            'font.family': 'serif',
             'font.size': 11,
             'axes.titlesize': 12,
             'axes.labelsize': 11,
@@ -391,12 +390,7 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
     organ_full = ORGAN_FULL_TRAIN
     sizes = _data_sizes(grouped)
     models_to_plot = ['standard', 'norm_pool', 'max_pool', 'bispectrum']
-    colors = {
-        'standard': '#888888',
-        'norm_pool': '#5C6BC0',
-        'max_pool': '#2D6A9F',
-        'bispectrum': '#C44E52',
-    }
+    colors = {model: brand.METHOD_COLORS[model] for model in models_to_plot}
     markers = {'standard': 's', 'norm_pool': 'v', 'max_pool': 'D', 'bispectrum': 'o'}
     labels = {
         'standard': 'Aug. 3D CNN',
@@ -458,24 +452,20 @@ def plot_data_efficiency(grouped: dict[str, list[dict]], output_path: str):
 
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
 
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    brand.style_axes(ax, grid='y')
     ax.spines['left'].set_linewidth(0.6)
     ax.spines['bottom'].set_linewidth(0.6)
     ax.tick_params(width=0.6, length=3)
 
-    ax.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
-    ax.set_axisbelow(True)
-
     ax.legend(
         frameon=True,
         fancybox=False,
-        edgecolor='#cccccc',
         framealpha=0.95,
         loc='upper left',
     )
 
     fig.tight_layout()
+    brand.finish(fig)
     fig.savefig(output_path, dpi=300)
     fig.savefig(output_path.replace('.png', '.pdf'))
     print(f'\nData efficiency plot saved to {output_path} (+ PDF)')
