@@ -72,12 +72,12 @@
 \input{firstpage/title}
 
 \definecolor{bspLinkOrange}{HTML}{B53E20}
-\newcommand{\repolink}{%
+\newcommand{\repolink}{{%
+  \hypersetup{pdfborder={0 0 0}}%
   \href{https://github.com/geometric-intelligence/bispectrum}{%
-    \raisebox{-0.22em}{\includegraphics[height=1.25em]{firstpage/bispectrum-mark.pdf}}%
-    \hspace{0.4em}%
-    \textcolor{bspLinkOrange}{\texttt{github.com/geometric-intelligence/bispectrum}}}%
-}
+    \raisebox{-0.2em}{\includegraphics[height=1.15em]{firstpage/github-mark.pdf}}\hspace{0.45em}%
+    \textcolor{bspLinkOrange}{\texttt{geometric-intelligence/bispectrum}}}%
+}}
 
 % Put this in the preamble, before \author
 \newcommand{\authorblock}[4]{%
