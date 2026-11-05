@@ -45,27 +45,31 @@ git pull
 
 **Only JSON is published** (`*.json`, `*.jsonl`: about 1,900 files, 32 MiB). Every figure, table and significance test is computed from these. Checkpoints, training logs, derived tables and environment captures stay in the local stores on the machines that produced them, and the manifest records their hashes.
 
-Published revision: [`371fe73`](https://huggingface.co/datasets/geometric-intelligence/bispectrum/commit/371fe73ff962e2ebbc1602fc607db2b0d8977352) (2026-11-05), uploaded from code commit `d1d39f3`. Downloaded into a fresh clone, it passes `verify` and rebuilds `make_grid_figure.py`'s outputs byte for byte, apart from PDF creation dates.
+Published revision: [`e1df662`](https://huggingface.co/datasets/geometric-intelligence/bispectrum/commit/e1df6621c3e512d36158f1033d15b022ad2ea2c0) (2026-11-05). It has the loose files from code commit `d1d39f3` and `results-json.tar.gz`, sha256 `7634c85b9d6d17c5a12bb62a0e669d245926809ea2a9ca62c34e9080a7ae07ce`. Downloaded into a fresh clone, it passes `verify` and rebuilds `make_grid_figure.py`'s outputs byte for byte, apart from PDF creation dates.
 
 `hf` is the Hugging Face CLI (`pip install -U huggingface_hub`, or run it as `uvx --from huggingface_hub hf`). The token needs write access to the dataset.
 
+The dataset carries the JSON twice: as loose files for browsing and partial fetches, and as `results-json.tar.gz` (6.4 MiB) for a one-request download. The archive is built with `pack`, which fixes owners, permissions and the gzip header, so an unchanged store packs to the same bytes.
+
 ```bash
-# Publish or update
+# Publish or update: the loose files, then the archive
 hf upload geometric-intelligence/bispectrum results . --repo-type dataset \
   --include '*.json' --include '*.jsonl' --include README.md --commit-message "..."
+python rebuttal/results_store.py pack /tmp/results-json.tar.gz --include '*.json' '*.jsonl'
+hf upload geometric-intelligence/bispectrum /tmp/results-json.tar.gz results-json.tar.gz --repo-type dataset
 
-# On a fresh clone: download, link, check
-hf download geometric-intelligence/bispectrum --repo-type dataset --local-dir results
+# On a fresh clone: fetch, link, check
+curl -L https://huggingface.co/datasets/geometric-intelligence/bispectrum/resolve/main/results-json.tar.gz | tar -xz
 python rebuttal/results_store.py link
 python rebuttal/results_store.py verify --include '*.json' '*.jsonl'
 ```
 
-An anonymous download of the roughly 1,900 files can hit Hugging Face's rate limit; the CLI waits about four minutes and retries. Running `hf auth login` first raises the limit.
+`hf download geometric-intelligence/bispectrum --repo-type dataset --local-dir results --exclude '*.tar.gz'` fetches the loose files instead, and accepts `--include` for one experiment. Anonymously, its roughly 1,900 requests hit Hugging Face's rate limit; the CLI waits about four minutes and retries. Running `hf auth login` first raises the limit.
 
 At the camera-ready freeze:
 
-1. Tag the dataset revision that matches the paper's code commit, and record both hashes here.
-2. Deposit the same JSON on Zenodo for a DOI, and cite it in the paper's reproducibility statement.
+1. Tag the dataset revision that matches the paper's code commit, and record both hashes here. Point the dataset card's `git clone -b` and `resolve/main` URLs at the tags.
+2. Deposit `results-json.tar.gz` on Zenodo for a DOI, and cite it in the paper's reproducibility statement.
 
 **Rejected alternatives:**
 

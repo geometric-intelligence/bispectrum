@@ -10,6 +10,7 @@ they always have. ``results`` itself may be a symlink to a bigger disk.
     python rebuttal/results_store.py link       # recreate the links from results/ (fresh clone)
     python rebuttal/results_store.py manifest   # write rebuttal/results_manifest.tsv
     python rebuttal/results_store.py verify     # check results/ against the manifest
+    python rebuttal/results_store.py pack out.tar.gz --include '*.json'   # archive for publishing
 
 Where the store is published and how to fetch it: rebuttal/RESULTS.md.
 """
@@ -18,10 +19,12 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import gzip
 import hashlib
 import os
 import shutil
 import sys
+import tarfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Final
@@ -112,12 +115,15 @@ def read_manifest(manifest: Path) -> dict[str, tuple[int, str]]:
     return {path: (int(size), sha) for path, size, sha in (line.split('\t') for line in lines)}
 
 
-def verify(store: Path, manifest: Path, include: Sequence[str], hash_files: bool) -> None:
-    def selected(path: str) -> bool:
-        return not include or any(fnmatch.fnmatch(path, pattern) for pattern in include)
+def _selected(path: str, include: Sequence[str]) -> bool:
+    return not include or any(fnmatch.fnmatch(path, pattern) for pattern in include)
 
-    expected = {p: v for p, v in read_manifest(manifest).items() if selected(p)}
-    actual = {rel: p for p in _files(store) if selected(rel := p.relative_to(store).as_posix())}
+
+def verify(store: Path, manifest: Path, include: Sequence[str], hash_files: bool) -> None:
+    expected = {p: v for p, v in read_manifest(manifest).items() if _selected(p, include)}
+    actual = {
+        rel: p for p in _files(store) if _selected(rel := p.relative_to(store).as_posix(), include)
+    }
     missing = sorted(expected.keys() - actual.keys())
     extra = sorted(actual.keys() - expected.keys())
     changed = [
@@ -135,6 +141,29 @@ def verify(store: Path, manifest: Path, include: Sequence[str], hash_files: bool
     )
     if missing or changed:
         sys.exit(1)
+
+
+def pack(store: Path, archive: Path, include: Sequence[str]) -> None:
+    """Write the selected files to a ``.tar.gz`` of ``results/...`` paths, for the repo root.
+
+    Owners, permissions and the gzip header are fixed, so an unchanged store packs to the same
+    bytes and re-uploading it is a no-op.
+    """
+    files = [p for p in _files(store) if _selected(p.relative_to(store).as_posix(), include)]
+    with (
+        archive.open('wb') as raw,
+        gzip.GzipFile(filename='', fileobj=raw, mode='wb', mtime=0) as gz,
+    ):
+        with tarfile.open(fileobj=gz, mode='w', format=tarfile.PAX_FORMAT) as tar:
+            for path in files:
+                info = tar.gettarinfo(path, arcname=(STORE / path.relative_to(store)).as_posix())
+                info.mtime = int(info.mtime)
+                info.uid = info.gid = 0
+                info.uname = info.gname = ''
+                info.mode = 0o644
+                with path.open('rb') as f:
+                    tar.addfile(info, f)
+    print(f'{len(files)} files, {archive.stat().st_size / 2**20:.1f} MiB -> {archive}')
 
 
 def main() -> None:
@@ -156,6 +185,11 @@ def main() -> None:
         '--include', nargs='*', default=[], help="Only check matching paths, e.g. '*.json'."
     )
     check.add_argument('--quick', action='store_true', help='Compare sizes only, no hashing.')
+    packer = commands.add_parser('pack', help='Write stored files to a .tar.gz for publishing.')
+    packer.add_argument('archive', type=Path, help='Output path, outside the store.')
+    packer.add_argument(
+        '--include', nargs='*', default=[], help="Only pack matching paths, e.g. '*.json'."
+    )
     args = parser.parse_args()
 
     repo: Path = args.repo.resolve()
@@ -169,6 +203,8 @@ def main() -> None:
             write_manifest(store, manifest)
         case 'verify':
             verify(store, manifest, args.include, hash_files=not args.quick)
+        case 'pack':
+            pack(store, args.archive.resolve(), args.include)
 
 
 if __name__ == '__main__':
