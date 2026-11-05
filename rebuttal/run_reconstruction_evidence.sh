@@ -57,3 +57,30 @@ fi
   "$OUTPUT_ROOT/smnist_l15/results.json" \
   "$OUTPUT_ROOT/random_l15/results.json" \
   --output "$OUTPUT_ROOT/summary.json"
+
+# Post hoc: degree-by-degree solver on the same targets (CPU, float64), one process per target.
+MARCH="$REPO_ROOT/experiments/spherical_mnist_reconstruction/degree_marching.py"
+MARCH_JOBS="${MARCH_JOBS:-12}"
+MARCH_THREADS="${MARCH_THREADS:-2}"
+
+march() {
+  local source=$1 n_signals=$2 n_rotations=$3
+  local out="$OUTPUT_ROOT/${source}_l15_marching"
+  local last=$((n_signals * (n_rotations + 1) - 1))
+  [[ -f "$out/results.json" ]] && return
+  mkdir -p "$out/logs"
+  seq 0 "$last" | xargs -P "$MARCH_JOBS" -I{} sh -c \
+    "OMP_NUM_THREADS=$MARCH_THREADS '$PYTHON' '$MARCH' solve --signal_source $source \
+      --n_signals $n_signals --n_rotations $n_rotations --seed 2026 --data_dir '$DATA_DIR' \
+      --n_threads $MARCH_THREADS --targets {} --output_dir '$out' > '$out/logs/target_{}.log' 2>&1"
+  "$PYTHON" "$MARCH" merge --output_dir "$out"
+  for i in $(seq 0 "$last"); do cat "$out/logs/target_$i.log"; done > "$out/run.log"
+}
+
+march smnist 8 1
+march random 16 0
+
+"$PYTHON" "$MARCH" plot \
+  --results "$OUTPUT_ROOT/smnist_l15_marching/results.json" \
+  --rot_idx 0 \
+  --paper_figure_path "$REPO_ROOT/paper/experiments/spherical_mnist_reconstruction/figures/paper_orbits.pdf"
