@@ -45,6 +45,8 @@ git pull
 
 **Only JSON is published** (`*.json`, `*.jsonl`: about 1,900 files, 32 MiB). Every figure, table and significance test is computed from these. Checkpoints, training logs, derived tables and environment captures stay in the local stores on the machines that produced them, and the manifest records their hashes.
 
+Published revision: [`371fe73`](https://huggingface.co/datasets/geometric-intelligence/bispectrum/commit/371fe73ff962e2ebbc1602fc607db2b0d8977352) (2026-11-05), uploaded from code commit `d1d39f3`. Downloaded into a fresh clone, it passes `verify` and rebuilds `make_grid_figure.py`'s outputs byte for byte, apart from PDF creation dates.
+
 `hf` is the Hugging Face CLI (`pip install -U huggingface_hub`, or run it as `uvx --from huggingface_hub hf`). The token needs write access to the dataset.
 
 ```bash
@@ -57,6 +59,8 @@ hf download geometric-intelligence/bispectrum --repo-type dataset --local-dir re
 python rebuttal/results_store.py link
 python rebuttal/results_store.py verify --include '*.json' '*.jsonl'
 ```
+
+An anonymous download of the roughly 1,900 files can hit Hugging Face's rate limit; the CLI waits about four minutes and retries. Running `hf auth login` first raises the limit.
 
 At the camera-ready freeze:
 
