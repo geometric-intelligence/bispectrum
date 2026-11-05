@@ -835,10 +835,9 @@ odd-parity triples in $\mathcal{T}_\ell$
 (Section~\ref{sec:app-parity}). A short comparison with prior bispectral
 constructions (Section~\ref{sec:app-comparison}) and a pixel-space
 complexity table (Section~\ref{sec:app-pixel-complexity}) close the
-appendix. We do not claim a closed-form completeness proof in this
-revision; the empirical reconstruction of
-Figure~\ref{fig:so3-reconstruction} is the proof-of-concept evidence
-on which the construction is supported.
+appendix. We do not claim a completeness proof; generic completeness
+is a conjecture, supported by the full per-degree Jacobian rank and by
+the reconstructions of Figure~\ref{fig:so3-reconstruction}.
 
 Per-degree entry allocation: the full seed
 $\mathcal{S}_{\mathrm{seed}}$ handles $\ell\le L_{\mathrm{seed}}=4$
@@ -1479,12 +1478,13 @@ training. Section~\ref{app:portability} covers other devices.
 \begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{experiments/benchmarks/paper_fig1.pdf}
-  \caption{Bispectral coefficient count vs.\ group order $|G|$. Solid
-    lines: selective ($O(|G|)$); dashed: full ($O(|G|^2)$). At
-    $|G|{=}1{,}024$, selectivity yields a $512\times$ reduction.
-    Continuous groups ($\SO(2)$, $\SO(3)$) are plotted at their
-    band-limited signal dimension; full-bispectrum curves for $D_n$
-    and the disk are omitted (backends not yet implemented).}
+  \caption{\textbf{The number of selective $G$-bispectral coefficients grows linearly with the
+    group size; for full $G$-bispectra it grows quadratically.} Invariant coefficients per
+    signal against $|G|$: selective (solid) and full (dashed). For $\SO(2)$ on the disk and
+    $\SO(3)$ on $S^2$, $|G|$ is the band-limited signal dimension. At $|G|{=}65{,}536$ the
+    selective $\mathbb{T}^2$-bispectrum has $32{,}768\times$ fewer coefficients than the full
+    $\mathbb{T}^2$-bispectrum ($6.6{\times}10^4$ vs.\ $2.1{\times}10^9$). The full bispectra
+    for $D_n$, the disk $D^2$ and $O$ are not implemented.}
   \label{fig:coeff-scaling}
 \end{figure}
 
@@ -1493,33 +1493,35 @@ training. Section~\ref{app:portability} covers other devices.
 \begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{experiments/benchmarks/paper_fig2.pdf}
-  \caption{Forward-pass wall-clock time (batch\,=\,16, H100 GPU).
-    \textbf{(a)}~$C_n$: the selective pass stays flat at
-    ${\sim}$0.14\,ms regardless of $n$, while the full bispectrum
-    grows super-linearly (17\,ms at $n{=}256$).
-    \textbf{(b)}~$\mathbb{T}^2$: selective is constant at
-    ${\sim}$0.07\,ms up to $|G|{=}65{,}536$.}
+  \caption{\textbf{The selective forward pass costs the same at every group size; the full
+    bispectrum grows with it.} Median forward time, H100, batch 16, autograd enabled.
+    (a)~$C_n$: the selective pass takes 0.14\,ms at every $n$ from 8 to
+    1{,}024; at $n{=}1{,}024$ the full bispectrum
+    takes 70\,ms, $502\times$ longer.
+    (b)~$\mathbb{T}^2$: 0.075--0.076\,ms up to $|G|{=}65{,}536$; the full
+    bispectrum, run up to $|G|{=}4{,}096$ (8{,}390{,}656 coefficients),
+    takes 5.2\,ms there, $69\times$ longer.}
   \label{fig:forward-timing}
 \end{figure}
 
 The selective forward pass is dominated by kernel-launch overhead
 rather than arithmetic, making it effectively free relative to backbone
-computation. The full bispectrum exhibits the expected super-linear
-growth and becomes impractical beyond $|G| \approx 256$ for $C_n$.
+computation. The full bispectrum grows with $|G|$ and dominates the cost at large
+group sizes.
 
 \subsection{GPU throughput and inversion}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{experiments/benchmarks/paper_fig3.pdf}
-  \caption{\textbf{(a)}~GPU throughput (samples/s) vs.\ batch size for
-    the selective forward pass. $C_n$ and $\mathbb{T}^2$ exceed
-    $10^7$~samples/s; the octahedral module reaches
-    $6.1 \times 10^6$~samples/s. $\SO(3)$ on $S^2$ saturates near
-    $1.9 \times 10^5$~samples/s.
-    \textbf{(b)}~Inversion wall-clock time. Abelian groups ($C_n$,
-    $D_n$, $\SO(2)$/disk) scale roughly linearly. $\SO(3)$ on $S^2$
-    inversion is not yet implemented.}
+  \caption{\textbf{Selective $G$-bispectra have high throughput of millions of samples/s
+    on one H100 and are invertible.}
+    (a)~Selective forward throughput against batch size, H100, autograd enabled ($C_{128}$,
+    $C_{32}{\times}C_{32}$, $D_{32}$, $S^2$ at $L{=}16$, $O$): $C_n$ and $\mathbb{T}^2$ exceed $10^7$ samples/s,
+    $O$ reaches $5.9{\times}10^{6}$, and $\mathrm{SO}(3)$ on $S^2$ saturates near
+    $1.9{\times}10^{5}$. (b)~Time to recover a signal from its selective invariant (batch
+    4); log--log slopes against $|G|$ are 1.0 for $C_n$, 1.0 for $\mathbb{T}^2$, 0.7 for $D_n$ and 0.8 for the disk. $O$ (775\,ms) uses
+    iterative Levenberg--Marquardt corrections; $\mathrm{SO}(3)$ on $S^2$ has no closed-form inversion.}
   \label{fig:gpu-scaling}
 \end{figure}
 
@@ -1535,7 +1537,7 @@ overhead, set the cost.
 
 Table~\ref{tab:portability} times the selective configurations of
 Table~\ref{tab:benchmarks} on four GPUs and four host CPUs with a
-single script (\texttt{rebuttal/benchmark\_devices.py}): batch\,=\,16, float32
+single script (\texttt{experiments/tooling/benchmark\_devices.py}): batch\,=\,16, float32
 input, \texttt{torch.inference\_mode()}, median over 30 repetitions of 20
 forward passes after 10 warm-up passes, PyTorch 2.11, \texttt{bispectrum}
 0.4.1 (0.4.0 on the H100 and A100 hosts; the two releases differ only on MPS).
@@ -1557,12 +1559,12 @@ precision-matched with the others.
 
 \begin{table}[h]
   \centering
-  \caption{Selective forward pass (ms, median) across devices and backends;
-    batch\,=\,16, inference mode. Groups and sizes as in
-    Table~\ref{tab:benchmarks} ($C_{128}$, $C_{32}{\times}C_{32}$, $D_{32}$,
-    disk and $S^2$ at $L{=}16$, $O$), except that $S^2$ is sampled on the
-    $64{\times}128$ Spherical MNIST grid instead of $34{\times}68$;
-    on the H100 both grids take 0.20\,ms.}
+  \caption{\textbf{Every module runs in under a millisecond on every device, except
+    $\SO(3)$ on $S^2$, which needs a GPU.} Selective forward pass (ms, median), batch\,=\,16,
+    inference mode. Groups and sizes as in Table~\ref{tab:benchmarks} ($C_{128}$,
+    $C_{32}{\times}C_{32}$, $D_{32}$, disk and $S^2$ at $L{=}16$, $O$), except that $S^2$ is
+    sampled on the $64{\times}128$ Spherical MNIST grid instead of $34{\times}68$; on the
+    H100 both grids take 0.20\,ms.}
   \label{tab:portability}
   \small
   \setlength{\tabcolsep}{4pt}
@@ -1587,33 +1589,81 @@ precision-matched with the others.
   \end{tabular*}
 \end{table}
 
-\section{PCam: Extended Results}
-\label{app:pcam-details}
+\section{$G$-Bispectral Pooling: Extended Results}
+\label{app:pooling}
 
-\begin{table}[h]
-  \caption{Accuracy of a $G$-bispectral pooling layer on PatchCamelyon (PCam)~\citep{veeling2018rotation}, a binary histopathology classification benchmark. $G$-bispectral pooling is competitive with classical pooling approaches.}
-  \label{tab:pcam-results}
-  \centering
-  \small
-  \begin{tabular}{lrcc}
-    \toprule
-    Model & Params & Test AUC & Test ACC \\
-    \midrule
-    Standard (data augmented)          & 102K & $.896 \pm .010$ & $.826 \pm .012$ \\
-    Gated                         & 136K & $.941 \pm .009$ & $.870 \pm .004$ \\
-    Selective Bispectrum (\texttt{CnonCn})  & 128K & $.941 \pm .004$ & $\mathbf{.872 \pm .006}$ \\
-    Fourier-ELU                   & 110K & $\mathbf{.945 \pm .004}$ & $.855 \pm .006$ \\
-    NormReLU                      & 110K & $.942 \pm .004$ & $.858 \pm .007$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+\subsection{Invariant maps in $G$-CNNs (Figure~\ref{fig:pooling-grid})}
+\label{app:pooling-grid}
+
+\paragraph{Protocol.}
+The rotated test averages the metric over the test set transformed by every element of $G$,
+identity included. On OrganMNIST3D the 24 octahedral rotations permute voxels exactly, so
+$G$-invariant models score identically on the canonical and rotated test sets; on PCam the
+$45^\circ$ rotations are bilinearly interpolated, so invariance is exact only at multiples of
+$90^\circ$. Aug.\ CNN is a non-equivariant CNN (3D for OrganMNIST3D) trained with augmentation
+over $G$, so the rotated test is in-distribution for it. All other models are $G$-equivariant,
+trained on canonical data only, and end in an invariant map over the group axis: a maximum (Max
+pool; NormReLU, Gated and Fourier-ELU name the backbone nonlinearity), the $\ell_2$ norm (Norm
+pool, an incomplete invariant), or the selective $G$-bispectrum (complete). Max pool and
+Bispectrum on OrganMNIST3D, and Norm pool and Bispectrum on PCam, share a ReLU backbone and differ
+only in the invariant map; OrganMNIST3D's Norm pool uses NormReLU.
+
+\paragraph{Held fixed.}
+Left: full training set, at the smallest width (OrganMNIST3D) or ${\sim}100$K-parameter
+configurations (PCam). Middle: full training set (OrganMNIST3D) or $n = 12.5$K (PCam). Right:
+smallest width (OrganMNIST3D) or ${\sim}100$K parameters (PCam); ``all'' is the full training set,
+and the PCam axis is broken before it (262K examples). The panels of a row share the $y$-axis.
+
+\paragraph{Statistics.}
+Mean $\pm$ sample standard deviation over 10 seeds (OrganMNIST3D) and 3 seeds (PCam; 5 at
+$n \le 2.5$K). $p$-values are two-sided Welch $t$-tests, uncorrected for multiplicity. On
+OrganMNIST3D, bispectral pooling beats max pooling by 5.0\,pp ($p < 10^{-3}$); its smallest
+model (463K parameters) beats max pooling's largest (6.0M) by 2.6\,pp
+($p < 10^{-3}$); and at $n = 500$ it beats max pooling at $n = 971$ by
+3.6\,pp ($p = 0.0017$). On PCam, no model is significantly better than bispectral
+pooling at any training-set size; the closest is Gated on the full training set (${+}0.016$ AUC,
+$p = 0.093$). With 3 seeds per arm and PCam's seed spread, these tests have 80\% power only for
+gaps of about 0.025 AUC, so ``on par'' means no difference at that resolution.
+
+\subsection{Model variants}
+
+\paragraph{PCam.}
+All equivariant models share a $C_8$-equivariant
+DenseNet~\citep{huang2017densenet} backbone with block configuration
+$(4, 4, 4)$, 24 initial channels, and compression factor 0.5,
+following the architecture of \citet{veeling2018rotation} but
+replacing the final invariant map. Six model variants are evaluated:
+\begin{itemize}
+  \item \textbf{Aug.\ CNN}: non-equivariant DenseNet trained with augmentation over $C_8$
+    and global average pooling. No group dimension, so ${\sim}8\times$ fewer parameters at
+    matched growth rate.
+  \item \textbf{NormReLU}, \textbf{Gated}, \textbf{Fourier-ELU}: $C_8$-equivariant
+    backbones with norm-based, gated (doubling internal channels) or Fourier-space ELU
+    nonlinearities, each followed by max pooling over the group dimension.
+  \item \textbf{Norm pool}: ReLU backbone, $\ell_2$ norm over the group dimension.
+  \item \textbf{Bispectrum}: ReLU backbone, selective $G$-bispectrum via
+    \texttt{CnonCn}$(n{=}8)$ as the terminal invariant map.
+\end{itemize}
+The data-efficiency and full-data panels use growth rates matched to ${\sim}100$K
+parameters. The parameter-efficiency panel sweeps the DenseNet growth rate
+$k \in \{3, 4, 6, 8, 12\}$ for equivariant models and $k \in \{6, 12, 20, 30, 35\}$ for
+Aug.\ CNN at $n = 12.5$K, from ${\sim}30$K to ${\sim}1.6$M parameters.
+
+\paragraph{OrganMNIST3D.}
+All equivariant models share an $O$-equivariant 3D ResNet whose kernel rotations are exact
+voxel permutations on the $3^3$ grid. The channel widths $(4, 8)$, $(8, 16)$ and $(16, 32)$
+give 463K, 1.7M and 6.3M parameters with the bispectral head (172 \texttt{OctaonOcta}
+coefficients per channel) and 374K, 1.5M and 6.0M with max pooling. Aug.\ CNN is a
+non-equivariant 3D CNN trained with one of the 24 octahedral rotations per sample; Norm pool
+uses a NormReLU backbone. Training-set sizes are $n \in \{50, 100, 250, 500, 971\}$ at
+width $(4, 8)$.
 
 \subsection{Published baselines}
 
 Table~\ref{tab:pcam-context} places our results in the context of
-published methods on PCam and the closely related Camelyon16
-benchmark. Our models operate at 68K--920K parameters and are
-trained on only 10\% of the data.
+published methods on PCam. Our models are trained under one fixed
+protocol for every method rather than tuned per method; at full data
+and ${\sim}100$K parameters bispectral pooling reaches a test AUC of 0.933.
 
 \begin{table}[h]
   \caption{Published baselines on PatchCamelyon from
@@ -1633,83 +1683,10 @@ trained on only 10\% of the data.
   \end{tabular}
 \end{table}
 
-\subsection{Model variants}
-
-All equivariant models share a $C_8$-equivariant
-DenseNet~\citep{huang2017densenet} backbone with block configuration
-$(4, 4, 4)$, 24 initial channels, and compression factor 0.5,
-following the architecture of \citet{veeling2018rotation} but
-replacing the final invariant map. Six model variants are evaluated:
-
-\begin{itemize}
-  \item \textbf{Standard}: vanilla CNN with random rotation/reflection
-    augmentation and global average pooling. No group dimension,
-    so ${\sim}8\times$ fewer parameters at matched growth rate.
-  \item \textbf{NormReLU}: $C_8$-equivariant backbone with norm-based
-    nonlinearity and max pooling over the group dimension.
-  \item \textbf{Gated}: $C_8$-equivariant backbone with gated
-    nonlinearity (doubles internal channels) and group max pool.
-  \item \textbf{Fourier-ELU}: $C_8$-equivariant backbone with
-    Fourier-space ELU nonlinearity and group max pool.
-  \item \textbf{Bispectrum}: $C_8$-equivariant backbone with ReLU
-    nonlinearity and selective $G$-bispectrum via
-    \texttt{CnonCn}$(n{=}8)$ as the terminal invariant map.
-\end{itemize}
-
-\subsection{Training details}
-
-To enable a controlled Pareto comparison, we sweep the DenseNet
-growth rate $k \in \{3, 4, 6, 8, 12\}$ for equivariant models (and
-$k \in \{6, 12, 20, 30, 35\}$ for the standard CNN to cover a
-comparable parameter range), yielding models from ${\sim}30$K to
-${\sim}1.6$M parameters. All models are trained on \textbf{10\% of
-training data} (26{,}214 images) with AdamW~\citep{loshchilov2019adamw}
-(lr $= 10^{-3}$, weight decay $10^{-4}$), cosine warm restarts,
-mixed-precision training, and early stopping on validation AUC
-(patience 10, max 50 epochs).
-
-\subsection{Pareto analysis interpretation}
-
-\emph{Architectural stability} (single seed, growth-rate sweep).
-The bispectrum's AUC varies by only ${\sim}1$pp across a $12\times$
-range of model sizes (80K--920K parameters), while norm swings by
-$>$7pp. For practitioners, bispectral pooling ``just works'' without
-growth rate tuning. The multi-seed matched-parameter results
-(Table~\ref{tab:pcam-results}) confirm this: bispectrum and Fourier-ELU
-have the lowest cross-seed variance ($\pm 0.004$).
-
-\emph{Matched parameters.}
-At matched parameters (${\sim}100$K), all equivariant models outperform
-the standard CNN (AUC $0.896 \pm 0.010$, 3 seeds). Fourier-ELU leads
-slightly ($0.945 \pm 0.004$), followed by NormReLU ($0.942$), bispectrum
-and gated (both $0.941$). All equivariant methods cluster within
-${\sim}0.5$pp of each other.
-
-\emph{Scaling behavior.}
-As parameters increase from the smallest to the largest configuration,
-standard, norm, and Fourier-ELU all degrade (by 1.8, 2.6, and 0.9
-AUC points respectively), while the bispectrum improves (+0.9 points,
-reaching 0.943 at 920K params). This suggests that the bispectrum's
-complete invariant map scales more gracefully with capacity.
-
-\emph{Data scaling} (3 seeds).
-At 1\% data the bispectrum leads all methods ($0.912 \pm 0.025$),
-outperforming NormReLU ($0.873$), Fourier-ELU ($0.876$), and gate
-($0.884$). By 10\% all equivariant methods converge (${\sim}0.941$--$0.945$).
-The bispectrum's data-efficiency advantage narrows as data increases,
-consistent with the hypothesis that complete invariants substitute for
-missing training examples in the low-data regime.
-
-\section{OrganMNIST3D: Extended Results}
-\label{app:organ3d-details}
-
-\subsection{Published baselines}
-
-Table~\ref{tab:organ3d-context} situates our results against published
-methods on the same benchmark. Our models are deliberately small
-(${\leq}463$K parameters) to enable controlled ablation of the pooling
-mechanism. The relevant comparison is against equivariant methods at a
-similar scale.
+Table~\ref{tab:organ3d-context} situates our OrganMNIST3D results against published
+methods on the same benchmark. Our models are small (0.46M--6.3M parameters) to isolate the
+pooling mechanism, and bispectral pooling reaches $78.5\%$ at 0.46M parameters; the relevant
+comparison is against equivariant methods at a similar scale.
 
 \begin{table}[h]
   \caption{Published baselines on OrganMNIST3D for context.
@@ -1732,65 +1709,21 @@ similar scale.
   \end{tabular}
 \end{table}
 
-\subsection{Rotation analysis}
-
-Figure~\ref{fig:organ3d-rotation} shows that all equivariant models
-achieve identical performance on the original and octahedrally rotated
-test sets ($\sigma_{\mathrm{rot}} \approx 0$), while the
-augmentation-trained standard CNN degrades under rotation.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.75\linewidth]{experiments/organ3d/organ3d_analysis.pdf}
-  \caption{OrganMNIST3D test accuracy on the original and octahedrally
-    rotated test sets. Error bars show standard deviation over three
-    seeds. All equivariant models achieve identical performance under
-    rotation ($\sigma_{\mathrm{rot}} \approx 0$), while the
-    augmentation-trained standard CNN degrades.}
-  \label{fig:organ3d-rotation}
-\end{figure}
-
-\subsection{Wider channels}
-
-To test whether the advantage of bispectral completeness persists at
-higher capacity, we run max pool and bispectrum at channel widths
-$(8, 16)$ and $(16, 32)$ with full training data.
-
-\begin{table}[h]
-  \caption{OrganMNIST3D accuracy at wider channel configurations
-    (mean $\pm$ std over 3 seeds, full training data).}
-  \label{tab:organ3d-wider}
-  \centering
-  \small
-  \begin{tabular}{lrcc}
-    \toprule
-    Channels & Params & Max Pool & Bispectrum \\
-    \midrule
-    $(4, 8)$   & ${\sim}$375K / 463K  & $.730 \pm .033$ & $.726 \pm .027$ \\
-    $(8, 16)$  & ${\sim}$1.5M / 1.7M  & $.743 \pm .015$ & $.745 \pm .006$ \\
-    $(16, 32)$ & ${\sim}$6.0M / 6.3M  & $\mathbf{.785 \pm .032}$ & $.685 \pm .039$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-At $(8, 16)$ the two methods are equivalent ($74.5 \pm 0.6\%$ bispectrum vs.\
-$74.3 \pm 1.5\%$ max pool, both at ${\sim}1.5$--$1.7$M parameters). At $(16, 32)$ max
-pool reaches $78.5 \pm 3.2\%$ while bispectrum drops to $68.5 \pm 3.9\%$---the 6.3M
-parameter bispectrum model likely overfits the 971 training samples.
-This suggests that the bispectrum's completeness advantage is most
-pronounced in the data-limited rather than the parameter-limited
-regime, consistent with the data efficiency findings in the main text.
-
 \section{Experimental Details}
 \label{app:exp}
 
-\subsection{Hyperparameters}
+\subsection{Training protocol}
 
-Table~\ref{tab:hyperparams} summarises the training hyperparameters
-for all three experimental settings.
+Every run trains for a fixed number of epochs that ends a cosine cycle of
+SGDR~\citep{loshchilov2017sgdr} ($T_0 = 10$ epochs, $T_{\mathrm{mult}} = 2$, so cycles end at
+epochs 10, 30, 70, \dots) and is evaluated at its best-validation checkpoint; there is no early
+stopping. An epoch draws at least 10{,}000 training examples, cycling small training sets, so
+low-data runs take as many optimizer steps per epoch as larger ones. Table~\ref{tab:hyperparams}
+lists the remaining settings.
 
 \begin{table}[h]
-  \caption{Training hyperparameters across experiments.}
+  \caption{Training hyperparameters. All experiments use AdamW~\citep{loshchilov2019adamw}
+    with weight decay $10^{-4}$ and the SGDR schedule above.}
   \label{tab:hyperparams}
   \centering
   \small
@@ -1799,30 +1732,30 @@ for all three experimental settings.
     \toprule
     & PCam & OrganMNIST3D & Sph.\ MNIST \\
     \midrule
-    Optimizer      & AdamW & AdamW & AdamW \\
-    Learning rate  & $10^{-3}$ & $10^{-3}$ & $10^{-3}$ \\
-    Weight decay   & $10^{-4}$ & $10^{-4}$ & $10^{-4}$ \\
-    Batch size     & 64--256 & 16--64 & 256 \\
-    Scheduler      & Cosine warm restarts & --- & --- \\
-    Max epochs     & 50 & 100 & 50 \\
-    Early stopping & Val AUC, pat.\ 10 & Val AUC, pat.\ 15 & Val ACC, pat.\ 10 \\
-    Seeds          & 42, 123, 456$^\dagger$ & 42, 123, 456 & 42, 123, 456 \\
+    Learning rate   & $10^{-3}$ & $10^{-3}$ & tuned$^\dagger$ \\
+    Batch size      & 64 & 16 & tuned$^\dagger$ \\
+    Epochs          & 30 (10 at full data) & 70 & 30 \\
+    Checkpoint      & best val.\ AUC & best val.\ accuracy & best val.\ accuracy \\
+    Min.\ examples per epoch & 10{,}000 & 10{,}000 & 10{,}000 \\
+    Seeds           & 3 (5 at $n \le 2.5$K) & 10 & 5 \\
     Mixed precision & Yes & No & No \\
     \bottomrule
   \end{tabular}
 
   \vspace{0.3em}
-  {\small $^\dagger$Pareto figure uses seed 42; matched-parameter table and data efficiency use seeds 42, 123, 456.}
+  {\small $^\dagger$Selected on full-data validation accuracy and reused at every $n$:
+    Bispectrum batch 32, lr $10^{-3}$ (from batch $\{32, 256\}\times$ lr
+    $\{1, 3, 5\}\times 10^{-3}$); S2CNN+BN batch 32, lr $5\times 10^{-3}$ (from batch
+    $\{32, 256\}\times$ lr $\{1, 5\}\times 10^{-3}$); tensor product 24 channels,
+    $\ell_{\max} = 6$, lr $3\times 10^{-3}$ (from 8 configurations of channels, $\ell_{\max}$
+    and lr). The CNN and power spectrum use batch 256, lr $10^{-3}$.}
 \end{table}
 
 \subsection{Hardware}
 
-All experiments were run on a single NVIDIA H100 GPU (80\,GB).
-Training wall-clock times range from ${\sim}$5 minutes (OrganMNIST3D,
-971 samples) to ${\sim}$20 minutes (PCam, 26K samples at 10\% data).
-Spherical MNIST bispectrum computation (forward pass through
-\texttt{SO3onS2} at $\ell_{\max} = 15$) takes ${\sim}$0.3s per batch
-of 64 on GPU.
+Training ran on three machines: $8\times$ A100 (40\,GB), $2\times$ A100 (80\,GB), and one
+H100 (80\,GB). Spherical MNIST latencies in Table~\ref{tab:smnist-results} are measured on an
+idle H100.
 
 \subsection{Data preprocessing}
 
@@ -1831,41 +1764,19 @@ PatchCamelyon~\citep{veeling2018rotation} consists of 327{,}680 RGB
 patches of size $96 \times 96$ pixels extracted from whole-slide
 images of lymph node sections~\citep{bejnordi2017camelyon}. We use
 the standard train/val/test split. Images are loaded from HDF5 files
-and normalised to $[0, 1]$. The standard (non-equivariant) baseline
-uses random rotation and reflection augmentation during training; all
-equivariant models are trained without augmentation.
+and normalised to $[0, 1]$. Aug.\ CNN is trained with augmentation over $C_8$; all
+equivariant models are trained without augmentation. Training-set sizes
+$n \in \{100, 500, 2.5\mathrm{K}, 12.5\mathrm{K}\}$ are uniform random subsets of the 262K
+training patches, drawn per seed.
 
 \paragraph{OrganMNIST3D.}
 OrganMNIST3D~\citep{medmnistv2} contains 1{,}742 abdominal CT organ
 volumes of size $28 \times 28 \times 28$ voxels with 11 organ classes
 (train/val/test = 971/161/610). Volumes are normalised to $[0, 1]$.
-The standard baseline uses random octahedral augmentation (one of 24
-rotations per sample); equivariant models are trained without
-augmentation. Kernel rotations are implemented as exact voxel
-permutations on the $3^3$ grid, avoiding interpolation artifacts.
-
-\begin{table}[h]
-  \caption{OrganMNIST3D (mean $\pm$ std, 3 seeds). Bispectral pooling
-    matches max pool ($72.6\%$ vs.\ $73.0\%$), far exceeds norm pool
-    ($56.8\%$), and delivers near-exact invariance
-    ($\sigma_{\mathrm{rot}} \le 0.0005$).}
-  \label{tab:organ3d-results}
-  \centering
-  \small
-  \begin{tabular}{lrcccr}
-    \toprule
-    Model & Params & Test ACC & Test AUC & Rot ACC & $\sigma_{\mathrm{rot}}$ \\
-    \midrule
-    Standard 3D CNN          & 16K  & $.601 \pm .017$ & $.951 \pm .002$ & .598 & .0115 \\
-    $O$-Equiv + Norm Pool    & 375K & $.568 \pm .099$ & $.940 \pm .021$ & .568 & .0000 \\
-    $O$-Equiv + Max Pool     & 374K & $.730 \pm .033$ & $.972 \pm .005$ & .730 & .0000 \\
-    $O$-Equiv + \texttt{OctaonOcta} Bispectrum   & 463K & $.726 \pm .027$ & $.972 \pm .004$ & .726 & .0005$^\dagger$ \\
-    \bottomrule
-  \end{tabular}
-
-  \vspace{0.3em}
-  {\small $^\dagger$Nonzero $\sigma_{\mathrm{rot}}$ due to floating-point precision in CG contractions, not a theoretical invariance failure.}
-\end{table}
+Aug.\ CNN is trained with one of the 24 octahedral rotations per sample;
+equivariant models are trained without augmentation. Kernel rotations are implemented as exact
+voxel permutations on the $3^3$ grid, avoiding interpolation artifacts. Subsets with
+$n < 971$ are uniform random subsets, drawn per seed.
 
 
 \paragraph{Spherical MNIST.}
@@ -1882,81 +1793,97 @@ fed to a 3-layer MLP: Linear(760, 256)--BN--ReLU--Linear(256,
 same structure with hidden=128: Linear(16, 128)--BN--ReLU--Linear(128,
 64)--BN--ReLU--Linear(64, 10). The standard CNN has 4 convolutional
 layers (16--32--64--64 channels) followed by adaptive average pooling
-and a Linear(1024, 128)--ReLU--Linear(128, 10) classifier.
+and a Linear(1024, 128)--ReLU--Linear(128, 10) classifier. S2CNN+BN is the spherical CNN of
+\citet{cohen2018spherical} (features 20 and 40, bandwidths 10 and 6) with batch normalization
+after each convolution, 155K parameters. The tensor-product network is an $\SO(3)$-equivariant
+Clebsch--Gordan network with 24 channels per degree up to $\ell_{\max} = 6$, 386K parameters.
+Latency is the median end-to-end forward time, from the spherical grid to the logits, on an idle
+H100.
 
-\subsection{Aggregation procedures}
+\subsection{Statistics}
 
-\paragraph{PCam.}
-The Pareto figure (Figure~\ref{fig:pcam-pareto}) uses a single seed
-(42) across the full growth-rate sweep. The matched-parameter table
-(Table~\ref{tab:pcam-results}) and data efficiency analysis use 3 seeds
-(42, 123, 456) per configuration.
+All results report the mean $\pm$ sample standard deviation over seeds, evaluated at the
+best-validation checkpoint. Comparisons are two-sided Welch $t$-tests. The pooling comparisons
+(Figure~\ref{fig:pooling-grid}) are reported uncorrected, and the 10 Spherical MNIST
+data-efficiency comparisons (Figure~\ref{fig:smnist}) are Holm-corrected jointly. The rotated test for $C_8$ and $O$ averages over every group element; for $\SO(3)$ it
+applies one random rotation per test digit.
 
-\paragraph{OrganMNIST3D.}
-All results in Table~\ref{tab:organ3d-results} report mean $\pm$ std
-over 3 seeds (42, 123, 456). Rotation robustness
-($\sigma_{\mathrm{rot}}$) is the standard deviation of test accuracy
-across all 24 octahedral rotations of the test set. The data
-efficiency analysis (Figure~\ref{fig:data-efficiency} in the main text) uses 3 seeds per data
-fraction.
+\subsection{Spherical MNIST: capacity of the power spectrum}
+\label{app:smnist-capacity}
 
-\paragraph{Spherical MNIST.}
-All results in Table~\ref{tab:smnist-results} report mean $\pm$ std
-over 3 seeds (42, 123, 456). Rotation robustness
-($\sigma_{\mathrm{rot}}$) is measured by applying 10 random $\SO(3)$
-rotations to the entire test set and computing the standard deviation
-of accuracy, yielding 30 measurements per model (10 rotations
-$\times$ 3 seeds).
+The power spectrum is a weak baseline at any capacity. Table~\ref{tab:smnist-capacity} sweeps
+the MLP width on both invariants at the default training settings (batch 256, lr $10^{-3}$,
+30 epochs): the power spectrum saturates near 80\% at 550K parameters, below the bispectrum at
+25K.
 
-\subsection{Spherical MNIST: bispectrum reconstruction protocol}
+\begin{table}[h]
+  \caption{Rotated-test accuracy on Spherical MNIST (NR/R, \%) against MLP size, mean $\pm$ std
+    over 5 seeds at the default training settings.}
+  \label{tab:smnist-capacity}
+  \centering
+  \small
+  \begin{tabular}{rcrc}
+    \toprule
+    \multicolumn{2}{c}{Power spectrum (16 features)} & \multicolumn{2}{c}{Bispectrum (760 features)} \\
+    \cmidrule(lr){1-2} \cmidrule(lr){3-4}
+    Params & NR/R & Params & NR/R \\
+    \midrule
+    3.7K & $75.79 \pm 0.19$ & 25K  & $94.05 \pm 0.23$ \\
+    11K  & $77.72 \pm 0.17$ & 51K  & $94.90 \pm 0.29$ \\
+    39K  & $78.93 \pm 0.17$ & 107K & $95.29 \pm 0.14$ \\
+    144K & $79.51 \pm 0.17$ & 230K & $95.52 \pm 0.08$ \\
+    550K & $80.08 \pm 0.20$ & 525K & $95.74 \pm 0.13$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Recovering signals from the selective $\SO(3)$ invariant
+  (Figure~\ref{fig:so3-reconstruction})}
 \label{app:so3-recon}
 
-This section gives the protocol behind
-Figure~\ref{fig:so3-reconstruction} (Section~\ref{sec:so3-recon}).
-The implementation lives in
-\texttt{experiments/spherical\_mnist\_reconstruction/reconstruct.py}.
+\paragraph{Protocol.} Signals are band-limited to $L{=}15$ and sampled on a
+$128{\times}256$ grid; the selective invariant has 380 coefficients. Targets are 8 Spherical
+MNIST digits, each in its original and one random orientation, and 16 random band-limited
+signals. Gradient descent on the image starts from noise (4 restarts, 8{,}000 Adam steps,
+projected onto the band limit). The degree-by-degree solver works on the 256 real
+spherical-harmonic coefficients in double precision: Levenberg--Marquardt with the exact
+Jacobian fits degrees 0--4 from random starts, then adds one degree at a time and refits all
+degrees so far, keeping up to 12 candidates. Each result is rotated onto the target before
+measuring the relative image error. The solver lives in
+\texttt{experiments/spherical\_mnist\_reconstruction/degree\_marching.py}.
 
-\paragraph{Setup.}
-Spherical MNIST is rendered onto an equiangular $64{\times}128$
-lat--lon grid using the same stereographic projection as the
-classifier, then band-limited at $L = 12$ via a forward/inverse SHT
-roundtrip (\texttt{torch\_harmonics.RealSHT}). For each digit we
-draw a target rotation $R\in\SO(3)$ uniformly at random and form
-$f := R\cdot f_0$. We compute the SO(3)-on-$S^2$ selective bispectrum
-$\beta := \Phi_{\mathrm{sel}}(f)$.
+\begin{table}[h]
+  \caption{Reconstruction from the selective $\SO(3)$ invariant at $L{=}15$, by method and
+    target set.}
+  \label{tab:so3-recon}
+  \centering
+  \small
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    & Spherical MNIST & Random signals \\
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Gradient descent from noise}} \\
+    \quad invariant matched to $<1\%$ & 14 / 16 & 0 / 16 \\
+    \quad image within 0.3 after alignment & 9 / 16 & 0 / 16 \\
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Degree-by-degree solver (Figure~\ref{fig:so3-reconstruction})}} \\
+    \quad full bispectrum matched to $10^{-12}$ & 16 / 16 & 16 / 16 \\
+    \quad image error after alignment & 0.0014--0.0035 & 0.0056--0.0070 \\
+    \midrule
+    Different-orbit signals with equal invariants found & 0 & 0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
-\paragraph{Reconstruction.}
-Starting from a Gaussian initialization $\hat f_0\sim\mathcal{N}(0, I)$
-on the $64{\times}128$ grid, we optimize $\hat f$ with Adam
-(initial LR $5\times 10^{-2}$, cosine annealing to $5\times 10^{-4}$,
-$8000$ steps) to minimize the relative complex L2 loss
-$\|\beta(\hat f) - \beta\|^2 / \|\beta\|^2$. After every step we
-project $\hat f$ back to the band-limited subspace via $\mathrm{SHT}^{-1}\!\circ\mathrm{SHT}$ truncated at $L$ to suppress the
-unconstrained null space. We run $4$ random restarts and keep the
-$\hat f$ with the lowest bispectrum residual. Reconstruction
-typically reaches $\|\beta(\hat f)-\beta\|/\|\beta\|\sim 10^{-3}$,
-near the SHT-discretization invariance floor for this grid.
-
-\paragraph{$\SO(3)$ alignment.}
-The bispectrum is invariant on $\SO(3)$-orbits, so $\hat f$ lives
-somewhere in the orbit of $f$ rather than at $f$ itself. We resolve
-the orbit ambiguity by Procrustes-style fitting: we parameterize
-$\hat R \in \SO(3)$ as a unit quaternion (auto-normalized) to avoid
-gimbal lock, and minimize $\|\hat R\cdot\hat f - f\|^2$ with Adam
-($12$ random restarts, $200$ steps each, cosine-annealed LR).
-Rotations of the spherical image use bilinear interpolation in
-lat--lon coordinates (\texttt{bispectrum.rotate\_spherical\_function}).
-
-\paragraph{Numerical floor.}
-On a $64{\times}128$ grid, two SHT roundtrips of two $\SO(3)$-rotated
-copies of the same signal already differ by
-$\|f' - f\|/\|f\|\approx 2\times 10^{-2}$ in image space due to
-bilinear-interpolation discretization; this is the noise floor below
-which alignment cannot improve. The aligned residuals reported in
-Figure~\ref{fig:so3-reconstruction} ($0.1$--$0.3$) sit one to two
-orders of magnitude above this floor and are dominated by gradient
-descent local optima on the bispectrum reconstruction step, not by
-missing information.
+\paragraph{Gradient descent is the bottleneck, not the invariant.} Gradient descent recovers
+no random signal: it stalls at a 7.5\% median invariant error. The degree-by-degree solver
+recovers all 32 targets exactly. Refitting all degrees after each new one is what makes it
+reliable: holding the lower degrees fixed instead lets the residual drift just past the
+$10^{-10}$ acceptance threshold, which lost a ``1'' at $\ell{=}15$ and a ``0'' at $\ell{=}10$.
+The remaining image error is the interpolation of rotating on the grid: rotating a target and
+rotating it back already costs ${\approx}0.004$--$0.006$ (digits) and ${\approx}0.013$
+(random signals). No run found two signals in different orbits with equal invariants,
+consistent with conjectured generic completeness.
 
 \subsection{Dataset licenses}
 
@@ -1979,5 +1906,158 @@ f = torch.randn(16, 8)
 beta = bsp(f)
 f_rec = bsp.invert(beta)
 \end{lstlisting}
+
+\section{Changes Since Submission}
+\label{app:changes}
+
+Every experiment in this version was re-run after we found three classes of bugs following the
+author response: in the library, in the training protocol, and in the pooling head.
+Several numbers therefore differ from the submitted version and from the author response; this
+section records what changed and why.
+
+\subsection{Library (\texttt{bispectrum} 0.4.0)}
+
+\begin{itemize}
+  \item \textbf{\texttt{SO3onS2}.} For $\ell \ge 8$ the chain and cross rows of the selection
+    encoded the same real equation, so the per-degree Jacobian had rank at most
+    $\ell + 1 < 2\ell + 1$; identically zero entries were also kept. The corrected selection has
+    full per-degree rank by construction (Section~\ref{sec:so3-recon}) and 380 coefficients at
+    $L{=}15$ (submitted: 384) and 426 at $L{=}16$ (submitted: 430). The submitted
+    reconstruction figure used the rank-deficient map.
+  \item \textbf{\texttt{DnonDn}.} The fold block was dropped for odd $n \ge 5$, leaving Jacobian
+    rank $2n - 1$ and a map blind to a continuous twist. Odd $n$ gain the missing coefficients;
+    even $n$, including the $D_{32}$ benchmark, are unchanged.
+  \item \textbf{\texttt{SO2onDisk}.} The Bessel zeros were off by ${\sim}5 \times 10^{-7}$ and
+    the basis had condition number ${\sim}10^{16}$. The default band limit is now the Nyquist
+    limit, which changes the disk row of Table~\ref{tab:benchmarks} from 105 to 76 coefficients.
+\end{itemize}
+
+\subsection{Training protocol}
+
+\begin{itemize}
+  \item \textbf{Sample floor.} An epoch was one pass over the $n$ training examples, so at
+    $n{=}100$ an epoch was about two optimizer steps. Every epoch now draws at least 10{,}000
+    examples. This changes every low-data result; the Spherical MNIST bispectrum at $n{=}100$
+    goes from 11.7\% to 62.7\%.
+  \item \textbf{Fixed epochs.} Early stopping fired on the accuracy dips at SGDR warm restarts,
+    and batch sizes differed between models. Runs now train for a fixed number of epochs ending
+    a cosine cycle, at one batch size per dataset (tuned per model on Spherical MNIST), and are
+    evaluated at the best-validation
+    checkpoint (Appendix~\ref{app:exp}).
+  \item \textbf{Also changed.} Aug.\ CNN is trained with augmentation at every training-set size;
+    the rotated test is the headline metric; norm pooling is added as an incomplete-invariant
+    baseline; we use 10, 3--5 and 5 seeds on OrganMNIST3D, PCam and Spherical MNIST, report the
+    sample standard deviation, and test differences with Welch $t$-tests; and S2CNN and a
+    tensor-product network are re-run under our protocol with matched tuning
+    (Table~\ref{tab:smnist-results}).
+\end{itemize}
+
+\subsection{Pooling head}
+
+The submitted pooling head computed $\mathrm{proj}(\mathrm{ReLU}(\mathrm{signlog}(\beta)))$,
+which zeroes every negative $G$-bispectral coefficient before the $1{\times}1$ projection. The
+camera-ready head computes $\mathrm{ReLU}(\mathrm{proj}(\mathrm{signlog}(\beta)))$; it was chosen
+on validation AUC alone (Table~\ref{tab:head-ablation}). Spherical MNIST never used this head.
+Completeness does not explain the gap: on $O$ the truncated invariant keeps full Jacobian rank
+(200 of 200 random inputs) yet costs ${\approx}5$\,pp, while on $C_8$ it is rank-deficient
+(24 of 200) yet costs nothing measurable. A plausible mechanism (speculative) is that the
+surviving subset changes with every input, so the fixed projection reads different coordinates
+at every voxel, and the zeroed entries pass no gradient. The rule we adopt is to apply only fixed
+injective maps (real--imaginary split, signed log) before the first learned layer. We compared
+four heads for the bispectrum and one per baseline, so we report the submitted head alongside;
+norm pooling cannot truncate in the same way because its outputs are non-negative.
+
+\begin{table}[h]
+  \centering
+  \caption{\textbf{Applying the ReLU after the projection, not before, adds 4--5\,pp on
+    OrganMNIST3D at full data.} Test accuracy (OrganMNIST3D, \%) or AUC (PCam) at the
+    best-validation checkpoint, mean $\pm$ std over 3 seeds. The submission head applied the
+    ReLU to the signed-log bispectrum before the $1{\times}1$ projection, which zeroes every
+    negative coefficient. The camera-ready head (bold) was chosen on validation AUC alone, by
+    mean rank over the five settings; it makes no significant difference at $n{=}100$ or on
+    PCam. $p$: Welch test against the submission head.}
+  \label{tab:head-ablation}
+  \small
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lccccc@{}}
+    \toprule
+    & \multicolumn{3}{c}{OrganMNIST3D (\%)} & \multicolumn{2}{c}{PCam (AUC)} \\
+    \cmidrule(lr){2-4} \cmidrule(lr){5-6}
+    Head & 6.3M & 463K & 463K, $n{=}100$ & $n{=}100$ & $n{=}12.5$K \\
+    \midrule
+    Submission: ReLU, then projection & $73.9 {\pm} 1.5$ & $73.6 {\pm} 2.0$ & $61.0 {\pm} 0.9$ & $.812 {\pm} .024$ & $.939 {\pm} .011$ \\
+    \textbf{Projection, then ReLU} & $\mathbf{77.9 {\pm} 1.9}$ & $\mathbf{78.6 {\pm} 0.3}$ & $\mathbf{61.1 {\pm} 2.6}$ & $\mathbf{.824 {\pm} .021}$ & $\mathbf{.936 {\pm} .007}$ \\
+    \quad $p$ vs.\ submission & $0.045$ & $0.049$ & $0.93$ & $0.55$ & $0.73$ \\
+    \quad + power spectrum & $78.1 {\pm} 1.2$ & $76.9 {\pm} 2.4$ & $62.4 {\pm} 2.7$ & $.813 {\pm} .031$ & $.940 {\pm} .008$ \\
+    \quad + power spectrum, cube root & $77.5 {\pm} 0.7$ & $79.0 {\pm} 3.7$ & $62.7 {\pm} 2.8$ & $.821 {\pm} .003$ & $.936 {\pm} .005$ \\
+    \midrule
+    Max pool & $76.0 {\pm} 2.1$ & $73.1 {\pm} 0.6$ & $63.1 {\pm} 1.8$ & -- & -- \\
+    Norm pool & $68.2 {\pm} 3.7$ & $63.3 {\pm} 2.7$ & $57.9 {\pm} 3.0$ & $.802 {\pm} .038$ & $.933 {\pm} .011$ \\
+    Aug.\ CNN & -- & -- & -- & $.813 {\pm} .042$ & $.928 {\pm} .009$ \\
+    \bottomrule
+  \end{tabular*}
+\end{table}
+
+\subsection{Spherical feature ablation}
+
+Table~\ref{tab:smnist-augmentation} repeats the ablation of the augmented spherical invariant
+on the corrected \texttt{SO3onS2}. Only the Clebsch--Gordan power spectra measurably help
+accuracy; the self-couplings matter for the Jacobian rank, not for accuracy. The classifier uses
+all 760 real features.
+
+\begin{table}[h]
+  \centering
+  \caption{\textbf{Of the augmentation steps, only the Clebsch--Gordan power spectra measurably
+    help.} Spherical MNIST accuracy (\%) as the selective $\SO(3)$ invariant at $L{=}15$ is
+    built up; each row adds entries to the one above, with the MLP width fixed and the other
+    entries masked to zero. Mean $\pm$ std over 5 seeds, at the default training settings
+    (batch 256, learning rate $10^{-3}$, 30 epochs; Table~\ref{tab:smnist-results} uses tuned
+    settings). $p$: Welch test of NR/R against the row above.}
+  \label{tab:smnist-augmentation}
+  \small
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrccc@{}}
+    \toprule
+    Entries & Real features & NR/NR & NR/R & $p$ \\
+    \midrule
+    Bootstrap entries & 480 & $95.20 {\pm} 0.09$ & $95.18 {\pm} 0.11$ & -- \\
+    + mandatory even self-couplings & 584 & $95.23 {\pm} 0.10$ & $95.19 {\pm} 0.08$ & $0.87$ \\
+    + Clebsch--Gordan power spectra & 738 & $95.50 {\pm} 0.05$ & $95.51 {\pm} 0.05$ & $<10^{-3}$ \\
+    + degree power, other self-couplings (full) & 760 & $95.58 {\pm} 0.10$ & $95.58 {\pm} 0.08$ & $0.14$ \\
+    \bottomrule
+  \end{tabular*}
+\end{table}
+
+\subsection{Errata}
+
+The following statements from the submission or the author response no longer hold.
+\begin{itemize}
+  \item \textbf{OrganMNIST3D at 6.3M parameters.} We attributed max pooling's lead to an
+    optimization or capacity limitation of the bispectral model (best regularized 72.5\% vs.\
+    76.7\%). It was the pooling head: with the corrected head and 10 seeds, bispectral pooling
+    reaches 77.6\% vs.\ 76.0\% ($p{=}0.10$). Likewise, the submitted tie with max pooling at
+    0.46M parameters (72.6\% vs.\ 73.0\%) becomes 78.5\% vs.\ 73.6\% ($p < 10^{-3}$).
+  \item \textbf{Spherical feature ablation.} We stated that each augmentation stage changes
+    accuracy by more than the cross-seed variability. Only the Clebsch--Gordan power spectra do
+    (Table~\ref{tab:smnist-augmentation}).
+  \item \textbf{Reconstruction of random signals at $L{=}15$.} We reported gradient descent
+    plateauing just above the acceptance threshold, with 3 of 16 random signals below it. On the
+    corrected invariant gradient descent stalls at a 7.5\% median invariant error with 0 of 16
+    below it, and the image-space residual we reported measured the rotation aligner rather than
+    the invariant. The degree-by-degree solver recovers all 16 random signals
+    (Section~\ref{sec:so3-recon}, Appendix~\ref{app:so3-recon}).
+  \item \textbf{CPU latency.} We reported 0.082--402\,ms on x86. That run used one thread per core
+    on a shared 128-core host; with the thread count fixed, every module except
+    \texttt{SO3onS2} is sub-millisecond and \texttt{SO3onS2} takes 5.5--45\,ms on x86
+    (Table~\ref{tab:portability}).
+  \item \textbf{Spherical MNIST against the power spectrum.} We reported 95.0\% vs.\ 79.2\% for a
+    matched-capacity power spectrum. The numbers are now 95.8\% (tuned) vs.\ 77.7\% at 11K
+    parameters and 80.1\% at 550K (Appendix~\ref{app:smnist-capacity}); the conclusion holds.
+  \item \textbf{Counts.} The spherical classifier has 760 input features and 229{,}770
+    parameters (submitted: 768 and 231{,}818), and the test coverage of the library is 98.5\%
+    (submitted: 96.8\%).
+\end{itemize}
+
+\clearpage
+\input{checklist}
 
 \end{document}
