@@ -13,7 +13,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import brand  # noqa: E402
+from assets import brand  # noqa: E402
 
 PARETO_DIR = Path(__file__).parent / 'pcam_results_pareto'
 ONEPCT_DIR = Path(__file__).parent / 'pcam_results_1pct'

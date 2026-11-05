@@ -10,6 +10,8 @@ The `bispectrum` lettermark is a lowercase b whose round counter holds a small e
 | `bispectrum-mark-small.svg`, `bispectrum-mark-small-reversed.svg` | Lettermark at 16 to 24 px, with heavier strokes                     |
 | `bispectrum-favicon.svg`                                          | Browser tabs and app icons                                          |
 | `glyphs/`                                                         | One glyph per module, in ink and reversed versions, for 24 to 48 px |
+| `fonts/`                                                          | IBM Plex Sans and Mono (OFL) for figures                            |
+| `__init__.py`                                                     | Colour tokens and matplotlib style: `from assets import brand`      |
 
 ## Colours
 

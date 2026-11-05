@@ -4,15 +4,16 @@ Scripts outside this directory put the repo root on ``sys.path`` and call ``use_
 
     REPO_ROOT = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(REPO_ROOT))
-    import brand  # noqa: E402
+    from assets import brand  # noqa: E402
 
     brand.use_style()  # white "paper" surface; BISPECTRUM_SURFACE=screen for beige
     ...
     brand.finish(fig)  # tick labels in Plex Mono
     fig.savefig(...)
 
-Colours follow ``assets/brand/README.md``: ink, beige, and one orange accent. The orange is
-reserved for the bispectrum ("ours"); baselines get warm grays from ``RAMP``.
+Colours follow ``README.md`` in this directory: ink, beige, and one orange accent. The orange is
+reserved for the bispectrum ("ours"); baselines get warm grays from ``RAMP``. The logo SVGs
+next to this file are the only logo; do not regenerate or redraw them.
 """
 
 from __future__ import annotations
@@ -37,10 +38,9 @@ type GridAxis = Literal['x', 'y', 'both']
 
 BRAND_DIR: Final = Path(__file__).resolve().parent
 FONT_DIR: Final = BRAND_DIR / 'fonts'
-LOGO_DIR: Final = BRAND_DIR / 'logo'
 
 # --------------------------------------------------------------------------
-# Core tokens (assets/brand/README.md)
+# Core tokens (README.md)
 # --------------------------------------------------------------------------
 
 INK: Final = '#1C1C1A'

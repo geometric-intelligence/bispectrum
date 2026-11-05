@@ -67,7 +67,7 @@ from scipy import stats
 REPO_ROOT: Final = EXPERIMENTS_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-import brand  # noqa: E402
+from assets import brand  # noqa: E402
 
 SMNIST_DIR: Final = EXPERIMENTS_DIR / 'spherical_mnist'
 FIGURE_SIZE: Final = (5.5, 1.93)
