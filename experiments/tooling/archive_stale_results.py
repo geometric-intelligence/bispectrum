@@ -8,8 +8,8 @@ reruns. Grid run directories are classified with
 are archived. Rebuttal result trees without grid provenance fields
 (reconstruction, device timings) are archived whole, once.
 
-    python rebuttal/archive_stale_results.py --dry_run
-    python rebuttal/archive_stale_results.py
+    python experiments/tooling/archive_stale_results.py --dry_run
+    python experiments/tooling/archive_stale_results.py
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Final
 
-REPO_ROOT: Final = Path(__file__).resolve().parent.parent
+REPO_ROOT: Final = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / 'experiments'))
 
 from make_grid_figure import _stale_reason  # noqa: E402
@@ -42,14 +42,14 @@ GRID_ROOTS: Final = (
     'experiments/organ3d/organ3d_results_bs16_control',
     'experiments/spherical_mnist/smnist_results',
     'experiments/spherical_mnist/smnist_results_capacity',
-    'rebuttal/results/smnist_ablation',
+    'experiments/tooling/results/smnist_ablation',
 )
 
 # Whole trees whose results.json carry no grid provenance; all predate 0.4.0.
 WHOLE_DIRS: Final = (
-    'rebuttal/results/reconstruction',
-    'rebuttal/results/reconstruction_smoke',
-    'rebuttal/results/device_bench',
+    'experiments/tooling/results/reconstruction',
+    'experiments/tooling/results/reconstruction_smoke',
+    'experiments/tooling/results/device_bench',
 )
 
 

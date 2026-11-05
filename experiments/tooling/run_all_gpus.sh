@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Launch all rebuttal experiments (E1-E4) across both GPUs in one tmux session.
+# Launch experiments E1-E4 across both GPUs in one tmux session.
 #
-#   bash rebuttal/run_all_gpus.sh            # env record + pytest, then launch tmux
-#   SKIP_TESTS=1 bash rebuttal/run_all_gpus.sh
+#   bash experiments/tooling/run_all_gpus.sh            # env record + pytest, then launch tmux
+#   SKIP_TESTS=1 bash experiments/tooling/run_all_gpus.sh
 #
 # GPU 0: E1 device benchmarks -> E2 reconstruction evidence
 # GPU 1: E3 sMNIST feature ablation -> E4 organ3d regularization
@@ -11,11 +11,11 @@
 # re-running this script resumes where it left off.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT="$REPO_ROOT/rebuttal/run_all_gpus.sh"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT="$REPO_ROOT/experiments/tooling/run_all_gpus.sh"
 export PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
-SESSION="${SESSION:-rebuttal}"
-RESULTS="$REPO_ROOT/rebuttal/results"
+SESSION="${SESSION:-experiments}"
+RESULTS="$REPO_ROOT/experiments/tooling/results"
 LOG_DIR="$RESULTS/logs"
 
 gpu0_pipeline() {
@@ -24,15 +24,15 @@ gpu0_pipeline() {
   mkdir -p "$RESULTS/device_bench"
 
   echo "=== [GPU0] E1: device benchmarks ==="
-  "$PYTHON" rebuttal/benchmark_devices.py \
+  "$PYTHON" experiments/tooling/benchmark_devices.py \
     --device cuda \
     --output "$RESULTS/device_bench/a100_cuda.json" \
     2>&1 | tee "$RESULTS/device_bench/a100_cuda.log"
-  "$PYTHON" rebuttal/benchmark_devices.py \
+  "$PYTHON" experiments/tooling/benchmark_devices.py \
     --device cpu \
     --output "$RESULTS/device_bench/a100_host_cpu.json" \
     2>&1 | tee "$RESULTS/device_bench/a100_host_cpu.log"
-  "$PYTHON" rebuttal/analyze_device_benchmarks.py \
+  "$PYTHON" experiments/tooling/analyze_device_benchmarks.py \
     "$RESULTS/device_bench/a100_cuda.json" \
     "$RESULTS/device_bench/a100_host_cpu.json" \
     --output "$RESULTS/device_bench/combined.json" \
@@ -47,7 +47,7 @@ gpu0_pipeline() {
     --output_dir "$RESULTS/reconstruction_smoke"
 
   echo "=== [GPU0] E2: full reconstruction evidence ==="
-  bash rebuttal/run_reconstruction_evidence.sh
+  bash experiments/tooling/run_reconstruction_evidence.sh
 
   echo "=== [GPU0] DONE ==="
 }
@@ -66,7 +66,7 @@ gpu1_pipeline() {
   done
 
   echo "=== [GPU1] E3: sMNIST ablation sweep (12 runs) ==="
-  bash rebuttal/run_smnist_ablation.sh
+  bash experiments/tooling/run_smnist_ablation.sh
 
   echo "=== [GPU1] E4: organ3d memory smoke tests ==="
   "$PYTHON" experiments/organ3d/train.py \
@@ -77,7 +77,7 @@ gpu1_pipeline() {
     --data_dir experiments/organ3d/organ3d_data --memory_check
 
   echo "=== [GPU1] E4: organ3d regularization sweep (21 runs) ==="
-  bash rebuttal/run_organ3d_regularization.sh
+  bash experiments/tooling/run_organ3d_regularization.sh
 
   echo "=== [GPU1] DONE ==="
 }

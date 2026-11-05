@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable forward-pass benchmark used for the NeurIPS rebuttal."""
+"""Portable forward-pass benchmark for the device and backend timings (E1)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import torch
 import bispectrum
 from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onDisk, SO3onS2, TorusOnTorus
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)

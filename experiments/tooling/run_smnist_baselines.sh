@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # Spherical MNIST e3nn baselines for the camera-ready (E5 tensor product, E6 matched S2CNN).
 #
-#   bash rebuttal/run_smnist_baselines.sh tmux <session> <subcommand>...
-#   bash rebuttal/run_smnist_baselines.sh train     # l8a100: wait for the camera-ready runner,
+#   bash experiments/tooling/run_smnist_baselines.sh tmux <session> <subcommand>...
+#   bash experiments/tooling/run_smnist_baselines.sh train     # l8a100: wait for the camera-ready runner,
 #                                                   # tune, select, final seeds
-#   bash rebuttal/run_smnist_baselines.sh data      # l8a100: selected configs at n=100..12.5K
-#   bash rebuttal/run_smnist_baselines.sh bench     # h100: wait for an idle GPU, time all models
-#   bash rebuttal/run_smnist_baselines.sh collect   # h100: rsync results from l8a100
-#   bash rebuttal/run_smnist_baselines.sh analyze   # h100: Table 4 rows with the baselines
+#   bash experiments/tooling/run_smnist_baselines.sh data      # l8a100: selected configs at n=100..12.5K
+#   bash experiments/tooling/run_smnist_baselines.sh bench     # h100: wait for an idle GPU, time all models
+#   bash experiments/tooling/run_smnist_baselines.sh collect   # h100: rsync results from l8a100
+#   bash experiments/tooling/run_smnist_baselines.sh analyze   # h100: Table 4 rows with the baselines
 set -euo pipefail
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 REPO_ROOT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
 PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 SMNIST="$REPO_ROOT/experiments/spherical_mnist"
-OUT="$REPO_ROOT/rebuttal/results/smnist_baselines"
+OUT="$REPO_ROOT/experiments/tooling/results/smnist_baselines"
 LOG_DIR="$OUT/logs"
 CACHE="$SMNIST/smnist_data/spherical_cache"
 CAMERA_READY_RESULTS="${CAMERA_READY_RESULTS:-$HOME/bispectrum/experiments/spherical_mnist/smnist_results}"
@@ -47,7 +47,7 @@ check_cache() {
 run_stage() {
   local stage=$1
   banner "stage $stage"
-  "$PYTHON" "$REPO_ROOT/rebuttal/gpu_job_runner.py" --manifest "$OUT/$stage.json" --machine l8a100 \
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/gpu_job_runner.py" --manifest "$OUT/$stage.json" --machine l8a100 \
     --state_dir "$OUT/state/l8a100"
 }
 
@@ -55,16 +55,16 @@ train() {
   check_cache
   "$PYTHON" -c 'import e3nn' || { echo 'e3nn missing: uv pip install e3nn' >&2; exit 1; }
   wait_for_camera_ready
-  "$PYTHON" "$REPO_ROOT/rebuttal/smnist_baselines_manifest.py" tune --out "$OUT/tune.json"
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/smnist_baselines_manifest.py" tune --out "$OUT/tune.json"
   run_stage tune
-  "$PYTHON" "$REPO_ROOT/rebuttal/smnist_baselines_manifest.py" final --out "$OUT/final.json"
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/smnist_baselines_manifest.py" final --out "$OUT/final.json"
   run_stage final
   banner "train DONE"
 }
 
 data() {
   check_cache
-  "$PYTHON" "$REPO_ROOT/rebuttal/smnist_baselines_manifest.py" data_efficiency --out "$OUT/data_efficiency.json"
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/smnist_baselines_manifest.py" data_efficiency --out "$OUT/data_efficiency.json"
   run_stage data_efficiency
   banner "data DONE"
 }
@@ -75,7 +75,7 @@ bench() {
     sleep 60
   done
   banner "GPU idle on $(hostname -s); timing"
-  "$PYTHON" "$REPO_ROOT/rebuttal/benchmark_smnist_models.py" --tp_grid \
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/benchmark_smnist_models.py" --tp_grid \
     --output "$OUT/timing_$(hostname -s).json"
   banner "bench DONE"
 }
@@ -85,7 +85,7 @@ collect() {
   for d in smnist_results_baselines smnist_results_baselines_tuning smnist_results_baselines_data; do
     rsync -a "$host:$remote/experiments/spherical_mnist/$d/" "$SMNIST/$d/"
   done
-  rsync -a --exclude logs/ "$host:$remote/rebuttal/results/smnist_baselines/" "$OUT/"
+  rsync -a --exclude logs/ "$host:$remote/experiments/tooling/results/smnist_baselines/" "$OUT/"
   banner "collected from $host"
 }
 

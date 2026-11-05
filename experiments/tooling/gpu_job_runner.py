@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Run one machine's share of a job manifest on all of its GPUs.
 
-The manifest (``rebuttal/camera_ready_manifest.py``) lists ``train.py`` invocations with a
+The manifest (``experiments/tooling/camera_ready_manifest.py``) lists ``train.py`` invocations with a
 peak-memory estimate (``mem_gib``), a duration estimate (``est_hours``) and the machine they
 are assigned to; ``machines[<name>]`` gives the per-GPU memory budget and the number of
 concurrent jobs per GPU. Jobs start longest first on the GPU with the fewest running jobs
@@ -24,10 +24,10 @@ queued, jobs moved to another machine leave the queue, running jobs are not inte
 SIGINT/SIGTERM/SIGHUP kill every running job's process group. Exit status is non-zero if any job
 failed.
 
-Usage (inside tmux via ``rebuttal/run_camera_ready.sh launch_jobs <machine>``)::
+Usage (inside tmux via ``experiments/tooling/run_camera_ready.sh launch_jobs <machine>``)::
 
-    .venv/bin/python rebuttal/gpu_job_runner.py --manifest M --machine l8a100 --state_dir S
-    .venv/bin/python rebuttal/gpu_job_runner.py --manifest M --machine l8a100 --dry_run
+    .venv/bin/python experiments/tooling/gpu_job_runner.py --manifest M --machine l8a100 --state_dir S
+    .venv/bin/python experiments/tooling/gpu_job_runner.py --manifest M --machine l8a100 --dry_run
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import IO, Any, Final
 
-REPO_ROOT: Final = Path(__file__).resolve().parents[1]
+REPO_ROOT: Final = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)

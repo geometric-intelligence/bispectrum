@@ -3,18 +3,18 @@
 # budget that ends at an SGDR cycle end (no early stopping), one batch size per
 # dataset (see tests/test_experiment_protocol.py).
 #
-#   bash rebuttal/run_camera_ready.sh archive [--dry_run]  # move stale results aside
-#   bash rebuttal/run_camera_ready.sh smoke <pcam|organ3d|smnist>...
-#   bash rebuttal/run_camera_ready.sh launch <bongo|h100|custom>  # one tmux window per GPU
-#   bash rebuttal/run_camera_ready.sh <pipeline>           # one pipeline, foreground
-#   bash rebuttal/run_camera_ready.sh analyze              # grid, significance, paper figures -> results/camera_ready
-#   bash rebuttal/run_camera_ready.sh tmux <session> <subcommand>...  # any of these in tmux
+#   bash experiments/tooling/run_camera_ready.sh archive [--dry_run]  # move stale results aside
+#   bash experiments/tooling/run_camera_ready.sh smoke <pcam|organ3d|smnist>...
+#   bash experiments/tooling/run_camera_ready.sh launch <bongo|h100|custom>  # one tmux window per GPU
+#   bash experiments/tooling/run_camera_ready.sh <pipeline>           # one pipeline, foreground
+#   bash experiments/tooling/run_camera_ready.sh analyze              # grid, significance, paper figures -> results/camera_ready
+#   bash experiments/tooling/run_camera_ready.sh tmux <session> <subcommand>...  # any of these in tmux
 #
 # Job runner (PCam + OrganMNIST3D across machines; Spherical MNIST stays a pipeline):
-#   bash rebuttal/run_camera_ready.sh capture <dir> <pipeline>...  # train.py calls -> <dir>/*.tsv
-#   bash rebuttal/run_camera_ready.sh manifest build|memory|costs|assign|validate ...  # -> $MANIFEST
-#   bash rebuttal/run_camera_ready.sh launch_jobs <l8a100|bongo|h100>  # tmux camera-ready-runs
-#   bash rebuttal/run_camera_ready.sh collect              # rsync + validate, on the H100
+#   bash experiments/tooling/run_camera_ready.sh capture <dir> <pipeline>...  # train.py calls -> <dir>/*.tsv
+#   bash experiments/tooling/run_camera_ready.sh manifest build|memory|costs|assign|validate ...  # -> $MANIFEST
+#   bash experiments/tooling/run_camera_ready.sh launch_jobs <l8a100|bongo|h100>  # tmux camera-ready-runs
+#   bash experiments/tooling/run_camera_ready.sh collect              # rsync + validate, on the H100
 #
 # Pipelines (every sweep skips runs whose results.json exists, so re-running
 # resumes):
@@ -41,11 +41,11 @@
 # device timings; SKIP_TESTS=1 skips pytest at launch; SESSION names the tmux session.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT="$REPO_ROOT/rebuttal/run_camera_ready.sh"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT="$REPO_ROOT/experiments/tooling/run_camera_ready.sh"
 export PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 SESSION="${SESSION:-camera-ready}"
-RESULTS="$REPO_ROOT/rebuttal/results"
+RESULTS="$REPO_ROOT/experiments/tooling/results"
 LOG_DIR="$RESULTS/logs_camera_ready"
 ENV_DIR="$RESULTS/environment_camera_ready/$(hostname -s)"
 JOBS_DIR="$RESULTS/camera_ready_jobs"
@@ -176,16 +176,16 @@ smoke_smnist() {
 }
 
 # ---------------------------------------------------------------------------
-# Device timings (same protocol as the rebuttal run, new library version).
+# Device timings (same protocol as the first E1 run, new library version).
 # ---------------------------------------------------------------------------
 device_timings() {
   local tag=$1 threads
   banner "device timings: $tag (CPU threads: $BENCH_THREADS)"
   mkdir -p "$RESULTS/device_bench"
-  "$PYTHON" "$REPO_ROOT/rebuttal/benchmark_devices.py" --device cuda \
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/benchmark_devices.py" --device cuda \
     --output "$RESULTS/device_bench/${tag}_cuda.json" 2>&1 | tee "$RESULTS/device_bench/${tag}_cuda.log"
   for threads in $BENCH_THREADS; do
-    "$PYTHON" "$REPO_ROOT/rebuttal/benchmark_devices.py" --device cpu --threads "$threads" \
+    "$PYTHON" "$REPO_ROOT/experiments/tooling/benchmark_devices.py" --device cpu --threads "$threads" \
       --output "$RESULTS/device_bench/${tag}_host_cpu_t${threads}.json" 2>&1 |
       tee "$RESULTS/device_bench/${tag}_host_cpu_t${threads}.log"
   done
@@ -262,7 +262,7 @@ smnist_pipeline() {
   banner "Spherical MNIST capacity sweep: 10 widths x 5 seeds"
   SEEDS="$SEEDS5" bash "$EXP/spherical_mnist/run_capacity_sweep.sh"
   banner "Spherical MNIST feature ablation: 4 feature sets x 5 seeds"
-  SEEDS="$SEEDS5" bash "$REPO_ROOT/rebuttal/run_smnist_ablation.sh"
+  SEEDS="$SEEDS5" bash "$REPO_ROOT/experiments/tooling/run_smnist_ablation.sh"
   banner "[smnist] DONE"
 }
 
@@ -270,7 +270,7 @@ reconstruction_pipeline() {
   export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
   preflight
   banner "Reconstruction evidence (smnist_l15, random_l15)"
-  bash "$REPO_ROOT/rebuttal/run_reconstruction_evidence.sh"
+  bash "$REPO_ROOT/experiments/tooling/run_reconstruction_evidence.sh"
 }
 
 # ---------------------------------------------------------------------------
@@ -286,7 +286,7 @@ analyze() {
   "$PYTHON" experiments/significance.py --output "$out/significance.md"
   "$PYTHON" experiments/significance.py --canonical --output "$out/significance_canonical.md"
   banner "ablation summary"
-  "$PYTHON" rebuttal/analyze_smnist_ablation.py --results-dir "$RESULTS/smnist_ablation" \
+  "$PYTHON" experiments/tooling/analyze_smnist_ablation.py --results-dir "$RESULTS/smnist_ablation" \
     --output "$RESULTS/smnist_ablation/summary.json"
   banner "device timings"
   local jsons=()
@@ -295,7 +295,7 @@ analyze() {
     [[ -f "$f" ]] && jsons+=("$f")
   done
   if (( ${#jsons[@]} )); then
-    "$PYTHON" rebuttal/analyze_device_benchmarks.py "${jsons[@]}" \
+    "$PYTHON" experiments/tooling/analyze_device_benchmarks.py "${jsons[@]}" \
       --output "$RESULTS/device_bench/combined.json" | tee "$RESULTS/device_bench/combined.md"
   else
     echo "no device_bench/*.json yet"
@@ -431,7 +431,7 @@ machine_jobs() {
   smoke_organ3d
   banner "job runner: $machine ($MANIFEST)"
   # shellcheck disable=SC2086  # RUNNER_ARGS is a flag list
-  "$PYTHON" "$REPO_ROOT/rebuttal/gpu_job_runner.py" --manifest "$MANIFEST" --machine "$machine" \
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/gpu_job_runner.py" --manifest "$MANIFEST" --machine "$machine" \
     --state_dir "$JOBS_DIR/state/$machine" ${RUNNER_ARGS:-}
 }
 
@@ -481,7 +481,7 @@ _step() {
 launch_jobs() {
   local machine=${1:?usage: $0 launch_jobs <l8a100|bongo|h100>} window=jobs
   if [[ ! -f "$MANIFEST" ]]; then
-    echo "no manifest at $MANIFEST (rebuttal/camera_ready_manifest.py assign)" >&2
+    echo "no manifest at $MANIFEST (experiments/tooling/camera_ready_manifest.py assign)" >&2
     exit 1
   fi
   if [[ "$machine" == h100 ]]; then
@@ -497,7 +497,7 @@ collect() {
   cd "$REPO_ROOT"
   for host in ${COLLECT_HOSTS:-l8a100 bongo}; do
     for root in experiments/pcam/pcam_results_data_pareto experiments/pcam/pcam_results_pareto \
-      experiments/organ3d/organ3d_results rebuttal/results/camera_ready_jobs/state; do
+      experiments/organ3d/organ3d_results experiments/tooling/results/camera_ready_jobs/state; do
       if ! ssh "$host" test -d "bispectrum/$root"; then
         echo "$host: no $root"
         continue
@@ -508,15 +508,15 @@ collect() {
     done
   done
   banner "validate against $MANIFEST"
-  "$PYTHON" rebuttal/camera_ready_manifest.py validate --manifest "$MANIFEST"
+  "$PYTHON" experiments/tooling/camera_ready_manifest.py validate --manifest "$MANIFEST"
   banner "stale results (expect none)"
-  "$PYTHON" rebuttal/archive_stale_results.py --dry_run
+  "$PYTHON" experiments/tooling/archive_stale_results.py --dry_run
 }
 
 case "${1:-}" in
   archive)
     shift
-    cd "$REPO_ROOT" && "$PYTHON" rebuttal/archive_stale_results.py "$@"
+    cd "$REPO_ROOT" && "$PYTHON" experiments/tooling/archive_stale_results.py "$@"
     ;;
   smoke)
     shift
@@ -542,7 +542,7 @@ case "${1:-}" in
     ;;
   manifest)
     shift
-    cd "$REPO_ROOT" && "$PYTHON" rebuttal/camera_ready_manifest.py "$@"
+    cd "$REPO_ROOT" && "$PYTHON" experiments/tooling/camera_ready_manifest.py "$@"
     ;;
   machine_jobs) machine_jobs "${2:?usage: $0 machine_jobs <machine>}" ;;
   launch_jobs) launch_jobs "${2:-}" ;;

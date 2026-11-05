@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# Bispectral pooling head ablation (rebuttal/run_head_ablation.py) under tmux.
+# Bispectral pooling head ablation (experiments/tooling/run_head_ablation.py) under tmux.
 #
-#   bash rebuttal/run_head_ablation.sh launch    # tmux session "head-ablation": smoke, run, analyze
-#   bash rebuttal/run_head_ablation.sh smoke     # gates only: tests, manifest, two 1-epoch runs
-#   bash rebuttal/run_head_ablation.sh run       # the 90 jobs on $GPUS x $WORKERS_PER_GPU slots
-#   bash rebuttal/run_head_ablation.sh analyze   # summary.md / summary.json
+#   bash experiments/tooling/run_head_ablation.sh launch    # tmux session "head-ablation": smoke, run, analyze
+#   bash experiments/tooling/run_head_ablation.sh smoke     # gates only: tests, manifest, two 1-epoch runs
+#   bash experiments/tooling/run_head_ablation.sh run       # the 90 jobs on $GPUS x $WORKERS_PER_GPU slots
+#   bash experiments/tooling/run_head_ablation.sh analyze   # summary.md / summary.json
 #
 # Environment: GPUS (default 0-7), WORKERS_PER_GPU (2), OMP_NUM_THREADS (8), PYTHON
 # (.venv/bin/python of this checkout), SESSION (head-ablation).
 #
 # `launch` refuses to start if the session exists, records the git commit, working-tree
-# status, pip freeze and nvidia-smi under rebuttal/results/head_ablation/env/<host>/ and
+# status, pip freeze and nvidia-smi under experiments/tooling/results/head_ablation/env/<host>/ and
 # opens two windows: `pipeline` (smoke && run && analyze, logged to logs/pipeline.log)
 # and `monitor` (watch nvidia-smi). Everything long-running happens inside the session,
 # so it survives the SSH connection. `pipeline` is that window's command.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT="$REPO_ROOT/rebuttal/run_head_ablation.sh"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT="$REPO_ROOT/experiments/tooling/run_head_ablation.sh"
 export PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 SESSION="${SESSION:-head-ablation}"
 GPUS="${GPUS:-0-7}"
@@ -26,7 +26,7 @@ export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
-RESULTS="$REPO_ROOT/rebuttal/results/head_ablation"
+RESULTS="$REPO_ROOT/experiments/tooling/results/head_ablation"
 LOG_DIR="$RESULTS/logs"
 ENV_DIR="$RESULTS/env/$(hostname -s)"
 SMOKE_DIR="${SMOKE_DIR:-${TMPDIR:-/tmp}/head_ablation_smoke}"
@@ -72,7 +72,7 @@ smoke() {
 
   banner "smoke: job manifest"
   local n_jobs
-  n_jobs=$("$PYTHON" "$REPO_ROOT/rebuttal/run_head_ablation.py" --dry_run | "$PYTHON" -c 'import json,sys; print(len(json.load(sys.stdin)))')
+  n_jobs=$("$PYTHON" "$REPO_ROOT/experiments/tooling/run_head_ablation.py" --dry_run | "$PYTHON" -c 'import json,sys; print(len(json.load(sys.stdin)))')
   echo "manifest: $n_jobs jobs"
   [[ "$n_jobs" == 90 ]] || { echo "expected 90 jobs"; exit 1; }
 
@@ -95,13 +95,13 @@ smoke() {
 
 run() {
   banner "head ablation: 90 jobs on GPUs $GPUS x $WORKERS_PER_GPU workers"
-  "$PYTHON" "$REPO_ROOT/rebuttal/run_head_ablation.py" --gpus "$GPUS" --workers_per_gpu "$WORKERS_PER_GPU" \
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/run_head_ablation.py" --gpus "$GPUS" --workers_per_gpu "$WORKERS_PER_GPU" \
     --omp_threads "$OMP_NUM_THREADS"
 }
 
 analyze() {
   banner "analysis"
-  "$PYTHON" "$REPO_ROOT/rebuttal/analyze_head_ablation.py" --results_root "$RESULTS"
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/analyze_head_ablation.py" --results_root "$RESULTS"
 }
 
 # smoke && run && analyze, everything logged; what the tmux `pipeline` window runs.

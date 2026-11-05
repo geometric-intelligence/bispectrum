@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 RECON="$REPO_ROOT/experiments/spherical_mnist_reconstruction/reconstruct.py"
 DATA_DIR="${SMNIST_DATA_DIR:-$REPO_ROOT/experiments/spherical_mnist/smnist_data}"
-OUTPUT_ROOT="${OUTPUT_DIR:-$REPO_ROOT/rebuttal/results/reconstruction}"
+OUTPUT_ROOT="${OUTPUT_DIR:-$REPO_ROOT/experiments/tooling/results/reconstruction}"
 mkdir -p "$OUTPUT_ROOT"
 
 COMMON=(
@@ -53,7 +53,7 @@ if [[ ! -f "$OUTPUT_ROOT/random_l15/results.json" ]]; then
     2>&1 | tee "$OUTPUT_ROOT/random_l15.log"
 fi
 
-"$PYTHON" "$REPO_ROOT/rebuttal/analyze_reconstruction.py" \
+"$PYTHON" "$REPO_ROOT/experiments/tooling/analyze_reconstruction.py" \
   "$OUTPUT_ROOT/smnist_l15/results.json" \
   "$OUTPUT_ROOT/random_l15/results.json" \
   --output "$OUTPUT_ROOT/summary.json"

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """Run outputs live in one ``results/`` store outside git, symlinked back to where scripts look.
 
-Each run-output location (``experiments/<dataset>/*_results*``, ``rebuttal/results``, the
+Each run-output location (``experiments/<dataset>/*_results*``, ``experiments/tooling/results``, the
 benchmark timing cache) sits at the same relative path under ``results/`` and is replaced by a
 relative symlink, so the sweep, analysis and figure scripts keep reading and writing the paths
 they always have. ``results`` itself may be a symlink to a bigger disk.
 
-    python rebuttal/results_store.py adopt      # move real run outputs into results/, link back
-    python rebuttal/results_store.py link       # recreate the links from results/ (fresh clone)
-    python rebuttal/results_store.py manifest   # write rebuttal/results_manifest.tsv
-    python rebuttal/results_store.py verify     # check results/ against the manifest
-    python rebuttal/results_store.py pack out.tar.gz --include '*.json'   # archive for publishing
+    python experiments/tooling/results_store.py adopt      # move real run outputs into results/, link back
+    python experiments/tooling/results_store.py link       # recreate the links from results/ (fresh clone)
+    python experiments/tooling/results_store.py manifest   # write experiments/tooling/results_manifest.tsv
+    python experiments/tooling/results_store.py verify     # check results/ against the manifest
+    python experiments/tooling/results_store.py pack out.tar.gz --include '*.json'   # archive for publishing
 
-Where the store is published and how to fetch it: rebuttal/RESULTS.md.
+Where the store is published and how to fetch it: experiments/tooling/RESULTS.md.
 """
 
 from __future__ import annotations
@@ -32,11 +32,11 @@ from typing import Final
 LOCATIONS: Final = (
     'experiments/*/*_results',
     'experiments/*/*_results_*',
-    'rebuttal/results',
+    'experiments/tooling/results',
     'benchmarks/figures/paper_timings.json',
 )
 STORE: Final = Path('results')
-MANIFEST: Final = Path('rebuttal/results_manifest.tsv')
+MANIFEST: Final = Path('experiments/tooling/results_manifest.tsv')
 MANIFEST_HEADER: Final = 'path\tbytes\tsha256\n'
 
 type ManifestRow = tuple[str, int, str]
@@ -173,7 +173,7 @@ def main() -> None:
     parser.add_argument(
         '--repo',
         type=Path,
-        default=Path(__file__).resolve().parents[1],
+        default=Path(__file__).resolve().parents[2],
         help='Repository root; pass it when running a copy of this script from outside the repo.',
     )
     commands = parser.add_subparsers(dest='command', required=True)

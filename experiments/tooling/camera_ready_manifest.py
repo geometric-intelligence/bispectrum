@@ -17,14 +17,14 @@ wall times of earlier runs, then a machine:
 
 Usage (from the repository root)::
 
-    bash rebuttal/run_camera_ready.sh capture /tmp/cr_capture pcam pcam_12500 pcam_full \\
+    bash experiments/tooling/run_camera_ready.sh capture /tmp/cr_capture pcam pcam_12500 pcam_full \\
         pcam_matched organ3d
-    python rebuttal/camera_ready_manifest.py build --capture_dir /tmp/cr_capture --out raw.json
-    python rebuttal/camera_ready_manifest.py memory --manifest raw.json --gpus 0-7 --out mem.jsonl
-    python rebuttal/camera_ready_manifest.py costs --scan experiments rebuttal/results --out c.jsonl
-    python rebuttal/camera_ready_manifest.py assign --manifest raw.json --memory mem.jsonl \\
+    python experiments/tooling/camera_ready_manifest.py build --capture_dir /tmp/cr_capture --out raw.json
+    python experiments/tooling/camera_ready_manifest.py memory --manifest raw.json --gpus 0-7 --out mem.jsonl
+    python experiments/tooling/camera_ready_manifest.py costs --scan experiments experiments/tooling/results --out c.jsonl
+    python experiments/tooling/camera_ready_manifest.py assign --manifest raw.json --memory mem.jsonl \\
         --costs c.jsonl
-    python rebuttal/camera_ready_manifest.py validate
+    python experiments/tooling/camera_ready_manifest.py validate
 """
 
 from __future__ import annotations
@@ -46,12 +46,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Final
 
-REPO_ROOT: Final = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / 'rebuttal'))
+REPO_ROOT: Final = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / 'experiments' / 'tooling'))
 
 from gpu_job_runner import Job, parse_gpus, simulate  # noqa: E402
 
-JOBS_DIR: Final = REPO_ROOT / 'rebuttal' / 'results' / 'camera_ready_jobs'
+JOBS_DIR: Final = REPO_ROOT / 'experiments' / 'tooling' / 'results' / 'camera_ready_jobs'
 DEFAULT_MANIFEST: Final = JOBS_DIR / 'manifest.json'
 GIB: Final = 2**30
 

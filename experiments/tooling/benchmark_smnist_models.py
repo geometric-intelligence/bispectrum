@@ -19,7 +19,7 @@ from typing import Any
 import torch
 from benchmark_devices import environment, resolve_device, synchronize
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / 'experiments' / 'spherical_mnist'))
 from model import build_model  # noqa: E402
 
