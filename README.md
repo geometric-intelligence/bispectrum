@@ -1,51 +1,22 @@
-<img width="1374" height="431" alt="bispectrum_logo" src="https://github.com/user-attachments/assets/337d367b-9838-470e-89b8-057dba584bcd" />
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/bispectrum-wordmark-reversed.svg">
+    <img alt="bispectrum" src="assets/brand/bispectrum-wordmark.svg" width="360">
+  </picture>
+</p>
 
-# bispectrum
+<p align="center">Selective G-bispectra for PyTorch.</p>
 
-[![Tests](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml)
-[![Pre-commit](https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml)
-[![codecov](https://codecov.io/github/geometric-intelligence/bispectrum/graph/badge.svg?token=J6GGY4VK1E)](https://codecov.io/github/geometric-intelligence/bispectrum)
+<p align="center">
+  <a href="https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml/badge.svg"></a>
+  <a href="https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml"><img alt="Pre-commit" src="https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml/badge.svg"></a>
+  <a href="https://codecov.io/github/geometric-intelligence/bispectrum"><img alt="codecov" src="https://codecov.io/github/geometric-intelligence/bispectrum/graph/badge.svg?token=J6GGY4VK1E"></a>
+  <a href="https://arxiv.org/abs/2605.07270"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2605.07270-1C1C1A"></a>
+</p>
 
-An open-source, fully unit-tested PyTorch library that implements *selective* G-bispectra for seven group actions as differentiable `torch.nn.Module`s, ready to plug into ML pipelines and deep learning architectures.
+Many learning problems come with a group of transformations the answer should not depend on: shifts of a signal, rotations of an image, rotations of the sphere. The G-bispectrum is an invariant to such a group that is also *complete*. It discards the transformation and nothing else, so a signal can be recovered from it up to the group action.
 
-The G-bispectrum is a principled *complete* invariant of a signal — it retains all information up to the group action. Selectivity reduces cost from O(|G|²) to O(|G|) for finite groups, and from O(L³) to Θ(L²) coefficients for SO(3) on S².
-
-## Supported Groups
-
-| Module         | Group / Domain                    | Output mode      | Complexity (selective) |
-| -------------- | --------------------------------- | ---------------- | ---------------------- |
-| `CnonCn`       | C_n on C_n                        | selective + full | O(n)                   |
-| `SO2onS1`      | SO(2) on S¹                       | selective + full | O(n)                   |
-| `TorusOnTorus` | T^d                               | selective + full | O(n)                   |
-| `DnonDn`       | D_n on D_n                        | selective        | O(n)                   |
-| `SO2onDisk`    | SO(2) on disk                     | selective        | O(L)                   |
-| `SO3onS2`      | SO(3) on S²                       | selective + full | Θ(L²)                  |
-| `OctaonOcta`   | chiral octahedral O (24 elements) | selective        | 172 coefficients       |
-
-`SO2onS1` is the continuous-n limit of `CnonCn` and shares its implementation.
-
-## API
-
-Every module exposes a uniform interface:
-
-- **`forward(f)`** — selective (default) or full bispectral invariants
-- **`fourier(f)`** — group Fourier coefficients
-- **`invert(beta)`** — signal reconstruction up to group-action indeterminacy (where available)
-
-Modules default to O(|G|) selective coefficients; pass `selective=False` for the full O(|G|²) set. CG matrices, DFT kernels, and Bessel roots are precomputed as non-learnable buffers. Dependencies: PyTorch, NumPy, and `torch_harmonics` (for `SO3onS2`).
-
-## Benchmarks
-
-Median wall-clock on a single NVIDIA H100 80 GB GPU (batch=16, `torch.utils.benchmark`):
-
-| Module         | Group       | \|G\| / L_max | Coefs (sel.) | Coefs (full) | Fwd sel. (ms) | Fwd full (ms) |
-| -------------- | ----------- | ------------- | ------------ | ------------ | ------------- | ------------- |
-| `CnonCn`       | C_128       | 128           | 128          | 8,256        | 0.14          | 8.53          |
-| `TorusOnTorus` | C_32 × C_32 | 1,024         | 1,024        | 524,800      | 0.07          | 0.31          |
-| `DnonDn`       | D_32        | 64            | 245          | —            | 0.57          | —             |
-| `SO2onDisk`    | SO(2)       | L=16          | 76           | —            | 0.22          | —             |
-| `SO3onS2`      | SO(3)       | L=16          | 426          | —            | 0.48          | —             |
-| `OctaonOcta`   | O           | 24            | 172          | —            | 0.68          | —             |
+`bispectrum` is an open-source, fully unit-tested PyTorch library that implements *selective* G-bispectra for seven group actions as differentiable `torch.nn.Module`s, ready to plug into ML pipelines and to sit in deep networks as invariant pooling layers. Selectivity reduces the cost from O(|G|²) to O(|G|) coefficients for finite groups, and from O(L³) to Θ(L²) for SO(3) on S².
 
 ## Installation
 
@@ -72,35 +43,12 @@ pip install bispectrum
 
 MPS has no float64, and the precomputed tables are float64, so move modules with `module.to(device='mps', dtype=torch.float32)`.
 
-### Development
-
-```bash
-git clone https://github.com/geometric-intelligence/bispectrum.git
-cd bispectrum
-uv pip install -e ".[dev]"
-pre-commit install
-```
-
-### Pre-commit Hooks
-
-This project uses [pre-commit](https://pre-commit.com/) for code quality checks. After installing dev dependencies, the hooks run automatically on each commit.
-
-```bash
-# Run hooks on all files (useful for first-time setup or CI)
-pre-commit run --all-files
-
-# Run a specific hook
-pre-commit run ruff --all-files
-
-# Update hooks to latest versions
-pre-commit autoupdate
-```
-
 ## Usage
 
 ### Cyclic group on itself
 
 ```python
+import torch
 from bispectrum import CnonCn
 
 bsp = CnonCn(n=8)
@@ -112,6 +60,7 @@ f_rec = bsp.invert(beta)     # reconstructed up to cyclic shift
 ### SO(3) on the 2-sphere
 
 ```python
+import torch
 from bispectrum import SO3onS2
 
 # Selective bispectrum: O(L²) entries with generic completeness
@@ -127,12 +76,87 @@ beta_full = bsp_full(f)       # shape (1, 69), complex64
 ### Octahedral group
 
 ```python
+import torch
 from bispectrum import OctaonOcta
 
 bsp = OctaonOcta()
 f = torch.randn(4, 24)       # signal on O (|O| = 24)
 beta = bsp(f)                 # shape (4, 172), complex64
 f_rec = bsp.invert(beta)      # reconstructed up to group action
+```
+
+## Supported groups
+
+|                                                                                                                                                                                           | Module         | Group / domain                    | Output mode      | Complexity (selective) |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | --------------------------------- | ---------------- | ---------------------- |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/glyphs/CnonCn-reversed.svg"><img alt="" src="assets/brand/glyphs/CnonCn.svg" width="28"></picture>             | `CnonCn`       | Cₙ on Cₙ                          | selective + full | O(n)                   |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/glyphs/SO2onS1-reversed.svg"><img alt="" src="assets/brand/glyphs/SO2onS1.svg" width="28"></picture>           | `SO2onS1`      | SO(2) on S¹                       | selective + full | O(n)                   |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/glyphs/TorusOnTorus-reversed.svg"><img alt="" src="assets/brand/glyphs/TorusOnTorus.svg" width="28"></picture> | `TorusOnTorus` | 𝕋ᵈ                                | selective + full | O(n)                   |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/glyphs/DnonDn-reversed.svg"><img alt="" src="assets/brand/glyphs/DnonDn.svg" width="28"></picture>             | `DnonDn`       | Dₙ on Dₙ                          | selective        | O(n)                   |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/glyphs/SO2onDisk-reversed.svg"><img alt="" src="assets/brand/glyphs/SO2onDisk.svg" width="28"></picture>       | `SO2onDisk`    | SO(2) on the disk                 | selective        | O(L)                   |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/glyphs/SO3onS2-reversed.svg"><img alt="" src="assets/brand/glyphs/SO3onS2.svg" width="28"></picture>           | `SO3onS2`      | SO(3) on S²                       | selective + full | Θ(L²)                  |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/glyphs/OctaonOcta-reversed.svg"><img alt="" src="assets/brand/glyphs/OctaonOcta.svg" width="28"></picture>     | `OctaonOcta`   | chiral octahedral O (24 elements) | selective        | 172 coefficients       |
+
+`SO2onS1` is the continuous-n limit of `CnonCn` and shares its implementation.
+
+## API
+
+Every module exposes a uniform interface:
+
+- **`forward(f)`** — selective (default) or full bispectral invariants
+- **`fourier(f)`** — group Fourier coefficients
+- **`invert(beta)`** — signal reconstruction up to group-action indeterminacy (where available)
+
+Modules default to O(|G|) selective coefficients; pass `selective=False` for the full O(|G|²) set. CG matrices, DFT kernels, and Bessel roots are precomputed as non-learnable buffers. Dependencies: PyTorch, NumPy, and `torch_harmonics` (for `SO3onS2`).
+
+## Benchmarks
+
+Median wall-clock on a single NVIDIA H100 80 GB GPU (batch=16, `torch.utils.benchmark`):
+
+| Module         | Group       | \|G\| / L_max | Coefs (sel.) | Coefs (full) | Fwd sel. (ms) | Fwd full (ms) |
+| -------------- | ----------- | ------------- | ------------ | ------------ | ------------- | ------------- |
+| `CnonCn`       | C_128       | 128           | 128          | 8,256        | 0.14          | 8.53          |
+| `TorusOnTorus` | C_32 × C_32 | 1,024         | 1,024        | 524,800      | 0.07          | 0.31          |
+| `DnonDn`       | D_32        | 64            | 245          | —            | 0.57          | —             |
+| `SO2onDisk`    | SO(2)       | L=16          | 76           | —            | 0.22          | —             |
+| `SO3onS2`      | SO(3)       | L=16          | 426          | —            | 0.48          | —             |
+| `OctaonOcta`   | O           | 24            | 172          | —            | 0.68          | —             |
+
+## Development
+
+```bash
+git clone https://github.com/geometric-intelligence/bispectrum.git
+cd bispectrum
+uv pip install -e ".[dev]"
+pre-commit install
+```
+
+### Pre-commit hooks
+
+This project uses [pre-commit](https://pre-commit.com/) for code quality checks. After installing dev dependencies, the hooks run automatically on each commit.
+
+```bash
+# Run hooks on all files (useful for first-time setup or CI)
+pre-commit run --all-files
+
+# Run a specific hook
+pre-commit run ruff --all-files
+
+# Update hooks to latest versions
+pre-commit autoupdate
+```
+
+## Citation
+
+If you use `bispectrum` in your research, please cite the paper:
+
+```bibtex
+@article{mathe2026bispectrum,
+  title   = {bispectrum: Selective $G$-Bispectra Made Practical},
+  author  = {Mathe, Johan and Myers, Adele and Mataigne, Simon and Miolane, Nina},
+  journal = {arXiv preprint arXiv:2605.07270},
+  year    = {2026}
+}
 ```
 
 ## License
