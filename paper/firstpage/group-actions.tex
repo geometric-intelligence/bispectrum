@@ -1,0 +1,27 @@
+% Insert after \maketitle and before \begin{abstract}.
+\begin{figure}[H]
+  \centering
+  \begingroup
+  \definecolor{atlasInk}{HTML}{1C1C1A}
+  \color{atlasInk}
+  \setlength{\tabcolsep}{0pt}
+  \newcommand{\atlasglyph}[1]{\includegraphics[width=29pt]{firstpage/glyphs/#1.pdf}}
+  \newcommand{\atlasname}[1]{{\sffamily\small #1}}
+  \newcommand{\atlasaction}[2]{{\footnotesize $#1\curvearrowright #2$}}
+  \newcommand{\atlasfamily}[1]{{\color{atlasInk}\sffamily\bfseries\footnotesize #1}}
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}ccccccc@{}}
+    \multicolumn{3}{c}{\atlasfamily{Finite groups}} &
+      \multicolumn{4}{c}{\atlasfamily{Continuous domains}}\\[-1pt]
+    \cmidrule(lr){1-3}\cmidrule(lr){4-7}
+    \atlasglyph{CnonCn} & \atlasglyph{DnonDn} & \atlasglyph{OctaonOcta} &
+    \atlasglyph{SO2onS1} & \atlasglyph{TorusOnTorus} & \atlasglyph{SO2onDisk} & \atlasglyph{SO3onS2}\\[-1pt]
+    \atlasname{Cyclic} & \atlasname{Dihedral} & \atlasname{Octahedral} &
+    \atlasname{Circle} & \atlasname{Torus} & \atlasname{Disk} & \atlasname{Sphere}\\[1pt]
+    \atlasaction{C_n}{C_n} & \atlasaction{D_n}{D_n} & \atlasaction{O}{O} &
+    \atlasaction{\mathrm{SO}(2)}{S^1} & \atlasaction{\mathbb{T}^d}{\mathbb{T}^d} &
+    \atlasaction{\mathrm{SO}(2)}{\mathbb{D}} & \atlasaction{\mathrm{SO}(3)}{S^2}
+  \end{tabular*}
+  \endgroup
+  \caption{Seven group actions supported by \texttt{bispectrum}. The notation $G\curvearrowright X$ denotes the action of a group $G$ on a signal domain $X$.}
+  \label{fig:front-group-actions}
+\end{figure}
