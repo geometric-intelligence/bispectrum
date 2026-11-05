@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 926 1120" role="img" aria-label="bispectrum">
+<title>bispectrum</title>
+<style>.fg{fill:#18130F}@media (prefers-color-scheme:dark){.fg{fill:#F7F3EA}}</style>
+<rect class="fg" fill="#18130F" x="60" y="60" width="140" height="1000"/>
+<path class="fg" fill="#18130F" fill-rule="evenodd" d="M138,696A364,364 0 1 0 866,696A364,364 0 1 0 138,696ZM278,696A224,224 0 1 1 726,696A224,224 0 1 1 278,696Z"/>
+<polygon class="accent" fill="#D7654A" points="592.05,718.85 429.89,753.74 486.56,614.43"/>
+</svg>

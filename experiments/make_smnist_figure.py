@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -40,27 +41,45 @@ from make_grid_figure import (
     BASELINE_WEIGHT,
     DODGE_DECADES,
     EXPERIMENTS_DIR,
+    LEGEND_FONT_SIZE,
     OURS_WEIGHT,
+    SUBTITLE_FONT_SIZE,
+    TITLE_FONT_SIZE,
     LineWeight,
     _canonical_mode,
+    _drawn_sizes,
     _is_full_train,
     _load_runs,
     _mean_std,
-    _percent_axis,
+    _metric_axis,
+    _set_size_axis,
     _size_tick,
+    _warn_if_clipped,
     configure_style,
     style_axes,
 )
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-from matplotlib.ticker import NullFormatter, NullLocator
+from matplotlib.ticker import FuncFormatter, NullLocator
 from scipy import stats
 
 REPO_ROOT: Final = EXPERIMENTS_DIR.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+import brand  # noqa: E402
+
 SMNIST_DIR: Final = EXPERIMENTS_DIR / 'spherical_mnist'
-FIGURE_SIZE: Final = (5.5, 2.05)
+FIGURE_SIZE: Final = (5.5, 1.93)
+# The metric lives on the y-axis and the test split in the subtitle, so each is said once.
+PANEL_TITLES: Final = (
+    ('(a) Protocols', 'unrotated vs. rotated test'),
+    ('(b) Accuracy vs. latency', 'rotated test'),
+    ('(c) Data efficiency', 'rotated test'),
+)
 LATENCY_BATCH: Final = 16
+# Panel (a) needs the zero baseline (bars, and the 13% NR/R collapse); the figure shares it.
+ACCURACY_YLIM: Final = (0.0, 1.02)
 DEFAULT_SUBSET_DIR: Final = SMNIST_DIR / 'smnist_results'
 MATCHED_SUBSET_DIR: Final = SMNIST_DIR / 'smnist_results_baselines_data'
 MATCHED_WEIGHT: Final = LineWeight(linewidth=1.0, markersize=3.4, elinewidth=0.6, capsize=0.8, alpha=0.9, zorder=3)
@@ -88,7 +107,7 @@ MODELS: Final = (
         SMNIST_DIR / 'smnist_results',
         'standard',
         'standard',
-        '#888888',
+        brand.METHOD_COLORS['standard'],
         's',
         'R',
     ),
@@ -99,7 +118,7 @@ MODELS: Final = (
         SMNIST_DIR / 'smnist_results',
         'power_spectrum',
         'power_spectrum',
-        '#6D4C41',
+        brand.METHOD_COLORS['power_spectrum'],
         'v',
         'C',
     ),
@@ -110,7 +129,7 @@ MODELS: Final = (
         SMNIST_DIR / 'smnist_results_baselines',
         's2cnn_bn',
         's2cnn_bn',
-        '#1565C0',
+        brand.METHOD_COLORS['s2cnn_bn'],
         'h',
         'C',
         MATCHED_SUBSET_DIR,
@@ -122,7 +141,7 @@ MODELS: Final = (
         SMNIST_DIR / 'smnist_results_baselines',
         'tensor_product',
         'tp_c24_l6',
-        '#2E7D32',
+        brand.METHOD_COLORS['tensor_product'],
         'X',
         'C',
         MATCHED_SUBSET_DIR,
@@ -134,7 +153,7 @@ MODELS: Final = (
         SMNIST_DIR / 'smnist_results_bispectrum_tuned',
         'bispectrum_bs32_lr1e-3',
         'bispectrum',
-        '#E53935',
+        brand.METHOD_COLORS['bispectrum'],
         '*',
         'C',
         MATCHED_SUBSET_DIR,
@@ -164,7 +183,7 @@ AS_PUBLISHED: Final = ModelSpec(
     SMNIST_DIR / 'smnist_results_baselines',
     's2cnn',
     's2cnn',
-    '#90A4AE',
+    brand.METHOD_COLORS['s2cnn'],
     'h',
     'C',
 )
@@ -172,11 +191,8 @@ AS_PUBLISHED: Final = ModelSpec(
 PROTOCOLS: Final = ('NR/NR', 'R/R', 'NR/R')
 # Protocol -> (training mode, test split).
 PROTOCOL_SPLIT: Final = {'NR/NR': ('C', 'test_nr'), 'R/R': ('R', 'test_r'), 'NR/R': ('C', 'test_r')}
-PROTOCOL_STYLE: Final = {
-    'NR/NR': {'alpha': 1.0, 'hatch': None},
-    'R/R': {'alpha': 0.7, 'hatch': '....'},
-    'NR/R': {'alpha': 0.42, 'hatch': '////'},
-}
+# Opaque tints of the model color (1 = full color); bars keep a full-color edge.
+PROTOCOL_TINT: Final = {'NR/NR': 1.0, 'R/R': 0.55, 'NR/R': 0.22}
 PROTOCOL_LABEL: Final = {
     'NR/NR': 'NR/NR (train, test unrotated)',
     'R/R': 'R/R (train, test rotated)',
@@ -185,11 +201,12 @@ PROTOCOL_LABEL: Final = {
 
 # Label placement in the latency panel: (dx, dy) in points, horizontal and vertical alignment.
 LATENCY_LABEL_OFFSET: Final = {
-    'standard': ((0, 5), 'center', 'bottom'),
+    'standard': ((0, -5), 'center', 'top'),
     'power_spectrum': ((0, -5), 'center', 'top'),
     's2cnn_bn': ((0, -5), 'center', 'top'),
     'tensor_product': ((0, -5), 'center', 'top'),
-    'bispectrum': ((0, -5), 'center', 'top'),
+    # CNN sits just below-left at 0.20 ms on the shared y-axis, so this label goes beside the star.
+    'bispectrum': ((-5, 0), 'right', 'center'),
 }
 
 CAPTION_TEXT: Final = """\
@@ -318,17 +335,14 @@ def draw_protocol_panel(ax: Axes, results: dict[str, ProtocolStats]) -> None:
     for index, spec in enumerate(MODELS):
         stat = results[spec.key]
         for offset, protocol in zip((-width, 0.0, width), PROTOCOLS, strict=True):
-            style = PROTOCOL_STYLE[protocol]
             ax.bar(
                 index + offset,
                 stat.mean(protocol) / 100,
                 width,
                 yerr=stat.std(protocol) / 100,
-                color=spec.color,
+                color=brand.tint(spec.color, PROTOCOL_TINT[protocol]),
                 edgecolor=spec.color,
                 linewidth=0.5,
-                alpha=style['alpha'],
-                hatch=style['hatch'],
                 capsize=0.8,
                 error_kw=error_kw,
                 zorder=3,
@@ -343,14 +357,15 @@ def draw_protocol_panel(ax: Axes, results: dict[str, ProtocolStats]) -> None:
                 ha='center',
                 va='bottom',
                 fontsize=5,
-                color='#444444',
+                fontfamily=brand.MONO,
+                color=brand.MUTED,
             )
     ax.set_xticks(np.arange(len(MODELS)))
     ax.set_xticklabels([spec.label for spec in MODELS], rotation=30, ha='right', rotation_mode='anchor')
     ax.tick_params(axis='x', length=0)
-    ax.set_ylim(0.0, 1.02)
+    ax.set_ylim(ACCURACY_YLIM)
     ax.set_ylabel('Test accuracy')
-    _percent_axis(ax, 'accuracy')
+    _metric_axis(ax, 'accuracy')
     style_axes(ax)
 
 
@@ -368,7 +383,7 @@ def draw_latency_panel(ax: Axes, results: dict[str, ProtocolStats]) -> None:
             color=spec.color,
             marker=spec.marker,
             markersize=6.5 if ours else 4.2,
-            markeredgecolor='white',
+            markeredgecolor=brand.surface_color(),
             markeredgewidth=0.4,
             elinewidth=0.6,
             capsize=1.0,
@@ -384,24 +399,28 @@ def draw_latency_panel(ax: Axes, results: dict[str, ProtocolStats]) -> None:
             ha=ha,
             va=va,
             fontsize=5,
-            color=spec.color if ours else '#333333',
+            fontfamily=brand.MONO,
+            color=brand.TERRACOTTA_TEXT if ours else brand.MUTED,
             linespacing=1.1,
         )
     ax.set_xscale('log')
-    ax.set_xlim(0.1, 300)
+    ax.set_xlim(0.05, 300)
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _position: f'{value:g}'))
+    ax.xaxis.set_minor_locator(NullLocator())
     ax.set_ylim(0.72, 1.0)
     ax.set_xlabel(f'H100 latency, batch {LATENCY_BATCH} (ms)')
-    ax.set_ylabel('Rotated test accuracy')
-    _percent_axis(ax, 'accuracy')
+    ax.set_ylabel('Test accuracy')
+    _metric_axis(ax, 'accuracy')
     style_axes(ax)
 
 
-def _size_label(n: int, full_examples: set[int]) -> str:
-    return 'full' if n in full_examples else _size_tick(n)
+def _size_label(n: int, full_examples: set[int], *, full: str = 'full') -> str:
+    return full if n in full_examples else _size_tick(n)
 
 
 def draw_data_panel(ax: Axes, curves: dict[str, DataCurve]) -> None:
     shown = [spec for spec in MODELS if curves[spec.key].values]
+    ticks = sorted({n for spec in shown for n in curves[spec.key].sizes})
     for index, spec in enumerate(shown):
         curve = curves[spec.key]
         moments = np.asarray([_mean_std(curve.values[n]) for n in curve.sizes]) / 100
@@ -413,7 +432,7 @@ def draw_data_panel(ax: Axes, curves: dict[str, DataCurve]) -> None:
             weight = BASELINE_WEIGHT
         shift = 10 ** ((index - (len(shown) - 1) / 2) * DODGE_DECADES)
         ax.errorbar(
-            np.asarray(curve.sizes, dtype=np.float64) * shift,
+            _drawn_sizes(np.asarray(curve.sizes, dtype=np.float64), ticks) * shift,
             moments[:, 0],
             yerr=moments[:, 1],
             color=spec.color,
@@ -421,22 +440,23 @@ def draw_data_panel(ax: Axes, curves: dict[str, DataCurve]) -> None:
             linewidth=weight.linewidth,
             markersize=weight.markersize,
             markeredgewidth=0.4,
-            markeredgecolor='white',
+            markeredgecolor=brand.surface_color(),
             capsize=weight.capsize,
             elinewidth=weight.elinewidth,
             alpha=weight.alpha,
             zorder=weight.zorder,
         )
     full_examples = {curves[spec.key].full_examples for spec in shown} - {None}
-    ticks = sorted({n for spec in shown for n in curves[spec.key].sizes})
-    ax.set_xscale('log')
-    ax.set_xticks(ticks)
-    ax.xaxis.set_minor_locator(NullLocator())
-    ax.xaxis.set_minor_formatter(NullFormatter())
-    ax.set_xticklabels([_size_label(n, full_examples) for n in ticks], rotation=35, ha='right', rotation_mode='anchor')
+    _set_size_axis(
+        ax,
+        ticks,
+        # 'all' is one character shorter than 'full'; the axis has no room for it next to '12.5K'.
+        [_size_label(n, full_examples, full='all') for n in ticks],
+        dodge_decades=(len(shown) - 1) / 2 * DODGE_DECADES,
+    )
     ax.set_xlabel('Training examples')
-    ax.set_ylabel('Rotated test accuracy')
-    _percent_axis(ax, 'accuracy')
+    ax.set_ylabel('Test accuracy')
+    _metric_axis(ax, 'accuracy')
     style_axes(ax)
 
 
@@ -449,7 +469,7 @@ def model_handles() -> list[Line2D]:
             marker=spec.marker,
             linestyle='none',
             markersize=5.5 if spec.key == 'bispectrum' else 4.0,
-            markeredgecolor='white',
+            markeredgecolor=brand.surface_color(),
             markeredgewidth=0.4,
             label=spec.label,
         )
@@ -460,10 +480,8 @@ def model_handles() -> list[Line2D]:
 def protocol_handles() -> list[Patch]:
     return [
         Patch(
-            facecolor='#777777',
-            edgecolor='#777777',
-            alpha=PROTOCOL_STYLE[protocol]['alpha'],
-            hatch=PROTOCOL_STYLE[protocol]['hatch'],
+            facecolor=brand.tint(brand.MUTED, PROTOCOL_TINT[protocol]),
+            edgecolor=brand.MUTED,
             linewidth=0.5,
             label=PROTOCOL_LABEL[protocol],
         )
@@ -478,32 +496,52 @@ def save_figure(results: dict[str, ProtocolStats], curves: dict[str, DataCurve],
         1,
         3,
         width_ratios=(1.35, 1.0, 1.0),
-        left=0.075,
-        right=0.99,
-        bottom=0.5 / height,
-        top=1.0 - 0.62 / height,
-        wspace=0.42,
+        left=0.38 / FIGURE_SIZE[0],
+        right=1.0 - 0.03 / FIGURE_SIZE[0],
+        bottom=0.37 / height,
+        top=1.0 - 0.63 / height,
+        wspace=0.12,
     )
-    axes = [fig.add_subplot(gridspec[0, column]) for column in range(3)]
+    first = fig.add_subplot(gridspec[0, 0])
+    axes = [first, *(fig.add_subplot(gridspec[0, column], sharey=first) for column in (1, 2))]
     draw_protocol_panel(axes[0], results)
     draw_latency_panel(axes[1], results)
     draw_data_panel(axes[2], curves)
+    first.set_ylim(ACCURACY_YLIM)
+    for ax in axes[1:]:
+        ax.tick_params(labelleft=False)
+        ax.set_ylabel('')
 
-    for ax, title in zip(axes, ('(a) Protocols', '(b) Accuracy vs. latency', '(c) Data efficiency'), strict=True):
-        ax.set_title(title, fontsize=7, pad=4)
-    for handles, anchor in ((model_handles(), 1.0), (protocol_handles(), 1.0 - 0.16 / height)):
+    for ax, (title, subtitle) in zip(axes, PANEL_TITLES, strict=True):
+        ax.set_title(title, fontsize=TITLE_FONT_SIZE, fontweight='medium', pad=10)
+        ax.annotate(
+            subtitle,
+            xy=(0.5, 1.0),
+            xycoords='axes fraction',
+            xytext=(0, 3.5),
+            textcoords='offset points',
+            ha='center',
+            va='bottom',
+            fontsize=SUBTITLE_FONT_SIZE,
+            color=brand.MUTED,
+        )
+    for handles, anchor in ((model_handles(), 1.0), (protocol_handles(), 1.0 - 0.14 / height)):
         fig.legend(
             handles=handles,
             loc='upper center',
             bbox_to_anchor=(0.53, anchor),
             ncol=len(handles),
             frameon=False,
-            fontsize=5.8,
+            borderaxespad=0.0,
+            fontsize=LEGEND_FONT_SIZE,
             handlelength=1.6,
             columnspacing=1.4,
         )
-    fig.savefig(output_dir / 'smnist_figure.pdf', bbox_inches='tight')
-    fig.savefig(output_dir / 'smnist_figure.png', dpi=300, bbox_inches='tight')
+    brand.finish(fig)
+    _warn_if_clipped(fig, 'smnist_figure')
+    with plt.rc_context({'savefig.bbox': 'standard'}):
+        fig.savefig(output_dir / 'smnist_figure.pdf')
+        fig.savefig(output_dir / 'smnist_figure.png', dpi=300)
     plt.close(fig)
 
     for name, draw, data in (
@@ -513,6 +551,7 @@ def save_figure(results: dict[str, ProtocolStats], curves: dict[str, DataCurve],
     ):
         fig, ax = plt.subplots(figsize=(2.2, 1.6), constrained_layout=True)
         draw(ax, data)
+        brand.finish(fig)
         fig.savefig(output_dir / f'smnist_{name}.pdf')
         plt.close(fig)
 

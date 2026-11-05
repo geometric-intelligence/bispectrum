@@ -5,22 +5,27 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import brand  # noqa: E402
 
 PARETO_DIR = Path(__file__).parent / 'pcam_results_pareto'
 ONEPCT_DIR = Path(__file__).parent / 'pcam_results_1pct'
 DATA_PARETO_DIR = Path(__file__).parent / 'pcam_results_data_pareto'
 
 MODEL_STYLE = {
-    'standard': {'color': '#888888', 'marker': 's', 'label': 'Aug. CNN'},
-    'norm': {'color': '#2196F3', 'marker': 'o', 'label': 'NormReLU'},
-    'gate': {'color': '#FF9800', 'marker': '^', 'label': 'Gated'},
-    'fourier_elu': {'color': '#9C27B0', 'marker': 'D', 'label': 'Fourier-ELU'},
-    'norm_pool': {'color': '#5C6BC0', 'marker': 'v', 'label': 'Norm pool'},
-    'bispectrum': {'color': '#E53935', 'marker': '*', 'label': 'Bispectrum'},
+    'standard': {'color': brand.METHOD_COLORS['standard'], 'marker': 's', 'label': 'Aug. CNN'},
+    'norm': {'color': brand.METHOD_COLORS['norm'], 'marker': 'o', 'label': 'NormReLU'},
+    'gate': {'color': brand.METHOD_COLORS['gate'], 'marker': '^', 'label': 'Gated'},
+    'fourier_elu': {'color': brand.METHOD_COLORS['fourier_elu'], 'marker': 'D', 'label': 'Fourier-ELU'},
+    'norm_pool': {'color': brand.METHOD_COLORS['norm_pool'], 'marker': 'v', 'label': 'Norm pool'},
+    'bispectrum': {'color': brand.METHOD_COLORS['bispectrum'], 'marker': '*', 'label': 'Bispectrum'},
 }
 MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum']
 
@@ -169,18 +174,16 @@ def load_data_pareto() -> dict[str, dict[int, dict[str, float]]]:
 
 
 def _style_ax(ax: plt.Axes) -> None:
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    brand.style_axes(ax, grid=None)
     ax.spines['left'].set_linewidth(0.6)
     ax.spines['bottom'].set_linewidth(0.6)
     ax.tick_params(width=0.6, length=3)
-    ax.set_axisbelow(True)
 
 
 def main() -> None:
+    brand.use_style()
     plt.rcParams.update(
         {
-            'font.family': 'serif',
             'font.size': 11,
             'axes.titlesize': 12,
             'axes.labelsize': 11,
@@ -238,8 +241,8 @@ def main() -> None:
     ax1.set_ylim(0.75, 0.96)
     ax1.set_title('(a) AUC vs. parameter count (10% data)')
     _style_ax(ax1)
-    ax1.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
-    ax1.legend(frameon=True, fancybox=False, edgecolor='#cccccc', framealpha=0.95, loc='lower right')
+    ax1.yaxis.grid(True, linewidth=0.4, zorder=0)
+    ax1.legend(frameon=True, fancybox=False, framealpha=0.95, loc='lower right')
 
     matched_data = []
     for model in MODEL_ORDER:
@@ -261,7 +264,7 @@ def main() -> None:
         aucs_matched,
         xerr=errs_matched,
         color=colors,
-        edgecolor='white',
+        edgecolor=brand.surface_color(),
         linewidth=0.6,
         height=0.6,
         zorder=3,
@@ -274,7 +277,7 @@ def main() -> None:
     ax2.set_xlim(0.75, 0.96)
     ax2.set_title('(b) Ranking at ~100K parameters')
     _style_ax(ax2)
-    ax2.xaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
+    ax2.xaxis.grid(True, linewidth=0.4, zorder=0)
 
     for bar, auc, err in zip(bars, aucs_matched, errs_matched, strict=False):
         label = f'{auc:.3f}'
@@ -286,7 +289,7 @@ def main() -> None:
             label,
             va='center',
             fontsize=8,
-            fontweight='medium',
+            fontfamily=brand.MONO,
         )
 
     for model in MODEL_ORDER:
@@ -331,17 +334,17 @@ def main() -> None:
     ax3.set_xticklabels([f'{t:,}' if t < PCAM_FULL_TRAIN else 'full' for t in ticks])
     ax3.set_ylim(0.75, 0.96)
     _style_ax(ax3)
-    ax3.yaxis.grid(True, linewidth=0.4, alpha=0.5, zorder=0)
+    ax3.yaxis.grid(True, linewidth=0.4, zorder=0)
     ax3.legend(
         frameon=True,
         fancybox=False,
-        edgecolor='#cccccc',
         framealpha=0.95,
         loc='lower right',
         fontsize=7,
     )
 
     fig.tight_layout()
+    brand.finish(fig)
     out_path = Path(__file__).parent / 'pareto_analysis.png'
     fig.savefig(out_path, dpi=300)
     fig.savefig(out_path.with_suffix('.pdf'))

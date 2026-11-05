@@ -4,22 +4,27 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import brand  # noqa: E402
+
 BASE_DIR = Path(__file__).parent / 'pcam_results_data_pareto'
 PCAM_FULL_TRAIN = 262_144
 
 MODEL_STYLE: dict[str, dict] = {
-    'standard': {'color': '#888888', 'marker': 's', 'label': 'Aug. CNN'},
-    'norm': {'color': '#2196F3', 'marker': 'o', 'label': 'NormReLU'},
-    'gate': {'color': '#FF9800', 'marker': '^', 'label': 'Gated'},
-    'fourier_elu': {'color': '#9C27B0', 'marker': 'D', 'label': 'Fourier-ELU'},
-    'norm_pool': {'color': '#5C6BC0', 'marker': 'v', 'label': 'Norm pool'},
-    'bispectrum': {'color': '#E53935', 'marker': '*', 'label': 'Bispectrum'},
+    'standard': {'color': brand.METHOD_COLORS['standard'], 'marker': 's', 'label': 'Aug. CNN'},
+    'norm': {'color': brand.METHOD_COLORS['norm'], 'marker': 'o', 'label': 'NormReLU'},
+    'gate': {'color': brand.METHOD_COLORS['gate'], 'marker': '^', 'label': 'Gated'},
+    'fourier_elu': {'color': brand.METHOD_COLORS['fourier_elu'], 'marker': 'D', 'label': 'Fourier-ELU'},
+    'norm_pool': {'color': brand.METHOD_COLORS['norm_pool'], 'marker': 'v', 'label': 'Norm pool'},
+    'bispectrum': {'color': brand.METHOD_COLORS['bispectrum'], 'marker': '*', 'label': 'Bispectrum'},
 }
 MODEL_ORDER = ['standard', 'norm', 'gate', 'fourier_elu', 'norm_pool', 'bispectrum']
 
@@ -112,6 +117,7 @@ def main() -> None:
         print('No data-efficiency runs to plot.')
         return
 
+    brand.use_style()
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
     fig.suptitle(
         'PCam Data Efficiency: AUC vs. Training Examples (matched params)',
@@ -146,7 +152,7 @@ def main() -> None:
     ax.set_ylabel('Test AUC')
     ax.set_title('(a) Test AUC vs. training examples')
     ax.legend(fontsize=8, loc='lower right')
-    ax.grid(True, alpha=0.3)
+    brand.style_axes(ax, grid='both')
     ax.set_xticks(all_sizes)
     ax.set_xticklabels([f'{n:,}' for n in all_sizes])
 
@@ -170,13 +176,13 @@ def main() -> None:
                 zorder=3,
             )
 
-        ax.axhline(0, color='#888888', linestyle='--', alpha=0.5)
+        ax.axhline(0, color=brand.MUTED, linestyle='--', linewidth=0.8)
         ax.set_xscale('log')
         ax.set_xlabel('Training examples (N)')
         ax.set_ylabel('AUC difference vs. Standard')
         ax.set_title('(b) AUC gain over Standard baseline')
         ax.legend(fontsize=8, loc='best')
-        ax.grid(True, alpha=0.3)
+        brand.style_axes(ax, grid='both')
         ax.set_xticks(all_sizes)
         ax.set_xticklabels([f'{n:,}' for n in all_sizes])
     else:
@@ -188,9 +194,11 @@ def main() -> None:
             ha='center',
             va='center',
             fontsize=12,
+            color=brand.MUTED,
         )
 
     plt.tight_layout(rect=[0, 0, 1, 0.94])
+    brand.finish(fig)
     out_path = Path(__file__).parent / 'data_pareto_analysis.png'
     fig.savefig(out_path, dpi=150, bbox_inches='tight')
     print(f'Saved figure to {out_path}')
