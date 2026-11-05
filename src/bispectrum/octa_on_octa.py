@@ -29,7 +29,8 @@ with CnonCn and DnonDn modules.
 import math
 
 import torch
-import torch.nn as nn
+
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 _S3_2 = math.sqrt(3.0) / 2.0
 
@@ -324,7 +325,7 @@ def _batched_kron_3x3(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
     return torch.einsum('bij,bkl->bikjl', A, B).reshape(A.shape[0], 9, 9)
 
 
-class OctaonOcta(nn.Module):
+class OctaonOcta(CUDAGraphModule):
     """Bispectrum of the octahedral group O acting on R^3.
 
     Signal f: O -> R has length 24 (one value per group element).
@@ -508,6 +509,7 @@ class OctaonOcta(nn.Module):
 
         return Fplus
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the O-Bispectrum of signal f.
 

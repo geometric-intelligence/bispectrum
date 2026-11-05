@@ -21,7 +21,8 @@ import math
 from typing import NamedTuple
 
 import torch
-import torch.nn as nn
+
+from bispectrum._cuda_graph import CUDAGraphModule, cuda_graphed
 
 
 class _CGBlock(NamedTuple):
@@ -210,7 +211,7 @@ def _batched_kron_2x2(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
     return torch.einsum('bij,bkl->bikjl', A, B).reshape(A.shape[0], 4, 4)
 
 
-class DnonDn(nn.Module):
+class DnonDn(CUDAGraphModule):
     """Bispectrum of D_n acting on D_n.
 
     Signal f: D_n -> R has length 2n.
@@ -440,6 +441,7 @@ class DnonDn(nn.Module):
                     Fplus[:, r, r] = fhat[:, 1, 1, 0]
         return Fplus
 
+    @cuda_graphed
     def forward(self, f: torch.Tensor) -> torch.Tensor:
         """Compute the D_n selective bispectrum.
 

@@ -1,5 +1,7 @@
 """Tests for SO3onS2 bispectrum module."""
 
+import functools
+
 import pytest
 import torch
 
@@ -984,11 +986,16 @@ def _run_python_path(bsp, f):
     return bsp._forward_python(f_coeffs, coeffs.dtype, f.device, f.shape[0], bsp.output_size)
 
 
+def _eager(bsp):
+    """Undecorated forward bound to ``bsp``: what the CUDA graph captures."""
+    return functools.partial(type(bsp).forward.__wrapped__, bsp)
+
+
 def _run_cuda_graph_path(bsp, f):
     """Force the CUDA graph path."""
     bsp.reset_cuda_graph_cache()
     with torch.no_grad():
-        result = bsp._forward_cuda_graph(f, f.shape[0], bsp.output_size)
+        result = bsp._forward_cuda_graph(f, _eager(bsp))
     assert result is not None, 'CUDA graph capture failed'
     return result
 
@@ -1039,7 +1046,7 @@ class TestCUDAGraphParity:
         torch.testing.assert_close(out1_graph, out1_python, atol=1e-5, rtol=1e-5)
 
         f2 = torch.randn(2, 32, 64, device='cuda')
-        result = bsp._forward_cuda_graph(f2, 2, bsp.output_size)
+        result = bsp._forward_cuda_graph(f2, _eager(bsp))
         assert result is not None
         out2_python = _run_python_path(bsp, f2)
         torch.testing.assert_close(result, out2_python, atol=1e-5, rtol=1e-5)
@@ -1071,7 +1078,7 @@ class TestCUDAGraphParity:
         assert out is not None
 
         f4 = torch.randn(4, 32, 64, device='cuda')
-        out_mismatch = bsp._forward_cuda_graph(f4, 4, bsp.output_size)
+        out_mismatch = bsp._forward_cuda_graph(f4, _eager(bsp))
         assert out_mismatch is None
 
     def test_reset_cuda_graph_cache(self):
