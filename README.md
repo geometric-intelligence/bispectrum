@@ -111,16 +111,33 @@ Modules default to O(|G|) selective coefficients; pass `selective=False` for the
 
 ## Benchmarks
 
-Median wall-clock on a single NVIDIA H100 80 GB GPU (batch=16, `torch.utils.benchmark`):
+Median wall-clock on a single NVIDIA H100 80 GB GPU (bispectrum 0.4.1, PyTorch 2.11 + CUDA 12.8, batch=16, `torch.utils.benchmark`). _Sel._ is the selective forward with autograd enabled, _Inf._ the same call under `torch.inference_mode()`, where `SO3onS2` replays a captured CUDA graph. Reproduce with `python benchmarks/benchmark.py --paper`.
 
-| Module         | Group       | \|G\| / L_max | Coefs (sel.) | Coefs (full) | Fwd sel. (ms) | Fwd full (ms) |
-| -------------- | ----------- | ------------- | ------------ | ------------ | ------------- | ------------- |
-| `CnonCn`       | C_128       | 128           | 128          | 8,256        | 0.14          | 8.53          |
-| `TorusOnTorus` | C_32 × C_32 | 1,024         | 1,024        | 524,800      | 0.07          | 0.31          |
-| `DnonDn`       | D_32        | 64            | 245          | —            | 0.57          | —             |
-| `SO2onDisk`    | SO(2)       | L=16          | 76           | —            | 0.22          | —             |
-| `SO3onS2`      | SO(3)       | L=16          | 426          | —            | 0.48          | —             |
-| `OctaonOcta`   | O           | 24            | 172          | —            | 0.68          | —             |
+| Module         | Group       | \|G\| / L_max | Coefs (sel.) | Coefs (full) | Sel. (ms) | Inf. (ms) | Full (ms) |
+| -------------- | ----------- | ------------- | ------------ | ------------ | --------- | --------- | --------- |
+| `CnonCn`       | C_128       | 128           | 128          | 8,256        | 0.14      | 0.13      | 8.81      |
+| `TorusOnTorus` | C_32 × C_32 | 1,024         | 1,024        | 524,800      | 0.08      | 0.07      | 0.31      |
+| `DnonDn`       | D_32        | 64            | 245          | —            | 0.54      | 0.48      | —         |
+| `SO2onDisk`    | SO(2)       | L=16          | 76           | —            | 0.22      | 0.21      | —         |
+| `SO3onS2`      | SO(3)       | L=16          | 426          | —            | 0.63      | 0.20      | —         |
+| `OctaonOcta`   | O           | 24            | 172          | —            | 0.68      | 0.61      | —         |
+
+### Devices and backends
+
+Selective forward in inference mode (median ms, batch=16, PyTorch 2.11), same groups and sizes as above. CPU rows pin `torch.set_num_threads`; with the default of one thread per core, `SO3onS2` can be much slower on large shared hosts. On MPS, modules are cast to float32 (see [Apple silicon](#apple-silicon-mps)). Reproduce with `python benchmarks/benchmark_devices.py --device {cuda,mps,cpu} [--threads N] --output out.json`.
+
+| Device          | Backend    | Threads | `CnonCn` | `TorusOnTorus` | `DnonDn` | `SO2onDisk` | `SO3onS2` | `OctaonOcta` |
+| --------------- | ---------- | ------- | -------- | -------------- | -------- | ----------- | --------- | ------------ |
+| H100 80 GB      | CUDA 12.8  | —       | 0.12     | 0.07           | 0.48     | 0.21        | 0.20      | 0.60         |
+| A100 80 GB PCIe | CUDA 13.0  | —       | 0.16     | 0.10           | 0.64     | 0.31        | 0.26      | 0.82         |
+| RTX 4090 24 GB  | CUDA 12.8  | —       | 0.20     | 0.12           | 0.76     | 0.34        | 0.18      | 0.92         |
+| Apple M5 Pro    | MPS (fp32) | —       | 0.08     | 0.07           | 0.30     | 0.69        | 0.82      | 0.41         |
+| Xeon 8480+      | CPU        | 1       | 0.05     | 0.18           | 0.29     | 0.16        | 27.8      | 0.25         |
+| Xeon 8480+      | CPU        | 8       | 0.08     | 0.14           | 0.32     | 0.13        | 7.36      | 0.28         |
+| EPYC 7763       | CPU        | 1       | 0.06     | 0.22           | 0.37     | 0.16        | 32.2      | 0.35         |
+| EPYC 7763       | CPU        | 8       | 0.08     | 0.17           | 0.45     | 0.19        | 5.46      | 0.45         |
+| Apple M5 Pro    | CPU        | 1       | 0.02     | 0.10           | 0.10     | 0.04        | 5.75      | 0.11         |
+| Apple M5 Pro    | CPU        | 8       | 0.02     | 0.15           | 0.14     | 0.07        | 2.22      | 0.12         |
 
 ## Development
 
