@@ -4,9 +4,9 @@ Run this on the GPU machine from the repository root. E1--E4 are the experiments
 the camera-ready: device timings, reconstruction at L=15, the Spherical MNIST feature-set
 ablation and the OrganMNIST3D regularization sweep.
 
-Outputs go to `rebuttal/results/` and `experiments/*/*_results*/`, which are symlinks into
+Outputs go to `experiments/tooling/results/` and `experiments/*/*_results*/`, which are symlinks into
 the gitignored `results/` store (see `RESULTS.md`). On a fresh clone, run
-`python rebuttal/results_store.py link` first, and run `adopt` after any step that creates
+`python experiments/tooling/results_store.py link` first, and run `adopt` after any step that creates
 a new results directory.
 
 ## 0. Reproduce the environment
@@ -18,8 +18,8 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev,experiments]"
-mkdir -p rebuttal/results/environment
-python - <<'PY' | tee rebuttal/results/environment/python.txt
+mkdir -p experiments/tooling/results/environment
+python - <<'PY' | tee experiments/tooling/results/environment/python.txt
 import platform
 import torch
 
@@ -32,7 +32,7 @@ if torch.cuda.is_available():
     print("GPU:", torch.cuda.get_device_name(0))
     print("Capability:", torch.cuda.get_device_capability(0))
 PY
-nvidia-smi | tee rebuttal/results/environment/nvidia-smi.txt
+nvidia-smi | tee experiments/tooling/results/environment/nvidia-smi.txt
 ```
 
 Run the normal tests before the experiments:
@@ -54,7 +54,7 @@ On a Linux GPU host (CUDA, then the host CPU at each of `BENCH_THREADS`, default
 `1 8`):
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 bash rebuttal/run_camera_ready.sh timings <tag>  # e.g. h100, a100
+CUDA_VISIBLE_DEVICES=0 bash experiments/tooling/run_camera_ready.sh timings <tag>  # e.g. h100, a100
 ```
 
 This writes `<tag>_cuda.json` and `<tag>_host_cpu_t<n>.json`. Pin the CPU
@@ -65,7 +65,7 @@ such as `rtx4090`.
 On the Mac (bispectrum >= 0.4.1; 0.4.0 fails on 4 of the 6 modules under MPS):
 
 ```bash
-bash rebuttal/run_device_bench_mac.sh  # m5pro_mps.json, m5pro_host_cpu_t<n>.json
+bash experiments/tooling/run_device_bench_mac.sh  # m5pro_mps.json, m5pro_host_cpu_t<n>.json
 ```
 
 MPS has no float64, so the MPS rows cast each module to float32
@@ -73,15 +73,15 @@ MPS has no float64, so the MPS rows cast each module to float32
 Unsupported operations are retained as explicit errors rather than silently
 dropped.
 
-With all device JSON files in `rebuttal/results/device_bench/`:
+With all device JSON files in `experiments/tooling/results/device_bench/`:
 
 ```bash
-python rebuttal/analyze_device_benchmarks.py \
-  rebuttal/results/device_bench/*_cuda.json \
-  rebuttal/results/device_bench/*_mps.json \
-  rebuttal/results/device_bench/*_host_cpu_t*.json \
-  --output rebuttal/results/device_bench/combined.json \
-  | tee rebuttal/results/device_bench/combined.md
+python experiments/tooling/analyze_device_benchmarks.py \
+  experiments/tooling/results/device_bench/*_cuda.json \
+  experiments/tooling/results/device_bench/*_mps.json \
+  experiments/tooling/results/device_bench/*_host_cpu_t*.json \
+  --output experiments/tooling/results/device_bench/combined.json \
+  | tee experiments/tooling/results/device_bench/combined.md
 ```
 
 Expected runtime: a few minutes per device; first-time CG/Bessel cache
@@ -113,13 +113,13 @@ python experiments/spherical_mnist_reconstruction/reconstruct.py \
   --lmax 15 --nlat 128 --nlon 256 --n_steps 20 \
   --n_recon_restarts 1 --align_n_restarts 0 \
   --device cuda --skip_figures \
-  --output_dir rebuttal/results/reconstruction_smoke
+  --output_dir experiments/tooling/results/reconstruction_smoke
 ```
 
 Then run the full experiment:
 
 ```bash
-bash rebuttal/run_reconstruction_evidence.sh
+bash experiments/tooling/run_reconstruction_evidence.sh
 ```
 
 The runner creates the 128x256 Spherical MNIST test cache if absent. Expect
@@ -131,10 +131,10 @@ These results remain empirical evidence, not a completeness proof.
 
 Bring back:
 
-- `rebuttal/results/reconstruction/{smnist_l15,random_l15}/results.json`;
+- `experiments/tooling/results/reconstruction/{smnist_l15,random_l15}/results.json`;
 - both `state.pt` files (for later figures);
 - both logs; and
-- `rebuttal/results/reconstruction/summary.json`.
+- `experiments/tooling/results/reconstruction/summary.json`.
 
 The runner then solves the same targets again with the degree-by-degree solver,
 `experiments/spherical_mnist_reconstruction/degree_marching.py`: Levenberg--Marquardt
@@ -177,14 +177,14 @@ done
 Run the 4-feature-set x 3-seed canonical-training experiment:
 
 ```bash
-bash rebuttal/run_smnist_ablation.sh
+bash experiments/tooling/run_smnist_ablation.sh
 ```
 
 This yields NR/NR and the key NR/R result in twelve runs. If time permits and
 all twelve primary runs succeeded, add R/R with:
 
 ```bash
-TRAIN_MODES=R bash rebuttal/run_smnist_ablation.sh
+TRAIN_MODES=R bash experiments/tooling/run_smnist_ablation.sh
 ```
 
 The first invocation may spend substantial time building the 64x128 Spherical
@@ -217,9 +217,9 @@ each takes ~9 GB of GPU memory, so three fit on a 40 GB A100.
 Run 7 configurations x 3 seeds = 21 runs:
 
 ```bash
-bash rebuttal/run_organ3d_regularization.sh
+bash experiments/tooling/run_organ3d_regularization.sh
 # or one run per GPU slot:
-CUDA_VISIBLE_DEVICES=3 CONFIG_LABELS=bsp_base SEEDS=42 bash rebuttal/run_organ3d_regularization.sh
+CUDA_VISIBLE_DEVICES=3 CONFIG_LABELS=bsp_base SEEDS=42 bash experiments/tooling/run_organ3d_regularization.sh
 ```
 
 The configurations are max baseline; bispectrum baseline; weight decay
@@ -245,8 +245,8 @@ Do not use “overfitting” merely because test accuracy is lower.
 ## Collect the results
 
 ```bash
-python rebuttal/results_store.py adopt      # new result directories into the store
-python rebuttal/results_store.py manifest   # then commit rebuttal/results_manifest.tsv
+python experiments/tooling/results_store.py adopt      # new result directories into the store
+python experiments/tooling/results_store.py manifest   # then commit experiments/tooling/results_manifest.tsv
 ```
 
 Publishing the store is described in `RESULTS.md`.

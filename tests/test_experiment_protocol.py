@@ -29,7 +29,7 @@ import torch
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parents[1] / 'experiments'
 DATASETS = ('organ3d', 'pcam', 'spherical_mnist')
-SWEEP_SCRIPTS = sorted(EXPERIMENTS_DIR.glob('*/run_*.sh'))
+SWEEP_SCRIPTS = sorted(p for d in DATASETS for p in (EXPERIMENTS_DIR / d).glob('run_*.sh'))
 
 
 def _train_ast(dataset: str) -> ast.Module:

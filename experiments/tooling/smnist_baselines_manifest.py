@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 CWD = 'experiments/spherical_mnist'
 TUNE_DIR = './smnist_results_baselines_tuning'
 FINAL_DIR = './smnist_results_baselines'

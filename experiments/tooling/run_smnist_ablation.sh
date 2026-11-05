@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 TRAIN="$REPO_ROOT/experiments/spherical_mnist/train.py"
 DATA_DIR="${SMNIST_DATA_DIR:-$REPO_ROOT/experiments/spherical_mnist/smnist_data}"
-OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/rebuttal/results/smnist_ablation}"
+OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/experiments/tooling/results/smnist_ablation}"
 TRAIN_MODES="${TRAIN_MODES:-C}"
 SEEDS="${SEEDS:-42 123 456}"
 FEATURES="${FEATURES:-bootstrap bootstrap_self bootstrap_self_cg full}"
@@ -40,6 +40,6 @@ for features in $FEATURES; do
   done
 done
 
-"$PYTHON" "$REPO_ROOT/rebuttal/analyze_smnist_ablation.py" \
+"$PYTHON" "$REPO_ROOT/experiments/tooling/analyze_smnist_ablation.py" \
   --results-dir "$OUTPUT_DIR" \
   --output "$OUTPUT_DIR/summary.json"

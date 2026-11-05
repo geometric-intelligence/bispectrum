@@ -106,3 +106,7 @@ python experiments/make_grid_figure.py --mock    # layout preview -> experiments
 ```
 
 Outputs: per-panel PDFs (`grid_r{row}c{col}_*.pdf`), per-row legends, an assembled contact sheet (PNG + PDF), `caption.tex` (the LaTeX `\caption`/`\label` to `\input` in the paper; its numbers are recomputed from the results, with a warning if a claim stops holding), `caption_details.tex` (the appendix subsection it points to), and `preview.tex`, which typesets all of it on NeurIPS pages.
+
+## Published results and the camera-ready tooling
+
+The camera-ready results are on the Hugging Face dataset [`geometric-intelligence/bispectrum`](https://huggingface.co/datasets/geometric-intelligence/bispectrum). Fetching them replaces the `rsync` above; `tooling/RESULTS.md` has the commands, and `tooling/results_store.py` keeps every `*_results*` directory in a gitignored `results/` store. `tooling/` also holds the GPU job runner that ran the camera-ready sweeps, the extra experiments E1 to E4 (runbook: `tooling/EXPERIMENTS.md`) and their analysis scripts.
