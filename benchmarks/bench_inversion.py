@@ -15,11 +15,8 @@ from __future__ import annotations
 import argparse
 import time
 from pathlib import Path
+from types import ModuleType
 
-import matplotlib
-
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
@@ -282,11 +279,22 @@ def _write_latex_table(stats: dict, path: Path) -> None:
     print(f'\nLaTeX table written to {path}')
 
 
+def _pyplot() -> ModuleType:
+    """Matplotlib is imported lazily: the recovery metric is tested on CI without it."""
+    import matplotlib
+
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    return plt
+
+
 def _plot_convergence(traces: list[list[float]], path: Path) -> None:
     """Plot median residual vs.
 
     LM step for each restart.
     """
+    plt = _pyplot()
     plt.rcParams.update(NEURIPS_RCPARAMS)
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
 
@@ -326,6 +334,7 @@ def _plot_convergence(traces: list[list[float]], path: Path) -> None:
 
 def _plot_error_histogram(errors: np.ndarray, path: Path) -> None:
     """Histogram of recovery errors (log scale)."""
+    plt = _pyplot()
     plt.rcParams.update(NEURIPS_RCPARAMS)
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
 
