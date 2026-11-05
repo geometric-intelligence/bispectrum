@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Spherical MNIST: give the bispectrum the baselines' optimizer grid (camera-ready fairness).
 #
-#   bash rebuttal/run_smnist_bispectrum_grid.sh tmux <session>   # detached, survives logout
-#   bash rebuttal/run_smnist_bispectrum_grid.sh run              # tune -> select -> final seeds
+#   bash experiments/tooling/run_smnist_bispectrum_grid.sh tmux <session>   # detached, survives logout
+#   bash experiments/tooling/run_smnist_bispectrum_grid.sh run              # tune -> select -> final seeds
 #
 # Grid = union of the S2CNN+BN and tensor-product optimizer values: batch {32, 256} x
 # lr {1e-3, 3e-3, 5e-3}, one C-trained seed (42), selected on best_val_accuracy exactly like
-# rebuttal/smnist_baselines_manifest.py; the winner then runs at every seed and train mode.
+# experiments/tooling/smnist_baselines_manifest.py; the winner then runs at every seed and train mode.
 # Restartable: any run whose results.json exists is skipped.
 set -uo pipefail
 
@@ -14,7 +14,7 @@ SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[
 REPO_ROOT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
 PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 SMNIST="$REPO_ROOT/experiments/spherical_mnist"
-OUT="$REPO_ROOT/rebuttal/results/smnist_bispectrum_grid"
+OUT="$REPO_ROOT/experiments/tooling/results/smnist_bispectrum_grid"
 LOG_DIR="$OUT/logs"
 TUNE_DIR=./smnist_results_bispectrum_tuning
 FINAL_DIR=./smnist_results_bispectrum_tuned

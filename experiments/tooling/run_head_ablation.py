@@ -25,10 +25,10 @@ writes a progress line to ``<results>/logs/runner.log`` every ten minutes. SIGIN
 terminate every running job (whole process groups). Exit status is non-zero if any job
 failed.
 
-Usage (from the repository root, inside tmux via ``rebuttal/run_head_ablation.sh``)::
+Usage (from the repository root, inside tmux via ``experiments/tooling/run_head_ablation.sh``)::
 
-    .venv/bin/python rebuttal/run_head_ablation.py --gpus 0-7 --workers_per_gpu 2
-    .venv/bin/python rebuttal/run_head_ablation.py --dry_run
+    .venv/bin/python experiments/tooling/run_head_ablation.py --gpus 0-7 --workers_per_gpu 2
+    .venv/bin/python experiments/tooling/run_head_ablation.py --dry_run
 """
 
 from __future__ import annotations
@@ -45,8 +45,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Final, Literal
 
-REPO_ROOT: Final = Path(__file__).resolve().parents[1]
-DEFAULT_RESULTS: Final = REPO_ROOT / 'rebuttal' / 'results' / 'head_ablation'
+REPO_ROOT: Final = Path(__file__).resolve().parents[2]
+DEFAULT_RESULTS: Final = REPO_ROOT / 'experiments' / 'tooling' / 'results' / 'head_ablation'
 
 Dataset = Literal['organ3d', 'pcam']
 

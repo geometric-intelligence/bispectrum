@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Summarize the bispectral pooling head ablation (``rebuttal/run_head_ablation.py``).
+"""Summarize the bispectral pooling head ablation (``experiments/tooling/run_head_ablation.py``).
 
 Reads every ``results.json`` under ``<results>/<dataset>/<setting>/<label>/seed*/`` and
 writes ``summary.md`` and ``summary.json`` next to them:
@@ -18,7 +18,7 @@ writes ``summary.md`` and ``summary.json`` next to them:
 
 Usage::
 
-    .venv/bin/python rebuttal/analyze_head_ablation.py [--results_root DIR]
+    .venv/bin/python experiments/tooling/analyze_head_ablation.py [--results_root DIR]
 """
 
 from __future__ import annotations
@@ -35,8 +35,8 @@ from typing import Any, Final
 
 from scipy import stats
 
-REPO_ROOT: Final = Path(__file__).resolve().parents[1]
-DEFAULT_RESULTS: Final = REPO_ROOT / 'rebuttal' / 'results' / 'head_ablation'
+REPO_ROOT: Final = Path(__file__).resolve().parents[2]
+DEFAULT_RESULTS: Final = REPO_ROOT / 'experiments' / 'tooling' / 'results' / 'head_ablation'
 
 HEAD_LABELS: Final = ('pre_log', 'post_log', 'post_log_power', 'post_cbrt_power')
 PRIMARY_METRIC: Final = {'organ3d': 'accuracy', 'pcam': 'auc'}

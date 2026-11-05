@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate L=15 reconstruction evidence for the rebuttal."""
+"""Aggregate the L=15 reconstruction evidence (E2)."""
 
 from __future__ import annotations
 

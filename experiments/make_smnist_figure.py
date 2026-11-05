@@ -400,7 +400,7 @@ def draw_latency_panel(ax: Axes, results: dict[str, ProtocolStats]) -> None:
             va=va,
             fontsize=5,
             fontfamily=brand.MONO,
-            color=brand.TERRACOTTA_TEXT if ours else brand.MUTED,
+            color=brand.ORANGE_TEXT if ours else brand.MUTED,
             linespacing=1.1,
         )
     ax.set_xscale('log')
@@ -684,7 +684,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Spherical MNIST figure and protocol table')
     parser.add_argument('--output_dir', type=Path, default=EXPERIMENTS_DIR / 'smnist_figure')
     parser.add_argument(
-        '--timing', type=Path, default=REPO_ROOT / 'rebuttal' / 'results' / 'smnist_baselines' / 'timing_h100.json'
+        '--timing', type=Path, default=REPO_ROOT / 'experiments' / 'tooling' / 'results' / 'smnist_baselines' / 'timing_h100.json'
     )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)

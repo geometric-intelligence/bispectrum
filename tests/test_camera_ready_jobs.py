@@ -1,5 +1,5 @@
-"""Camera-ready job manifest and GPU job runner (rebuttal/camera_ready_manifest.py,
-rebuttal/gpu_job_runner.py).
+"""Camera-ready job manifest and GPU job runner (experiments/tooling/camera_ready_manifest.py,
+experiments/tooling/gpu_job_runner.py).
 
 The manifest is the captured ``train.py`` calls of the sweep scripts, so these tests run the
 real scripts in capture mode (in a copy of the repository layout with an empty venv) and
@@ -22,14 +22,14 @@ from typing import Any
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / 'rebuttal'))
+sys.path.insert(0, str(REPO_ROOT / 'experiments' / 'tooling'))
 
 import camera_ready_manifest as crm  # noqa: E402
 from gpu_job_runner import GpuSlots, Job, Runner, next_placement, simulate  # noqa: E402
 
 PIPELINES = {'pcam': 90, 'pcam_12500': 21, 'pcam_full': 21, 'pcam_matched': 111, 'organ3d': 280}
 SCRIPTS = (
-    'rebuttal/run_camera_ready.sh',
+    'experiments/tooling/run_camera_ready.sh',
     'experiments/pcam/run_data_pareto_sweep.sh',
     'experiments/pcam/run_matched_sweep.sh',
     'experiments/organ3d/run_dataeff_multiseed.sh',
@@ -51,7 +51,13 @@ def raw_manifest(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     (root / '.venv' / 'bin' / 'activate').write_text('')
     capture = root / 'capture'
     subprocess.run(  # nosec B603 B607
-        ['bash', str(root / 'rebuttal/run_camera_ready.sh'), 'capture', str(capture), *PIPELINES],
+        [
+            'bash',
+            str(root / 'experiments/tooling/run_camera_ready.sh'),
+            'capture',
+            str(capture),
+            *PIPELINES,
+        ],
         check=True,
         capture_output=True,
         text=True,

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 TRAIN="$REPO_ROOT/experiments/organ3d/train.py"
 DATA_DIR="${ORGAN3D_DATA_DIR:-$REPO_ROOT/experiments/organ3d/organ3d_data}"
-OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/rebuttal/results/organ3d_regularization}"
+OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/experiments/tooling/results/organ3d_regularization}"
 # Optional space-separated list of config labels to run (for splitting the
 # sweep across GPUs). Empty means run everything.
 CONFIG_LABELS="${CONFIG_LABELS:-}"
@@ -53,7 +53,7 @@ done
 # across GPUs: the last finisher triggers the analysis).
 n_done="$(find "$OUTPUT_DIR" -name results.json | wc -l)"
 if [[ "$n_done" -eq 21 ]]; then
-  "$PYTHON" "$REPO_ROOT/rebuttal/analyze_organ3d_regularization.py" \
+  "$PYTHON" "$REPO_ROOT/experiments/tooling/analyze_organ3d_regularization.py" \
     --results-dir "$OUTPUT_DIR" \
     --output-dir "$OUTPUT_DIR/analysis"
 else
