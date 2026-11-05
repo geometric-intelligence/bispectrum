@@ -443,7 +443,8 @@ class SO2onDisk(CUDAGraphModule):
         # Step 5: sequential for n=1..N_m-1
         for n in range(1, N_m):
             K_np1 = K.get(n + 1, 0)
-            a_n1 = a[:, nonneg_to_idx[(n, 1)]]
+            # Later writes to a must not invalidate this divisor in autograd.
+            a_n1 = a[:, nonneg_to_idx[(n, 1)]].clone()
             for k in range(1, K_np1 + 1):
                 b_idx = offset + k - 1
                 a[:, nonneg_to_idx[(n + 1, k)]] = (beta[:, b_idx] / (a_11 * a_n1)).conj()

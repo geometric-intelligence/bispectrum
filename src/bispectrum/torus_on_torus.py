@@ -3,6 +3,10 @@
 Implements the G-Bispectrum for the discrete d-torus (product of cyclic groups)
 acting on itself.
 
+The exact invariant action consists of integer cyclic shifts on each axis.
+It does not include arbitrary continuous translations on T^d: modular DFT
+triplets can alias under fractional shifts, even for band-limited inputs.
+
 For signal f: C_{n_1} × ··· × C_{n_d} → R:
     β(f)_{k1,k2} = f_hat[k1] · f_hat[k2] · conj(f_hat[(k1+k2) mod n])
 
@@ -48,6 +52,9 @@ class TorusOnTorus(CUDAGraphModule):
     The discrete d-torus is a finite abelian group. All irreps are 1D characters,
     so no Clebsch-Gordan matrices are needed — the bispectrum reduces to scalar
     triple products of multidimensional DFT coefficients.
+
+    Exact invariance is to independent integer cyclic shifts, not to all
+    continuous translations of a sampled function on T^d.
 
     Reference: Mataigne et al., "The Selective G-Bispectrum and its Inversion",
     NeurIPS 2024. Forward uses Theorem A.12; selectivity from Theorem 4.3;
@@ -198,13 +205,17 @@ class TorusOnTorus(CUDAGraphModule):
         )
 
     def invert(self, beta: torch.Tensor, **kwargs: object) -> torch.Tensor:
-        """Recover the signal from selective bispectrum coefficients.
+        """Recover a complex Fourier-phase representative from selective coefficients.
 
         Implements Algorithm 2 from Mataigne et al. (2024).
-        The output is a canonical representative of the translation-equivalence
-        class, not the original signal. It is determined up to d independent
-        translations (one per cyclic factor); generator phases are fixed to
-        zero.
+        Generator Fourier phases are fixed to zero. This reproduces the
+        selected triplet products for nonzero pivots, but does not enforce
+        the conjugate symmetry or finite character constraints of a real
+        input. The returned complex signal need not belong to the original
+        signal's finite translation orbit, even for generic real inputs.
+        Since forward accepts only real signals, verify the selected products
+        of this representative directly from its FFT rather than passing it
+        to forward.
 
         Near-zero pivots are clamped rather than raising, so a single
         degenerate sample in a batch won't crash the whole computation;
@@ -244,7 +255,7 @@ class TorusOnTorus(CUDAGraphModule):
         gen_set = set(self._generator_flat)
         for _l, g_flat in enumerate(self._generator_flat):
             fhat[:, g_flat] = torch.sqrt(
-                torch.abs(beta[:, g_flat] / self._safe_denom(fhat[:, 0], eps))
+                torch.abs(beta[:, g_flat] / self._safe_denom(fhat[:, 0].clone(), eps))
             )
 
         # Phases 2+3: sequential bootstrap
@@ -256,8 +267,11 @@ class TorusOnTorus(CUDAGraphModule):
                 continue
             e_l_flat = idx_k1_cpu[flat_k]
             k_prev_flat = idx_k2_cpu[flat_k]
-            denom = fhat[:, e_l_flat] * fhat[:, k_prev_flat]
-            denom = self._safe_denom(denom, eps)
+            # Clamp individual pivots, not their product: two valid small pivots
+            # can have a product below eps. Copies preserve them for backward.
+            denom = self._safe_denom(fhat[:, e_l_flat].clone(), eps) * self._safe_denom(
+                fhat[:, k_prev_flat].clone(), eps
+            )
             fhat[:, flat_k] = torch.conj(beta[:, flat_k] / denom)
 
         fhat_nd = fhat.reshape(batch, *self.ns)
