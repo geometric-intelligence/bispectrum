@@ -49,7 +49,7 @@ from bispectrum import SO3onS2, random_rotation_matrix, rotate_spherical_functio
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import brand  # noqa: E402
+from assets import brand  # noqa: E402
 
 logger = logging.getLogger('so3_reconstruct')
 

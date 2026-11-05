@@ -13,7 +13,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import brand  # noqa: E402
+from assets import brand  # noqa: E402
 
 BASE_DIR = Path(__file__).parent / 'pcam_results_data_pareto'
 PCAM_FULL_TRAIN = 262_144

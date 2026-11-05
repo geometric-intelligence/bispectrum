@@ -53,7 +53,7 @@ from scipy.stats import ttest_ind_from_stats
 EXPERIMENTS_DIR: Final = Path(__file__).resolve().parent
 sys.path.insert(0, str(EXPERIMENTS_DIR.parent))
 
-import brand  # noqa: E402
+from assets import brand  # noqa: E402
 
 FloatArray = NDArray[np.float64]
 
