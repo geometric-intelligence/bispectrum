@@ -29,7 +29,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import brand  # noqa: E402
+from assets import brand  # noqa: E402
 
 MODEL_ORDER = ['standard', 'power_spectrum', 's2cnn', 's2cnn_bn', 'tensor_product', 'bispectrum']
 MODEL_LABELS = {

@@ -39,7 +39,7 @@ from bispectrum import CnonCn, DnonDn, OctaonOcta, SO2onDisk, SO3onS2, TorusOnTo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import brand  # noqa: E402
+from assets import brand  # noqa: E402
 from experiments.make_grid_figure import (  # noqa: E402
     LEGEND_FONT_SIZE,
     SUBTITLE_FONT_SIZE,

@@ -289,7 +289,7 @@ def _pyplot() -> ModuleType:
 def _brand() -> ModuleType:
     """The brand style imports matplotlib, so it is loaded lazily for the same reason."""
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    import brand
+    from assets import brand
 
     brand.use_style()
     return brand
