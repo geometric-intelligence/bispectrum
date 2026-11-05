@@ -1,7 +1,0 @@
-Python: 3.12.3
-Platform: Linux-6.11.0-1016-nvidia-x86_64-with-glibc2.39
-bispectrum: 0.4.0
-PyTorch: 2.11.0+cu128
-CUDA runtime: 12.8
-CUDA available: True
-GPU 0: NVIDIA H100 80GB HBM3 (9, 0)

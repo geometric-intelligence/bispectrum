@@ -110,6 +110,7 @@ benchmarks/figures/caption_*.tex
 /results
 experiments/**/*_results
 experiments/**/*_results_*
+rebuttal/results
 
 # camera-ready reruns: stale results moved aside by rebuttal/archive_stale_results.py
 *_pre040/
@@ -123,3 +124,11 @@ neurips_review.md
 rebuttal/reviewer_*.md
 rebuttal/global.md
 rebuttal/rebuttal.*
+/rebuttal.md
+/openreview_rebuttal.md
+/neurips_2026/
+/iclr_2027/
+paper/*.zip
+paper/*.pdf
+*.bbl
+*.blg

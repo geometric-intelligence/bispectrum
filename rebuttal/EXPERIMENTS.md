@@ -3,6 +3,11 @@
 Run this on the GPU machine from the repository root. E1--E4 are ordered by
 rebuttal value. Do not block the response on E5/E6.
 
+Outputs go to `rebuttal/results/` and `experiments/*/*_results*/`, which are symlinks into
+the gitignored `results/` store (see `RESULTS.md`). On a fresh clone, run
+`python rebuttal/results_store.py link` first, and run `adopt` after any step that creates
+a new results directory.
+
 ## 0. Reproduce the environment
 
 ```bash
@@ -118,7 +123,7 @@ bash rebuttal/run_reconstruction_evidence.sh
 The runner creates the 128x256 Spherical MNIST test cache if absent. Expect
 several GPU-hours; inspect the first 300-step log before leaving it unattended.
 The summary pre-registers two transparent operational thresholds:
-feature residual <= 1e-2 and aligned image residual <= 0.3. Report the full
+feature residual \<= 1e-2 and aligned image residual \<= 0.3. Report the full
 median/IQR as primary evidence; the thresholded success rate is secondary.
 These results remain empirical evidence, not a completeness proof.
 
