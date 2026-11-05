@@ -43,7 +43,7 @@ import os
 import pickle  # nosec B403 — only used for UnpicklingError type reference
 from collections import OrderedDict
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import torch
 import torch.nn as nn
@@ -864,6 +864,36 @@ class SO3onS2(nn.Module):
 
         return result
 
+    _DERIVED_INDEX_BUFFERS: tuple[str, ...] = (
+        '_sparse_fl1_abs',
+        '_sparse_fl2_abs',
+        '_sparse_fl_abs',
+        '_sparse_entry_ids',
+        '_sparse_is_power',
+        '_sparse_bispec_idx',
+        '_flat_src_l',
+        '_flat_src_m',
+        '_flat_conj_sign',
+    )
+
+    def _load_from_state_dict(
+        self,
+        state_dict: dict[str, Any],
+        prefix: str,
+        local_metadata: dict[str, Any],
+        strict: bool,
+        missing_keys: list[str],
+        unexpected_keys: list[str],
+        error_msgs: list[str],
+    ) -> None:
+        # <= 0.4.1 persisted these lazily built indices once forward had run; they are
+        # rebuilt from the sparse CG buffers, so drop them for strict loading.
+        for name in self._DERIVED_INDEX_BUFFERS:
+            state_dict.pop(prefix + name, None)
+        super()._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+        )
+
     def _build_sparse_global_indices(self) -> None:
         """Convert per-entry (l, m) indices to global flat-array indices.
 
@@ -910,14 +940,16 @@ class SO3onS2(nn.Module):
             entry_ids[start:end] = eidx
             is_power_mask[eidx] = bool(is_power)
 
-        self.register_buffer('_sparse_fl1_abs', fl1_abs)
-        self.register_buffer('_sparse_fl2_abs', fl2_abs)
-        self.register_buffer('_sparse_fl_abs', fl_abs)
-        self.register_buffer('_sparse_entry_ids', entry_ids)
-        self.register_buffer('_sparse_is_power', is_power_mask)
+        self.register_buffer('_sparse_fl1_abs', fl1_abs, persistent=False)
+        self.register_buffer('_sparse_fl2_abs', fl2_abs, persistent=False)
+        self.register_buffer('_sparse_fl_abs', fl_abs, persistent=False)
+        self.register_buffer('_sparse_entry_ids', entry_ids, persistent=False)
+        self.register_buffer('_sparse_is_power', is_power_mask, persistent=False)
 
         bispec_elem_mask = ~is_power_mask[entry_ids]
-        self.register_buffer('_sparse_bispec_idx', torch.where(bispec_elem_mask)[0])
+        self.register_buffer(
+            '_sparse_bispec_idx', torch.where(bispec_elem_mask)[0], persistent=False
+        )
 
         self._build_sht_to_flat_map(lmax, off)
 
@@ -943,9 +975,15 @@ class SO3onS2(nn.Module):
                 else:
                     conj_sign.append(0.0)
 
-        self.register_buffer('_flat_src_l', torch.tensor(src_l, dtype=torch.long))
-        self.register_buffer('_flat_src_m', torch.tensor(src_m, dtype=torch.long))
-        self.register_buffer('_flat_conj_sign', torch.tensor(conj_sign, dtype=torch.float64))
+        self.register_buffer(
+            '_flat_src_l', torch.tensor(src_l, dtype=torch.long), persistent=False
+        )
+        self.register_buffer(
+            '_flat_src_m', torch.tensor(src_m, dtype=torch.long), persistent=False
+        )
+        self.register_buffer(
+            '_flat_conj_sign', torch.tensor(conj_sign, dtype=torch.float64), persistent=False
+        )
 
     def _sht_to_flat(self, coeffs: torch.Tensor) -> torch.Tensor:
         """Convert SHT half-spectrum to flat complex coefficients using precomputed maps.

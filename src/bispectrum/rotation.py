@@ -8,7 +8,11 @@ import torch
 import torch.nn.functional as F
 
 
-def random_rotation_matrix(device: torch.device | None = None) -> torch.Tensor:
+def random_rotation_matrix(
+    device: torch.device | None = None,
+    *,
+    generator: torch.Generator | None = None,
+) -> torch.Tensor:
     """Generate a random SO(3) rotation matrix using QR decomposition.
 
     Uses the QR decomposition method to generate a uniformly distributed
@@ -16,12 +20,14 @@ def random_rotation_matrix(device: torch.device | None = None) -> torch.Tensor:
 
     Args:
         device: Device to create the tensor on. Defaults to CPU.
+        generator: Optional random generator on the same device. When supplied,
+            the global random stream is unchanged.
 
     Returns:
         torch.Tensor: A 3x3 rotation matrix (orthogonal with determinant +1).
     """
     # Generate random 3x3 matrix with standard normal entries
-    random_matrix = torch.randn(3, 3, device=device, dtype=torch.float64)
+    random_matrix = torch.randn(3, 3, device=device, dtype=torch.float64, generator=generator)
 
     # QR decomposition
     q, r = torch.linalg.qr(random_matrix)

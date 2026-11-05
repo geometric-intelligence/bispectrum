@@ -685,6 +685,11 @@ class OctaonOcta(nn.Module):
         if not self.selective:
             raise NotImplementedError('Inversion only implemented for selective bispectrum.')
 
+        # The bispectrum is homogeneous of degree three. Normalize each sample
+        # so absolute damping and bootstrap cutoffs do not depend on signal units.
+        signal_scale = beta.real.abs().amax(dim=-1).pow(1.0 / 3.0)
+        signal_scale = torch.where(signal_scale > 0, signal_scale, torch.ones_like(signal_scale))
+        beta = beta / signal_scale[:, None].pow(3)
         target_real = beta.real
         f_init = self._bootstrap_init(beta)
         fhat_init = self._group_dft(f_init.to(torch.float64))
@@ -723,7 +728,7 @@ class OctaonOcta(nn.Module):
                     best_f[improved] = f[improved]
                     best_loss[improved] = residuals[improved]
 
-        return best_f
+        return best_f * signal_scale[:, None]
 
     def _lm_step(
         self,

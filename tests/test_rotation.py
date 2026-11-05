@@ -23,6 +23,36 @@ class TestRandomRotationMatrix:
         R2 = random_rotation_matrix()
         assert not torch.allclose(R1, R2)
 
+    def test_explicit_generator_preserves_global_rng(self):
+        generator = torch.Generator().manual_seed(2718)
+        state = torch.random.get_rng_state().clone()
+        rotation = random_rotation_matrix(generator=generator)
+        assert torch.equal(torch.random.get_rng_state(), state)
+        torch.testing.assert_close(rotation.T @ rotation, torch.eye(3, dtype=torch.float64))
+        torch.testing.assert_close(
+            torch.linalg.det(rotation), torch.tensor(1.0, dtype=torch.float64)
+        )
+
+    def test_explicit_generator_is_reproducible_and_advances(self):
+        first = torch.Generator().manual_seed(2718)
+        second = torch.Generator().manual_seed(2718)
+        rotation = random_rotation_matrix(torch.device('cpu'), generator=first)
+        torch.testing.assert_close(
+            rotation, random_rotation_matrix(generator=second), atol=0, rtol=0
+        )
+        assert not torch.equal(rotation, random_rotation_matrix(generator=first))
+
+    def test_default_generator_remains_compatible(self):
+        state = torch.random.get_rng_state().clone()
+        try:
+            torch.manual_seed(2718)
+            expected = random_rotation_matrix()
+            torch.manual_seed(2718)
+            actual = random_rotation_matrix(torch.device('cpu'), generator=None)
+            torch.testing.assert_close(actual, expected, atol=0, rtol=0)
+        finally:
+            torch.random.set_rng_state(state)
+
 
 class TestRotateSphericalFunction:
     def test_identity_rotation(self):
