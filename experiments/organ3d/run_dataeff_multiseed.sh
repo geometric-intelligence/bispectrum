@@ -23,11 +23,17 @@ cd "$SCRIPT_DIR"
 
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$REPO_ROOT/.venv/bin/activate"
+# CAPTURE_JOBS=<file>: record "<cwd>\t<quoted argv>" per run instead of training.
+if [[ -n "${CAPTURE_JOBS:-}" ]]; then
+    python() { printf '%s\t%s\n' "$PWD" "${*@Q}" >>"$CAPTURE_JOBS"; }
+fi
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
 OUTPUT_DIR="./organ3d_results"
-COMMON="--patience 15 --epochs 100 --data_dir ./organ3d_data"
+# Same protocol for every model: a fixed epoch budget that ends at an SGDR cycle end
+# (10 + 20 + 40 epochs), no early stopping (best-validation checkpoint), one batch size.
+COMMON="--epochs 70 --batch_size 16 --data_dir ./organ3d_data"
 # shellcheck disable=SC2206  # word splitting is the point of these overrides
 SEEDS=(${SEEDS:-42 123 456})
 # shellcheck disable=SC2206
@@ -44,13 +50,6 @@ train_mode_for() {
     fi
 }
 
-batch_size_for() {
-    local model=$1
-    if [[ "$model" == "bispectrum" ]]; then echo 16
-    elif [[ "$model" == "standard" ]]; then echo 64
-    else echo 32; fi
-}
-
 run_single() {
     local model=$1 seed=$2 size=$3
     local channels="4 8"
@@ -64,15 +63,12 @@ run_single() {
         return 0
     fi
 
-    local bs
-    bs=$(batch_size_for "$model")
-
     echo ""
     echo "============================================================"
-    echo "  model=$model  mode=$mode  seed=$seed  size=$size  bs=$bs  $(date)"
+    echo "  model=$model  mode=$mode  seed=$seed  size=$size  $(date)"
     echo "============================================================"
     python train.py --model "$model" --channels $channels --train_mode "$mode" \
-        --output_dir "$OUTPUT_DIR" --seed "$seed" --batch_size "$bs" \
+        --output_dir "$OUTPUT_DIR" --seed "$seed" \
         --train_size "$size" $COMMON
 }
 

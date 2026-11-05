@@ -30,7 +30,9 @@ export PYTHONUNBUFFERED=1
 
 MODELS=(standard max_pool norm_pool bispectrum)
 OUTPUT_DIR="./organ3d_results"
-COMMON="--patience 15 --epochs 100 --data_dir ./organ3d_data"
+# Same protocol for every model: a fixed epoch budget that ends at an SGDR cycle end
+# (10 + 20 + 40 epochs), no early stopping (best-validation checkpoint), one batch size.
+COMMON="--epochs 70 --batch_size 16 --data_dir ./organ3d_data"
 
 train_mode_for() {
     local model=$1
@@ -38,17 +40,6 @@ train_mode_for() {
         echo "R"
     else
         echo "C"
-    fi
-}
-
-batch_size_for() {
-    local model=$1
-    if [[ "$model" == "bispectrum" ]]; then
-        echo 16
-    elif [[ "$model" == "standard" ]]; then
-        echo 64
-    else
-        echo 32
     fi
 }
 
@@ -62,14 +53,12 @@ run_single() {
         echo "SKIP (already done): model=$model mode=$mode seed=$seed"
         return 0
     fi
-    local bs
-    bs=$(batch_size_for "$model")
     echo ""
     echo "============================================================"
-    echo "  model=$model  mode=$mode  seed=$seed  bs=$bs  $(date)"
+    echo "  model=$model  mode=$mode  seed=$seed  $(date)"
     echo "============================================================"
     python train.py --model "$model" --channels $channels --train_mode "$mode" \
-        --output_dir "$OUTPUT_DIR" --seed "$seed" --batch_size "$bs" $COMMON
+        --output_dir "$OUTPUT_DIR" --seed "$seed" $COMMON
 }
 
 echo "=== Full sweep: all seeds with rotation eval ==="

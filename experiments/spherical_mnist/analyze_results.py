@@ -26,16 +26,22 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
-MODEL_ORDER = ['standard', 'power_spectrum', 'bispectrum']
+MODEL_ORDER = ['standard', 'power_spectrum', 's2cnn', 's2cnn_bn', 'tensor_product', 'bispectrum']
 MODEL_LABELS = {
     'standard': 'Aug. CNN',
     'power_spectrum': 'PowSpec',
+    's2cnn': 'S2CNN',
+    's2cnn_bn': 'S2CNN+BN',
+    'tensor_product': 'CG-TP',
     'bispectrum': 'Bispectrum',
 }
 
 MODEL_LABELS_FULL = {
     'standard': 'Aug. CNN',
     'power_spectrum': 'Power Spectrum',
+    's2cnn': 'S2CNN (re-run)',
+    's2cnn_bn': 'S2CNN + BN (re-run)',
+    'tensor_product': 'CG tensor product',
     'bispectrum': 'Bispectrum (ours)',
 }
 
@@ -126,6 +132,9 @@ NEURIPS_RCPARAMS = {
 COLORS = {
     'standard': '#7f7f7f',
     'power_spectrum': '#1f77b4',
+    's2cnn': '#8c564b',
+    's2cnn_bn': '#c49c94',
+    'tensor_product': '#2ca02c',
     'bispectrum': '#d62728',
 }
 
@@ -137,21 +146,18 @@ PROTOCOL_COLORS = {
 
 
 def load_results(
-    results_dir: str,
+    results_dir: str | list[str],
 ) -> dict[tuple[str, str], list[dict]]:
     """Load all results.json files, keyed by (model, train_mode)."""
     grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
-    results_path = Path(results_dir)
-    if not results_path.exists():
-        return grouped
-
-    for p in sorted(results_path.glob('*/results.json')):
-        with open(p) as f:
-            r = json.load(f)
-        if not _is_full_train(r):
-            continue
-        mode = _canonical_train_mode(r['train_mode'])
-        grouped[(r['model'], mode)].append(r)
+    for results_path in map(Path, [results_dir] if isinstance(results_dir, str) else results_dir):
+        for p in sorted(results_path.glob('*/results.json')):
+            with open(p) as f:
+                r = json.load(f)
+            if not _is_full_train(r):
+                continue
+            mode = _canonical_train_mode(r['train_mode'])
+            grouped[(r['model'], mode)].append(r)
 
     return grouped
 
@@ -182,7 +188,9 @@ def print_cohen_table(grouped: dict[tuple[str, str], list[dict]]):
     print('ACCURACY TABLE (Cohen et al. 2018 protocol, canonical/random)')
     print('Train/Test: X/Y = trained on X, evaluated on Y. Cohen reference uses NR for canonical.')
     print('=' * 100)
-    hdr = f'{"Method":<32} {"Params":>10}  {"C/C":>12}  {"R/R":>12}  {"C/R":>12}  {"Rot \u03c3":>10}'
+    hdr = (
+        f'{"Method":<32} {"Params":>10}  {"C/C":>12}  {"R/R":>12}  {"C/R":>12}  {"Rot \u03c3":>10}'
+    )
     print(hdr)
     print('-' * 100)
 
@@ -214,7 +222,9 @@ def print_cohen_table(grouped: dict[tuple[str, str], list[dict]]):
         rot_str = f'{np.mean(rot_stds):.5f}' if rot_stds else '\u2014'
 
         label = _full_label(model, n_params)
-        print(f'{label:<32} {n_params:>10,}  {_fmt(c_c):>12}  {_fmt(r_r):>12}  {_fmt(c_r):>12}  {rot_str:>10}')
+        print(
+            f'{label:<32} {n_params:>10,}  {_fmt(c_c):>12}  {_fmt(r_r):>12}  {_fmt(c_r):>12}  {rot_str:>10}'
+        )
 
 
 def print_latex_table(grouped: dict[tuple[str, str], list[dict]]):
@@ -224,7 +234,9 @@ def print_latex_table(grouped: dict[tuple[str, str], list[dict]]):
     print(r'%   Model & Params & C/C & R/R & C/R & Rot.\ $\sigma$ \\')
 
     for method, accs in COHEN_RESULTS.items():
-        print(f'    {method} & --- & ${accs["C/C"]:.2f}$ & ${accs["R/R"]:.2f}$ & ${accs["C/R"]:.2f}$ & --- \\\\')
+        print(
+            f'    {method} & --- & ${accs["C/C"]:.2f}$ & ${accs["R/R"]:.2f}$ & ${accs["C/R"]:.2f}$ & --- \\\\'
+        )
     print(r'    \midrule')
 
     for model in MODEL_ORDER:
@@ -396,10 +408,16 @@ def print_data_efficiency_table(
                 c_accs = [_test_c(r)['accuracy'] for r in runs]
                 r_accs = [_test_r(r)['accuracy'] for r in runs if _test_r(r)]
                 n = len(runs)
-                c_str = f'{np.mean(c_accs):.4f}\u00b1{np.std(c_accs):.4f}' if n > 1 else f'{c_accs[0]:.4f}'
+                c_str = (
+                    f'{np.mean(c_accs):.4f}\u00b1{np.std(c_accs):.4f}'
+                    if n > 1
+                    else f'{c_accs[0]:.4f}'
+                )
                 if r_accs:
                     r_str = (
-                        f'{np.mean(r_accs):.4f}\u00b1{np.std(r_accs):.4f}' if len(r_accs) > 1 else f'{r_accs[0]:.4f}'
+                        f'{np.mean(r_accs):.4f}\u00b1{np.std(r_accs):.4f}'
+                        if len(r_accs) > 1
+                        else f'{r_accs[0]:.4f}'
                     )
                 else:
                     r_str = '\u2014'
@@ -660,7 +678,13 @@ def main():
     parser = argparse.ArgumentParser(
         description='Analyze Spherical MNIST results',
     )
-    parser.add_argument('--results_dir', type=str, default='./smnist_results')
+    parser.add_argument(
+        '--results_dir',
+        type=str,
+        nargs='+',
+        default=['./smnist_results'],
+        help='One or more result trees, e.g. ./smnist_results ./smnist_results_baselines.',
+    )
     parser.add_argument(
         '--output',
         type=str,
@@ -678,7 +702,7 @@ def main():
     print_latex_table(grouped)
     plot_combined_figure(grouped, args.output)
 
-    de_grouped = load_data_efficiency_results(args.results_dir)
+    de_grouped = load_data_efficiency_results(args.results_dir[0])
     if de_grouped:
         print_data_efficiency_table(de_grouped)
         de_output = args.output.replace('smnist_analysis', 'smnist_data_efficiency')

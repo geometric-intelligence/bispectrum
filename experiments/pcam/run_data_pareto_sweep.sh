@@ -33,6 +33,10 @@ cd "$SCRIPT_DIR"
 
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$REPO_ROOT/.venv/bin/activate"
+# CAPTURE_JOBS=<file>: record "<cwd>\t<quoted argv>" per run instead of training.
+if [[ -n "${CAPTURE_JOBS:-}" ]]; then
+    python() { printf '%s\t%s\n' "$PWD" "${*@Q}" >>"$CAPTURE_JOBS"; }
+fi
 export PYTHONPATH="$REPO_ROOT/src:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
@@ -56,17 +60,19 @@ RUN_SO2_DISK=${RUN_SO2_DISK:-1}
 SO2_DISK_BL=30
 
 BASE_OUTPUT_DIR="./pcam_results_data_pareto"
-COMMON="--epochs 50"
+# Same protocol for every model: a fixed epoch budget that ends at an SGDR cycle end, no early
+# stopping (best-validation checkpoint), one batch size. 64 is the largest batch at which every
+# model/growth rate in this and run_matched_sweep.sh fits on an 80 GB GPU.
+COMMON="--batch_size 64"
 
-# Full-data runs converge in <20 epochs (~30 min/epoch for equivariant
-# models); patience 5 keeps the n_full panel uniform while cutting ~40%
-# of wall time. Smaller sizes keep patience 10.
-patience_for() {
+# Full-data epochs are ~10-45 min each, so full data stops at the first cycle end (10);
+# subsets get 10 + 20 epochs.
+epochs_for() {
     local size=$1
     if [[ "$size" == "full" ]]; then
-        echo 5
-    else
         echo 10
+    else
+        echo 30
     fi
 }
 
@@ -97,19 +103,6 @@ size_tag() {
     fi
 }
 
-batch_size_for() {
-    local model=$1
-    case "$model" in
-        standard)    echo 1024 ;;
-        norm)        echo 128 ;;
-        gate)        echo 128 ;;
-        fourier_elu) echo 64 ;;
-        norm_pool)   echo 128 ;;
-        bispectrum)  echo 128 ;;
-        *)           echo 128 ;;
-    esac
-}
-
 run_single() {
     local model=$1 size=$2 seed=$3
     local gr=${MODEL_GR[$model]}
@@ -127,17 +120,14 @@ run_single() {
         echo "SKIP (already done): model=$model size=$size seed=$seed"
         return 0
     fi
-    local bs
-    bs=$(batch_size_for "$model")
     local size_arg
     size_arg=$(size_args "$size")
     echo ""
     echo "============================================================"
-    echo "  model=$model  gr=$gr  mode=$mode  size=$size  seed=$seed  bs=$bs  $(date)"
+    echo "  model=$model  gr=$gr  mode=$mode  size=$size  seed=$seed  $(date)"
     echo "============================================================"
     python train.py --model "$model" --growth_rate "$gr" --train_mode "$mode" \
-        --output_dir "$output_dir" --seed "$seed" --batch_size "$bs" \
-        --patience "$(patience_for "$size")" \
+        --output_dir "$output_dir" --seed "$seed" --epochs "$(epochs_for "$size")" \
         $size_arg $COMMON
 }
 
@@ -162,8 +152,7 @@ run_so2_disk() {
     echo "  model=so2_disk  bl=$SO2_DISK_BL  size=$size  seed=$seed  $(date)"
     echo "============================================================"
     python train.py --model so2_disk --bandlimit "$SO2_DISK_BL" --train_mode C \
-        --output_dir "$output_dir" --seed "$seed" --batch_size 256 \
-        --patience "$(patience_for "$size")" \
+        --output_dir "$output_dir" --seed "$seed" --epochs "$(epochs_for "$size")" \
         $size_arg $COMMON
 }
 

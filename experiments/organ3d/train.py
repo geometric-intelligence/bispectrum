@@ -24,16 +24,36 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from dataclasses import asdict
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from data import apply_octahedral_element, get_dataloaders, gpu_augment_3d
-from model import build_model
+from data import (
+    DATASET_MEAN,
+    DATASET_STD,
+    apply_octahedral_element,
+    get_dataloaders,
+    gpu_augment_3d,
+)
+from model import BispectrumHead, build_model
 
 import bispectrum
 
 NUM_CLASSES = 11
+SGDR_T0_EPOCHS = 10
+SGDR_T_MULT = 2
+
+
+def sgdr_cycle_ends(max_epoch: int) -> list[int]:
+    """Epochs <= max_epoch at which an SGDR cycle reaches its minimum LR (10, 30, 70, 150, ...)."""
+    ends: list[int] = []
+    end, length = SGDR_T0_EPOCHS, SGDR_T0_EPOCHS
+    while end <= max_epoch:
+        ends.append(end)
+        length *= SGDR_T_MULT
+        end += length
+    return ends
 
 
 def _git_sha() -> str:
@@ -80,8 +100,13 @@ def compute_metrics(
     model: torch.nn.Module,
     loader: torch.utils.data.DataLoader,
     device: torch.device,
+    normalize: bool = False,
 ) -> dict:
-    """Compute accuracy, macro AUC, and loss on a dataset."""
+    """Compute accuracy, macro AUC, and loss on a dataset.
+
+    Set ``normalize=True`` for loaders built with ``normalize=False`` (the train
+    loader, which is normalized on GPU inside ``gpu_augment_3d`` during training).
+    """
     model.eval()
     all_probs = []
     all_labels = []
@@ -91,6 +116,8 @@ def compute_metrics(
     with torch.no_grad(), torch.amp.autocast('cuda'):
         for images, labels in loader:
             images = images.to(device, non_blocking=True)
+            if normalize:
+                images = (images - DATASET_MEAN) / DATASET_STD
             labels = labels.to(device, non_blocking=True)
             logits = model(images)
             loss = F.cross_entropy(logits, labels, reduction='sum')
@@ -196,6 +223,17 @@ def _mean_group_metrics(rotation_metrics: dict) -> dict[str, float]:
     }
 
 
+def _bispectrum_head(args: argparse.Namespace) -> BispectrumHead:
+    return BispectrumHead(
+        nonlin=args.bispectrum_head, power=args.bispectrum_power, scale=args.bispectrum_scale
+    )
+
+
+def _bispectrum_head_record(args: argparse.Namespace) -> dict | None:
+    """Head options for results.json; None for models without a bispectral head."""
+    return asdict(_bispectrum_head(args)) if args.model == 'bispectrum' else None
+
+
 def _invariant_dim_info(model: torch.nn.Module) -> dict[str, int | None]:
     """Return raw and projected invariant feature widths feeding the head.
 
@@ -241,14 +279,17 @@ def memory_check(args: argparse.Namespace) -> dict:
         nonlin_type=args.model,
         channels=channels,
         head_dim=args.head_dim,
+        dropout=args.dropout,
+        head=_bispectrum_head(args),
     ).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     dim_info = _invariant_dim_info(model)
     invariant_dim = dim_info.get('projected_dim') or dim_info.get('raw_invariant_dim')
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
+    run_label = args.run_label or args.model
     output_dir = (
         Path(args.output_dir)
-        / f'{args.model}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
+        / f'{run_label}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
     )
     train_loader, _, _ = get_dataloaders(
         data_dir=args.data_dir,
@@ -298,6 +339,7 @@ def memory_check(args: argparse.Namespace) -> dict:
     record = {
         'dataset': 'organ3d',
         'model': args.model,
+        'run_label': run_label,
         'train_mode': args.train_mode,
         'train_size': args.train_size,
         'train_examples': len(train_loader.dataset),
@@ -306,6 +348,9 @@ def memory_check(args: argparse.Namespace) -> dict:
         'effective_batch_size': args.batch_size,
         'channels': list(channels),
         'head_dim': args.head_dim,
+        'weight_decay': args.weight_decay,
+        'dropout': args.dropout,
+        'bispectrum_head': _bispectrum_head_record(args),
         'output_dir': str(output_dir),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
@@ -339,9 +384,10 @@ def train_one_epoch(
     device: torch.device,
     scaler: torch.amp.GradScaler,
     augment_geometry: bool = False,
-) -> float:
+) -> dict[str, float]:
     model.train()
     total_loss = 0.0
+    correct = 0
     n = 0
     num_batches = len(loader)
     t_epoch = time.time()
@@ -360,6 +406,7 @@ def train_one_epoch(
         scheduler.step()
 
         total_loss += loss.item() * labels.shape[0]
+        correct += (logits.argmax(dim=-1) == labels).sum().item()
         n += labels.shape[0]
 
         if (step + 1) % 10 == 0 or step == 0:
@@ -375,7 +422,7 @@ def train_one_epoch(
             )
 
     print(' ' * 80, end='\r')
-    return total_loss / n
+    return {'loss': total_loss / n, 'accuracy': correct / n}
 
 
 def train(args: argparse.Namespace) -> dict:
@@ -394,12 +441,16 @@ def train(args: argparse.Namespace) -> dict:
         nonlin_type=args.model,
         channels=channels,
         head_dim=args.head_dim,
+        dropout=args.dropout,
+        head=_bispectrum_head(args),
     )
     model = model.to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     dim_info = _invariant_dim_info(model)
     invariant_dim = dim_info.get('projected_dim') or dim_info.get('raw_invariant_dim')
     print(f'Model: {args.model} (channels={channels}), {n_params:,} params')
+    if args.model == 'bispectrum':
+        print(f'Bispectrum head: {_bispectrum_head(args)}')
 
     if args.dry_run:
         print(
@@ -408,6 +459,10 @@ def train(args: argparse.Namespace) -> dict:
                     'model': args.model,
                     'train_mode': args.train_mode,
                     'channels': list(channels),
+                    'run_label': args.run_label or args.model,
+                    'weight_decay': args.weight_decay,
+                    'dropout': args.dropout,
+                    'bispectrum_head': _bispectrum_head_record(args),
                     'n_params': n_params,
                     'invariant_dim': invariant_dim,
                     'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
@@ -444,15 +499,22 @@ def train(args: argparse.Namespace) -> dict:
     scaler = torch.amp.GradScaler('cuda')
     steps_per_epoch = max(1, len(train_loader))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, T_0=10 * steps_per_epoch, T_mult=2
+        optimizer, T_0=SGDR_T0_EPOCHS * steps_per_epoch, T_mult=SGDR_T_MULT
     )
+    if args.epochs not in sgdr_cycle_ends(args.epochs):
+        print(
+            f'WARNING: --epochs {args.epochs} stops mid LR cycle; '
+            f'SGDR cycles end at epochs {sgdr_cycle_ends(max(args.epochs, 150))}'
+        )
 
     best_auc = 0.0
+    best_epoch = 0
     patience_counter = 0
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
+    run_label = args.run_label or args.model
     out_dir = (
         Path(args.output_dir)
-        / f'{args.model}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
+        / f'{run_label}_{args.train_mode}_ch{"_".join(map(str, channels))}_seed{args.seed}{n_tag}'
     )
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -460,9 +522,10 @@ def train(args: argparse.Namespace) -> dict:
         torch.cuda.reset_peak_memory_stats(device)
     t_start = time.time()
     epochs_run = 0
+    history: list[dict[str, float | int]] = []
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
-        train_loss = train_one_epoch(
+        train_metrics = train_one_epoch(
             model,
             train_loader,
             optimizer,
@@ -471,13 +534,26 @@ def train(args: argparse.Namespace) -> dict:
             scaler,
             augment_geometry=augment_geo,
         )
+        train_eval_metrics = compute_metrics(model, train_loader, device, normalize=True)
         val_metrics = compute_metrics(model, val_loader, device)
         elapsed = time.time() - t0
         epochs_run = epoch
+        history.append(
+            {
+                'epoch': epoch,
+                'train_loss': train_metrics['loss'],
+                'train_accuracy': train_eval_metrics['accuracy'],
+                'train_auc': train_eval_metrics['auc'],
+                'val_loss': val_metrics['loss'],
+                'val_accuracy': val_metrics['accuracy'],
+                'val_auc': val_metrics['auc'],
+            }
+        )
 
         print(
             f'Epoch {epoch:3d}/{args.epochs} | '
-            f'train_loss={train_loss:.4f} | '
+            f'train_loss={train_metrics["loss"]:.4f} | '
+            f'train_acc={train_eval_metrics["accuracy"]:.4f} | '
             f'val_loss={val_metrics["loss"]:.4f} | '
             f'val_acc={val_metrics["accuracy"]:.4f} | '
             f'val_auc={val_metrics["auc"]:.4f} | '
@@ -486,20 +562,23 @@ def train(args: argparse.Namespace) -> dict:
 
         if val_metrics['auc'] > best_auc:
             best_auc = val_metrics['auc']
+            best_epoch = epoch
             patience_counter = 0
             torch.save(model.state_dict(), out_dir / 'best_model.pt')
         else:
             patience_counter += 1
 
-        if patience_counter >= args.patience:
+        if args.patience > 0 and patience_counter >= args.patience:
             print(f'Early stopping at epoch {epoch} (patience={args.patience})')
             break
 
     cost = _cost_record(device, time.time() - t_start, epochs_run)
 
+    test_final = compute_metrics(model, test_loader, device)
+    print(f'\nTest C results (final epoch {epochs_run}): {test_final}')
     model.load_state_dict(torch.load(out_dir / 'best_model.pt', weights_only=True))
     test_c = compute_metrics(model, test_loader, device)
-    print(f'\nTest C results: {test_c}')
+    print(f'Test C results (best val, epoch {best_epoch}): {test_c}')
 
     if not args.skip_rotation:
         rot_metrics = evaluate_rotation_robustness(model, test_loader, device)
@@ -517,10 +596,14 @@ def train(args: argparse.Namespace) -> dict:
     results = {
         'dataset': 'organ3d',
         'model': args.model,
+        'run_label': run_label,
         'train_mode': args.train_mode,
         'seed': args.seed,
         'channels': list(channels),
         'head_dim': args.head_dim,
+        'weight_decay': args.weight_decay,
+        'dropout': args.dropout,
+        'bispectrum_head': _bispectrum_head_record(args),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
         'raw_invariant_dim': dim_info.get('raw_invariant_dim'),
@@ -530,11 +613,16 @@ def train(args: argparse.Namespace) -> dict:
         'min_epoch_samples': args.min_epoch_samples,
         'epoch_samples': len(train_loader.sampler),
         'bispectrum_version': bispectrum.__version__,
+        'epochs': args.epochs,
+        'early_stopping_patience': args.patience,
+        'best_epoch': best_epoch,
         'best_val_auc': best_auc,
         'test': test_c,
         'test_c': test_c,
+        'test_final': test_final,
         'test_r': test_r,
         'rotation_robustness': rot_metrics,
+        'history': history,
         **cost,
     }
     with open(out_dir / 'results.json', 'w') as f:
@@ -613,13 +701,30 @@ def main():
         default='bispectrum',
         help='Model variant / pooling method.',
     )
+    parser.add_argument(
+        '--run_label',
+        type=str,
+        default=None,
+        help='Optional unique label used in the output directory for hyperparameter sweeps.',
+    )
     parser.add_argument('--data_dir', '--data-dir', type=str, default='./organ3d_data')
     parser.add_argument('--output_dir', '--output-dir', type=str, default='./organ3d_results')
-    parser.add_argument('--epochs', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument(
+        '--epochs',
+        type=int,
+        default=70,
+        help='Training epochs; keep at an SGDR cycle end (10, 30, 70, 150).',
+    )
+    parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
-    parser.add_argument('--patience', type=int, default=15)
+    parser.add_argument(
+        '--patience',
+        type=int,
+        default=0,
+        help='Early-stopping patience in epochs; 0 (default) trains all --epochs. Validation '
+        'dips after every SGDR restart, so patience-based stopping is not recommended.',
+    )
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument(
         '--min_epoch_samples',
@@ -636,6 +741,30 @@ def main():
         help='Channel widths (C0, C1) for stages.',
     )
     parser.add_argument('--head_dim', type=int, default=64)
+    parser.add_argument(
+        '--dropout',
+        type=float,
+        default=0.0,
+        help='Dropout probability immediately before the final classifier.',
+    )
+    parser.add_argument(
+        '--bispectrum_head',
+        choices=['pre', 'post'],
+        default='post',
+        help='Bispectral pooling head: ReLU after the 1x1 projection (post) or, as in the '
+        'original head, on the signed-log bispectrum before it (pre).',
+    )
+    parser.add_argument(
+        '--bispectrum_power',
+        action='store_true',
+        help='Append the per-irrep power spectrum to the bispectral pooling features.',
+    )
+    parser.add_argument(
+        '--bispectrum_scale',
+        choices=['log', 'cbrt'],
+        default='log',
+        help='Compression of the bispectral pooling features: signed log1p or signed degree-root.',
+    )
     parser.add_argument(
         '--train_size',
         type=int,

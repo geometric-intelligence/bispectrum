@@ -34,7 +34,9 @@ SEEDS=(${SEEDS:-42 123 456})
 # shellcheck disable=SC2206
 MODELS=(${MODELS:-standard power_spectrum bispectrum})
 OUTPUT_DIR="./smnist_results"
-COMMON="--patience 10 --epochs 50"
+# Same protocol for every model: 30 epochs (SGDR cycle end 10 + 20), no early stopping
+# (best-validation checkpoint), batch size 256 (train.py default).
+COMMON="--epochs 30"
 
 train_mode_for() {
     local model=$1

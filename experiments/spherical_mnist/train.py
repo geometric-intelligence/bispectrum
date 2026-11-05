@@ -37,6 +37,19 @@ import bispectrum
 from bispectrum import random_rotation_matrix, rotate_spherical_function
 
 NUM_CLASSES = 10
+SGDR_T0_EPOCHS = 10
+SGDR_T_MULT = 2
+
+
+def sgdr_cycle_ends(max_epoch: int) -> list[int]:
+    """Epochs <= max_epoch at which an SGDR cycle reaches its minimum LR (10, 30, 70, 150, ...)."""
+    ends: list[int] = []
+    end, length = SGDR_T0_EPOCHS, SGDR_T0_EPOCHS
+    while end <= max_epoch:
+        ends.append(end)
+        length *= SGDR_T_MULT
+        end += length
+    return ends
 
 
 def _git_sha() -> str:
@@ -83,7 +96,42 @@ def _canonical_train_mode(train_mode: str) -> str:
     return 'C' if train_mode in {'C', 'NR'} else 'R'
 
 
+BASELINE_MODELS = ('s2cnn', 'tensor_product')
+
+
+def _build(args: argparse.Namespace) -> torch.nn.Module:
+    return build_model(
+        model_type=args.model,
+        lmax=args.lmax,
+        nlat=args.nlat,
+        nlon=args.nlon,
+        selective=not args.full_bispectrum,
+        hidden=args.hidden,
+        bispectrum_features=args.bispectrum_features,
+        s2cnn_batch_norm=args.s2cnn_batch_norm,
+        tp_channels=args.tp_channels,
+        tp_lmax=args.tp_lmax,
+        tp_layers=args.tp_layers,
+    )
+
+
+def _baseline_config(args: argparse.Namespace) -> dict | None:
+    if args.model == 's2cnn':
+        return {'features': [20, 40], 'bandwidths': [10, 6], 'batch_norm': args.s2cnn_batch_norm}
+    if args.model == 'tensor_product':
+        return {
+            'channels': args.tp_channels,
+            'hidden_lmax': args.tp_lmax,
+            'layers': args.tp_layers,
+            'input_lmax': args.lmax,
+        }
+    return None
+
+
 def _invariant_dim(model: torch.nn.Module) -> int | None:
+    invariant_features = getattr(model, 'invariant_features', None)
+    if isinstance(invariant_features, int):
+        return invariant_features
     bispectrum = getattr(model, 'bispectrum', None)
     if bispectrum is not None:
         return int(getattr(bispectrum, 'output_size', 0)) * 2
@@ -91,6 +139,11 @@ def _invariant_dim(model: torch.nn.Module) -> int | None:
     if isinstance(lmax, int):
         return lmax + 1
     return None
+
+
+def _active_invariant_dim(model: torch.nn.Module) -> int | None:
+    active = getattr(model, 'active_feature_count', None)
+    return int(active) * 2 if isinstance(active, int) else _invariant_dim(model)
 
 
 def compute_metrics(
@@ -234,16 +287,10 @@ def memory_check(args: argparse.Namespace) -> dict:
         test_rotation_seed=args.test_rotation_seed,
         subset_dir=args.subset_dir,
     )
-    model = build_model(
-        model_type=args.model,
-        lmax=args.lmax,
-        nlat=args.nlat,
-        nlon=args.nlon,
-        selective=not args.full_bispectrum,
-        hidden=args.hidden,
-    ).to(device)
+    model = _build(args).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     invariant_dim = _invariant_dim(model)
+    active_invariant_dim = _active_invariant_dim(model)
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
     run_label = args.run_label or args.model
     output_dir = Path(args.output_dir) / f'{run_label}_{train_mode}_seed{args.seed}{n_tag}'
@@ -296,6 +343,8 @@ def memory_check(args: argparse.Namespace) -> dict:
         'output_dir': str(output_dir),
         'n_params': n_params,
         'invariant_dim': invariant_dim,
+        'active_invariant_dim': active_invariant_dim,
+        'bispectrum_features': args.bispectrum_features,
         'test_rotation_seed': args.test_rotation_seed,
         'cuda_available': torch.cuda.is_available(),
         'gpu_name': torch.cuda.get_device_name(device) if torch.cuda.is_available() else None,
@@ -328,17 +377,10 @@ def train(args: argparse.Namespace) -> dict:
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    model = build_model(
-        model_type=args.model,
-        lmax=args.lmax,
-        nlat=args.nlat,
-        nlon=args.nlon,
-        selective=not args.full_bispectrum,
-        hidden=args.hidden,
-    )
-    model = model.to(device)
+    model = _build(args).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     invariant_dim = _invariant_dim(model)
+    active_invariant_dim = _active_invariant_dim(model)
     print(f'Model: {args.model} (lmax={args.lmax}), {n_params:,} params')
 
     if args.dry_run:
@@ -351,6 +393,8 @@ def train(args: argparse.Namespace) -> dict:
                     'train_mode': _canonical_train_mode(args.train_mode),
                     'n_params': n_params,
                     'invariant_dim': invariant_dim,
+                    'active_invariant_dim': active_invariant_dim,
+                    'bispectrum_features': args.bispectrum_features,
                 }
             )
         )
@@ -391,11 +435,17 @@ def train(args: argparse.Namespace) -> dict:
     steps_per_epoch = max(1, len(train_loader))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer,
-        T_0=10 * steps_per_epoch,
-        T_mult=2,
+        T_0=SGDR_T0_EPOCHS * steps_per_epoch,
+        T_mult=SGDR_T_MULT,
     )
+    if args.epochs not in sgdr_cycle_ends(args.epochs):
+        print(
+            f'WARNING: --epochs {args.epochs} stops mid LR cycle; '
+            f'SGDR cycles end at epochs {sgdr_cycle_ends(max(args.epochs, 150))}'
+        )
 
     best_val_acc = 0.0
+    best_epoch = 0
     patience_counter = 0
     n_tag = f'_n{args.train_size}' if args.train_size and args.train_size > 0 else ''
     run_label = args.run_label or args.model
@@ -430,18 +480,22 @@ def train(args: argparse.Namespace) -> dict:
 
         if val_metrics['accuracy'] > best_val_acc:
             best_val_acc = val_metrics['accuracy']
+            best_epoch = epoch
             patience_counter = 0
             torch.save(model.state_dict(), out_dir / 'best_model.pt')
         else:
             patience_counter += 1
 
-        if patience_counter >= args.patience:
+        if args.patience > 0 and patience_counter >= args.patience:
             print(f'Early stopping at epoch {epoch} (patience={args.patience})')
             break
 
     cost = _cost_record(device, time.time() - t_start, epochs_run)
 
+    test_final = compute_metrics(model, test_nr_loader, device)
+    print(f'\nTest NR (final epoch {epochs_run}): {test_final}')
     model.load_state_dict(torch.load(out_dir / 'best_model.pt', weights_only=True))
+    print(f'Best val checkpoint: epoch {best_epoch}')
 
     test_nr = compute_metrics(model, test_nr_loader, device)
     test_r = compute_metrics(model, test_r_loader, device)
@@ -472,12 +526,21 @@ def train(args: argparse.Namespace) -> dict:
         'lmax': args.lmax,
         'n_params': n_params,
         'invariant_dim': invariant_dim,
+        'active_invariant_dim': active_invariant_dim,
+        'bispectrum_features': args.bispectrum_features,
+        'baseline_config': _baseline_config(args),
+        'lr': args.lr,
+        'batch_size': args.batch_size,
         'train_size': args.train_size,
         'train_examples': len(train_loader.dataset),
         'min_epoch_samples': args.min_epoch_samples,
         'epoch_samples': len(train_loader.sampler),
         'bispectrum_version': bispectrum.__version__,
+        'epochs': args.epochs,
+        'early_stopping_patience': args.patience,
+        'best_epoch': best_epoch,
         'best_val_accuracy': best_val_acc,
+        'test_final': test_final,
         'test_c': test_nr,
         'test': test_nr,
         'test_nr': test_nr,
@@ -555,8 +618,22 @@ def main():
     )
     parser.add_argument(
         '--model',
-        choices=['standard', 'power_spectrum', 'bispectrum'],
+        choices=['standard', 'power_spectrum', 'bispectrum', *BASELINE_MODELS],
         default='bispectrum',
+    )
+    parser.add_argument(
+        '--s2cnn_batch_norm',
+        action='store_true',
+        help='s2cnn: per-channel BatchNorm after each conv (absent in Cohen et al.).',
+    )
+    parser.add_argument(
+        '--tp_channels', type=int, default=16, help='tensor_product: multiplicity per degree.'
+    )
+    parser.add_argument(
+        '--tp_lmax', type=int, default=6, help='tensor_product: hidden max degree.'
+    )
+    parser.add_argument(
+        '--tp_layers', type=int, default=3, help='tensor_product: tensor-product layers.'
     )
     parser.add_argument(
         '--run_label',
@@ -572,11 +649,22 @@ def main():
     )
     parser.add_argument('--data_dir', type=str, default='./smnist_data')
     parser.add_argument('--output_dir', type=str, default='./smnist_results')
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument(
+        '--epochs',
+        type=int,
+        default=30,
+        help='Training epochs; keep at an SGDR cycle end (10, 30, 70, 150).',
+    )
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
-    parser.add_argument('--patience', type=int, default=10)
+    parser.add_argument(
+        '--patience',
+        type=int,
+        default=0,
+        help='Early-stopping patience in epochs; 0 (default) trains all --epochs. Validation '
+        'dips after every SGDR restart, so patience-based stopping is not recommended.',
+    )
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument(
         '--min_epoch_samples',
@@ -612,6 +700,13 @@ def main():
         '--full_bispectrum',
         action='store_true',
         help='Use full O(L^3) bispectrum instead of selective O(L^2).',
+    )
+    parser.add_argument(
+        '--bispectrum_features',
+        choices=['bootstrap', 'bootstrap_self', 'bootstrap_self_cg', 'full'],
+        default='full',
+        help='Cumulative SO3 invariant ablation. Masked features remain zero so all variants '
+        'use the same MLP width and parameter count.',
     )
     parser.add_argument(
         '--sweep',

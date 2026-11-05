@@ -8,9 +8,9 @@ where F_l are the degree-l SH coefficient vectors and C denotes the
 Clebsch-Gordan matrices for SO(3).
 
 Supports a **selective** mode that reduces the output from O(L³) to O(L²)
-entries while preserving completeness for generic signals, using an
-augmented invariant that combines scalar bispectral entries with
-CG power spectrum entries P_{l1,l2,l} = ||(F_{l1} ⊗ F_{l2})|_l||^2.
+entries, using an augmented invariant that combines scalar bispectral entries
+with CG power spectrum entries
+P_{l1,l2,l} = ||(F_{l1} ⊗ F_{l2})|_l||^2.
 See ``_build_selective_index_map`` and ``_build_cg_power_index_map``.
 
 **Completeness.** On real signals every bispectral entry is a single real
@@ -43,6 +43,7 @@ import os
 import pickle  # nosec B403 — only used for UnpicklingError type reference
 from collections import OrderedDict
 from pathlib import Path
+from typing import Literal
 
 import torch
 import torch.nn as nn
@@ -56,6 +57,13 @@ from bispectrum._cg import (
 )
 
 logger = logging.getLogger(__name__)
+
+SelectiveFeatureTag = Literal[
+    'bootstrap',
+    'power',
+    'budget_self_coupling',
+    'mandatory_even_self',
+]
 
 
 def _build_full_index_map(
@@ -336,6 +344,38 @@ def _build_selective_index_map(lmax: int) -> list[tuple[int, int, int]]:
     return index_map
 
 
+def _build_selective_feature_tags(
+    index_map: list[tuple[int, int, int]],
+) -> list[SelectiveFeatureTag]:
+    """Classify selective bispectral entries by construction stage.
+
+    Entries are ordered by target degree. Within each degree, the budgeted bootstrap block comes
+    first and mandatory even self-couplings are appended.
+    """
+    positions: dict[int, int] = {}
+    tags: list[SelectiveFeatureTag] = []
+    for l1, l2, l_out in index_map:
+        target = max(l1, l2, l_out)
+        position = positions.get(target, 0)
+        positions[target] = position + 1
+        budget = 10 if target == 4 else 2 * target + 1
+
+        if position >= budget:
+            if not (l1 == l2 == target and 2 <= l_out <= target and l_out % 2 == 0):
+                raise RuntimeError(
+                    f'Unexpected post-budget selective entry {(l1, l2, l_out)} at degree {target}'
+                )
+            tags.append('mandatory_even_self')
+        elif target > 0 and (l1, l2, l_out) == (0, target, target):
+            tags.append('power')
+        elif l1 == l2 == target and target > 0:
+            # (0,0,0) is the degree-0 bootstrap seed, not a self-coupling.
+            tags.append('budget_self_coupling')
+        else:
+            tags.append('bootstrap')
+    return tags
+
+
 def _build_cg_power_index_map(lmax: int) -> list[tuple[int, int, int]]:
     """Build the CG power spectrum augmentation entries.
 
@@ -439,12 +479,15 @@ class SO3onS2(nn.Module):
             nlat, nlon, lmax=sht_lmax, mmax=sht_lmax, grid='equiangular', norm='ortho'
         )
 
+        self._bispec_feature_tags: list[str]
         if selective:
             self._index_map = _build_selective_index_map(lmax)
+            self._bispec_feature_tags = _build_selective_feature_tags(self._index_map)
             self._cg_power_map = _build_cg_power_index_map(lmax)
         else:
             cg_data = load_cg_matrices(lmax)
             self._index_map = _build_full_index_map(lmax, cg_data)
+            self._bispec_feature_tags = ['full'] * len(self._index_map)
             self._cg_power_map = []
 
         all_triples = list(self._index_map) + list(self._cg_power_map)
@@ -1103,6 +1146,11 @@ class SO3onS2(nn.Module):
     def cg_power_map(self) -> list[tuple[int, int, int]]:
         """Maps CG power output index -> (l1, l2, l_out) triple."""
         return list(self._cg_power_map)
+
+    @property
+    def bispec_feature_tags(self) -> list[str]:
+        """Construction-stage tag for each scalar bispectral output entry."""
+        return list(self._bispec_feature_tags)
 
     def extra_repr(self) -> str:
         parts = [
