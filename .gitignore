@@ -107,3 +107,10 @@ experiments/grid_figure/
 *_prefloor/
 *_earlystop/
 *_preheadfix/
+
+# Internal decks, review records and rebuttal texts stay out of this public repo
+slides/
+neurips_review.md
+rebuttal/reviewer_*.md
+rebuttal/global.md
+rebuttal/rebuttal.*

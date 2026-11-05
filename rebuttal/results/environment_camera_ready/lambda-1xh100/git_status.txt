@@ -50,7 +50,6 @@
  M rebuttal/results/smnist_ablation/bispectrum_full_C_seed456/results.json
  M rebuttal/results/smnist_ablation/summary.json
 ?? experiments/organ3d/organ3d_results_diag_fixed/
-?? iclr_2027/
 ?? neurips_2026/
 ?? rebuttal.md
 ?? rebuttal/results/camera_ready_jobs/state/
