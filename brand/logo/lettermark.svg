@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 806 1000" role="img" aria-label="bispectrum">
+<title>bispectrum</title>
+<rect class="fg" fill="#18130F" x="0" y="0" width="113" height="1000"/>
+<path class="fg" fill="#18130F" fill-rule="evenodd" d="M78,636A364,364 0 1 0 806,636A364,364 0 1 0 78,636ZM191,636A251,251 0 1 1 693,636A251,251 0 1 1 191,636Z"/>
+<polygon class="accent" fill="#D7654A" points="542.9,661.6 361.2,700.7 424.7,544.6"/>
+</svg>

@@ -1,0 +1,13 @@
+Spherical MNIST: the augmented selective SO(3) invariant against matched
+learned-equivariant baselines (5 seeds, mean +/- sample std). (a) Accuracy
+under the three protocols of Cohen et al. (2018): NR/NR (train and test
+unrotated), R/R (train and test rotated) and NR/R (train unrotated, test
+rotated). (b) Rotated-test accuracy against end-to-end forward latency
+(spherical grid in, logits out; float32, batch 16, H100, median); invariant
+and equivariant models trained unrotated (NR/R), the CNN trained with rotation
+augmentation (R/R); labels give trainable parameters. (c) Rotated-test
+accuracy against training-set size, each model in its panel (b) training mode.
+Bispectrum, S2CNN + BatchNorm and the tensor-product net were each selected on
+validation accuracy from a batch-size x learning-rate grid at full data, and the
+selected configs are reused unchanged at every training-set size; the CNN and
+power spectrum use the default settings (batch 256, lr 1e-3).

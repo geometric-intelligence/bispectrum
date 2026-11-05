@@ -98,6 +98,37 @@ uv.lock
 *.toc
 *.vrb
 
-# Experiment figure outputs
+# Experiment and benchmark figure outputs (paper_timings.json is the --replot cache)
 experiments/grid_mockup/
 experiments/grid_figure/
+experiments/smnist_figure/
+benchmarks/figures/paper_*
+benchmarks/figures/caption_*.tex
+
+# Run outputs (results.json, logs, checkpoints) stay out of git. No trailing slash, so a
+# symlink to an external results store is ignored too.
+/results
+experiments/**/*_results
+experiments/**/*_results_*
+rebuttal/results
+
+# camera-ready reruns: stale results moved aside by rebuttal/archive_stale_results.py
+*_pre040/
+*_prefloor/
+*_earlystop/
+*_preheadfix/
+
+# Internal decks, review records and rebuttal texts stay out of this public repo
+slides/
+neurips_review.md
+rebuttal/reviewer_*.md
+rebuttal/global.md
+rebuttal/rebuttal.*
+/rebuttal.md
+/openreview_rebuttal.md
+/neurips_2026/
+/iclr_2027/
+paper/*.zip
+paper/*.pdf
+*.bbl
+*.blg

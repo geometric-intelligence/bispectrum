@@ -1,0 +1,9 @@
+\caption{\textbf{A complete invariant pays off on the octahedral group and is on par on $C_8$.}
+  On PCam ($C_8$), no model is significantly better than bispectral pooling at any training-set size.
+  On OrganMNIST3D ($O$), bispectral pooling beats max pooling on the same backbone by 5.0\,pp;
+  its smallest model beats max pooling's largest, which has $13\times$ the parameters; and with
+  500 training examples it beats max pooling trained on all 971.
+  Rotated test: the metric averaged over all $|G|$ rotations of the test set. Equivariant models
+  are trained on canonical data only; Aug.\ CNN is trained with augmentation over $G$.
+  Mean $\pm$ std over 3--10 seeds; details in Appendix~\ref{app:pooling-grid}.}
+\label{fig:pooling-grid}

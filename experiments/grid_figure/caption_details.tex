@@ -1,0 +1,32 @@
+\subsection{Invariant maps in $G$-CNNs (Figure~\ref{fig:pooling-grid})}
+\label{app:pooling-grid}
+
+\paragraph{Protocol.}
+The rotated test averages the metric over the test set transformed by every element of $G$,
+identity included. On OrganMNIST3D the 24 octahedral rotations permute voxels exactly, so
+$G$-invariant models score identically on the canonical and rotated test sets; on PCam the
+$45^\circ$ rotations are bilinearly interpolated, so invariance is exact only at multiples of
+$90^\circ$. Aug.\ CNN is a non-equivariant CNN (3D for OrganMNIST3D) trained with augmentation
+over $G$, so the rotated test is in-distribution for it. All other models are $G$-equivariant,
+trained on canonical data only, and end in an invariant map over the group axis: a maximum (Max
+pool; NormReLU, Gated and Fourier-ELU name the backbone nonlinearity), the $\ell_2$ norm (Norm
+pool, an incomplete invariant), or the selective $G$-bispectrum (complete). Max pool and
+Bispectrum on OrganMNIST3D, and Norm pool and Bispectrum on PCam, share a ReLU backbone and differ
+only in the invariant map; OrganMNIST3D's Norm pool uses NormReLU.
+
+\paragraph{Held fixed.}
+Left: full training set, at the smallest width (OrganMNIST3D) or ${\sim}100$K-parameter
+configurations (PCam). Middle: full training set (OrganMNIST3D) or $n = 12.5$K (PCam). Right:
+smallest width (OrganMNIST3D) or ${\sim}100$K parameters (PCam); ``all'' is the full training set,
+and the PCam axis is broken before it (262K examples). The panels of a row share the $y$-axis.
+
+\paragraph{Statistics.}
+Mean $\pm$ sample standard deviation over 10 seeds (OrganMNIST3D) and 3 seeds (PCam; 5 at
+$n \le 2.5$K). $p$-values are two-sided Welch $t$-tests, uncorrected for multiplicity. On
+OrganMNIST3D, bispectral pooling beats max pooling by 5.0\,pp ($p < 10^{-3}$); its smallest
+model (463K parameters) beats max pooling's largest (6.0M) by 2.6\,pp
+($p < 10^{-3}$); and at $n = 500$ it beats max pooling at $n = 971$ by
+3.6\,pp ($p = 0.0017$). On PCam, no model is significantly better than bispectral
+pooling at any training-set size; the closest is Gated on the full training set (${+}0.016$ AUC,
+$p = 0.093$). With 3 seeds per arm and PCam's seed spread, these tests have 80\% power only for
+gaps of about 0.025 AUC, so ``on par'' means no difference at that resolution.

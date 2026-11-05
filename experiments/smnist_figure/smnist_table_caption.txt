@@ -1,0 +1,10 @@
+Spherical MNIST, test accuracy (%) under the protocols of Cohen et al. (2018),
+mean +/- sample std over 5 seeds, and end-to-end forward latency (spherical grid
+in, logits out; float32, batch 16, H100, median). Matched baselines are our runs
+in the same training pipeline; the published S2CNN row is transcribed from Cohen
+et al. (2018). Bispectrum, S2CNN + BatchNorm and the tensor-product net were each
+selected on validation accuracy from a batch-size x learning-rate grid (the
+tensor-product grid also covers channels and internal band-limit); the CNN and
+power spectrum use the default settings (batch 256, lr 1e-3). S2CNN with the
+published architecture and training settings (no BatchNorm) reaches
+81.2 / 80.5 / 80.7 (NR/NR / R/R / NR/R) in our pipeline.

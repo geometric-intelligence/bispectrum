@@ -29,8 +29,7 @@ for features in $FEATURES; do
         --nlat 64 \
         --nlon 128 \
         --hidden 256 \
-        --epochs 50 \
-        --patience 10 \
+        --epochs 30 \
         --batch_size 256 \
         --lr 1e-3 \
         --weight_decay 1e-4 \

@@ -1,0 +1,30 @@
+% Figure + caption on a NeurIPS camera-ready page, to judge sizes against body text, and the
+% appendix paragraph the caption points to.
+% Build from this directory: tectonic -X compile -Z search-path=../../paper preview.tex
+\documentclass{article}
+\usepackage[final]{neurips_2026}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{lipsum}
+
+\begin{document}
+
+\lipsum[1]
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{grid_contact_sheet.pdf}
+  \input{caption.tex}
+\end{figure}
+
+\lipsum[2-6]
+
+\appendix
+\section{Experimental details}
+\input{caption_details.tex}
+
+\end{document}

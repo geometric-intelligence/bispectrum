@@ -1,7 +1,13 @@
-# Rebuttal experiment runbook
+# Camera-ready experiment runbook
 
-Run this on the GPU machine from the repository root. E1--E4 are ordered by
-rebuttal value. Do not block the response on E5/E6.
+Run this on the GPU machine from the repository root. E1--E4 are the experiments added for
+the camera-ready: device timings, reconstruction at L=15, the Spherical MNIST feature-set
+ablation and the OrganMNIST3D regularization sweep.
+
+Outputs go to `rebuttal/results/` and `experiments/*/*_results*/`, which are symlinks into
+the gitignored `results/` store (see `RESULTS.md`). On a fresh clone, run
+`python rebuttal/results_store.py link` first, and run `adopt` after any step that creates
+a new results directory.
 
 ## 0. Reproduce the environment
 
@@ -40,43 +46,46 @@ skipped. E1 overwrites the requested output JSON.
 
 ## E1. Device/backend forward timings
 
-Purpose: answer yWuC Q4 and fill `[[E1]]`. The script benchmarks the exact
+Purpose: forward latency across devices and backends. The script benchmarks the exact
 paper-scale selective configurations at batch 16, including the SHT inside
 `SO3onS2`, and records the environment in each JSON.
 
-On the H100:
+On a Linux GPU host (CUDA, then the host CPU at each of `BENCH_THREADS`, default
+`1 8`):
 
 ```bash
-mkdir -p rebuttal/results/device_bench
-python rebuttal/benchmark_devices.py \
-  --device cuda \
-  --output rebuttal/results/device_bench/h100_cuda.json \
-  | tee rebuttal/results/device_bench/h100_cuda.log
-python rebuttal/benchmark_devices.py \
-  --device cpu \
-  --output rebuttal/results/device_bench/h100_host_cpu.json \
-  | tee rebuttal/results/device_bench/h100_host_cpu.log
+CUDA_VISIBLE_DEVICES=0 bash rebuttal/run_camera_ready.sh timings <tag>  # e.g. h100, a100
 ```
 
-On a consumer NVIDIA GPU, run the same first command but write
-`consumer_cuda.json`. On the Mac, use `--device mps` and `--device cpu` and
-write `mac_mps.json`/`mac_cpu.json`. Unsupported operations are retained as
-explicit errors rather than silently dropped.
+This writes `<tag>_cuda.json` and `<tag>_host_cpu_t<n>.json`. Pin the CPU
+threads: the default (one per core) gave 402 ms for `SO3onS2` on a shared
+128-core host, against 5.5 ms at 8 threads. On a consumer NVIDIA GPU, use a tag
+such as `rtx4090`.
 
-After copying all device JSON files into `rebuttal/results/device_bench/`:
+On the Mac (bispectrum >= 0.4.1; 0.4.0 fails on 4 of the 6 modules under MPS):
+
+```bash
+bash rebuttal/run_device_bench_mac.sh  # m5pro_mps.json, m5pro_host_cpu_t<n>.json
+```
+
+MPS has no float64, so the MPS rows cast each module to float32
+(`environment.module_cast_dtype`); CPU and CUDA keep the float64 tables as built.
+Unsupported operations are retained as explicit errors rather than silently
+dropped.
+
+With all device JSON files in `rebuttal/results/device_bench/`:
 
 ```bash
 python rebuttal/analyze_device_benchmarks.py \
   rebuttal/results/device_bench/*_cuda.json \
   rebuttal/results/device_bench/*_mps.json \
-  rebuttal/results/device_bench/*_cpu.json \
+  rebuttal/results/device_bench/*_host_cpu_t*.json \
   --output rebuttal/results/device_bench/combined.json \
   | tee rebuttal/results/device_bench/combined.md
 ```
 
-If a glob has no matches, list only the files that exist. Expected runtime:
-roughly 5--20 minutes per device; first-time CG/Bessel cache construction can
-dominate.
+Expected runtime: a few minutes per device; first-time CG/Bessel cache
+construction can dominate.
 
 Bring back:
 
@@ -84,12 +93,13 @@ Bring back:
 - `combined.json` and `combined.md`; and
 - the environment files from step 0.
 
-For `[[E1]]`, report hardware, PyTorch/backend versions, batch, dtype, median
+When reporting, give hardware, PyTorch/backend versions, batch, dtype, median
 and IQR. Say “sub-millisecond” only for rows that actually satisfy it.
 
 ## E2. Reconstruction at L=15 and on random signals
 
-Purpose: answer yWuC Q3 and fill `[[E2]]`. The script uses `L=15` on a
+Purpose: signal recovery from the selective invariant at a higher degree and on
+signals that are not digits. The script uses `L=15` on a
 128x256 grid, four reconstruction restarts, and 12 alignment restarts. It
 tests eight Spherical MNIST signals (identity + one rotation each) and 16
 independent Gaussian real band-limited signals. The random signals are
@@ -115,7 +125,7 @@ bash rebuttal/run_reconstruction_evidence.sh
 The runner creates the 128x256 Spherical MNIST test cache if absent. Expect
 several GPU-hours; inspect the first 300-step log before leaving it unattended.
 The summary pre-registers two transparent operational thresholds:
-feature residual <= 1e-2 and aligned image residual <= 0.3. Report the full
+feature residual \<= 1e-2 and aligned image residual \<= 0.3. Report the full
 median/IQR as primary evidence; the thresholded success rate is secondary.
 These results remain empirical evidence, not a completeness proof.
 
@@ -126,14 +136,23 @@ Bring back:
 - both logs; and
 - `rebuttal/results/reconstruction/summary.json`.
 
-For `[[E2]]`, include sample count, grid, restarts, feature residual median/IQR,
+The runner then solves the same targets again with the degree-by-degree solver,
+`experiments/spherical_mnist_reconstruction/degree_marching.py`: Levenberg--Marquardt
+seeded at degree 4, extended one degree at a time, on CPU in float64, about 10 minutes per
+source with 12 parallel targets (`MARCH_JOBS`, `MARCH_THREADS`). This stage was designed after
+the Adam results, so it is post hoc; Adam stays the pre-registered baseline. It writes
+`{smnist,random}_l15_marching/results.json` and renders Fig. 1 from the Spherical MNIST run to
+`smnist_l15_marching/paper_orbits.pdf`, or to `PAPER_FIGURE` when set.
+
+When reporting, include sample count, grid, restarts, feature residual median/IQR,
 aligned residual median/IQR, invariance residual for rotated MNIST, and joint
 success rate. If optimization fails on many random signals, report that result
 without changing thresholds post hoc.
 
 ## E3. Spherical feature-set classification ablation
 
-Purpose: answer yWuC Q2 and fill `[[E3]]`. The implementation masks omitted
+Purpose: which parts of the selective feature set carry the classification signal. The
+implementation masks omitted
 features to zero while retaining the full 768-channel MLP input. Therefore all
 four variants have exactly the same classifier and parameter count:
 
@@ -178,34 +197,29 @@ Bring back:
 - `smnist_ablation/summary.json`; and
 - the full job log.
 
-For `[[E3]]`, report active real-channel count, identical total parameter
+When reporting, give active real-channel count, identical total parameter
 count, mean +/- population standard deviation over three seeds for NR/NR and
 NR/R, and a one-sentence interpretation. Do not describe a small difference as
 causal unless it exceeds cross-seed variability.
 
 ## E4. OrganMNIST3D high-capacity regularization
 
-Purpose: answer LgCU and yWuC Q6 and fill `[[E4]]`. The sweep reruns the
+Purpose: whether the OrganMNIST3D pooling gap at high capacity is overfitting. The sweep
+reruns the
 $(16,32)$ max and bispectral baselines with epoch-level train/validation
 history, then tests five stronger-regularization settings for the bispectral
 model. Model selection remains validation-AUC based; test data are evaluated
 only after training.
 
-Memory smoke tests:
-
-```bash
-python experiments/organ3d/train.py \
-  --model max_pool --channels 16 32 --batch_size 8 \
-  --data_dir experiments/organ3d/organ3d_data --memory_check
-python experiments/organ3d/train.py \
-  --model bispectrum --channels 16 32 --batch_size 4 \
-  --data_dir experiments/organ3d/organ3d_data --memory_check
-```
+Runs use the camera-ready protocol (70 epochs, batch 16, no early stopping);
+each takes ~9 GB of GPU memory, so three fit on a 40 GB A100.
 
 Run 7 configurations x 3 seeds = 21 runs:
 
 ```bash
 bash rebuttal/run_organ3d_regularization.sh
+# or one run per GPU slot:
+CUDA_VISIBLE_DEVICES=3 CONFIG_LABELS=bsp_base SEEDS=42 bash rebuttal/run_organ3d_regularization.sh
 ```
 
 The configurations are max baseline; bispectrum baseline; weight decay
@@ -218,7 +232,7 @@ train/validation accuracy and final held-out test accuracy, and produces:
 - the PNG companion.
 
 Bring back those analysis files, every per-run `results.json`, and the job log.
-For `[[E4]]`, state only the diagnosis supported by the curves:
+When reporting, state only the diagnosis supported by the curves:
 
 - high train accuracy + low validation/test accuracy, improved by
   regularization: overfitting;
@@ -228,27 +242,11 @@ For `[[E4]]`, state only the diagnosis supported by the curves:
 
 Do not use “overfitting” merely because test accuracy is lower.
 
-## E5/E6. Optional baselines
-
-Do not implement these during the response window unless E1--E4 are complete
-and at least one full day remains:
-
-- E5: tensor-product/e3nn or spherical-scattering baseline;
-- E6: matched S2CNN inference benchmark.
-
-Neither has an existing apples-to-apples pipeline in this repository. A rushed
-implementation would be less credible than the explicit scope statements
-already drafted. If skipped, use the fallback text inside `[[E5]]` and
-`[[E6]]`; do not claim a measured speed advantage over S2CNN.
-
-## Package results for transfer
+## Collect the results
 
 ```bash
-git rev-parse HEAD > rebuttal/results/GIT_SHA
-tar -czf rebuttal_results_10902.tar.gz rebuttal/results
-shasum -a 256 rebuttal_results_10902.tar.gz
+python rebuttal/results_store.py adopt      # new result directories into the store
+python rebuttal/results_store.py manifest   # then commit rebuttal/results_manifest.tsv
 ```
 
-After transferring the archive back, replace `[[E1]]`--`[[E4]]` in the four
-drafts, choose the E5/E6 fallback text if those experiments were skipped, and
-recount characters before posting.
+Publishing the store is described in `RESULTS.md`.

@@ -9,6 +9,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/rebuttal/results/organ3d_regularization}"
 # Optional space-separated list of config labels to run (for splitting the
 # sweep across GPUs). Empty means run everything.
 CONFIG_LABELS="${CONFIG_LABELS:-}"
+SEEDS="${SEEDS:-42 123 456}"
 
 CONFIGS=(
   "max_base|max_pool|1e-4|0.0"
@@ -25,12 +26,7 @@ for config in "${CONFIGS[@]}"; do
   if [[ -n "$CONFIG_LABELS" && " $CONFIG_LABELS " != *" $label "* ]]; then
     continue
   fi
-  if [[ "$model" == "bispectrum" ]]; then
-    batch_size=4
-  else
-    batch_size=8
-  fi
-  for seed in 42 123 456; do
+  for seed in $SEEDS; do
     result="$OUTPUT_DIR/${label}_C_ch16_32_seed${seed}/results.json"
     if [[ -f "$result" ]]; then
       echo "SKIP existing $result"
@@ -42,9 +38,8 @@ for config in "${CONFIGS[@]}"; do
       --channels 16 32 \
       --train_mode C \
       --seed "$seed" \
-      --epochs 100 \
-      --patience 15 \
-      --batch_size "$batch_size" \
+      --epochs 70 \
+      --batch_size 16 \
       --lr 1e-3 \
       --weight_decay "$weight_decay" \
       --dropout "$dropout" \

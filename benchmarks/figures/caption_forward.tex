@@ -1,0 +1,9 @@
+\caption{\textbf{The selective forward pass costs the same at every group size; the full
+    bispectrum grows with it.} Median forward time, H100, batch 16, autograd enabled.
+    (a)~$C_n$: the selective pass takes 0.14\,ms at every $n$ from 8 to
+    1{,}024; at $n{=}1{,}024$ the full bispectrum
+    takes 70\,ms, $502\times$ longer.
+    (b)~$\mathbb{T}^2$: 0.075--0.076\,ms up to $|G|{=}65{,}536$; the full
+    bispectrum, run up to $|G|{=}4{,}096$ (8{,}390{,}656 coefficients),
+    takes 5.2\,ms there, $69\times$ longer.}
+  \label{fig:forward-timing}

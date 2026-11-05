@@ -20,6 +20,7 @@ repos:
       - id: check-toml
       - id: check-case-conflict
       - id: check-added-large-files
+        exclude: ^rebuttal/results_manifest\.tsv$
       - id: check-merge-conflict
 
   - repo: https://github.com/gitleaks/gitleaks
@@ -86,8 +87,6 @@ repos:
     hooks:
       - id: mdformat
         args: ["--number"]
-        # OpenReview rebuttal texts carry MathJax; mdformat escapes `\` and `_` inside `$...$`.
-        exclude: ^(rebuttal/.*\.md|neurips_review\.md)$
         additional_dependencies:
           - mdformat-gfm
           - mdformat-tables
