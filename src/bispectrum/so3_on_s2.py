@@ -415,6 +415,10 @@ class SO3onS2(nn.Module):
         instead of 430 at ``lmax=16``); cached features and downstream heads
         trained on the old layout must be recomputed.  The on-disk sparse CG
         cache is invalidated automatically.
+
+    .. versionchanged:: 0.4.1
+        The sparse path runs on MPS (complex scatter-adds are split into real
+        and imaginary planes there).
     """
 
     def __init__(
@@ -1038,7 +1042,9 @@ class SO3onS2(nn.Module):
                 * self._sc_bi_cg.unsqueeze(0)
                 * torch.conj(flat[:, self._sc_bi_fl])
             )
-            result.scatter_add_(1, self._sc_bi_eid.unsqueeze(0).expand(batch_size, -1), prods)
+            _scatter_add_complex(
+                result, self._sc_bi_eid.unsqueeze(0).expand(batch_size, -1), prods
+            )
 
         if self._sc_pw_n_rows > 0:
             n_pw = self._sc_pw_n_rows
@@ -1047,8 +1053,8 @@ class SO3onS2(nn.Module):
                 flat[:, self._sc_pw_fl1] * flat[:, self._sc_pw_fl2] * self._sc_pw_cg.unsqueeze(0)
             )
             coupled_flat = torch.zeros(batch_size, n_pw * mc, dtype=dtype, device=device)
-            coupled_flat.scatter_add_(
-                1, self._sc_pw_cidx.unsqueeze(0).expand(batch_size, -1), pw_prods
+            _scatter_add_complex(
+                coupled_flat, self._sc_pw_cidx.unsqueeze(0).expand(batch_size, -1), pw_prods
             )
             coupled_2d = coupled_flat.reshape(batch_size, n_pw, mc)
             norms = torch.sum(coupled_2d.real**2 + coupled_2d.imag**2, dim=-1).to(dtype)
@@ -1132,6 +1138,19 @@ def _get_full_sh_coefficients(
         )
 
     return result
+
+
+def _scatter_add_complex(out: torch.Tensor, index: torch.Tensor, src: torch.Tensor) -> None:
+    """In-place ``out.scatter_add_(1, index, src)`` for complex ``out``/``src``.
+
+    MPS has no complex scatter, so on MPS the real and imaginary planes are accumulated
+    through ``view_as_real``.
+    """
+    if out.device.type != 'mps':
+        out.scatter_add_(1, index, src)
+        return
+    index_ri = index.unsqueeze(-1).expand(*index.shape, 2)
+    torch.view_as_real(out).scatter_add_(1, index_ri, torch.view_as_real(src))
 
 
 def _compute_padding_indices(l1: int, l2: int, l_val: int) -> tuple[int, int]:
