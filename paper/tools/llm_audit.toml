@@ -359,6 +359,7 @@ note = '''Second copy of the $S^2$ setup and of the bispectrum equation (see D06
 
 [[item]]
 id = 'J01'
+resolved = 'A'
 find = '''live components'''
 note = '''``live components'': internal jargon. (A) ``components''. (B) ``coordinates''.'''
 
@@ -415,6 +416,7 @@ note = '''Completeness pass (see X05a).'''
 
 [[item]]
 id = 'J09'
+resolved = 'A'
 find = '''the method we fixed before running the solver'''
 note = '''Preregistration-style aside. (A) drop. (B) ``our original method''.'''
 
@@ -476,11 +478,13 @@ note = '''$\ell_{\max}$ and $L$ name the same band limit (Section 5 says $L{=}15
 
 [[item]]
 id = 'J02'
+resolved = 'A'
 find = '''$N=380$ [[live real components]], stored'''
 note = '''``live real components'': jargon. (A) ``380 real invariants''.'''
 
 [[item]]
 id = 'J03'
+resolved = 'A'
 find = '''stored as 380 complex tensors by the library'''
 note = '''Wrong unit: these are 380 complex entries of one tensor, not 380 tensors. (A) ``stored as complex numbers''. (B) drop.'''
 
@@ -491,6 +495,7 @@ note = '''The signed log and its injectivity are explained three times (here, Ap
 
 [[item]]
 id = 'J04a'
+resolved = 'mine'
 find = '''structurally zero'''
 occurrence = 1
 note = '''``structurally zero'' (five times, J04a--e): jargon. (A) ``zero by parity''. (B) ``always zero''.'''
@@ -616,6 +621,7 @@ note = '''This paragraph restates Section 5 and the Output size proposition, a t
 
 [[item]]
 id = 'J08a'
+resolved = 'mine'
 find = '''$2\ell{+}1$ [[budgeted]] bispectral entries, plus'''
 note = '''``budgeted'', ``budget'', ``slot'': internal jargon (nine marks, J08a--i). (A) ``the first $2\ell{+}1$ bispectral entries''. (B) ``capped'', as in ``at most $2\ell{+}1$ entries''.'''
 
@@ -669,53 +675,63 @@ note = '''Completeness pass: sweeping claim (``All practical''). (A) ``The bispe
 
 [[item]]
 id = 'J07'
+resolved = 'A'
 find = '''(\texttt{\_build\_selective\_index\_map} and \texttt{\_build\_cg\_power\_index\_map})'''
 note = '''Private function names in the paper. (A) drop the parenthetical; ``as implemented in \texttt{bispectrum.so3\_on\_s2}'' is enough.'''
 
 [[item]]
 id = 'J08b'
+resolved = 'A'
 find = '''[[complete the budget]];'''
 note = '''``budget'' (see J08a). (A) ``fill the remaining entries''.'''
 
 [[item]]
 id = 'J06'
+resolved = 'A'
 find = '''live real scalar components'''
 note = '''``live real scalar components''. (A) ``real components''.'''
 
 [[item]]
 id = 'J05'
+resolved = 'A'
 find = '''on the real-signal slice'''
 note = '''``real-signal slice''. (A) ``on real signals''.'''
 
 [[item]]
 id = 'J04b'
+resolved = 'mine'
 find = '''structurally zero'''
 occurrence = 2
 note = '''See J04a.'''
 
 [[item]]
 id = 'J04c'
+resolved = 'mine'
 find = '''structurally zero'''
 occurrence = 3
 note = '''See J04a.'''
 
 [[item]]
 id = 'J08c'
+resolved = 'B'
 find = '''``Budgeted'' entries'''
 note = '''``Budgeted'' (see J08a). (A) ``Capped'' entries, or rename the column to ``First $2\ell{+}1$''. (B) keep.'''
 
 [[item]]
 id = 'J08d'
+resolved = 'B'
 find = '''the [[budgeted entries]] are the library's'''
 note = '''See J08a.'''
 
 [[item]]
 id = 'J08e'
+resolved = 'mine'
 find = '''where a slot is free'''
 note = '''``slot'' (see J08a). (A) ``up to $2\ell{+}1$ entries''.'''
 
 [[item]]
 id = 'J08f'
+resolved = 'B'
 find = '''& [[Budgeted bispectral]] &'''
 note = '''Column header (see J08a).'''
 
@@ -726,22 +742,26 @@ note = '''``band-limits'' (see M03a).'''
 
 [[item]]
 id = 'J13a'
+resolved = 'A'
 find = '''$|\Phi_{\mathrm{sel}}|$ ([[live real components]])'''
 note = '''``live real components'' (see J02). (A) ``real components''.'''
 
 [[item]]
 id = 'J13b'
+resolved = 'mine'
 find = '''complex-tensor storage'''
 note = '''``complex-tensor storage''. (A) ``storage as complex numbers''.'''
 
 [[item]]
 id = 'J04d'
+resolved = 'mine'
 find = '''structurally zero'''
 occurrence = 4
 note = '''See J04a.'''
 
 [[item]]
 id = 'J04e'
+resolved = 'mine'
 find = '''structurally zero'''
 occurrence = 5
 note = '''See J04a.'''
@@ -759,11 +779,13 @@ note = '''``band-limit'' (see M03a).'''
 
 [[item]]
 id = 'J08g'
+resolved = 'mine'
 find = '''contributes at most $2\ell{+}1$ [[budgeted]] bispectral entries, at most'''
 note = '''See J08a.'''
 
 [[item]]
 id = 'J08h'
+resolved = 'A'
 find = '''the [[budgeted]] entries alone already number'''
 note = '''See J08a.'''
 
@@ -789,6 +811,7 @@ note = '''Single hyphen; elsewhere ``Clebsch--Gordan''. (A) ``Clebsch--Gordan''.
 
 [[item]]
 id = 'J08i'
+resolved = 'A'
 find = '''fill the budget'''
 note = '''See J08a. (A) ``fill the remaining entries''.'''
 
@@ -897,6 +920,7 @@ note = '''See M05a. (A) $L{=}15$.'''
 
 [[item]]
 id = 'J11'
+resolved = 'A'
 find = '''380 complex invariant coefficients'''
 note = '''There are 380 real invariants, stored as complex numbers. (A) ``380 invariants, stored as complex numbers''.'''
 
@@ -907,6 +931,7 @@ note = '''Second explanation of the signed log (see D07a).'''
 
 [[item]]
 id = 'J10'
+resolved = 'A'
 find = '''hidden=128'''
 note = '''Code-speak. (A) ``with hidden width 128''.'''
 
@@ -999,6 +1024,7 @@ note = '''Bold claim caption title (see C01). (A) keep. (B) neutral title.'''
 
 [[item]]
 id = 'J12'
+resolved = 'A'
 find = '''Bootstrap entries'''
 note = '''Code name used as a table row label. (A) ``Base bispectral entries''. (B) ``Selected triples''.'''
 

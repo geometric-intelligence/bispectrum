@@ -520,7 +520,7 @@ where $\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$ is the Clebsch--Gordan
 coefficient. The full set has $\Theta(L^3)$ scalars. The orbit space
 $\R^{(L+1)^2}/\SO(3)$ has dimension $(L{+}1)^2 - 3$; by a rank
 argument, any smooth complete $\SO(3)$-invariant must therefore have
-at least $\Omega(L^2)$ \llm{J01}{live components}{``live components'': internal jargon. (A) ``components''. (B) ``coordinates''.}
+at least $\Omega(L^2)$ components
 (Proposition~\ref{prop:app-lower-bound}). 
 
 \paragraph{The augmented selective bispectrum.} We define
@@ -622,9 +622,7 @@ better than $10^{-13}$, the full bispectrum to $10^{-12}$, and the
 aligned images to $0.0014$--$0.0035$ (digits) and $0.0056$--$0.0070$
 (random signals)}{Repeats the numbers of the Figure 2 caption and of the reconstruction table in Appendix D. (A) keep them here and shorten the caption. (B) keep.}, \llm{X05b}{the interpolation floor of rotating on the grid}{Completeness pass (see X05a).}
 (Figure~\ref{fig:so3-reconstruction}). No run found two signals in
-different orbits with equal invariants. Gradient descent on the
-image from noise, \llm{J09}{the method we fixed before running the solver}{Preregistration-style aside. (A) drop. (B) ``our original method''.},
-recovers 9 of 16 digits and none of the random signals, on which it
+different orbits with equal invariants. Gradient descent on the image from noise recovers 9 of 16 digits and none of the random signals, on which it
 stalls at a $7.5\%$ median invariant error, so the failures come from the optimizer.
 This does not prove completeness. We conjecture that
 $\Phi_{\mathrm{sel}}$ is generically complete.
@@ -712,11 +710,10 @@ rotation invariance on $S^2$.
 \paragraph{Setup.}
 MNIST digits are stereographically projected onto a
 $64\times 128$ equiangular grid; we compute
-$\Phi_{\mathrm{sel}}$ at \llm{M05a}{$\ell_{\max}=15$}{$\ell_{\max}$ and $L$ name the same band limit (Section 5 says $L{=}15$). (A) $L{=}15$.} ($N=380$ \llm{J02}{live real
-components}{``live real components'': jargon. (A) ``380 real invariants''.}, \llm{J03}{stored as 380 complex tensors by the library}{Wrong unit: these are 380 complex entries of one tensor, not 380 tensors. (A) ``stored as complex numbers''. (B) drop.}), apply
+$\Phi_{\mathrm{sel}}$ at \llm{M05a}{$\ell_{\max}=15$}{$\ell_{\max}$ and $L$ name the same band limit (Section 5 says $L{=}15$). (A) $L{=}15$.} ($N=380$ real invariants, stored as complex numbers by the library), apply
 \llm{D07a}{sign-preserving $\operatorname{sign}(x)\log(1+|x|)$}{The signed log and its injectivity are explained three times (here, Appendix D, Appendix F). (A) explain it once, here. (B) keep.} to real and
 imaginary parts ($2N=760$ real channels; one channel per
-bispectral entry is \llm{J04a}{structurally zero}{``structurally zero'' (five times, J04a--e): jargon. (A) ``zero by parity''. (B) ``always zero''.} by parity \llm{H04}{but we feed both
+bispectral entry is identically zero by parity \llm{H04}{but we feed both
 since the log transform is per-channel injective and cheap}{Defensive rationale that does not justify the choice: injectivity says nothing about feeding channels that are always zero. (A) ``we keep both channels for simplicity''. (B) drop the clause.}), and
 feed a 3-layer MLP (230K params). We compare against two learned
 $\SO(3)$-equivariant networks run in the same pipeline and matched in size: an
@@ -842,8 +839,7 @@ the reconstructions of Figure~\ref{fig:so3-reconstruction}.
 
 \llm{D09}{Per-degree entry allocation:}{This paragraph restates Section 5 and the Output size proposition, a third copy of the per-degree counts. (A) drop the paragraph. (B) keep.} degrees $\ell\le 4$ contribute a
 constant 22 bispectral and 10 CG-power entries; each degree
-$\ell\ge 5$ contributes at most $2\ell{+}1$ \llm{J08a}{budgeted}{``budgeted'', ``budget'', ``slot'': internal jargon (nine marks, J08a--i). (A) ``the first $2\ell{+}1$ bispectral entries''. (B) ``capped'', as in ``at most $2\ell{+}1$ entries''.} bispectral
-entries, plus at most $\lfloor\ell/2\rfloor$ further even
+$\ell\ge 5$ contributes at most $2\ell{+}1$ bispectral entries, plus at most $\lfloor\ell/2\rfloor$ further even
 self-couplings and at most seven CG-power entries, giving
 $|\Phi_{\mathrm{sel}}|=\Theta(L^2)$ total (matching the orbit-space
 lower bound $(L{+}1)^2-3$ of
@@ -994,10 +990,8 @@ invariants are polynomial, so the proposition applies.}{Completeness pass: sweep
 \subsection{The selective index set}
 \label{sec:app-selective-index}
 
-This subsection describes the index set as implemented in
-\texttt{bispectrum.so3\_on\_s2} \llm{J07}{(\texttt{\_build\_selective\_index\_map}
-and \texttt{\_build\_cg\_power\_index\_map})}{Private function names in the paper. (A) drop the parenthetical; ``as implemented in \texttt{bispectrum.so3\_on\_s2}'' is enough.};
-Algorithm~\ref{alg:so3-augmented} mirrors that code. The \emph{degree}
+This subsection describes the index set as implemented in \texttt{bispectrum.so3\_on\_s2}, which
+Algorithm~\ref{alg:so3-augmented} mirrors. The \emph{degree}
 of an entry is its largest index.
 
 \begin{definition}[Augmented selective bispectrum]\label{def:app-selective}
@@ -1023,37 +1017,36 @@ Table~\ref{tab:Tsmall}. Each degree $\ell\ge 8$ receives
   (Algorithm~\ref{alg:so3-augmented}).
 \end{enumerate}
 At $\ell\in\{8,9\}$ the list in (i) has only 16 nonzero triples
-$(a,b,\ell)$, so the power entry and self-couplings \llm{J08b}{complete the
-budget}{``budget'' (see J08a). (A) ``fill the remaining entries''.}; from $\ell=10$ on the triples alone fill it. Only one ordering
+$(a,b,\ell)$, so the power entry and self-couplings make up the remaining entries. From $\ell=10$ on, the triples alone supply
+all $2\ell{+}1$. Only one ordering
 of each triple is listed because, on real signals, all orderings of a
 triple are proportional
 (Remark~\ref{rem:app-Tell-rank-deficit}).
 
 Mathematically, $\Phi_{\mathrm{sel}}:V_L\to\R^N$, where
 $V_L\cong\R^{(L+1)^2}$ is the space of real signals band-limited
-at~$L$, has $N$ \llm{J06}{live real scalar components}{``live real scalar components''. (A) ``real components''.}: by
+at~$L$, has $N$ real components: by
 Lemma~\ref{lem:app-parity}, each bispectral entry contributes one
-real component \llm{J05}{on the real-signal slice}{``real-signal slice''. (A) ``on real signals''.} (real for even parity,
+real component on real signals (real for even parity,
 purely imaginary for odd), and CG-power entries are real-valued
 degree-$4$ invariants. The PyTorch implementation stores each
 scalar in a complex tensor, so downstream layers receive $2N$ real
 channels after splitting real and imaginary parts; for bispectral
-entries exactly one of the two channels is \llm{J04b}{structurally zero}{See J04a.} by
+entries exactly one of the two channels is identically zero by
 parity, and for CG-power entries the imaginary channel is
-\llm{J04c}{structurally zero}{See J04a.}.
+identically zero.
 \end{definition}
 
 \begin{table}[h]
   \caption{Entries of $\Phi_{\mathrm{sel}}$ at degrees $\ell\le 7$, as
     emitted by the library. Each triple $(\ell_1,\ell_2,\ell_3)$ denotes
     $\beta_{\ell_1,\ell_2,\ell_3}$ in the bispectral columns and
-    $P_{\ell_1,\ell_2,\ell_3}$ in the CG-power column. \llm{J08c}{``Budgeted'' entries}{``Budgeted'' (see J08a). (A) ``Capped'' entries, or rename the column to ``First $2\ell{+}1$''. (B) keep.}
-    are capped at $2\ell{+}1$ per degree ($10$ at $\ell=4$); ``added''
-    entries are the even self-couplings appended after the cap. For
-    $4\le\ell\le 7$ the \llm{J08d}{budgeted entries}{See J08a.} are the library's explicit blocks
+    $P_{\ell_1,\ell_2,\ell_3}$ in the CG-power column. The capped column holds at most $2\ell{+}1$
+    entries per degree ($10$ at $\ell=4$), and the added column holds the even
+    self-couplings appended after the cap. For
+    $4\le\ell\le 7$ the capped entries are the library's explicit blocks
     $\mathcal{T}_\ell^{\mathrm{small}}$, without the identically-zero rows
-    $(4,5,4)$ and $(6,7,6)$, completed by the power entry \llm{J08e}{where a slot is
-    free}{``slot'' (see J08a). (A) ``up to $2\ell{+}1$ entries''.}. In total: 22 bispectral and 10 CG-power entries at $\ell\le4$,
+    $(4,5,4)$ and $(6,7,6)$, padded with the power entry $(0,\ell,\ell)$ when the block has fewer than $2\ell{+}1$ entries. In total: 22 bispectral and 10 CG-power entries at $\ell\le4$,
     69 and 29 at $\ell\le7$.}
   \label{tab:Tsmall}
   \centering
@@ -1061,7 +1054,7 @@ parity, and for CG-power entries the imaginary channel is
   \setlength{\tabcolsep}{3pt}
   \begin{tabular}{@{}c>{\raggedright\arraybackslash}p{0.47\linewidth}>{\raggedright\arraybackslash}p{0.13\linewidth}>{\raggedright\arraybackslash}p{0.3\linewidth}@{}}
     \toprule
-    $\ell$ & \llm{J08f}{Budgeted bispectral}{Column header (see J08a).} & Added self-couplings & CG-power \\
+    $\ell$ & Capped bispectral & Added self-couplings & CG-power \\
     \midrule
     $0$ & $(0,0,0)$ & -- & -- \\
     $1$ & $(0,1,1)$ & -- & -- \\
@@ -1080,12 +1073,12 @@ parity, and for CG-power entries the imaginary channel is
     representative \llm{M03h}{band-limits}{``band-limits'' (see M03a).}. ``Bispectral'' counts the triples in
     $\mathcal{S}_\beta$ (including mandatory even self-couplings);
     ``CG-power'' counts entries in $\mathcal{S}_P$; ``Total $N$'' is
-    $|\Phi_{\mathrm{sel}}|$ (\llm{J13a}{live real components}{``live real components'' (see J02). (A) ``real components''.}) and matches the
-    library's \texttt{output\_size}. ``Stored channels'' counts the
-    \llm{J13b}{complex-tensor storage}{``complex-tensor storage''. (A) ``storage as complex numbers''.} ($2N$) seen by the SMNIST classifier;
-    one channel per bispectral entry is \llm{J04d}{structurally zero}{See J04a.} by
+    $|\Phi_{\mathrm{sel}}|$ (real components) and matches the
+    library's \texttt{output\_size}. ``Stored channels'' ($2N$) counts the real and imaginary
+    channels seen by the SMNIST classifier;
+    one channel per bispectral entry is identically zero by
     parity, and the imaginary channel of each CG-power entry is
-    \llm{J04e}{structurally zero}{See J04a.}. ``Full'' counts the entries of the full
+    identically zero. ``Full'' counts the entries of the full
     bispectrum computed by \texttt{SO3onS2(selective=False)}: every
     admissible triple with $\ell_1\le\ell_2\le L$ and $\ell\le L$,
     including those that vanish identically on real signals.}
@@ -1144,11 +1137,10 @@ parity, and for CG-power entries the imaginary channel is
 
 \begin{proposition}[Output size]\label{prop:app-output-size}
 For every $L\ge 4$, $|\Phi_{\mathrm{sel}}| = \Theta(L^2)$. Each degree
-$\ell\ge 8$ contributes at most $2\ell{+}1$ \llm{J08g}{budgeted}{See J08a.} bispectral
-entries, at most $\lfloor\ell/2\rfloor$ further even self-couplings
+$\ell\ge 8$ contributes at most $2\ell{+}1$ bispectral entries, at most $\lfloor\ell/2\rfloor$ further even self-couplings
 and at most seven CG-power entries, and the degrees $\ell\le 7$
-contribute a constant number (Table~\ref{tab:Tsmall}); the \llm{J08h}{budgeted}{See J08a.}
-entries alone already number $\Theta(L^2)$. Per-$L$ counts are in
+contribute a constant number (Table~\ref{tab:Tsmall}), and the first $2\ell{+}1$ entries of each degree alone
+already number $\Theta(L^2)$. Per-$L$ counts are in
 Table~\ref{tab:app-counts}.
 \end{proposition}
 
@@ -1303,7 +1295,7 @@ Only distinct unordered triples therefore count toward the $2\ell{+}1$
 real unknowns of $\mathbf{F}_\ell$, and for $\ell\ge 8$
 Algorithm~\ref{alg:so3-augmented} lists one ordering per triple. At
 $\ell\in\{8,9\}$ only 16 such triples with $a,b<\ell$ are nonzero,
-so the power entry and self-couplings \llm{J08i}{fill the budget}{See J08a. (A) ``fill the remaining entries''.}. The explicit
+so the power entry and self-couplings make up the remaining entries. The explicit
 blocks at $4\le\ell\le 7$ (Table~\ref{tab:Tsmall}) list several
 orderings of some triples and supply 4, 4, 8 and 8 distinct
 bispectral equations from their 10, 10, 13 and 14 nonzero rows. The
@@ -1686,14 +1678,13 @@ $n < 971$ are uniform random subsets, drawn per seed.
 MNIST digits are projected onto the sphere via stereographic
 projection following \citet{cohen2018spherical} and sampled on a
 $64 \times 128$ equiangular grid. The augmented selective bispectrum is
-computed at \llm{M05b}{$\ell_{\max} = 15$}{See M05a. (A) $L{=}15$.}, producing \llm{J11}{380 complex invariant
-coefficients}{There are 380 real invariants, stored as complex numbers. (A) ``380 invariants, stored as complex numbers''.}. The model input is obtained by applying
+computed at \llm{M05b}{$\ell_{\max} = 15$}{See M05a. (A) $L{=}15$.}, producing 380 invariants, stored as complex numbers. The model input is obtained by applying
 $\operatorname{sign}(x)\log(1+|x|)$ separately to the real and
 imaginary parts of each coefficient \llm{D07b}{(a sign-preserving, per-channel
 injective transform)}{Second explanation of the signed log (see D07a).}, giving 760 real features. These features are
 fed to a 3-layer MLP: Linear(760, 256)--BN--ReLU--Linear(256,
 128)--BN--ReLU--Linear(128, 10). The power spectrum MLP uses the
-same structure with \llm{J10}{hidden=128}{Code-speak. (A) ``with hidden width 128''.}: Linear(16, 128)--BN--ReLU--Linear(128,
+same structure with hidden width 128: Linear(16, 128)--BN--ReLU--Linear(128,
 64)--BN--ReLU--Linear(64, 10). The standard CNN has 4 convolutional
 layers (16--32--64--64 channels) followed by adaptive average pooling
 and a Linear(1024, 128)--ReLU--Linear(128, 10) classifier. S2CNN+BN is the spherical CNN of
@@ -1924,7 +1915,7 @@ all 760 real features.
     \toprule
     Entries & Real features & NR/NR & NR/R & $p$ \\
     \midrule
-    \llm{J12}{Bootstrap entries}{Code name used as a table row label. (A) ``Base bispectral entries''. (B) ``Selected triples''.} & 480 & $95.20 {\pm} 0.09$ & $95.18 {\pm} 0.11$ & -- \\
+    Base bispectral entries & 480 & $95.20 {\pm} 0.09$ & $95.18 {\pm} 0.11$ & -- \\
     + mandatory even self-couplings & 584 & $95.23 {\pm} 0.10$ & $95.19 {\pm} 0.08$ & $0.87$ \\
     + Clebsch--Gordan power spectra & 738 & $95.50 {\pm} 0.05$ & $95.51 {\pm} 0.05$ & $<10^{-3}$ \\
     + degree power, other self-couplings (full) & 760 & $95.58 {\pm} 0.10$ & $95.58 {\pm} 0.08$ & $0.14$ \\
