@@ -33,7 +33,7 @@
 \item {\bf Theory assumptions and proofs}
     \item[] Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof?
     \item[] Answer: \answerYes{}
-    \item[] Justification: All theoretical results (Propositions~\ref{prop:app-lower-bound}--\ref{prop:app-output-size}, Lemmas~\ref{lem:app-parity}--\ref{lem:app-P-invariant}, Proposition~\ref{prop:app-odd-vanishing}) state their assumptions explicitly. Section~\ref{sec:so3-selective} gives the construction and Algorithm~\ref{alg:selective-bsp-so3}; Appendix~\ref{app:so3-proof} provides the structural background with proofs. Generic completeness is stated as a conjecture; the empirical evidence (full per-degree Jacobian rank and exact reconstruction at $L{=}15$) is in Section~\ref{sec:so3-recon} and Appendix~\ref{app:so3-recon}.
+    \item[] Justification: All theoretical results (Propositions~\ref{prop:app-lower-bound}--\ref{prop:app-output-size}, Lemmas~\ref{lem:app-parity}--\ref{lem:app-P-invariant}, Proposition~\ref{prop:app-odd-vanishing}) state their assumptions explicitly. Section~\ref{sec:so3-selective} gives the construction and Algorithm~\ref{alg:selective-bsp-so3}. Appendix~\ref{app:so3-proof} provides the structural background with proofs. Generic completeness is stated as a conjecture. The empirical evidence (full per-degree Jacobian rank and exact reconstruction at $L{=}15$) is in Section~\ref{sec:so3-recon} and Appendix~\ref{app:so3-recon}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include theoretical results. 
@@ -47,7 +47,7 @@
     \item {\bf Experimental result reproducibility}
     \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The training protocol and all hyperparameters, including the tuning grids, are in Appendix~\ref{app:exp} (Table~\ref{tab:hyperparams}); model variants are in Appendix~\ref{app:pooling}, and seed counts and statistical tests in Appendix~\ref{app:exp}. The library, training scripts, and figure generators are public at \url{https://github.com/geometric-intelligence/bispectrum/}.
+    \item[] Justification: The training protocol and all hyperparameters, including the tuning grids, are in Appendix~\ref{app:exp} (Table~\ref{tab:hyperparams}). Model variants are in Appendix~\ref{app:pooling}, and seed counts and statistical tests in Appendix~\ref{app:exp}. The library, training scripts, and figure generators are public at \url{https://github.com/geometric-intelligence/bispectrum/}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -95,7 +95,7 @@
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Figures~\ref{fig:pooling-grid} and~\ref{fig:smnist} report mean $\pm$ sample standard deviation over 10 seeds (OrganMNIST3D), 3--5 seeds (PCam) and 5 seeds (Spherical MNIST). Differences are tested with two-sided Welch $t$-tests; the Spherical MNIST data-efficiency tests are Holm-corrected, and Appendix~\ref{app:pooling-grid} states the power of the PCam tests. The procedure is described in Appendix~\ref{app:exp}.
+    \item[] Justification: Figures~\ref{fig:pooling-grid} and~\ref{fig:smnist} report mean $\pm$ sample standard deviation over 10 seeds (OrganMNIST3D), 3--5 seeds (PCam) and 5 seeds (Spherical MNIST). Differences are tested with two-sided Welch $t$-tests. The Spherical MNIST data-efficiency tests are Holm-corrected, and Appendix~\ref{app:pooling-grid} states the power of the PCam tests. The procedure is described in Appendix~\ref{app:exp}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -178,7 +178,7 @@
 \item {\bf New assets}
     \item[] Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The library is released under the MIT license with documentation, API reference, and usage examples. Section~\ref{sec:library} describes the design and interface; Appendix~\ref{app:api-example} provides a minimal code example.
+    \item[] Justification: The library is released under the MIT license with documentation, API reference, and usage examples. Section~\ref{sec:library} describes the design and interface. Appendix~\ref{app:api-example} provides a minimal code example.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not release new assets.
