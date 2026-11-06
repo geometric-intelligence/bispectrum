@@ -611,8 +611,8 @@ before the relative image error is measured
     degree-by-degree solver from random starts, rotated onto the target (relative image error
     below each). All 16 targets (8
     digits, each in 2 orientations) are recovered: invariants match to better than
-    $10^{-13}$ and images to a median $1.8\times10^{-3}$, the interpolation floor of the
-    alignment. Gradient descent from noise recovers 9 of 16
+    $10^{-13}$ and images to a median $1.8\times10^{-3}$, the error left by interpolating the
+    alignment rotation on the grid. Gradient descent from noise recovers 9 of 16
     (Appendix~\ref{app:so3-recon}).}
   \label{fig:so3-reconstruction}
 \end{figure}
@@ -621,7 +621,7 @@ before the relative image error is measured
 All 32 targets are recovered: the augmented selective spherical bispectrum matches to
 better than $10^{-13}$, the full bispectrum to $10^{-12}$, and the
 aligned images to $0.0014$--$0.0035$ (digits) and $0.0056$--$0.0070$
-(random signals), the interpolation floor of rotating on the grid
+(random signals), the error left by interpolating the alignment rotation on the grid
 (Figure~\ref{fig:so3-reconstruction}). No run found two signals in
 different orbits with equal invariants. Gradient descent on the image from noise recovers 9 of 16 digits and none of the random signals, on which it
 stalls at a $7.5\%$ median invariant error, so the failures come from the optimizer.
@@ -939,25 +939,21 @@ band-limited signals on $S^2$ at band limit $L$ must have codomain
 of dimension at least $(L+1)^2 - 3$.
 \end{proposition}
 \begin{proof}
-Let $\Phi : \R^{(L+1)^2} \to \R^k$ be a smooth (or polynomial)
-$\SO(3)$-invariant map that separates orbits on a Zariski-open
-dense subset $U\subset\R^{(L+1)^2}$. Smoothness implies $\Phi$ has a
-well-defined generic rank $r := \max_{x\in U} \mathrm{rank}\,
-d\Phi_x$. On the open dense subset where this rank is attained,
-$\Phi$ is locally a submersion onto an $r$-dimensional submanifold,
-and orbit-separation forces $r \ge \dim(\R^{(L+1)^2}/\SO(3))
-= (L+1)^2 - \dim\SO(3) = (L+1)^2 - 3$
-(generic-rank theorem for $\SO(3)$ acting on $V_L$,
-cf.~Tarski--Seidenberg in the polynomial case). Hence
+Let $\Phi : \R^{(L+1)^2} \to \R^k$ be a smooth (or polynomial) $\SO(3)$-invariant map that
+separates orbits on an open dense subset $U\subset\R^{(L+1)^2}$, and let
+$r := \max_{x\in U} \mathrm{rank}\, d\Phi_x$. The rank of $d\Phi$ is lower semicontinuous,
+so $W := \{x\in U : \mathrm{rank}\, d\Phi_x = r\}$ is open and nonempty. By the constant-rank
+theorem, for $x\in W$ the level set $\Phi^{-1}(\Phi(x))\cap W$ is, near $x$, a submanifold of
+dimension $(L+1)^2 - r$. Orbit separation on $U$ places it inside the orbit $\SO(3)\cdot x$,
+a manifold of dimension at most $\dim\SO(3) = 3$. Hence $(L+1)^2 - r \le 3$, and
 $k \ge r \ge (L+1)^2 - 3 = \Omega(L^2)$.
 \end{proof}
 
 \begin{remark}[Smoothness assumption]
-The smoothness/polynomial qualifier is essential: pathological
-non-measurable invariants (e.g., a fixed orbit-section indexed by
-the axiom of choice) can in principle have codomain dimension $1$
-but are not implementable. All practical bispectral or spectral
-invariants are polynomial, so the proposition applies.
+The smoothness assumption is essential. Without continuity, a single real number can separate
+orbits (e.g., a Borel injection of the orbit space into $\R$), but such an invariant is of no use
+in a network. The bispectral and Clebsch--Gordan power invariants used here are polynomial in
+the coefficients, so the proposition applies.
 \end{remark}
 
 \subsection{The selective index set}
@@ -1288,7 +1284,7 @@ bispectral equations from their 10, 10, 13, and 14 nonzero rows.
     Result & Invariant & Size & Complete? \\
     \midrule
     Kakarala~\citep{kakarala2012bispectrum}
-      & Full bispec. & $O(L^3)$ & Yes (constr.) \\
+      & Full bispec.\ (on $\SO(3)$) & $O(L^3)$ & Yes (constr.) \\
     Edidin \& Satriano~\citep{edidin2024orbit}
       & Full bispec.\ (band-lim.)
       & $O(L^3)$ & Yes (generic) \\
@@ -1819,11 +1815,13 @@ measuring the relative image error. The solver lives in
 
 \paragraph{Results.} Gradient descent recovers
 no random signal: it stalls at a 7.5\% median invariant error. The degree-by-degree solver
-recovers all 32 targets exactly. Refitting all degrees after each new one is necessary: holding the lower degrees fixed instead lets the residual drift just past the
+recovers all 32 targets up to the interpolation error of the alignment. Refitting all degrees after each new one is necessary: holding the lower degrees fixed instead lets the residual drift just past the
 $10^{-10}$ acceptance threshold, which lost a ``1'' at $\ell{=}15$ and a ``0'' at $\ell{=}10$.
-The remaining image error is the interpolation of rotating on the grid: rotating a target and
-rotating it back already costs ${\approx}0.004$--$0.006$ (digits) and ${\approx}0.013$
-(random signals). No run found two signals in different orbits with equal invariants,
+The remaining image error comes from the alignment, which rotates the reconstruction by
+interpolating on the grid. As a check, we rotated each target exactly, through its
+spherical-harmonic expansion, and aligned it back in the same way. This leaves
+$0.0014$--$0.0034$ (digits) and $0.0060$--$0.0076$ (random signals), the same range as the
+reconstructions. No run found two signals in different orbits with equal invariants,
 consistent with conjectured generic completeness.
 
 \subsection{Dataset licenses}
