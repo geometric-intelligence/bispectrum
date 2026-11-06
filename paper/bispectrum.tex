@@ -701,8 +701,8 @@ the largest width ($+1.6$\,pp, $p{=}0.10$). On PCam all methods are on par: no m
 significantly better than bispectral pooling at any training-set size. With 3 seeds per arm,
 these tests have 80\% power only for gaps of about 0.025 AUC. All equivariant models score the same on the
 canonical and rotated tests of OrganMNIST3D, where the 24 rotations permute voxels exactly.
-Placing the ReLU before the projection instead, as in our submitted head, zeroes every
-negative coefficient and costs 4--5\,pp on OrganMNIST3D (Appendix~\ref{app:changes}).
+Placing the ReLU before the projection instead zeroes every
+negative coefficient and costs 4--5\,pp on OrganMNIST3D (Appendix~\ref{app:pooling-head}).
 
 \subsection{Spherical MNIST: $\SO(3)$ invariance on the sphere}
 \label{sec:smnist}
@@ -779,7 +779,7 @@ $4\times$ to $364\times$ lower latency. We speculate that the gain grows with ho
 information incomplete pooling discards. Per channel, norm pooling keeps a single value, the
 total energy, and max pooling keeps 1 of $|G|$ values, so both discard more for $O$ ($|G|{=}24$)
 than for $C_8$ ($|G|{=}8$). Within the pooling head, a ReLU before the first learned
-projection costs 4--5\,pp on OrganMNIST3D (Appendix~\ref{app:changes}).
+projection costs 4--5\,pp on OrganMNIST3D (Appendix~\ref{app:pooling-head}).
 
 \paragraph{When not to use the bispectrum.}
 Each module is invariant to a \emph{specific} group only. Data augmentation or
@@ -1273,9 +1273,7 @@ $\ell\in\{8,9\}$ only 16 such triples with $a,b<\ell$ are nonzero,
 so the power entry and self-couplings make up the remaining entries. The explicit
 blocks at $4\le\ell\le 7$ (Table~\ref{tab:Tsmall}) list several
 orderings of some triples and supply 4, 4, 8, and 8 distinct
-bispectral equations from their 10, 10, 13, and 14 nonzero rows. The
-submitted $\ell\ge 8$ block listed two orderings of the same triples
-(Appendix~\ref{app:changes}).
+bispectral equations from their 10, 10, 13, and 14 nonzero rows.
 \end{remark}
 
 \subsection{Comparison with existing results}
@@ -1526,6 +1524,56 @@ non-equivariant 3D CNN (16K, 63K, and 251K parameters) trained with one of the 2
 uses a NormReLU backbone. Training-set sizes are $n \in \{50, 100, 250, 500, 971\}$ at
 width $(4, 8)$.
 
+\subsection{Pooling head}
+\label{app:pooling-head}
+
+The bispectral head computes $\mathrm{ReLU}(\mathrm{proj}(\mathrm{signlog}(\beta)))$,
+with $\mathrm{signlog}$ the signed logarithm of the real and imaginary parts and $\mathrm{proj}$
+the learned $1{\times}1$ projection. Placing the ReLU first,
+$\mathrm{proj}(\mathrm{ReLU}(\mathrm{signlog}(\beta)))$, zeroes every negative $G$-bispectral
+coefficient before the projection. Table~\ref{tab:head-ablation} compares the two heads and two
+variants that append the power spectrum. The head was chosen on validation AUC alone.
+Spherical MNIST does not use this head.
+On $O$ the truncated invariant keeps full Jacobian rank
+(200 of 200 random inputs) yet costs ${\approx}5$\,pp, while on $C_8$ it is rank-deficient
+(24 of 200) yet costs nothing measurable, so Jacobian rank does not explain the gap. We suspect that the
+surviving subset changes with every input, so the fixed projection reads different coordinates
+at every voxel, and the zeroed entries pass no gradient. The rule we adopt is to apply only fixed
+injective maps (real--imaginary split, signed log) before the first learned layer. Because we compared four heads for the bispectrum but only one per baseline,
+Table~\ref{tab:head-ablation} also reports the ReLU-first head. Norm pooling has no truncated variant, because its outputs are
+non-negative and a ReLU leaves them unchanged.
+
+\begin{table}[h]
+  \centering
+  \caption{\textbf{Moving the ReLU after the projection adds 4--5\,pp on
+    OrganMNIST3D at full data.} Test accuracy (OrganMNIST3D, \%) or AUC (PCam) at the
+    best-validation checkpoint, mean $\pm$ std over 3 seeds. The ReLU-first head applies the
+    ReLU to the signed-log bispectrum before the $1{\times}1$ projection, which zeroes every
+    negative coefficient. The head we use (bold) was chosen on validation AUC alone, by
+    mean rank over the five settings. It makes no significant difference at $n{=}100$ or on
+    PCam. $p$: Welch test against the ReLU-first head.}
+  \label{tab:head-ablation}
+  \small
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lccccc@{}}
+    \toprule
+    & \multicolumn{3}{c}{OrganMNIST3D (\%)} & \multicolumn{2}{c}{PCam (AUC)} \\
+    \cmidrule(lr){2-4} \cmidrule(lr){5-6}
+    Head & 6.3M & 463K & 463K, $n{=}100$ & $n{=}100$ & $n{=}12.5$K \\
+    \midrule
+    ReLU, then projection & $73.9 {\pm} 1.5$ & $73.6 {\pm} 2.0$ & $61.0 {\pm} 0.9$ & $.812 {\pm} .024$ & $.939 {\pm} .011$ \\
+    \textbf{Projection, then ReLU} & $\mathbf{77.9 {\pm} 1.9}$ & $\mathbf{78.6 {\pm} 0.3}$ & $\mathbf{61.1 {\pm} 2.6}$ & $\mathbf{.824 {\pm} .021}$ & $\mathbf{.936 {\pm} .007}$ \\
+    \quad $p$ vs.\ ReLU first & $0.045$ & $0.049$ & $0.93$ & $0.55$ & $0.73$ \\
+    \quad + power spectrum & $78.1 {\pm} 1.2$ & $76.9 {\pm} 2.4$ & $62.4 {\pm} 2.7$ & $.813 {\pm} .031$ & $.940 {\pm} .008$ \\
+    \quad + power spectrum, cube root & $77.5 {\pm} 0.7$ & $79.0 {\pm} 3.7$ & $62.7 {\pm} 2.8$ & $.821 {\pm} .003$ & $.936 {\pm} .005$ \\
+    \midrule
+    Max pool & $76.0 {\pm} 2.1$ & $73.1 {\pm} 0.6$ & $63.1 {\pm} 1.8$ & -- & -- \\
+    Norm pool & $68.2 {\pm} 3.7$ & $63.3 {\pm} 2.7$ & $57.9 {\pm} 3.0$ & $.802 {\pm} .038$ & $.933 {\pm} .011$ \\
+    Aug.\ CNN & -- & -- & -- & $.813 {\pm} .042$ & $.928 {\pm} .009$ \\
+    \bottomrule
+  \end{tabular*}
+\end{table}
+
 \subsection{Published baselines}
 
 Table~\ref{tab:pcam-context} places our results in the context of
@@ -1704,6 +1752,36 @@ the MLP width on both invariants at the default training settings (batch 256, lr
   \end{tabular}
 \end{table}
 
+\subsection{Spherical MNIST: ablation of the augmented entries}
+\label{app:smnist-ablation}
+
+Table~\ref{tab:smnist-augmentation} builds the augmented selective spherical bispectrum up
+entry type by entry type. Only the Clebsch--Gordan power spectra measurably help
+accuracy. The self-couplings do not change accuracy and are included for the Jacobian rank.
+The classifier uses all 760 real features.
+
+\begin{table}[h]
+  \centering
+  \caption{\textbf{Of the augmentation steps, only the Clebsch--Gordan power spectra measurably
+    help.} Spherical MNIST accuracy (\%) as the augmented selective spherical bispectrum at $L{=}15$ is
+    built up. Each row adds entries to the one above, with the MLP width fixed and the other
+    entries masked to zero. Mean $\pm$ std over 5 seeds, at the default training settings
+    (batch 256, learning rate $10^{-3}$, 30 epochs), whereas Figure~\ref{fig:smnist} uses tuned
+    settings. $p$: Welch test of NR/R against the row above.}
+  \label{tab:smnist-augmentation}
+  \small
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrccc@{}}
+    \toprule
+    Entries & Real features & NR/NR & NR/R & $p$ \\
+    \midrule
+    Base bispectral entries & 480 & $95.20 {\pm} 0.09$ & $95.18 {\pm} 0.11$ & -- \\
+    + even self-couplings $\beta_{\ell,\ell,\ell'}$ & 584 & $95.23 {\pm} 0.10$ & $95.19 {\pm} 0.08$ & $0.87$ \\
+    + Clebsch--Gordan power spectra & 738 & $95.50 {\pm} 0.05$ & $95.51 {\pm} 0.05$ & $<10^{-3}$ \\
+    + degree power, other self-couplings (full) & 760 & $95.58 {\pm} 0.10$ & $95.58 {\pm} 0.08$ & $0.14$ \\
+    \bottomrule
+  \end{tabular*}
+\end{table}
+
 \subsection{Recovering signals from the augmented selective spherical bispectrum
   (Figure~\ref{fig:so3-reconstruction})}
 \label{app:so3-recon}
@@ -1776,161 +1854,6 @@ f_rec = bsp.invert(beta)  # signal recovered from beta
 beta_o = OctaonOcta()(torch.randn(16, 24))  # signals on O
 beta_d = SO2onDisk(L=32)(torch.randn(16, 32, 32))  # images on the disk
 \end{lstlisting}
-
-\section{Changes Since Submission}
-\label{app:changes}
-
-Every experiment in this version was re-run after the author response, when we found bugs in the library, the training protocol, and the pooling head.
-Several numbers therefore differ from the submitted version and from the author response. This
-section records what changed and why.
-
-\subsection{Library (\texttt{bispectrum} 0.4.0)}
-
-\begin{itemize}
-  \item \textbf{\texttt{SO3onS2}.} For $\ell \ge 8$ the chain and cross rows of the selection
-    encoded the same real equation (Remark~\ref{rem:app-Tell-rank-deficit}), so the linear rows
-    had rank at most $\ell + 1 < 2\ell + 1$ and, even with the self-couplings and CG-power
-    entries, the per-degree Jacobian fell short of full rank by $\lfloor(\ell-6)/2\rfloor$ at
-    every $\ell \ge 8$ (20 dimensions in total at $L{=}15$). Identically zero entries were also
-    kept. The corrected selection has full per-degree rank, checked numerically
-    (Section~\ref{sec:so3-selective}), and 380 coefficients at
-    $L{=}15$ (submitted: 384) and 426 at $L{=}16$ (submitted: 430). The submitted
-    reconstruction figure used the rank-deficient map.
-  \item \textbf{\texttt{DnonDn}.} The fold block was dropped for odd $n \ge 5$, leaving Jacobian
-    rank $2n - 1$, so the map was not locally injective. Odd $n$ gain the missing coefficients.
-    Even $n$, including the $D_{32}$ benchmark, are unchanged.
-  \item \textbf{\texttt{SO2onDisk}.} The Bessel zeros were off by ${\sim}5 \times 10^{-7}$ and
-    the basis had condition number ${\sim}10^{16}$. The default band limit is now the Nyquist
-    limit, which changes the disk row of Table~\ref{tab:benchmarks} from 105 to 76 coefficients.
-\end{itemize}
-
-\subsection{Training protocol}
-
-\begin{itemize}
-  \item \textbf{Sample floor.} An epoch was one pass over the $n$ training examples, so at
-    $n{=}100$ an epoch was about two optimizer steps. Every epoch now draws at least 10{,}000
-    examples. This changes every low-data result. For example, the Spherical MNIST bispectrum at
-    $n{=}100$ goes from 11.7\% to 62.7\%.
-  \item \textbf{Fixed epochs.} Early stopping fired on the accuracy dips at SGDR warm restarts,
-    and batch sizes differed between models. Runs now train for a fixed number of epochs ending
-    a cosine cycle, at one batch size per dataset (tuned per model on Spherical MNIST), and are
-    evaluated at the best-validation
-    checkpoint (Appendix~\ref{app:exp}).
-  \item \textbf{Also changed.} Aug.\ CNN is trained with augmentation at every training-set size.
-    The rotated test is the primary metric. Norm pooling is added as an incomplete-invariant
-    baseline. We use 10, 3--5, and 5 seeds on OrganMNIST3D, PCam, and Spherical MNIST, report the
-    sample standard deviation, and test differences with Welch $t$-tests. S2CNN and a
-    tensor-product network are re-run under our protocol with matched tuning
-    (Figure~\ref{fig:smnist}).
-\end{itemize}
-
-\subsection{Pooling head}
-
-The submitted pooling head computed $\mathrm{proj}(\mathrm{ReLU}(\mathrm{signlog}(\beta)))$,
-with $\mathrm{signlog}$ the signed logarithm of the real and imaginary parts and $\mathrm{proj}$
-the learned $1{\times}1$ projection, so its ReLU zeroes every negative $G$-bispectral
-coefficient before the projection. The
-camera-ready head computes $\mathrm{ReLU}(\mathrm{proj}(\mathrm{signlog}(\beta)))$. It was chosen
-on validation AUC alone (Table~\ref{tab:head-ablation}). Spherical MNIST never used this head.
-On $O$ the truncated invariant keeps full Jacobian rank
-(200 of 200 random inputs) yet costs ${\approx}5$\,pp, while on $C_8$ it is rank-deficient
-(24 of 200) yet costs nothing measurable, so Jacobian rank does not explain the gap. We suspect that the
-surviving subset changes with every input, so the fixed projection reads different coordinates
-at every voxel, and the zeroed entries pass no gradient. The rule we adopt is to apply only fixed
-injective maps (real--imaginary split, signed log) before the first learned layer. Because we compared four heads for the bispectrum but only one per baseline,
-Table~\ref{tab:head-ablation} also reports the submitted head. Norm pooling has no truncated variant, because its outputs are
-non-negative and a ReLU leaves them unchanged.
-
-\begin{table}[h]
-  \centering
-  \caption{\textbf{Moving the ReLU after the projection adds 4--5\,pp on
-    OrganMNIST3D at full data.} Test accuracy (OrganMNIST3D, \%) or AUC (PCam) at the
-    best-validation checkpoint, mean $\pm$ std over 3 seeds. The submission head applied the
-    ReLU to the signed-log bispectrum before the $1{\times}1$ projection, which zeroes every
-    negative coefficient. The camera-ready head (bold) was chosen on validation AUC alone, by
-    mean rank over the five settings. It makes no significant difference at $n{=}100$ or on
-    PCam. $p$: Welch test against the submission head.}
-  \label{tab:head-ablation}
-  \small
-  \setlength{\tabcolsep}{3pt}
-  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lccccc@{}}
-    \toprule
-    & \multicolumn{3}{c}{OrganMNIST3D (\%)} & \multicolumn{2}{c}{PCam (AUC)} \\
-    \cmidrule(lr){2-4} \cmidrule(lr){5-6}
-    Head & 6.3M & 463K & 463K, $n{=}100$ & $n{=}100$ & $n{=}12.5$K \\
-    \midrule
-    Submission: ReLU, then projection & $73.9 {\pm} 1.5$ & $73.6 {\pm} 2.0$ & $61.0 {\pm} 0.9$ & $.812 {\pm} .024$ & $.939 {\pm} .011$ \\
-    \textbf{Projection, then ReLU} & $\mathbf{77.9 {\pm} 1.9}$ & $\mathbf{78.6 {\pm} 0.3}$ & $\mathbf{61.1 {\pm} 2.6}$ & $\mathbf{.824 {\pm} .021}$ & $\mathbf{.936 {\pm} .007}$ \\
-    \quad $p$ vs.\ submission & $0.045$ & $0.049$ & $0.93$ & $0.55$ & $0.73$ \\
-    \quad + power spectrum & $78.1 {\pm} 1.2$ & $76.9 {\pm} 2.4$ & $62.4 {\pm} 2.7$ & $.813 {\pm} .031$ & $.940 {\pm} .008$ \\
-    \quad + power spectrum, cube root & $77.5 {\pm} 0.7$ & $79.0 {\pm} 3.7$ & $62.7 {\pm} 2.8$ & $.821 {\pm} .003$ & $.936 {\pm} .005$ \\
-    \midrule
-    Max pool & $76.0 {\pm} 2.1$ & $73.1 {\pm} 0.6$ & $63.1 {\pm} 1.8$ & -- & -- \\
-    Norm pool & $68.2 {\pm} 3.7$ & $63.3 {\pm} 2.7$ & $57.9 {\pm} 3.0$ & $.802 {\pm} .038$ & $.933 {\pm} .011$ \\
-    Aug.\ CNN & -- & -- & -- & $.813 {\pm} .042$ & $.928 {\pm} .009$ \\
-    \bottomrule
-  \end{tabular*}
-\end{table}
-
-\subsection{Spherical feature ablation}
-
-Table~\ref{tab:smnist-augmentation} repeats the ablation of the augmented selective spherical bispectrum
-on the corrected \texttt{SO3onS2}. Only the Clebsch--Gordan power spectra measurably help
-accuracy. The self-couplings do not change accuracy and are included for the Jacobian rank.
-The classifier uses
-all 760 real features.
-
-\begin{table}[h]
-  \centering
-  \caption{\textbf{Of the augmentation steps, only the Clebsch--Gordan power spectra measurably
-    help.} Spherical MNIST accuracy (\%) as the augmented selective spherical bispectrum at $L{=}15$ is
-    built up. Each row adds entries to the one above, with the MLP width fixed and the other
-    entries masked to zero. Mean $\pm$ std over 5 seeds, at the default training settings
-    (batch 256, learning rate $10^{-3}$, 30 epochs), whereas Figure~\ref{fig:smnist} uses tuned
-    settings. $p$: Welch test of NR/R against the row above.}
-  \label{tab:smnist-augmentation}
-  \small
-  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lrccc@{}}
-    \toprule
-    Entries & Real features & NR/NR & NR/R & $p$ \\
-    \midrule
-    Base bispectral entries & 480 & $95.20 {\pm} 0.09$ & $95.18 {\pm} 0.11$ & -- \\
-    + even self-couplings $\beta_{\ell,\ell,\ell'}$ & 584 & $95.23 {\pm} 0.10$ & $95.19 {\pm} 0.08$ & $0.87$ \\
-    + Clebsch--Gordan power spectra & 738 & $95.50 {\pm} 0.05$ & $95.51 {\pm} 0.05$ & $<10^{-3}$ \\
-    + degree power, other self-couplings (full) & 760 & $95.58 {\pm} 0.10$ & $95.58 {\pm} 0.08$ & $0.14$ \\
-    \bottomrule
-  \end{tabular*}
-\end{table}
-
-\subsection{Errata}
-
-The following statements from the submission or the author response no longer hold.
-\begin{itemize}
-  \item \textbf{OrganMNIST3D at 6.3M parameters.} We attributed max pooling's lead to an
-    optimization or capacity limitation of the bispectral model (best regularized 72.5\% vs.\
-    76.7\%). The cause was the pooling head. With the corrected head and 10 seeds, bispectral pooling
-    reaches 77.6\% vs.\ 76.0\% ($p{=}0.10$). Likewise, the submitted tie with max pooling at
-    0.46M parameters (72.6\% vs.\ 73.0\%) becomes 78.5\% vs.\ 73.6\% ($p < 10^{-3}$).
-  \item \textbf{Spherical feature ablation.} We stated that each augmentation stage changes
-    accuracy by more than the cross-seed variability. Only the Clebsch--Gordan power spectra do
-    (Table~\ref{tab:smnist-augmentation}).
-  \item \textbf{Reconstruction of random signals at $L{=}15$.} We reported gradient descent
-    plateauing just above the acceptance threshold, with 3 of 16 random signals below it. On the
-    corrected invariant gradient descent stalls at a 7.5\% median invariant error with 0 of 16
-    below it, and the image-space residual we reported measured the rotation aligner rather than
-    the invariant. The degree-by-degree solver recovers all 16 random signals
-    (Section~\ref{sec:so3-recon}, Appendix~\ref{app:so3-recon}).
-  \item \textbf{CPU latency.} We reported 0.082--402\,ms on x86. That run used one thread per core
-    on a shared 128-core host. With the thread count fixed, every module except
-    \texttt{SO3onS2} is sub-millisecond and \texttt{SO3onS2} takes 5.5--45\,ms on x86
-    (Table~\ref{tab:portability}).
-  \item \textbf{Spherical MNIST against the power spectrum.} We reported 95.0\% vs.\ 79.2\% for a
-    matched-capacity power spectrum. The numbers are now 95.8\% (tuned) vs.\ 77.7\% at 11K
-    parameters and 80.1\% at 550K (Appendix~\ref{app:smnist-capacity}). The conclusion holds.
-  \item \textbf{Counts.} The spherical classifier has 760 input features and 229{,}770
-    parameters (submitted: 768 and 231{,}818), and the test coverage of the library is 98.5\%
-    (submitted: 96.8\%).
-\end{itemize}
 
 \clearpage
 \input{checklist}
