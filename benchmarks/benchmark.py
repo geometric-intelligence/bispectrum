@@ -614,7 +614,7 @@ def paper_fig_coefficients() -> None:
         ),
         (r'$D_n$', 'DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256]], c['DnonDn'], '^'),
         (
-            r'$\mathrm{SO}(2)/D^2$',
+            r'$\mathrm{SO}(2)/\mathbb{D}$',
             'SO2onDisk',
             [{'L': L} for L in [8, 16, 32]],
             c['SO2onDisk'],
