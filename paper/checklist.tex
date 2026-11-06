@@ -5,7 +5,7 @@
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and introduction list three contributions (a PyTorch library for seven group actions, the augmented selective $\SO(3)$ invariant with $\Theta(L^2)$ coefficients, and an evaluation on PCam, OrganMNIST3D and Spherical MNIST) that are substantiated in Sections~\ref{sec:library}--\ref{sec:experiments} and Appendices~\ref{app:so3-proof}--\ref{app:exp}. Empirical claims are stated at the resolution of the Welch tests in Section~\ref{sec:experiments}, and completeness of the $\SO(3)$ invariant is stated as a conjecture.
+    \item[] Justification: The abstract and introduction list three contributions (a PyTorch library for seven group actions, the augmented selective bispectrum with $\Theta(L^2)$ coefficients, and an evaluation on PCam, OrganMNIST3D, and Spherical MNIST) that are substantiated in Sections~\ref{sec:library}--\ref{sec:experiments} and Appendices~\ref{app:so3-proof}--\ref{app:exp}. Empirical claims are stated at the resolution of the Welch tests in Section~\ref{sec:experiments}, and completeness of the augmented selective bispectrum is stated as a conjecture.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the abstract and introduction do not include the claims made in the paper.
@@ -17,7 +17,7 @@
 \item {\bf Limitations}
     \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:discussion} has ``When not to use the bispectrum'' and ``Limitations and future work'' paragraphs: invariance to one specific group, lower sample efficiency than a learned spherical CNN on $S^2$, inversion of the spherical invariant living in experiment code, no formal completeness proof, open numerical-conditioning analysis at large band-limits, a single tensor-product baseline (no MACE or wavelet scattering), and an MLP head only on $S^2$. Section~\ref{sec:pooling} and Appendix~\ref{app:pooling-grid} state the statistical power of the PCam comparisons. Sections~\ref{sec:background} and~\ref{sec:related} note the genericity assumption for selective bispectra on finite groups, and Appendix~\ref{app:changes} records the bugs fixed since submission.
+    \item[] Justification: Section~\ref{sec:discussion} has ``When not to use the bispectrum'' and ``Limitations and future work'' paragraphs: invariance to one specific group, lower sample efficiency than a learned spherical CNN on $S^2$, inversion of the augmented selective bispectrum living in experiment code, no formal completeness proof, open numerical-conditioning analysis at large band limits, a single tensor-product baseline (no MACE or wavelet scattering), and an MLP head only on $S^2$. Section~\ref{sec:pooling} and Appendix~\ref{app:pooling-grid} state the statistical power of the PCam comparisons. Sections~\ref{sec:background} and~\ref{sec:related} note the genericity assumption for selective bispectra on finite groups, and Appendix~\ref{app:changes} records the bugs fixed since submission.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper has no limitation while the answer \answerNo{} means that the paper has limitations, but those are not discussed in the paper. 
@@ -47,7 +47,7 @@
     \item {\bf Experimental result reproducibility}
     \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The training protocol and all hyperparameters, including the tuning grids, are in Appendix~\ref{app:exp} (Table~\ref{tab:hyperparams}); model variants are in Appendix~\ref{app:pooling}, and seed counts and statistical tests in Appendix~\ref{app:exp}. The library, training scripts and figure generators are public at \url{https://github.com/geometric-intelligence/bispectrum/}.
+    \item[] Justification: The training protocol and all hyperparameters, including the tuning grids, are in Appendix~\ref{app:exp} (Table~\ref{tab:hyperparams}); model variants are in Appendix~\ref{app:pooling}, and seed counts and statistical tests in Appendix~\ref{app:exp}. The library, training scripts, and figure generators are public at \url{https://github.com/geometric-intelligence/bispectrum/}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -150,7 +150,7 @@
 \item {\bf Safeguards}
     \item[] Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse (e.g., pre-trained language models, image generators, or scraped datasets)?
     \item[] Answer: \answerNA{}
-    \item[] Justification: The released asset is a deterministic mathematical library for computing group-theoretic invariants. It poses no risk for misuse.
+    \item[] Justification: The released asset is a deterministic mathematical library for computing group-theoretic invariants. We see no specific misuse risk.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper poses no such risks.
