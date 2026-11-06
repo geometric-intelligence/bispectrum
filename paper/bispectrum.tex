@@ -172,8 +172,8 @@ disk~\citep{mataigne2024selective,myers2025selective}.
 
 \paragraph{Prior implementations.} Existing implementations and uses of bispectra are
 fragmented across works, each tied to one group and its own code. The selective $G$-bispectrum
-of~\citet{mataigne2024selective} covers signals defined over finite groups. The selective disk bispectrum from
-\citet{myers2025selective} proposes a bispectrum for 2D images defined over the disk, with invariance with respect to planar rotations. The spherical bispectrum of \citet{kakarala2012bispectrum} provides a representation of spherical images that is invariant to 3D rotations. \citet{oreiller2020solid} use it as a locally rotation-invariant layer in 3D CNNs, keeping all $\Theta(L^3)$ coefficients up to a maximal degree~$L$, and \citet{chevalley2024bispectral} build a bispectral layer into a 3D U-Net for segmentation. The classical translation bispectrum~\citep{tukey1953spectral, giannakis1989bispectrum} is well-known in signal processing but lacks an open, GPU-ready implementation. \citet{sanborn2023bispectral} learn the bispectrum of compact commutative groups from data with bispectral neural networks, a form that does not cover non-commutative groups.
+of~\citet{mataigne2024selective} covers signals defined over finite groups. The selective disk bispectrum of
+\citet{myers2025selective} covers 2D images defined over the disk, with invariance with respect to planar rotations. The spherical bispectrum of \citet{kakarala2012bispectrum} provides a representation of spherical images that is invariant to 3D rotations. \citet{oreiller2020solid} use it as a locally rotation-invariant layer in 3D CNNs, keeping all $\Theta(L^3)$ coefficients up to a maximal degree~$L$, and \citet{chevalley2024bispectral} build a bispectral layer into a 3D U-Net for segmentation. The classical translation bispectrum~\citep{tukey1953spectral, giannakis1989bispectrum} is well-known in signal processing but lacks an open, GPU-ready implementation. \citet{sanborn2023bispectral} learn the bispectrum of compact commutative groups from data with bispectral neural networks, a form that does not cover non-commutative groups.
 No single library offers these invariants across groups behind one tested, GPU-ready
 interface, so using a bispectrum on a new group or domain still means re-deriving and
 re-implementing it. \texttt{bispectrum} closes this gap.
@@ -231,33 +231,33 @@ classes of irreps.
 \paragraph{Bispectrum on finite groups.}
 The $G$-bispectrum~\citep{kakarala1992triple, mataigne2024selective}
 provides a complete invariant for signals on finite
-groups, usable as a pooling layer. Given a signal $\Theta : G \to \R$ on a finite group $G$ with
+groups, usable as a pooling layer. Given a signal $f : G \to \R$ on a finite group $G$ with
 unitary irreps $\{\rho_i\}_{i\in\hat{G}}$, the \emph{$G$-Fourier
 transform}~\citep{diaconis1990fourier} is
 \begin{equation}\label{eq:fourier-finite}
-  \mathcal{F}(\Theta)_{\rho_i}
-  := \sum_{g \in G} \Theta(g)\, \rho_i(g)^{\dagger}
+  \mathcal{F}(f)_{\rho_i}
+  := \sum_{g \in G} f(g)\, \rho_i(g)^{\dagger}
   \;\in\; \C^{d_i \times d_i},
 \end{equation}
 where $d_i = \dim(\rho_i)$. The \emph{full $G$-bispectrum} is
 \begin{equation}\label{eq:bispectrum-def}
-  \beta(\Theta)_{\rho_1,\rho_2}
-  = \bigl[\mathcal{F}(\Theta)_{\rho_1} \otimes
-    \mathcal{F}(\Theta)_{\rho_2}\bigr]\,
+  \beta(f)_{\rho_1,\rho_2}
+  = \bigl[\mathcal{F}(f)_{\rho_1} \otimes
+    \mathcal{F}(f)_{\rho_2}\bigr]\,
     C_{\rho_1,\rho_2}\,
     \Bigl[\bigoplus_{\rho \in \rho_1 \otimes \rho_2}
-      \mathcal{F}(\Theta)_{\rho}^{\dagger}\Bigr]\,
+      \mathcal{F}(f)_{\rho}^{\dagger}\Bigr]\,
     C_{\rho_1,\rho_2}^{\dagger},
 \end{equation}
 where $C_{\rho_1,\rho_2}$ is the unitary Clebsch--Gordan matrix that
 block-diagonalizes the tensor product $\rho_1 \otimes \rho_2$ into
 irreducible summands. Each matrix
-$\beta(\Theta)_{\rho_1,\rho_2}$ is $G$-invariant, and the full collection
-$\{\beta(\Theta)_{\rho_1,\rho_2}\}_{(\rho_1,\rho_2)\in\hat{G}^2}$
+$\beta(f)_{\rho_1,\rho_2}$ is $G$-invariant, and the full collection
+$\{\beta(f)_{\rho_1,\rho_2}\}_{(\rho_1,\rho_2)\in\hat{G}^2}$
 is a complete $G$-invariant for generic signals (i.e., those with
 nonsingular Fourier coefficients)~\citep{kakarala1992triple}.
 The full bispectrum has $O(|G|^2)$ scalar entries.
-\citet{mataigne2024selective} shows that a breadth-first search over
+\citet{mataigne2024selective} show that a breadth-first search over
 the Kronecker product table of $\hat{G}$ selects $O(|G|)$ bispectral
 coefficients that remain complete. For example, the octahedral group
 drops from $576$ to $172$ scalars.
@@ -386,7 +386,7 @@ incomplete. They discard inter-scale phase information.
   \caption{\textbf{Selective bispectra are complete invariants with as few coefficients as
     incomplete ones.} The selective $G$-bispectrum~\citep{mataigne2024selective} and the
     selective disk bispectrum~\citep{myers2025selective} are complete with $O(|G|)$ and $O(m)$
-    coefficients, for $m$ disk harmonics. Our selective spherical bispectrum has $\Theta(L^2)$
+    coefficients, for $m$ disk harmonics. Our augmented selective spherical bispectrum has $\Theta(L^2)$
     coefficients and is complete in all our tests (Sec.~\ref{sec:so3-selective}), without a
     proof. $^\dagger$Completeness holds for almost every signal, all but a negligible set.}
   \label{tab:nonlinearity-comparison}
@@ -406,7 +406,7 @@ incomplete. They discard inter-scale phase information.
     \midrule
     Selective bispectrum (finite $G$) & Yes       & $O(|G|)$      & $O(|G|^2)$ & Genericity assumption$^\dagger$ \\
     Selective bispectrum ($\SO(2)$/disk) & Yes    & $O(m)$        & $O(m \log m)^\S$ & Genericity assumption$^\dagger$ \\
-    \begin{tabular}[t]{@{}l@{}}Selective spherical bispectrum\\ \quad($\SO(3)$/$S^2$, ours)\end{tabular} & Empirical & $\Theta(L^2)$ & $O(L^4)$   & No completeness proof \\
+    \begin{tabular}[t]{@{}l@{}}Augmented selective spherical\\ \quad bispectrum ($\SO(3)$/$S^2$, ours)\end{tabular} & Empirical & $\Theta(L^2)$ & $O(L^4)$   & No completeness proof \\
     \bottomrule
   \end{tabular}
 
@@ -447,9 +447,9 @@ usage example is in Appendix~\ref{app:api-example}.
     \toprule
     Module & Group / Domain & Output mode & Reference \\
     \midrule
-    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full & \citep{sanborn2023bispectral} \\
+    \texttt{CnonCn} & $C_n$ on $C_n$ & selective + full & \citep{giannakis1989bispectrum} \\
     \texttt{SO2onS1} & $\SO(2)$ on $S^1$ & selective + full & \citep{mataigne2024selective} \\
-    \texttt{TorusOnTorus} & $\mathbb{T}^d$ & selective + full & \citep{mataigne2024selective} \\
+    \texttt{TorusOnTorus} & $\mathbb{T}^d$ on $\mathbb{T}^d$ & selective + full & \citep{mataigne2024selective} \\
     \texttt{DnonDn} & $D_n$ on $D_n$ & selective & \citep{mataigne2024selective} \\
     \texttt{SO2onDisk} & $\SO(2)$ on disk & selective & \citep{myers2025selective} \\
     \texttt{SO3onS2} & $\SO(3)$ on $S^2$ & selective + full & \citep{kakarala2012bispectrum}, this paper \\
@@ -605,8 +605,8 @@ before the relative image error is measured
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.9\linewidth]{experiments/spherical_mnist_reconstruction/figures/paper_orbits.pdf}
-  \caption{\textbf{Spherical signals recovered from their 380 selective spherical bispectrum
-    coefficients alone match the targets up to rotation.}
+  \caption{\textbf{Spherical signals recovered from their 380 augmented selective spherical
+    bispectrum coefficients alone match the targets up to rotation.}
     Top: Spherical MNIST digits, band-limited to $L{=}15$. Bottom: reconstructions by a
     degree-by-degree solver from random starts, rotated onto the target (relative image error
     below each). All 16 targets (8
@@ -689,7 +689,7 @@ Figure~\ref{fig:pooling-grid} shows the results. Across 46 seed-level comparison
 every width on OrganMNIST3D, detailed in Appendix~\ref{app:pooling-grid}),
 bispectral pooling is never significantly worse than any baseline. On OrganMNIST3D it
 improves on max pooling on the same backbone by 5.0\,pp at full data
-($78.5\%$ vs.\ $73.6\%$, $p<10^{-3}$). Its smallest model (0.46M parameters) beats max
+($78.54\%$ vs.\ $73.56\%$, $p<10^{-3}$). Its smallest model (0.46M parameters) beats max
 pooling's largest (6.0M) by 2.6\,pp, and with 500 training examples it beats max pooling
 trained on all 971 by 3.6\,pp. It is 3.6 to 16\,pp above norm pooling and the augmented 3D
 CNN at every training-set size from 100 and at every width. The advantage over max pooling
@@ -730,7 +730,7 @@ accuracy at full data, and the selected settings are reused at every training-se
 \begin{figure}[tbp]
   \centering
   \includegraphics[width=\linewidth]{experiments/smnist_figure/smnist_figure.pdf}
-  \caption{\textbf{The selective spherical bispectrum is within 0.3\,pp of equivariant networks
+  \caption{\textbf{The augmented selective spherical bispectrum is within 0.3\,pp of equivariant networks
     on Spherical MNIST at $4\times$ to $364\times$ lower latency.}
     (a)~Accuracy under the three train/test protocols (NR: unrotated, R: rotated). The CNN
     drops to 13\% on unseen rotations, while the invariant and equivariant models do not.
@@ -1011,7 +1011,7 @@ identically zero.
     implemented in the library. Each triple $(\ell_1,\ell_2,\ell_3)$ denotes
     $\beta_{\ell_1,\ell_2,\ell_3}$ in the bispectral columns and
     $P_{\ell_1,\ell_2,\ell_3}$ in the CG-power column. The capped column holds at most $2\ell{+}1$
-    entries per degree ($10$ at $\ell=4$), and the added column holds the even
+    entries per degree, except $10$ at $\ell=4$, and the added column holds the even
     self-couplings appended after the cap. For
     $4\le\ell\le 7$ the capped entries are the library's explicit blocks
     $\mathcal{T}_\ell^{\mathrm{small}}$, without the identically-zero rows
@@ -1107,7 +1107,7 @@ identically zero.
 \end{algorithm}
 
 \begin{proposition}[Output size]\label{prop:app-output-size}
-For every $L\ge 4$, $|\Phi_{\mathrm{sel}}| = \Theta(L^2)$. Each degree
+As $L\to\infty$, $|\Phi_{\mathrm{sel}}| = \Theta(L^2)$. Each degree
 $\ell\ge 8$ contributes at most $2\ell{+}1$ bispectral entries, at most $\lfloor\ell/2\rfloor$ further even self-couplings,
 and at most seven CG-power entries. The degrees $\ell\le 7$
 contribute a constant number (Table~\ref{tab:Tsmall}), and the first $2\ell{+}1$ entries of each degree alone
@@ -1283,15 +1283,15 @@ bispectral equations from their 10, 10, 13, and 14 nonzero rows.
     \toprule
     Result & Invariant & Size & Complete? \\
     \midrule
-    Kakarala~\citep{kakarala2012bispectrum}
+    \citet{kakarala2012bispectrum}
       & Full bispec.\ (on $\SO(3)$) & $O(L^3)$ & Yes (constr.) \\
-    Edidin \& Satriano~\citep{edidin2024orbit}
+    \citet{edidin2024orbit}
       & Full bispec.\ (band-lim.)
       & $O(L^3)$ & Yes (generic) \\
-    Bendory et al.~\citep{bendory2025orbit}
+    \citet{bendory2025orbit}
       & Freq.\ marching
       & $O(L^2)$/shell & Yes (3~shells) \\
-    Mataigne et al.~\citep{mataigne2024selective}
+    \citet{mataigne2024selective}
       & Sel.\ $G$-bispec.\ (finite)
       & $O(|G|)$ & Yes (exact) \\
     \textbf{This work}
@@ -1394,7 +1394,7 @@ Table~\ref{tab:benchmarks} on four GPUs and four host CPUs with a
 single script (\texttt{experiments/tooling/benchmark\_devices.py}): batch\,=\,16, float32
 input, \texttt{torch.inference\_mode()}, median over 30 repetitions of 20
 forward passes after 10 warm-up passes, PyTorch 2.11, \texttt{bispectrum}
-0.4.1 (0.4.0 on the H100 and A100 hosts, a release that differs from 0.4.1 only on MPS).
+0.4.1 (0.4.0 for this table's H100 and A100 rows, a release that differs from 0.4.1 only on MPS).
 Every module runs on every backend. All modules are sub-millisecond on the four
 GPUs, which span data-center and consumer NVIDIA parts, two CUDA versions (12.8
 and 13.0) and Apple MPS. On the consumer RTX 4090, \texttt{SO3onS2}, which
@@ -1596,7 +1596,7 @@ Table~\ref{tab:organ3d-context} situates our OrganMNIST3D results against publis
 methods on the same benchmark. Our equivariant models (0.37M--6.3M parameters) share one
 plain backbone to isolate the pooling mechanism, and bispectral pooling reaches $78.5\%$ at
 0.46M parameters. Equivariant models of similar or smaller size (ILPOResNet-50, EquiLoPO)
-reach 87--88\%, so our absolute accuracy is not competitive. The comparison our experiments
+reach 86.6--87.9\%, so our absolute accuracy is not competitive. The comparison our experiments
 support is between pooling layers on a shared backbone.
 
 \begin{table}[h]
@@ -1681,7 +1681,7 @@ training patches, drawn per seed.
 \paragraph{OrganMNIST3D.}
 OrganMNIST3D~\citep{medmnistv2} contains 1{,}742 abdominal CT organ
 volumes of size $28 \times 28 \times 28$ voxels with 11 organ classes
-(train/val/test = 971/161/610). Volumes are normalized to $[0, 1]$.
+(train/val/test = 971/161/610, as distributed by \texttt{medmnist} 3.0.2). Volumes are normalized to $[0, 1]$.
 Aug.\ CNN is trained with one of the 24 octahedral rotations per sample.
 Equivariant models are trained without augmentation. Kernel rotations are implemented as exact
 voxel permutations on the $3^3$ grid, avoiding interpolation artifacts. Subsets with
@@ -1791,7 +1791,7 @@ measuring the relative image error. The solver lives in
 \texttt{experiments/spherical\_mnist\_reconstruction/degree\_marching.py}.
 
 \begin{table}[h]
-  \caption{Reconstruction from the selective spherical bispectrum at $L{=}15$, by method and
+  \caption{Reconstruction from the augmented selective spherical bispectrum at $L{=}15$, by method and
     target set.}
   \label{tab:so3-recon}
   \centering
@@ -1824,13 +1824,14 @@ $0.0014$--$0.0034$ (digits) and $0.0060$--$0.0076$ (random signals), the same ra
 reconstructions. No run found two signals in different orbits with equal invariants,
 consistent with conjectured generic completeness.
 
-\subsection{Dataset licenses}
+\subsection{Asset licenses}
 
 \begin{itemize}[nosep]
   \item \textbf{PCam}: CC0 1.0 Universal (public domain).
-  \item \textbf{OrganMNIST3D}: CC BY 4.0.
-  \item \textbf{Spherical MNIST}: derived from MNIST, which is
-    publicly available for research use.
+  \item \textbf{OrganMNIST3D}: CC BY 4.0, loaded with \texttt{medmnist} 3.0.2 (Apache-2.0).
+  \item \textbf{Spherical MNIST}: generated from MNIST, which is released under CC BY-SA 3.0.
+  \item \textbf{Code}: PyTorch 2.11 (BSD-3-Clause), NumPy (BSD-3-Clause),
+    \texttt{torch\_harmonics} 0.9.2 (BSD-3-Clause), and \texttt{e3nn} 0.6.0 (MIT).
 \end{itemize}
 
 \section{API Example}
