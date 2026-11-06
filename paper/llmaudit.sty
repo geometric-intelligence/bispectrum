@@ -1,0 +1,108 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{llmaudit}[2026/11/05 LLM-style audit overlay]
+\RequirePackage{xcolor}
+\RequirePackage{hyperref}
+\RequirePackage{enumitem}
+
+% \llm[decision]{ID}{flagged text}{note}   colored span + tag; off: flagged text
+% \llmpt[decision]{ID}{note}               tag only;           off: nothing
+% The category is the first letter of the ID. Notes must not contain %, # or
+% \cite/\ref: caption text (and so any \llm inside it) is copied to the aux file.
+
+\newif\ifllmaudit
+\llmaudittrue
+
+\definecolor{llmV}{HTML}{B07800}
+\definecolor{llmR}{HTML}{9C2A82}
+\definecolor{llmJ}{HTML}{00876C}
+\definecolor{llmD}{HTML}{1F5FB4}
+\definecolor{llmS}{HTML}{6E6E6E}
+\definecolor{llmH}{HTML}{8C564B}
+\definecolor{llmC}{HTML}{D1006F}
+\definecolor{llmM}{HTML}{4D7A0F}
+\definecolor{llmX}{HTML}{D00000}
+
+\def\llm@name@V{Vocabulary and stock phrases}
+\def\llm@name@R{Rhetorical tics}
+\def\llm@name@J{Code-speak and internal jargon}
+\def\llm@name@D{Duplication and repetition}
+\def\llm@name@S{Signposting and roadmaps}
+\def\llm@name@H{Hedges and defensive asides}
+\def\llm@name@C{Captions and headers}
+\def\llm@name@M{Mechanical drift}
+\def\llm@name@X{Deferred to the SO(3) completeness pass}
+
+\newcount\llm@count
+\def\llm@cat#1#2\@nil{#1}
+
+\newcommand\llm@decmark[1]{\if\relax\detokenize{#1}\relax\else:#1\fi}
+
+\newcommand\llm@tag[3]{%
+  \textsuperscript{\normalfont\sffamily\scriptsize
+    \hyperlink{llmidx:#2}{\textcolor{llm#3}{[#2\llm@decmark{#1}]}}}%
+  \label{llmsrc:#2}}
+
+\newcommand\llm@record[4]{%
+  \ifcsname llm@seen@#2\endcsname\else
+    \global\expandafter\let\csname llm@seen@#2\endcsname\@empty
+    \global\advance\llm@count\@ne
+    \ifcsname llm@list@#4\endcsname\else
+      \global\expandafter\let\csname llm@list@#4\endcsname\@empty
+    \fi
+    \expandafter\g@addto@macro\csname llm@list@#4\endcsname
+      {\llm@entry{#1}{#2}{#3}{#4}}%
+  \fi}
+
+% #1 category, #2 decision, #3 ID, #4 note
+\newcommand\llm@mark[4]{\llm@tag{#2}{#3}{#1}\llm@record{#2}{#3}{#4}{#1}}
+
+\NewDocumentCommand\llm{O{} m +m +m}{%
+  \ifllmaudit\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi
+  {\edef\llm@thiscat{\llm@cat#2\@nil}%
+   \textcolor{llm\llm@thiscat}{#3}%
+   \expandafter\llm@mark\expandafter{\llm@thiscat}{#1}{#2}{#4}}%
+  {#3}}
+
+\NewDocumentCommand\llmpt{O{} m +m}{%
+  \ifllmaudit\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi
+  {\edef\llm@thiscat{\llm@cat#2\@nil}%
+   \expandafter\llm@mark\expandafter{\llm@thiscat}{#1}{#2}{#3}}%
+  {}}
+
+\newcommand\llm@entry[4]{%
+  \item[\hypertarget{llmidx:#2}{\textcolor{llm#4}{\sffamily #2}}]
+    {\sffamily\scriptsize p.\,\pageref{llmsrc:#2}%
+      \if\relax\detokenize{#1}\relax\else
+        \ \textcolor{llm#4}{\textbf{decision: #1}}\fi}\quad #3}
+
+\newcommand\llm@printcat[1]{%
+  \ifcsname llm@list@#1\endcsname
+    \subsection*{\textcolor{llm#1}{#1: \csname llm@name@#1\endcsname}}
+    \begin{description}[leftmargin=3.2em,labelwidth=2.8em,labelsep=0.4em,
+        itemsep=1pt,parsep=0pt,topsep=2pt,font=\normalfont]
+      \csname llm@list@#1\endcsname
+    \end{description}
+  \fi}
+
+\newcommand\llmprintindex{%
+  \ifllmaudit
+    \clearpage
+    \section*{LLM-style audit index (review copy)}
+    {\small
+    Every colored span or tag \textsuperscript{\sffamily\tiny[ID]} in the
+    text links here; each entry links back to its page. Record a decision
+    in the source by adding an optional argument,
+    \texttt{\textbackslash llm[B]\{ID\}\{\dots\}\{\dots\}} or
+    \texttt{\textbackslash llmpt[keep]\{ID\}\{\dots\}}: \texttt{A}/\texttt{B}/\texttt{C}
+    pick an alternative, \texttt{keep} or \texttt{drop} keep or delete the
+    flagged text, and \texttt{mine} means the flagged text was rewritten in
+    place. Set \texttt{\textbackslash llmauditfalse} in the preamble to hide
+    the overlay.\par
+    \llm@printcat{V}\llm@printcat{R}\llm@printcat{J}\llm@printcat{D}%
+    \llm@printcat{S}\llm@printcat{H}\llm@printcat{C}\llm@printcat{M}%
+    \llm@printcat{X}}%
+  \fi}
+
+\AtEndDocument{\typeout{LLMAUDIT: \the\llm@count\space entries}}
+
+\endinput

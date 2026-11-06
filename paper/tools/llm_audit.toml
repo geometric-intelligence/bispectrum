@@ -1,0 +1,1006 @@
+# LLM-style audit catalogue for paper/bispectrum.tex and paper/checklist.tex.
+#
+# id          category letter + number (+ instance letter): V vocabulary, R rhetorical tics,
+#             J code-speak/jargon, D duplication, S signposting, H hedges, C captions/headers,
+#             M mechanical drift, X deferred to the SO(3) completeness pass
+# kind        span (wrap the text in \llm) or point (insert \llmpt after the anchor)
+# file        bispectrum.tex (default) or checklist.tex
+# find        exact source text, whitespace-insensitive; before[[target]]after marks the
+#             target inside a longer context (for a point, the insertion is at ]])
+# occurrence  1-based index when find matches more than once
+# note        problem and alternatives; no %, #, &, \cite or \ref
+
+# ---------------------------------------------------------------- abstract
+
+[[item]]
+id = 'V17'
+kind = 'point'
+find = '''\begin{abstract}'''
+note = '''Title ``Selective $G$-Bispectra Made Practical'' uses the stock ``X Made Y'' pattern. (A) keep. (B) ``bispectrum: A PyTorch Library of Selective $G$-Bispectra''. (C) ``bispectrum: Fast Complete Invariants for $G$-CNNs and Spherical Signals''.'''
+
+[[item]]
+id = 'D04a'
+kind = 'point'
+find = '''and spherical-image classification under 3D rotations.'''
+occurrence = 1
+note = '''This opening sentence is repeated word for word as the first sentence of the introduction. (A) keep it here and rewrite the intro opening (see D04b). (B) start the abstract with the bispectrum itself.'''
+
+[[item]]
+id = 'V01'
+find = '''principled \emph{complete} invariant'''
+note = '''``principled'' is filler (used again in the intro). (A) ``a complete invariant''. (B) keep.'''
+
+[[item]]
+id = 'H07'
+find = '''(retaining all of the signal's information up to the group action)'''
+note = '''Parenthetical gloss. (A) keep. (B) ``(it determines the signal up to the group action)''. (C) drop; the intro defines completeness.'''
+
+[[item]]
+id = 'V03'
+find = '''with demonstrated benefits in machine learning and as a pooling layer in deep networks'''
+note = '''Vague promotional phrase; ``demonstrated benefits in machine learning'' says nothing concrete. (A) ``and has been used as a pooling layer in deep networks''. (B) drop.'''
+
+[[item]]
+id = 'V04'
+find = '''its deployment has been hampered by high computational cost and a patchwork of group-specific implementations'''
+note = '''``hampered'', ``patchwork'': stock vocabulary. (A) ``the full bispectrum is costly to compute, and each existing implementation covers a single group''. (B) ``it is expensive, and no implementation covers more than one group''.'''
+
+[[item]]
+id = 'V07'
+find = '''seven different group actions'''
+note = '''``different'' is filler. (A) ``seven group actions''.'''
+
+[[item]]
+id = 'V11a'
+find = '''machine learning pipelines and deep learning architectures'''
+occurrence = 1
+note = '''``machine learning pipelines and deep learning architectures/pipelines'': the ML/DL doublet appears four times (abstract, intro twice, closing sentence). (A) ``neural networks''. (B) end the sentence at ``differentiable modules''.'''
+
+[[item]]
+id = 'D05a'
+kind = 'point'
+find = '''directly incorporated into machine learning pipelines and deep learning architectures.'''
+occurrence = 1
+note = '''The library sentence (``an open-source, fully unit-tested PyTorch library that implements selective $G$-bispectra ... directly incorporated into ...'') is repeated almost verbatim in the intro Contributions paragraph (D05b). (A) keep it here, shorten the intro copy. (B) keep both.'''
+
+[[item]]
+id = 'V05'
+find = '''we leverage the disk bispectrum'''
+note = '''``leverage''. (A) ``we use the selective disk bispectrum''. (B) ``we implement the selective disk bispectrum of Myers et al.''.'''
+
+[[item]]
+id = 'M03a'
+find = '''selective bispectrum at [[band-limit]] $L$ which'''
+note = '''Spelling drift: ``band-limit'', ``bandlimit'' and ``band limit'' all occur as the noun (eleven marks, M03a--k). (A) ``band limit'' for the noun and ``band-limited'' for the adjective everywhere. (B) ``bandlimit'' everywhere.'''
+
+[[item]]
+id = 'M11'
+find = '''from $O(L^3)$ to $\Theta(L^2)$'''
+note = '''Mixes $O$ and $\Theta$ for the same comparison; the contributions say $\Theta(L^3)$ to $\Theta(L^2)$. (A) ``from $\Theta(L^3)$ to $\Theta(L^2)$''.'''
+
+[[item]]
+id = 'H01'
+find = '''(for which we implemented various compute optimizations)'''
+note = '''Vague, defensive parenthetical (and ``the entire library'' just before it: ``entire'' is filler). (A) drop. (B) name the optimizations, e.g. ``(precomputed CG tables, CUDA-graph replay for SO3onS2)''.'''
+
+[[item]]
+id = 'V06'
+find = '''delivers near-exact $G$-invariance'''
+note = '''``delivers''; ``near-exact'' is vague. (A) ``is $G$-invariant to floating-point precision''. (B) ``is invariant up to floating-point error''.'''
+
+[[item]]
+id = 'H02'
+find = '''(up to commonly used bandlimits)'''
+note = '''Vague hedge, plus the ``bandlimits'' spelling (see M03a). (A) ``(at $L{=}16$ on $S^2$)''. (B) drop.'''
+
+[[item]]
+id = 'D01a'
+find = '''Across 46 comparisons, bispectral pooling is never significantly worse than any of them; it is on par on PCam and improves on max pooling by 5.0\,pp on OrganMNIST3D.'''
+note = '''Headline pooling result, stated six times (abstract, contributions, Figure 3 caption, Results, Discussion, Appendix C statistics; D01a--f). (A) keep it here, in Results and in the figure caption; cut the others. (B) keep all.'''
+
+[[item]]
+id = 'D02a'
+find = '''on par with a matched spherical CNN at $4\times$ lower latency and within 0.3\,pp of a tensor-product network at $364\times$ lower latency'''
+note = '''Spherical MNIST headline (0.3 pp, $4\times$, $364\times$), stated five times (abstract, contributions, Table 4 caption, Results, Discussion; D02a--e). (A) keep it here and in Results. (B) keep all.'''
+
+# ---------------------------------------------------------------- introduction
+
+[[item]]
+id = 'D04b'
+kind = 'point'
+find = '''and spherical-image classification under 3D rotations.'''
+occurrence = 2
+note = '''Same sentence as the abstract opening (D04a). (A) open the intro with the pooling problem, e.g. ``Equivariant networks end in an invariant pooling layer, and the usual choices discard information.'' (B) keep.'''
+
+[[item]]
+id = 'H03'
+find = '''(and are therefore not related by any group element)'''
+note = '''Defensive aside with loose logic: sharing per-frequency magnitudes does not imply that two signals are unrelated by the group. (A) drop. (B) ``two signals that share per-frequency magnitudes but are not related by any group element are mapped to the same descriptor''.'''
+
+[[item]]
+id = 'V02'
+find = '''a principled alternative'''
+note = '''Second ``principled''; the next sentence restarts with ``The $G$-bispectrum is''. (A) ``The $G$-bispectrum is a complete alternative''. (B) merge the two sentences: ``The $G$-bispectrum [cites], a complex-valued $G$-invariant descriptor, avoids this.'' (C) keep.'''
+
+[[item]]
+id = 'R04'
+find = '''It has three properties that make it particularly suited to learning on structured data:'''
+note = '''Setup colon (``particularly suited to'') followed by an em-dash definition list, ``(i) completeness --- ...; (ii) inversion --- ...; (iii) selectivity --- ...''. (A) ``It is complete (it preserves all information up to the group action), invertible (...), and selective (...).'' (B) keep the list but use colons instead of em-dashes.'''
+
+[[item]]
+id = 'R01'
+kind = 'point'
+find = '''\paragraph{Existing constructions of $G$-bispectra are scattered across theoretical papers and group-specific implementations.}'''
+note = '''Full-sentence claim used as a paragraph header. (A) \textbf{Prior implementations.} (B) \textbf{Related constructions.} (C) keep.'''
+
+[[item]]
+id = 'R02'
+find = '''The absence of a unified, efficient, and differentiable implementation across group actions has limited the bispectrum's adoption as a practical building block in modern deep learning pipelines.'''
+note = '''Grand closer: tricolon (``unified, efficient, and differentiable''), ``practical building block'', ``modern deep learning pipelines''. (A) drop. (B) ``No library covers these groups behind one differentiable interface.'' (C) keep.'''
+
+[[item]]
+id = 'R03'
+find = '''We present, profile, and evaluate'''
+note = '''Tricolon of verbs. (A) ``We present''.'''
+
+[[item]]
+id = 'V11b'
+find = '''machine learning pipelines and deep learning architectures'''
+occurrence = 2
+note = '''ML/DL doublet again (see V11a).'''
+
+[[item]]
+id = 'D05b'
+kind = 'point'
+find = '''directly incorporated into machine learning pipelines and deep learning architectures.'''
+occurrence = 2
+note = '''Repeats the abstract library sentence (D05a). (A) shorten to ``We present \texttt{bispectrum}, an open-source PyTorch library of selective $G$-bispectra.'' (B) keep.'''
+
+[[item]]
+id = 'M01'
+find = '''Software: [[Pytorch]] Library.'''
+note = '''Typo: ``PyTorch''.'''
+
+[[item]]
+id = 'C14a'
+kind = 'point'
+find = '''\textbf{Software: Pytorch Library.}'''
+note = '''Bold ``Category: Title.'' labels on the three contribution items (C14a--c). (A) short bold nouns: \textbf{Library.}, \textbf{Spherical invariant.}, \textbf{Evaluation.} (B) no bold labels. (C) keep.'''
+
+[[item]]
+id = 'V08a'
+find = '''as [[drop-in]] differentiable modules'''
+note = '''``drop-in'' (also in Related Work and the Table 2 caption). (A) delete the word. (B) ``as standard \texttt{nn.Module}s''.'''
+
+[[item]]
+id = 'V09a'
+find = '''[[uniform API]] unlocking'''
+note = '''``uniform API/interface'' appears four times (V09a--d). (A) keep only the one in Section 4 (Design and implementation). (B) ``with one interface''.'''
+
+[[item]]
+id = 'V10'
+find = '''unlocking practical deployment across machine learning and deep learning pipelines'''
+note = '''Promotional phrase with ``unlocking'' and the ML/DL doublet. (A) drop; end the sentence at ``uniform API''. (B) keep.'''
+
+[[item]]
+id = 'M02'
+find = '''sub-millisecond GPU forward [[passes  and]] a fully'''
+note = '''Double space in the source (``passes  and''); invisible in the PDF. (A) single space.'''
+
+[[item]]
+id = 'C14b'
+kind = 'point'
+find = '''\textbf{Theory: Augmented Selective Bispectrum for Spherical Rotations.}'''
+note = '''Same bold ``Category: Title.'' pattern (see C14a).'''
+
+[[item]]
+id = 'M03b'
+find = '''spherical images: at [[bandlimit]] $L$, a selective'''
+note = '''``bandlimit'' (see M03a).'''
+
+[[item]]
+id = 'C14c'
+kind = 'point'
+find = '''\textbf{Experiments: Unified Evaluation.}'''
+note = '''Same pattern (see C14a); ``Unified Evaluation'' is also vague.'''
+
+[[item]]
+id = 'D01b'
+find = '''Across 46 comparisons it is never significantly worse than any of them; it is on par on PCam and improves on max pooling by 5.0\,pp on OrganMNIST3D.'''
+note = '''Repeats the abstract headline numbers (see D01a). (A) state it without numbers: ``it is never significantly worse than five baselines and beats max pooling on OrganMNIST3D''. (B) keep.'''
+
+[[item]]
+id = 'D02b'
+find = '''is within 0.3\,pp of matched learned-equivariant networks on rotated digits at $4\times$ to $364\times$ lower latency'''
+note = '''Repeats the abstract Spherical MNIST numbers (see D02a). (A) drop the numbers here. (B) keep.'''
+
+[[item]]
+id = 'R21a'
+find = '''We also find that the invariant must reach the classifier through fixed injective maps:'''
+note = '''Aphoristic rule (``must reach the classifier through fixed injective maps''), stated three times: here, in the Discussion (R21b) and in Appendix F (R21c, ``The rule we adopt''). (A) keep the rule once, in Appendix F, and state only the measured effect elsewhere. (B) keep.'''
+
+[[item]]
+id = 'D03a'
+find = '''a ReLU before the first learned projection costs 4--5\,pp on OrganMNIST3D'''
+occurrence = 1
+note = '''The 4--5 pp ReLU result is stated five times (contributions, Results, Discussion, Appendix F text, Table 14 caption). (A) keep it in Results and Appendix F. (B) keep all.'''
+
+[[item]]
+id = 'R05'
+find = '''Together, these contributions close the gap between the theoretical appeal of $G$-bispectra and their practical use in modern machine learning and deep learning pipelines.'''
+note = '''Grand closer (``close the gap between the theoretical appeal ... and their practical use''), with the ML/DL doublet once more. (A) drop. (B) keep.'''
+
+# ---------------------------------------------------------------- background
+
+[[item]]
+id = 'S01'
+find = '''We introduce the main mathematical concepts used to define $G$-bispectra.'''
+note = '''Signposting sentence. (A) drop.'''
+
+[[item]]
+id = 'V13'
+find = '''complete invariant pooling mechanism'''
+note = '''``mechanism'' is filler. (A) ``a complete invariant''. (B) ``a complete invariant, usable as a pooling layer''.'''
+
+[[item]]
+id = 'M06a'
+find = '''unit disk [[$\mathbb{D}$]]. A signal'''
+note = '''Disk notation drift: $\mathbb{D}$ here, $D^2$ in the Figure 5 caption. (A) $\mathbb{D}$ everywhere. (B) $D^2$ everywhere.'''
+
+[[item]]
+id = 'M03c'
+find = '''For a [[bandlimit]] yielding'''
+note = '''``bandlimit'' (see M03a).'''
+
+[[item]]
+id = 'D06a'
+kind = 'point'
+find = '''\paragraph{Bispectrum on the sphere.}'''
+note = '''The $S^2$ setup (coefficients, Wigner-$D$ action, triangle inequality) and the bispectrum equation are written out three times: here, in Section 5 (D06b) and in Appendix A.1 (D06c). (A) keep them here only and refer back. (B) keep here and in the appendix, cut from Section 5.'''
+
+[[item]]
+id = 'S02'
+find = '''for the simplicity of terminology'''
+note = '''Clunky justification. (A) ``We call all three \emph{$G$-bispectra}.'' (B) drop the phrase.'''
+
+# ---------------------------------------------------------------- related work
+
+[[item]]
+id = 'S03'
+find = '''This section reviews related work along four axes: (i) equivariant and invariant libraries that provide building blocks for $G$-invariant architectures, (ii) bispectral methods in neural networks and their computational trade-offs, (iii) bispectra on homogeneous and non-homogeneous spaces, and (iv) alternative invariant constructions (scattering) that compete with or complement the $G$-bispectrum.'''
+note = '''Roadmap sentence that repeats the four paragraph headers, with ``building blocks'' and ``compete with or complement''. (A) drop. (B) keep.'''
+
+[[item]]
+id = 'R06'
+find = '''Our library is complementary: it provides the invariant map as a drop-in \texttt{nn.Module} that plugs into architectures built with any of these frameworks.'''
+note = '''Colon reveal (``is complementary:''), plus ``drop-in'' and ``plugs into''. (A) ``Our modules provide that invariant map and work with any of these libraries.'' (B) keep.'''
+
+[[item]]
+id = 'C16'
+kind = 'point'
+find = '''\paragraph{Invariant theory and scattering.}'''
+note = '''The header promises invariant theory, but the paragraph covers only scattering. (A) \textbf{Scattering.} (B) add a sentence on invariant theory (polynomial invariants, orbit separation).'''
+
+[[item]]
+id = 'R07'
+find = '''is its distinguishing theoretical advantage'''
+note = '''Grand closer. (A) drop the sentence; the previous one already makes the contrast. (B) ``Unlike scattering, the $G$-bispectrum is complete.'' (C) keep.'''
+
+[[item]]
+id = 'C15'
+kind = 'point'
+find = '''& Key limitation'''
+note = '''``Key limitation'' column: terse labels (``Scalar bottleneck'', ``Proof of concept only'') read as filler, and two of them only restate the cost columns. (A) drop the column. (B) concrete entries, e.g. ``loses relative phase'', ``one scalar per irrep''. (C) keep.'''
+
+[[item]]
+id = 'R08'
+find = '''Table~\ref{tab:nonlinearity-comparison} summarizes the trade-offs between exactness, completeness, and computational cost across existing invariant pooling layers. Norm pooling and gated nonlinearities are exact invariants but \emph{incomplete}. Fourier-space pointwise nonlinearities are equivariant rather than invariant, still need an incomplete pooling step, and lose exact equivariance through \mbox{aliasing~\citep{weiler2019general}}. The full bispectrum is exact and complete but costs $O(|G|^2)$ coefficients. The \emph{selective} bispectrum (Section~\ref{sec:background}) preserves both exactness and completeness while using only $O(|G|)$ coefficients on generic signals.'''
+note = '''The paragraph restates Table 1 as a parallel ladder (``X are exact but incomplete ... The full bispectrum is exact and complete but ... The selective bispectrum preserves both ...''), opened by the tricolon ``exactness, completeness, and computational cost''. (A) one sentence: ``Table 1 compares these layers; only the selective bispectrum is complete with $O(|G|)$ coefficients.'' (B) keep only the last sentence. (C) keep.'''
+
+# ---------------------------------------------------------------- library
+
+[[item]]
+id = 'V09b'
+find = '''Each exposes a [[uniform API]]:'''
+note = '''``uniform API'': keep this one if the others go (see V09a).'''
+
+[[item]]
+id = 'V08c'
+find = '''[[each a drop-in \texttt{nn.Module} with uniform API]].'''
+note = '''The caption repeats ``drop-in'' and ``uniform API''. (A) ``Seven group/domain pairs in the \texttt{bispectrum} library.'' (B) keep.'''
+
+[[item]]
+id = 'D12'
+find = '''finite abelian groups ($C_n$: 0.14\,ms, $\mathbb{T}^2$: 0.08\,ms), $D_n$ (0.54\,ms), $\mathrm{SO}(2)$ on the disk (0.22\,ms), $\mathrm{SO}(3)$ on $S^2$ at $L{=}16$ (0.63\,ms; 0.20\,ms in inference mode, where it replays a CUDA graph), and the octahedral group (0.68\,ms)'''
+note = '''The prose lists every cell of Table 3, which sits right below. (A) give the range only, ``0.08 to 0.68 ms''. (B) keep.'''
+
+[[item]]
+id = 'C01'
+kind = 'point'
+find = '''$512\times$ fewer coefficients than the full bispectrum.}'''
+note = '''Bold claim used as the caption title; the same pattern runs through most figure and table captions (C01--C10). (A) keep, if the style is deliberate. (B) a neutral title such as ``Forward time and coefficient counts per module'', with the claim moved into the caption text.'''
+
+# ---------------------------------------------------------------- section 4
+
+[[item]]
+id = 'S04'
+find = '''This section instantiates the $G$-bispectrum framework of Section~\ref{sec:background} on $S^2$ and is the main theoretical contribution:'''
+note = '''Signposting plus a colon reveal. (A) ``We construct the augmented selective bispectrum $\Phi_{\mathrm{sel}}$, an ...'' (B) keep.'''
+
+[[item]]
+id = 'D06b'
+kind = 'point'
+find = '''\paragraph{Setup and construction.}'''
+note = '''Second copy of the $S^2$ setup and of the bispectrum equation (see D06a). (A) refer back to Section 2. (B) keep.'''
+
+[[item]]
+id = 'J01'
+find = '''live components'''
+note = '''``live components'': internal jargon. (A) ``components''. (B) ``coordinates''.'''
+
+[[item]]
+id = 'D08'
+kind = 'point'
+find = '''(Appendix~\ref{sec:app-selective-index}).[[]]}'''
+note = '''Algorithm 1 duplicates Algorithm 2 (Appendix A.3) with less detail. (A) drop Algorithm 1 and refer to the appendix; this frees main-text space. (B) keep.'''
+
+[[item]]
+id = 'M03d'
+find = '''\STATE \textbf{Input:} [[band-limit]] $L$'''
+occurrence = 1
+note = '''``band-limit'' (see M03a).'''
+
+[[item]]
+id = 'R09'
+find = '''---i.e., whether $\Phi_{\mathrm{sel}}(f) = \Phi_{\mathrm{sel}}(g)$ implies $f, g$ lie in the same orbit---'''
+note = '''Em-dash aside. (A) parentheses. (B) a separate sentence defining completeness. (C) keep.'''
+
+[[item]]
+id = 'V18'
+find = '''operational evidence'''
+note = '''``operational evidence'': jargon. (A) ``evidence''. (B) ``empirical evidence''. Touches the completeness pass.'''
+
+[[item]]
+id = 'C02'
+kind = 'point'
+find = '''\textbf{The augmented selective bispectrum keeps the shape of a spherical signal.}'''
+note = '''Glib caption title (``keeps the shape''). (A) ``Signals recovered from their 380 invariants match the targets up to rotation.'' (B) ``Reconstruction from the augmented selective bispectrum.'' (C) keep.'''
+
+[[item]]
+id = 'X05a'
+find = '''the interpolation floor of the alignment'''
+note = '''Completeness pass: the ``interpolation floor'' is a median $1.8\times10^{-3}$ here, 0.0014--0.0070 in Takeaways, and 0.004--0.013 in Appendix D; the three do not agree.'''
+
+[[item]]
+id = 'C11'
+kind = 'point'
+find = '''\paragraph{Takeaways.}'''
+note = '''``Takeaways'' header (slide-deck style). (A) \textbf{Results.} (B) merge into the previous paragraph.'''
+
+[[item]]
+id = 'D10'
+find = '''the augmented selective bispectrum matches to better than $10^{-13}$, the full bispectrum to $10^{-12}$, and the aligned images to $0.0014$--$0.0035$ (digits) and $0.0056$--$0.0070$ (random signals)'''
+note = '''Repeats the numbers of the Figure 2 caption and of the reconstruction table in Appendix D. (A) keep them here and shorten the caption. (B) keep.'''
+
+[[item]]
+id = 'X05b'
+find = '''the interpolation floor of rotating on the grid'''
+note = '''Completeness pass (see X05a).'''
+
+[[item]]
+id = 'J09'
+find = '''the method we fixed before running the solver'''
+note = '''Preregistration-style aside. (A) drop. (B) ``our original method''.'''
+
+[[item]]
+id = 'R10'
+find = '''the bottleneck is the optimizer, not the invariant. This is evidence, not a proof:'''
+note = '''Two ``X, not Y'' aphorisms in a row; the first is also the Appendix D header (R14). (A) ``so the failures come from the optimizer. This does not prove completeness; we conjecture ...'' (B) keep. Completeness pass.'''
+
+# ---------------------------------------------------------------- experiments
+
+[[item]]
+id = 'S05'
+find = '''We evaluate the selective $G$-bispectrum as the invariant pooling layer of $G$-equivariant networks on two benchmarks, 2D histopathology under $C_8$ and 3D organ classification under the octahedral group $O$ (Section~\ref{sec:pooling}), and the augmented selective bispectrum on spherical digit classification (Section~\ref{sec:smnist}).'''
+note = '''Roadmap sentence; the subsection headers say the same. (A) drop. (B) keep.'''
+
+[[item]]
+id = 'M08'
+kind = 'point'
+find = '''\label{sec:organ3d}'''
+note = '''Three labels on one subsection (sec:pooling, sec:pcam, sec:organ3d). (A) keep \texttt{sec:pooling} and point the other references to it.'''
+
+[[item]]
+id = 'C03'
+kind = 'point'
+find = '''beats max pooling on OrganMNIST3D ($G{=}O$) at full data.}'''
+note = '''Bold claim caption title (Nina's wording). (A) keep. (B) neutral title.'''
+
+[[item]]
+id = 'D01c'
+find = '''On OrganMNIST3D ($O$), bispectral pooling beats max pooling on the same backbone by 5.0\,pp at the smallest width (not significant at the largest); its smallest model beats max pooling's largest, which has $13\times$ the parameters; and with 500 training examples it beats max pooling trained on all 971.'''
+note = '''The caption repeats the three OrganMNIST3D claims of Results (see D01a). (A) keep one claim in the caption. (B) keep.'''
+
+[[item]]
+id = 'D01d'
+find = '''bispectral pooling is never significantly worse than any baseline'''
+note = '''Headline result (see D01a); this is the copy to keep.'''
+
+[[item]]
+id = 'D03b'
+find = '''Placing the ReLU before the projection instead, as in our submitted head, zeroes every negative coefficient and costs 4--5\,pp on OrganMNIST3D'''
+note = '''ReLU result (see D03a). (A) keep here. (B) move to Appendix F only.'''
+
+[[item]]
+id = 'S06'
+find = '''The preceding experiments validate bispectral pooling for finite groups ($C_8$ and the octahedral group $O$). To evaluate the library's continuous group support, we test'''
+note = '''Signposting, and ``validate'' overclaims a ``never worse, better on one dataset'' result. (A) ``We test \texttt{SO3onS2} on Spherical MNIST, the standard benchmark for rotation invariance on $S^2$.'' (B) keep.'''
+
+[[item]]
+id = 'R11'
+find = '''---the augmented selective bispectrum on the 2-sphere (Section~\ref{sec:so3-selective})---'''
+note = '''Em-dash aside. (A) parentheses. (B) drop; the module is known by now.'''
+
+[[item]]
+id = 'M05a'
+find = '''$\ell_{\max}=15$'''
+note = '''$\ell_{\max}$ and $L$ name the same band limit (Section 5 says $L{=}15$). (A) $L{=}15$.'''
+
+[[item]]
+id = 'J02'
+find = '''$N=380$ [[live real components]], stored'''
+note = '''``live real components'': jargon. (A) ``380 real invariants''.'''
+
+[[item]]
+id = 'J03'
+find = '''stored as 380 complex tensors by the library'''
+note = '''Wrong unit: these are 380 complex entries of one tensor, not 380 tensors. (A) ``stored as complex numbers''. (B) drop.'''
+
+[[item]]
+id = 'D07a'
+find = '''sign-preserving $\operatorname{sign}(x)\log(1+|x|)$'''
+note = '''The signed log and its injectivity are explained three times (here, Appendix D, Appendix F). (A) explain it once, here. (B) keep.'''
+
+[[item]]
+id = 'J04a'
+find = '''structurally zero'''
+occurrence = 1
+note = '''``structurally zero'' (five times, J04a--e): jargon. (A) ``zero by parity''. (B) ``always zero''.'''
+
+[[item]]
+id = 'H04'
+find = '''but we feed both since the log transform is per-channel injective and cheap'''
+note = '''Defensive rationale that does not justify the choice: injectivity says nothing about feeding channels that are always zero. (A) ``we keep both channels for simplicity''. (B) drop the clause.'''
+
+[[item]]
+id = 'V16'
+find = '''the most challenging'''
+note = '''``the most challenging''. (A) ``and NR/R''. (B) ``and NR/R, which tests invariance to unseen rotations''.'''
+
+[[item]]
+id = 'C04'
+kind = 'point'
+find = '''\textbf{Spherical MNIST: no accuracy lost to unseen rotations, at a fraction of the latency.}'''
+note = '''Glib caption title. (A) ``Spherical MNIST accuracy under three protocols, and latency.'' (B) keep.'''
+
+[[item]]
+id = 'D02c'
+find = '''Bispectrum + MLP is within 0.3\,pp of matched S2CNN and tensor-product networks on NR/R at $4\times$ and $364\times$ lower latency.'''
+note = '''Spherical MNIST headline again (see D02a). (A) drop from the caption. (B) keep.'''
+
+[[item]]
+id = 'C05'
+kind = 'point'
+find = '''\textbf{The augmented selective bispectrum matches equivariant baselines on Spherical MNIST and is faster.}'''
+note = '''Bold claim caption title (see C01). (A) keep. (B) neutral title.'''
+
+[[item]]
+id = 'D11a'
+find = '''Bispectrum + MLP trails S2CNN + BatchNorm at every size below the full set (by 13\,pp at $n{=}100$), and beats the tensor-product net up to $n{=}2{,}500$ (by 17\,pp at $n{=}100$).'''
+note = '''Data-efficiency numbers appear both in this caption and in Results (D11b). (A) keep one copy. (B) keep.'''
+
+[[item]]
+id = 'D02d'
+find = '''($p{=}0.006$), at [[$4\times$ and $364\times$ lower latency]]'''
+note = '''Latency ratios again (see D02a); this is the Results copy to keep.'''
+
+[[item]]
+id = 'R12'
+find = '''completeness, not capacity, is the bottleneck'''
+note = '''``X, not Y'' aphorism. (A) ``so more capacity does not close the gap''. (B) drop the clause.'''
+
+[[item]]
+id = 'D11b'
+find = '''S2CNN leads at every training-set size below the full set (by 13.0\,pp at $n{=}100$ and 1.3\,pp at 12.5K, Holm $p<10^{-3}$), while Bispectrum + MLP beats the tensor-product network up to $n{=}2{,}500$ (by 17.3\,pp at $n{=}100$) and the power spectrum at every size.'''
+note = '''Data-efficiency numbers (see D11a).'''
+
+# ---------------------------------------------------------------- discussion
+
+[[item]]
+id = 'D13'
+kind = 'point'
+find = '''\label{sec:discussion}'''
+note = '''The first Discussion paragraph re-summarizes the abstract (library, $\Theta(L^2)$ invariant, sub-millisecond, 46 comparisons, 0.3 pp, $4\times$/$364\times$, ReLU). (A) cut it to the interpretation (the sentence on how much information each pooling discards) plus the limitations. (B) keep.'''
+
+[[item]]
+id = 'V09d'
+find = '''uniform \texttt{nn.Module} interface'''
+note = '''Fourth ``uniform API/interface'' (see V09a). (A) ``one \texttt{nn.Module} interface''. (B) drop.'''
+
+[[item]]
+id = 'D01e'
+find = '''or an augmented CNN; [[it is on par on PCam and improves on max pooling by 5.0\,pp on OrganMNIST3D]].'''
+note = '''Headline result again (see D01a).'''
+
+[[item]]
+id = 'D02e'
+find = '''is within 0.3\,pp of matched learned-equivariant networks on rotated digits, at $4\times$ to $364\times$ lower latency'''
+note = '''Spherical MNIST headline again (see D02a).'''
+
+[[item]]
+id = 'R21b'
+find = '''The invariant must also reach the classifier through fixed injective maps:'''
+note = '''The rule again (see R21a).'''
+
+[[item]]
+id = 'D03c'
+find = '''a ReLU before the first learned projection costs 4--5\,pp on OrganMNIST3D'''
+occurrence = 2
+note = '''ReLU result again (see D03a).'''
+
+[[item]]
+id = 'C12'
+kind = 'point'
+find = '''\paragraph{When not to use the bispectrum.}'''
+note = '''Blog-style header. (A) merge into Limitations and future work. (B) \textbf{Scope.} (C) keep.'''
+
+[[item]]
+id = 'D14'
+find = '''On the sphere, a fixed invariant followed by an MLP is less sample-efficient than a learned spherical CNN: S2CNN leads at every training-set size below the full set.'''
+note = '''Repeats the data-efficiency result of Section 6.2. (A) keep only the first clause. (B) keep.'''
+
+[[item]]
+id = 'R13'
+find = '''lives in our experiment code, not in the library'''
+note = '''``X, not Y'' plus ``lives''. (A) ``is in our experiment code and not yet in the library''. (B) ``is not yet part of the library''.'''
+
+[[item]]
+id = 'M03e'
+find = '''at large [[band-limits]] remain open'''
+note = '''``band-limits'' (see M03a).'''
+
+# ---------------------------------------------------------------- appendix A
+
+[[item]]
+id = 'S07'
+find = '''A short comparison with prior bispectral constructions (Section~\ref{sec:app-comparison}) and a pixel-space complexity count (Section~\ref{sec:app-pixel-complexity}) close the appendix.'''
+note = '''The appendix opens with a roadmap listing every subsection, ending in ``close the appendix''. (A) one sentence: ``This appendix collects the $S^2$ setup, the lower bound, the index set and the parity results behind Section 5.'' (B) keep.'''
+
+[[item]]
+id = 'D09'
+find = '''Per-degree entry allocation:'''
+note = '''This paragraph restates Section 5 and the Output size proposition, a third copy of the per-degree counts. (A) drop the paragraph. (B) keep.'''
+
+[[item]]
+id = 'J08a'
+find = '''$2\ell{+}1$ [[budgeted]] bispectral entries, plus'''
+note = '''``budgeted'', ``budget'', ``slot'': internal jargon (nine marks, J08a--i). (A) ``the first $2\ell{+}1$ bispectral entries''. (B) ``capped'', as in ``at most $2\ell{+}1$ entries''.'''
+
+[[item]]
+id = 'D06c'
+kind = 'point'
+find = '''\label{sec:app-setup}'''
+note = '''Third copy of the $S^2$ setup and bispectrum equation (see D06a).'''
+
+[[item]]
+id = 'M04a'
+find = '''realised'''
+note = '''British spelling; the rest of the paper is American. (A) ``realized''.'''
+
+[[item]]
+id = 'S10'
+find = '''Definition~\ref{def:app-bispectrum} is the specialization of the general $G$-bispectrum (eq.~\eqref{eq:bispectrum-def}) to the case $G = \SO(3)$ acting on~$S^2$'''
+note = '''Restates Section 2 (``we use the term $G$-bispectrum to refer collectively ...''); also loose, since that equation is the finite-group bispectrum. (A) drop. (B) keep.'''
+
+[[item]]
+id = 'M07'
+kind = 'point'
+find = '''\subsection{Why $\mathcal{O}(L)$ is impossible}'''
+note = '''$\mathcal{O}$ here, $O$ everywhere else. (A) $O(L)$.'''
+
+[[item]]
+id = 'C13'
+kind = 'point'
+find = '''\label{sec:app-lower-bound}'''
+note = '''Header ``Why ... is impossible'': rhetorical question-style header. (A) ``Lower bound on the output size''. (B) ``A dimension lower bound''.'''
+
+[[item]]
+id = 'X01'
+find = '''Zariski-open dense subset'''
+note = '''Completeness pass: ``Zariski-open'' applied to a smooth, not necessarily polynomial, map. (A) ``an open dense subset''.'''
+
+[[item]]
+id = 'X02'
+find = '''(generic-rank theorem for $\SO(3)$ acting on $V_L$; cf.~Tarski--Seidenberg in the polynomial case)'''
+note = '''Completeness pass: name-dropping (an unnamed ``generic-rank theorem'', Tarski--Seidenberg), and $V_L$ is used before it is defined. (A) a direct argument via the constant-rank theorem on the open set where the rank is maximal. (B) a specific reference.'''
+
+[[item]]
+id = 'X03a'
+find = '''pathological non-measurable invariants (e.g.\ a fixed orbit-section indexed by the axiom of choice)'''
+note = '''Completeness pass: false as stated. Borel-measurable injections from $\mathbb{R}^n$ into $\mathbb{R}$ exist, so the obstruction is continuity, not measurability. (A) ``discontinuous invariants (e.g. a Borel injection into $\mathbb{R}$)''. (B) drop the remark.'''
+
+[[item]]
+id = 'X03b'
+find = '''All practical bispectral or spectral invariants are polynomial, so the proposition applies.'''
+note = '''Completeness pass: sweeping claim (``All practical''). (A) ``The bispectral and CG-power invariants used here are polynomial, so the proposition applies.'' (B) drop.'''
+
+[[item]]
+id = 'J07'
+find = '''(\texttt{\_build\_selective\_index\_map} and \texttt{\_build\_cg\_power\_index\_map})'''
+note = '''Private function names in the paper. (A) drop the parenthetical; ``as implemented in \texttt{bispectrum.so3\_on\_s2}'' is enough.'''
+
+[[item]]
+id = 'J08b'
+find = '''[[complete the budget]];'''
+note = '''``budget'' (see J08a). (A) ``fill the remaining entries''.'''
+
+[[item]]
+id = 'J06'
+find = '''live real scalar components'''
+note = '''``live real scalar components''. (A) ``real components''.'''
+
+[[item]]
+id = 'J05'
+find = '''on the real-signal slice'''
+note = '''``real-signal slice''. (A) ``on real signals''.'''
+
+[[item]]
+id = 'J04b'
+find = '''structurally zero'''
+occurrence = 2
+note = '''See J04a.'''
+
+[[item]]
+id = 'J04c'
+find = '''structurally zero'''
+occurrence = 3
+note = '''See J04a.'''
+
+[[item]]
+id = 'J08c'
+find = '''``Budgeted'' entries'''
+note = '''``Budgeted'' (see J08a). (A) ``Capped'' entries, or rename the column to ``First $2\ell{+}1$''. (B) keep.'''
+
+[[item]]
+id = 'J08d'
+find = '''the [[budgeted entries]] are the library's'''
+note = '''See J08a.'''
+
+[[item]]
+id = 'J08e'
+find = '''where a slot is free'''
+note = '''``slot'' (see J08a). (A) ``up to $2\ell{+}1$ entries''.'''
+
+[[item]]
+id = 'J08f'
+find = '''& [[Budgeted bispectral]] &'''
+note = '''Column header (see J08a).'''
+
+[[item]]
+id = 'M03h'
+find = '''representative [[band-limits]].'''
+note = '''``band-limits'' (see M03a).'''
+
+[[item]]
+id = 'J13a'
+find = '''$|\Phi_{\mathrm{sel}}|$ ([[live real components]])'''
+note = '''``live real components'' (see J02). (A) ``real components''.'''
+
+[[item]]
+id = 'J13b'
+find = '''complex-tensor storage'''
+note = '''``complex-tensor storage''. (A) ``storage as complex numbers''.'''
+
+[[item]]
+id = 'J04d'
+find = '''structurally zero'''
+occurrence = 4
+note = '''See J04a.'''
+
+[[item]]
+id = 'J04e'
+find = '''structurally zero'''
+occurrence = 5
+note = '''See J04a.'''
+
+[[item]]
+id = 'M03i'
+find = '''[[band-limit]]~$L$, as implemented'''
+note = '''``band-limit'' (see M03a).'''
+
+[[item]]
+id = 'M03j'
+find = '''\STATE \textbf{Input:} [[band-limit]] $L$'''
+occurrence = 2
+note = '''``band-limit'' (see M03a).'''
+
+[[item]]
+id = 'J08g'
+find = '''contributes at most $2\ell{+}1$ [[budgeted]] bispectral entries, at most'''
+note = '''See J08a.'''
+
+[[item]]
+id = 'J08h'
+find = '''the [[budgeted]] entries alone already number'''
+note = '''See J08a.'''
+
+[[item]]
+id = 'M03f'
+find = '''on $S^2$ at [[band-limit]] $L$ must have'''
+note = '''``band-limit'' (see M03a).'''
+
+[[item]]
+id = 'M03g'
+find = '''at [[band-limit]] $L$ consists of'''
+note = '''``band-limit'' (see M03a).'''
+
+[[item]]
+id = 'S08'
+find = '''The latter determines which candidate entries Algorithm~\ref{alg:so3-augmented} discards; the former, with a permutation identity, determines how many distinct real equations the bispectral entries of a degree supply (Remark~\ref{rem:app-Tell-rank-deficit}).'''
+note = '''``The latter ... the former'' sends the reader back. (A) two sentences in order: the parity lemma fixes how many distinct real equations each degree supplies; the vanishing proposition fixes which candidates Algorithm 2 discards. (B) keep.'''
+
+[[item]]
+id = 'M09'
+find = '''Clebsch-Gordan'''
+note = '''Single hyphen; elsewhere ``Clebsch--Gordan''. (A) ``Clebsch--Gordan''.'''
+
+[[item]]
+id = 'J08i'
+find = '''fill the budget'''
+note = '''See J08a. (A) ``fill the remaining entries''.'''
+
+[[item]]
+id = 'X06'
+find = '''Yes (constr.)'''
+note = '''Completeness pass: Section 2 says the operator-bispectrum completeness of Kakarala does not directly apply on $S^2$, so ``Yes (constr.)'' for the full bispectrum on $S^2$ contradicts the text.'''
+
+# ---------------------------------------------------------------- appendix B
+
+[[item]]
+id = 'S09'
+find = '''This appendix supplements the summary in Table~\ref{tab:benchmarks} (main text) with scaling plots'''
+note = '''Signposting. (A) ``Scaling plots for Table 3, produced by ...'' (B) keep.'''
+
+[[item]]
+id = 'C06'
+kind = 'point'
+find = '''for full $G$-bispectra it grows quadratically.}'''
+note = '''Bold claim caption title (see C01). (A) keep. (B) neutral title.'''
+
+[[item]]
+id = 'M06b'
+find = '''the disk $D^2$'''
+note = '''Disk notation (see M06a).'''
+
+[[item]]
+id = 'C07'
+kind = 'point'
+find = '''the full bispectrum grows with it.}'''
+note = '''Bold claim caption title (see C01). (A) keep. (B) neutral title.'''
+
+[[item]]
+id = 'C08'
+kind = 'point'
+find = '''every module except $\mathrm{SO}(3)$ on $S^2$ is invertible.}'''
+note = '''Bold claim caption title (see C01). (A) keep. (B) neutral title.'''
+
+[[item]]
+id = 'C09'
+kind = 'point'
+find = '''which needs a GPU.}'''
+note = '''Bold claim caption title (see C01). (A) keep. (B) neutral title.'''
+
+# ---------------------------------------------------------------- appendix C
+
+[[item]]
+id = 'D01f'
+find = '''On OrganMNIST3D, bispectral pooling beats max pooling by 5.0\,pp ($p < 10^{-3}$); its smallest model (463K parameters) beats max pooling's largest (6.0M) by 2.6\,pp ($p < 10^{-3}$); and at $n = 500$ it beats max pooling at $n = 971$ by 3.6\,pp ($p = 0.0017$).'''
+note = '''Headline result again (see D01a); this copy adds the $p$-values. (A) keep only the $p$-values here, attached to the three claims. (B) keep.'''
+
+[[item]]
+id = 'M10a'
+find = '''Veeling et al.\ 2018'''
+occurrence = 1
+note = '''Plain-text citation in a table, while other tables use citet (M10a--f). (A) use citet.'''
+
+[[item]]
+id = 'M10b'
+find = '''Veeling et al.\ 2018'''
+occurrence = 2
+note = '''See M10a.'''
+
+[[item]]
+id = 'M10c'
+find = '''Veeling et al.\ 2018'''
+occurrence = 3
+note = '''See M10a.'''
+
+[[item]]
+id = 'M10d'
+find = '''Veeling et al.\ 2018'''
+occurrence = 4
+note = '''See M10a.'''
+
+[[item]]
+id = 'M10e'
+find = '''Yang et al.\ 2023'''
+occurrence = 1
+note = '''See M10a.'''
+
+[[item]]
+id = 'M10f'
+find = '''Yang et al.\ 2023'''
+occurrence = 2
+note = '''See M10a.'''
+
+# ---------------------------------------------------------------- appendix D
+
+[[item]]
+id = 'M04b'
+find = '''normalised'''
+occurrence = 1
+note = '''British spelling (see M04a). (A) ``normalized''.'''
+
+[[item]]
+id = 'M04c'
+find = '''normalised'''
+occurrence = 2
+note = '''See M04b.'''
+
+[[item]]
+id = 'M05b'
+find = '''computed at [[$\ell_{\max} = 15$]], producing'''
+note = '''See M05a. (A) $L{=}15$.'''
+
+[[item]]
+id = 'J11'
+find = '''380 complex invariant coefficients'''
+note = '''There are 380 real invariants, stored as complex numbers. (A) ``380 invariants, stored as complex numbers''.'''
+
+[[item]]
+id = 'D07b'
+find = '''(a sign-preserving, per-channel injective transform)'''
+note = '''Second explanation of the signed log (see D07a).'''
+
+[[item]]
+id = 'J10'
+find = '''hidden=128'''
+note = '''Code-speak. (A) ``with hidden width 128''.'''
+
+[[item]]
+id = 'R14'
+kind = 'point'
+find = '''\paragraph{Gradient descent is the bottleneck, not the invariant.}'''
+note = '''Full-sentence ``X, not Y'' header that repeats the end of Section 5 (R10). (A) \textbf{Results.} (B) keep. Completeness pass.'''
+
+[[item]]
+id = 'X04'
+find = '''recovers all 32 targets exactly'''
+note = '''Completeness pass: ``exactly'' conflicts with image errors of 0.0014--0.0070. (A) ``recovers all 32 targets up to the interpolation error''.'''
+
+[[item]]
+id = 'R15'
+find = '''is what makes it reliable'''
+note = '''``is what makes it'' construction. (A) ``Refitting all degrees after each new one is necessary:'' (B) ``We refit all degrees after each new one; holding the lower degrees fixed ...'' (C) keep.'''
+
+[[item]]
+id = 'X05c'
+find = '''The remaining image error is the interpolation of rotating on the grid:'''
+note = '''Completeness pass (see X05a).'''
+
+[[item]]
+id = 'M13'
+kind = 'point'
+find = '''\label{app:api-example}'''
+note = '''API example: \texttt{SO2onDisk} and \texttt{OctaonOcta} are imported but unused, and \texttt{selective=True} is the default. (A) import only \texttt{CnonCn} and drop the argument. (B) use all three imports.'''
+
+# ---------------------------------------------------------------- appendix G
+
+[[item]]
+id = 'R16'
+find = '''three classes of bugs following the author response: in the library, in the training protocol, and in the pooling head'''
+note = '''Colon plus tricolon. (A) ``Every experiment was re-run after the author response, when we found bugs in the library, the training protocol and the pooling head.'' (B) keep.'''
+
+[[item]]
+id = 'V14'
+find = '''a map blind to a continuous twist'''
+note = '''Metaphor. (A) ``a map whose Jacobian misses one continuous direction''. (B) ``a map that is not locally injective''.'''
+
+[[item]]
+id = 'V15'
+find = '''the headline metric'''
+note = '''``headline''. (A) ``the primary metric''.'''
+
+[[item]]
+id = 'R17'
+find = '''Completeness does not explain the gap:'''
+note = '''Colon reveal. (A) give the evidence first and end with ``so Jacobian rank does not explain the gap''. (B) keep.'''
+
+[[item]]
+id = 'H05'
+find = '''A plausible mechanism (speculative) is that'''
+note = '''Double hedge (``plausible'' and ``speculative''). (A) ``We suspect that''. (B) ``One possible mechanism is that''.'''
+
+[[item]]
+id = 'R21c'
+find = '''The rule we adopt is to apply only fixed injective maps (real--imaginary split, signed log) before the first learned layer.'''
+note = '''The rule, stated a third time (see R21a), with a third explanation of the signed log (see D07a). (A) keep it here only.'''
+
+[[item]]
+id = 'H06'
+find = '''We compared four heads for the bispectrum and one per baseline, so we report the submitted head alongside;'''
+note = '''Non sequitur (``so''). (A) ``Because we compared four heads for the bispectrum but only one per baseline, Table 14 also reports the submitted head;'' (B) keep.'''
+
+[[item]]
+id = 'R18'
+find = '''Applying the ReLU after the projection, not before,'''
+note = '''``X, not Y'' in a caption title. (A) ``Moving the ReLU after the projection adds 4--5 pp on OrganMNIST3D at full data.'' (B) keep.'''
+
+[[item]]
+id = 'R19'
+find = '''the self-couplings matter for the Jacobian rank, not for accuracy'''
+note = '''``X, not Y''. (A) ``the self-couplings do not change accuracy; they are there for the Jacobian rank''. Completeness pass.'''
+
+[[item]]
+id = 'C10'
+kind = 'point'
+find = '''power spectra measurably help.}'''
+note = '''Bold claim caption title (see C01). (A) keep. (B) neutral title.'''
+
+[[item]]
+id = 'J12'
+find = '''Bootstrap entries'''
+note = '''Code name used as a table row label. (A) ``Base bispectral entries''. (B) ``Selected triples''.'''
+
+[[item]]
+id = 'R20'
+find = '''It was the pooling head:'''
+note = '''Colon reveal. (A) ``The cause was the pooling head; with the corrected head ...'' (B) keep.'''
+
+# ---------------------------------------------------------------- checklist
+
+[[item]]
+id = 'M12a'
+file = 'checklist.tex'
+find = '''the augmented selective $\SO(3)$ invariant'''
+note = '''Naming: the paper calls it the augmented selective bispectrum (M12a--c). (A) ``the augmented selective bispectrum''.'''
+
+[[item]]
+id = 'M12c'
+file = 'checklist.tex'
+find = '''completeness of the [[$\SO(3)$ invariant]]'''
+note = '''Naming (see M12a).'''
+
+[[item]]
+id = 'M12b'
+file = 'checklist.tex'
+find = '''inversion of the spherical invariant'''
+note = '''Naming (see M12a). (A) ``inversion of the augmented selective bispectrum''.'''
+
+[[item]]
+id = 'M03k'
+file = 'checklist.tex'
+find = '''at large [[band-limits]], a single'''
+note = '''``band-limits'' (see M03a).'''
+
+[[item]]
+id = 'X07'
+file = 'checklist.tex'
+find = '''exact reconstruction at $L{=}15$'''
+note = '''Completeness pass: ``exact'' (see X04).'''
+
+[[item]]
+id = 'H08'
+file = 'checklist.tex'
+find = '''It poses no risk for misuse.'''
+note = '''Absolute claim. (A) ``We see no specific misuse risk.'' (B) keep.'''
