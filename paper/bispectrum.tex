@@ -237,7 +237,7 @@ block-diagonalizes the tensor product $\rho_1 \otimes \rho_2$ into
 irreducible summands. Each matrix
 $\beta(\Theta)_{\rho_1,\rho_2}$ is $G$-invariant, and the full collection
 $\{\beta(\Theta)_{\rho_1,\rho_2}\}_{(\rho_1,\rho_2)\in\hat{G}^2}$
-is a complete $G$-invariant for generic signals (i.e.\ those with
+is a complete $G$-invariant for generic signals (i.e., those with
 nonsingular Fourier coefficients)~\citep{kakarala1992triple}.
 The full bispectrum has $O(|G|^2)$ scalar entries.
 \citet{mataigne2024selective} shows that a breadth-first search over
@@ -403,7 +403,7 @@ $O(|G|)$ coefficients.
 \label{sec:library}
 
 \paragraph{Design and implementation.} \label{sec:design} Every $G$/domain pair is a \texttt{torch.nn.Module} named
-\texttt{\{Group\}on\{Domain\}} (e.g.\ \texttt{SO3onS2});
+\texttt{\{Group\}on\{Domain\}} (e.g., \texttt{SO3onS2});
 Table~\ref{tab:supported-groups} lists all seven modules. Each exposes a
 uniform API: \texttt{forward(f)} returns the selective invariants,
 \texttt{fourier(f)} the group Fourier coefficients, and
@@ -448,7 +448,7 @@ With autograd enabled, as in training, the selective forward pass is sub-millise
 from 0.08\,ms ($\mathbb{T}^2$) to 0.68\,ms (octahedral group). \texttt{SO3onS2} at $L{=}16$
 takes 0.63\,ms, or 0.20\,ms in inference mode, where it replays a CUDA graph.
 GPU throughput exceeds $10^7$~samples/s for $C_n$ and $\mathbb{T}^2$
-(Appendix~\ref{app:bench}). The same configurations stay sub-millisecond on an A100, a consumer RTX 4090
+(Appendix~\ref{app:bench}). The same configurations stay sub-millisecond on an A100, a consumer RTX 4090,
 and Apple silicon (MPS); on CPU all but $\mathrm{SO}(3)$ on $S^2$ do
 (Appendix~\ref{app:portability}). Six modules are presented; the seventh,
 \texttt{SO2onS1}, subclasses \texttt{CnonCn} with $n = L{+}1$ and has
@@ -628,7 +628,7 @@ report test AUC. OrganMNIST3D~\citep{medmnistv2} has 1{,}742 abdominal CT volume
 voxels, 11 classes, 971 for training); every model uses an $O$-equivariant 3D ResNet with
 exact voxel-permutation kernels, and we report test accuracy. Within a dataset the
 equivariant models differ only in the terminal invariant map over the group axis: a maximum
-(Max pool, and the NormReLU, Gated and Fourier-ELU backbones), the $\ell_2$ norm (Norm pool),
+(Max pool, and the NormReLU, Gated, and Fourier-ELU backbones), the $\ell_2$ norm (Norm pool),
 or the selective $G$-bispectrum (\texttt{CnonCn} with $n{=}8$, 128 coefficients;
 \texttt{OctaonOcta}, 172). The bispectral head applies only fixed injective maps (real and
 imaginary parts, signed logarithm) before a learned $1{\times}1$ projection and a ReLU. A
@@ -754,8 +754,8 @@ We contribute the augmented selective bispectrum, a $\Theta(L^2)$ $\SO(3)$ invar
 $S^2$ (Section~\ref{sec:so3-selective}), which a degree-by-degree solver inverts on every
 signal we tested; we conjecture that it is generically complete. The selective forward pass
 takes under a millisecond on GPU for every module at batch 16. As a pooling layer in
-$G$-CNNs, the selective $G$-bispectrum is never significantly worse than norm, gated,
-Fourier-ELU or max pooling or an augmented CNN; it is on par on PCam and improves on max
+$G$-CNNs, the selective $G$-bispectrum is never significantly worse than an augmented CNN or than norm,
+gated, Fourier-ELU, or max pooling; it is on par on PCam and improves on max
 pooling by 5.0\,pp on OrganMNIST3D. On Spherical MNIST, the augmented selective bispectrum with an
 MLP head is within 0.3\,pp of matched learned-equivariant networks on rotated digits, at
 $4\times$ to $364\times$ lower latency. We speculate that the gain grows with how much
@@ -780,7 +780,7 @@ equivariant spherical backbone is future work.
 A.~M.~L.\ and N.~M.\ acknowledge partial support from NSF grant 2313150, NSF CAREER grant
 2240158, and the Noyce Foundation. A.~M.~L.\ also acknowledges support from an NSF Graduate
 Research Fellowship (GRFP). J.~M.\ thanks his Atmo colleagues Giorgio Sarro, Duncan Axisa, Yves
-Martin, Alexander Sviridenko, Sander Henning and Deepika Misra, as well as Creon Levit, for their
+Martin, Alexander Sviridenko, Sander Henning, and Deepika Misra, as well as Creon Levit, for their
 feedback.
 \end{ack}
 
@@ -941,7 +941,7 @@ $k \ge r \ge (L+1)^2 - 3 = \Omega(L^2)$.
 
 \begin{remark}[Smoothness assumption]
 The smoothness/polynomial qualifier is essential: pathological
-non-measurable invariants (e.g.\ a fixed orbit-section indexed by
+non-measurable invariants (e.g., a fixed orbit-section indexed by
 the axiom of choice) can in principle have codomain dimension $1$
 but are not implementable. All practical bispectral or spectral
 invariants are polynomial, so the proposition applies.
@@ -1098,8 +1098,8 @@ identically zero.
 
 \begin{proposition}[Output size]\label{prop:app-output-size}
 For every $L\ge 4$, $|\Phi_{\mathrm{sel}}| = \Theta(L^2)$. Each degree
-$\ell\ge 8$ contributes at most $2\ell{+}1$ bispectral entries, at most $\lfloor\ell/2\rfloor$ further even self-couplings
-and at most seven CG-power entries, and the degrees $\ell\le 7$
+$\ell\ge 8$ contributes at most $2\ell{+}1$ bispectral entries, at most $\lfloor\ell/2\rfloor$ further even self-couplings,
+and at most seven CG-power entries. The degrees $\ell\le 7$
 contribute a constant number (Table~\ref{tab:Tsmall}), and the first $2\ell{+}1$ entries of each degree alone
 already number $\Theta(L^2)$. Per-$L$ counts are in
 Table~\ref{tab:app-counts}.
@@ -1216,7 +1216,7 @@ forces $T=-T$, hence $T\equiv 0$ and $\beta\equiv 0$.
 \begin{remark}[Identically-zero candidates]
 \label{rem:app-Tell-zero-rows}
 Proposition~\ref{prop:app-odd-vanishing} rules out, for example,
-$(\ell,\ell,\ell')$ with odd $\ell'$, $(2,3,2)$, $(4,5,4)$ and
+$(\ell,\ell,\ell')$ with odd $\ell'$, $(2,3,2)$, $(4,5,4)$, and
 $(6,7,6)$. Algorithm~\ref{alg:so3-augmented} discards every such
 candidate, including the rows $(4,5,4)$ and $(6,7,6)$ of the library's
 explicit blocks (Table~\ref{tab:Tsmall}).
@@ -1255,8 +1255,8 @@ Algorithm~\ref{alg:so3-augmented} lists one ordering per triple. At
 $\ell\in\{8,9\}$ only 16 such triples with $a,b<\ell$ are nonzero,
 so the power entry and self-couplings make up the remaining entries. The explicit
 blocks at $4\le\ell\le 7$ (Table~\ref{tab:Tsmall}) list several
-orderings of some triples and supply 4, 4, 8 and 8 distinct
-bispectral equations from their 10, 10, 13 and 14 nonzero rows. The
+orderings of some triples and supply 4, 4, 8, and 8 distinct
+bispectral equations from their 10, 10, 13, and 14 nonzero rows. The
 submitted $\ell\ge 8$ block listed two orderings of the same triples
 (Appendix~\ref{app:changes}).
 \end{remark}
@@ -1298,7 +1298,7 @@ submitted $\ell\ge 8$ block listed two orderings of the same triples
 \label{sec:app-pixel-complexity}
 
 A signal band-limited at degree~$L$ is sampled on an equiangular grid
-of $P = \Theta(L^2)$ pixels (e.g.\ $34\times 68$ at $L=16$ in
+of $P = \Theta(L^2)$ pixels (e.g., $34\times 68$ at $L=16$ in
 Table~\ref{tab:benchmarks}), so $L=\Theta(\sqrt{P})$. The augmented
 selective bispectrum has $\Theta(L^2)=\Theta(P)$ entries, linear in the
 number of pixels, against $\Theta(L^3)=\Theta(P^{3/2})$ for the full
@@ -1371,8 +1371,8 @@ group sizes.
   \label{fig:gpu-scaling}
 \end{figure}
 
-Throughput grows linearly with batch size up to 4{,}096 for $C_n$, $D_n$
-and $O$, and up to 1{,}024 for $\mathbb{T}^2$: per-call cost stays nearly
+Throughput grows linearly with batch size up to 4{,}096 for $C_n$, $D_n$,
+and $O$ and up to 1{,}024 for $\mathbb{T}^2$: per-call cost stays nearly
 constant, consistent with the launch-dominated forward pass above.
 $\SO(3)$ on $S^2$ stops scaling at batch ${\approx}256$, where its
 spherical harmonic transform and Clebsch--Gordan contractions, rather than launch
@@ -1408,7 +1408,7 @@ precision-matched with the others.
   \caption{\textbf{Every module runs in under a millisecond on every device tested, except
     $\SO(3)$ on $S^2$ on CPU.} Selective forward pass (ms, median), batch\,=\,16,
     inference mode. Groups and sizes as in Table~\ref{tab:benchmarks} ($C_{128}$,
-    $C_{32}{\times}C_{32}$, $D_{32}$, disk and $S^2$ at $L{=}16$, $O$), except that $S^2$ is
+    $C_{32}{\times}C_{32}$, $D_{32}$, $O$, and the disk and $S^2$ at $L{=}16$), except that $S^2$ is
     sampled on the $64{\times}128$ Spherical MNIST grid instead of $34{\times}68$; on the
     H100 both grids take 0.20\,ms. This script and its timing loop differ from those of
     Table~\ref{tab:benchmarks}, so the H100 row differs from that table's Inf.\ column by up
@@ -1451,7 +1451,7 @@ $45^\circ$ rotations are bilinearly interpolated, so invariance is exact only at
 $90^\circ$. Aug.\ CNN is a non-equivariant CNN (3D for OrganMNIST3D) trained with augmentation
 over $G$, so the rotated test is in-distribution for it. All other models are $G$-equivariant,
 trained on canonical data only, and end in an invariant map over the group axis: a maximum (Max
-pool; NormReLU, Gated and Fourier-ELU name the backbone nonlinearity), the $\ell_2$ norm (Norm
+pool; NormReLU, Gated, and Fourier-ELU name the backbone nonlinearity), the $\ell_2$ norm (Norm
 pool, an incomplete invariant), or the selective $G$-bispectrum (complete). Max pool and
 Bispectrum on OrganMNIST3D, and Norm pool and Bispectrum on PCam, share a ReLU backbone and differ
 only in the invariant map; OrganMNIST3D's Norm pool uses NormReLU.
@@ -1503,10 +1503,9 @@ Aug.\ CNN at $n = 12.5$K, from ${\sim}30$K to ${\sim}1.6$M parameters.
 
 \paragraph{OrganMNIST3D.}
 All equivariant models share an $O$-equivariant 3D ResNet whose kernel rotations are exact
-voxel permutations on the $3^3$ grid. The channel widths $(4, 8)$, $(8, 16)$ and $(16, 32)$
-give 463K, 1.7M and 6.3M parameters with the bispectral head (172 \texttt{OctaonOcta}
-coefficients per channel) and 374K, 1.5M and 6.0M with max pooling. Aug.\ CNN is a
-non-equivariant 3D CNN (16K, 63K and 251K parameters) trained with one of the 24 octahedral rotations per sample; Norm pool
+voxel permutations on the $3^3$ grid. The channel widths $(4, 8)$, $(8, 16)$, and $(16, 32)$ give 463K, 1.7M, and 6.3M parameters with the bispectral head (172 \texttt{OctaonOcta}
+coefficients per channel) and 374K, 1.5M, and 6.0M with max pooling. Aug.\ CNN is a
+non-equivariant 3D CNN (16K, 63K, and 251K parameters) trained with one of the 24 octahedral rotations per sample; Norm pool
 uses a NormReLU backbone. Training-set sizes are $n \in \{50, 100, 250, 500, 971\}$ at
 width $(4, 8)$.
 
@@ -1801,7 +1800,7 @@ section records what changed and why.
     checkpoint (Appendix~\ref{app:exp}).
   \item \textbf{Also changed.} Aug.\ CNN is trained with augmentation at every training-set size;
     the rotated test is the primary metric; norm pooling is added as an incomplete-invariant
-    baseline; we use 10, 3--5 and 5 seeds on OrganMNIST3D, PCam and Spherical MNIST, report the
+    baseline; we use 10, 3--5, and 5 seeds on OrganMNIST3D, PCam, and Spherical MNIST, report the
     sample standard deviation, and test differences with Welch $t$-tests; and S2CNN and a
     tensor-product network are re-run under our protocol with matched tuning
     (Table~\ref{tab:smnist-results}).
