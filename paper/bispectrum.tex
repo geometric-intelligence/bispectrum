@@ -161,7 +161,7 @@ aggregation~\citep{weiler2019general}) are simple but
 group-invariant representation would preserve. For instance, max pooling over $G$ keeps only the largest response across the group, so two feature maps that share their maximum but differ everywhere else are mapped to the same invariant
 descriptor even though no group element relates them.
 
-The $G$-bispectrum~\citep{giannakis1989bispectrum, kakarala2012bispectrum,
+The $G$-bispectrum~\citep{tukey1953spectral, giannakis1989bispectrum, kakarala2012bispectrum,
 sanborn2023bispectral, mataigne2024selective, myers2025selective}, a complex-valued
 $G$-invariant descriptor, avoids this. It is \textit{complete} (it preserves all signal
 information up to the group action), \textit{invertible} (the signal can be recovered from
@@ -173,7 +173,7 @@ disk~\citep{mataigne2024selective,myers2025selective}.
 \paragraph{Prior implementations.} Existing implementations and uses of bispectra are
 fragmented across works, each tied to one group and its own code. The selective $G$-bispectrum
 of~\citet{mataigne2024selective} covers signals defined over finite groups. The selective disk bispectrum from
-\citet{myers2025selective} proposes a bispectrum for 2D images defined over the disk, with invariance with respect to planar rotations. The spherical bispectrum of \citet{kakarala2012bispectrum} provides a representation of spherical images that is invariant to 3D rotations. \citet{oreiller2020solid} use it as a locally rotation-invariant layer in 3D CNNs, keeping all $\Theta(L^3)$ coefficients up to a maximal degree~$L$, and \citet{chevalley2024bispectral} build a bispectral layer into a 3D U-Net for segmentation. The classical translation bispectrum~\citep{giannakis1989bispectrum} is well-known in signal processing but lacks an open, GPU-ready implementation. \citet{sanborn2023bispectral} learn the bispectrum of compact commutative groups from data with bispectral neural networks, a form that does not cover non-commutative groups.
+\citet{myers2025selective} proposes a bispectrum for 2D images defined over the disk, with invariance with respect to planar rotations. The spherical bispectrum of \citet{kakarala2012bispectrum} provides a representation of spherical images that is invariant to 3D rotations. \citet{oreiller2020solid} use it as a locally rotation-invariant layer in 3D CNNs, keeping all $\Theta(L^3)$ coefficients up to a maximal degree~$L$, and \citet{chevalley2024bispectral} build a bispectral layer into a 3D U-Net for segmentation. The classical translation bispectrum~\citep{tukey1953spectral, giannakis1989bispectrum} is well-known in signal processing but lacks an open, GPU-ready implementation. \citet{sanborn2023bispectral} learn the bispectrum of compact commutative groups from data with bispectral neural networks, a form that does not cover non-commutative groups.
 No single library offers these invariants across groups behind one tested, GPU-ready
 interface, so using a bispectrum on a new group or domain still means re-deriving and
 re-implementing it. \texttt{bispectrum} closes this gap.
@@ -320,10 +320,11 @@ introduce a selective construction that reduces the scalar bispectrum to
 $\Theta(L^2)$ entries and test its completeness empirically by
 signal reconstruction.
 
-Throughout this paper, we use the term \emph{$G$-bispectrum} to refer
-collectively to the bispectra defined by
-Equations~\eqref{eq:bispectrum-def},~\eqref{eq:bispectrum-disk},
-and~\eqref{eq:bispectrum-sphere}.
+Strictly, the $G$-bispectrum~\citep{kakarala1992triple, mataigne2024selective} is defined for
+signals on the group $G$ itself (Equation~\eqref{eq:bispectrum-def}), whereas the disk and
+sphere bispectra (Equations~\eqref{eq:bispectrum-disk} and~\eqref{eq:bispectrum-sphere}) are
+bispectra of signals on a domain acted on by $G$. For brevity, we extend the term
+\emph{$G$-bispectrum} to all three.
 
 
 
@@ -368,7 +369,7 @@ The selective $G$-bispectrum
 construction~\citep{mataigne2024selective} reduces the cost of the
 $G$-bispectrum from $O(|G|^2)$ to $O(|G|)$ scalars on finite groups.
 \citet{myers2025selective} extend the selective construction to the
-disk, where $\SO(2)$ acts on a non-homogeneous space.
+disk bispectrum of~\citet{zhao2014rotationally}, where $\SO(2)$ acts on a non-homogeneous space.
 \citet{kakarala2012bispectrum} treats the $\SO(3)$-on-$\SO(3)$
 bispectrum and the closely related sphere case via Wigner-$D$ irreps.
 The matrix (vector) bispectrum on $S^2$ is the homogeneous-space form
