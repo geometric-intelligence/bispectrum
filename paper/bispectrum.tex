@@ -136,11 +136,11 @@
 \maketitle
 \input{firstpage/group-actions}
 \begin{abstract}
-Many machine learning tasks are invariant under the action of a group $G$ of transformations: signal classification
+Many machine learning tasks are invariant under the action of a group $G$ of transformations. Signal classification
 can be invariant under translations, image
 classification under 2D rotations, and spherical-image classification under 3D rotations.
 %
-One way to build this invariance into a neural network is through $G$-invariants. The $G$-bispectrum is a complete one: it determines the signal up to the group action and has served as a pooling layer in deep networks. Yet it is costly to compute, and each existing implementation covers a single group, severely limiting its adoption.
+One way to build this invariance into a neural network is through $G$-invariants. The $G$-bispectrum is a complete one. It determines the signal up to the group action and has served as a pooling layer in deep networks. Yet it is costly to compute, and each existing implementation covers a single group, severely limiting its adoption.
 %
 We present \texttt{bispectrum}, an open-source, fully unit-tested
 PyTorch library that implements computationally efficient \emph{selective} $G$-bispectra for seven group actions as differentiable modules. Selectivity
@@ -153,11 +153,11 @@ Selective $G$-bispectra are thus fast and competitive invariant layers that keep
 \label{sec:intro}
 
 In many learning problems the label does not change when a group $G$ of transformations acts on
-the input: a translated signal, a rotated image, or a rotated spherical image keeps its class.
+the input. A translated signal, a rotated image, or a rotated spherical image keeps its class.
 Equivariant neural networks~\citep{cohen2016group, weiler2019general} enforce invariance by adding an invariant pooling layer to their equivariant feature maps.
 Existing choices (norm pooling, gate-based pooling, max/sum
 aggregation~\citep{weiler2019general}) are simple but
-\emph{incomplete}: they discard information that a complete
+\emph{incomplete}. They discard information that a complete
 group-invariant representation would preserve. For instance, max pooling over $G$ keeps only the largest response across the group, so two feature maps that share their maximum but differ everywhere else are mapped to the same invariant
 descriptor even though no group element relates them.
 
@@ -184,7 +184,7 @@ re-implementing it. \texttt{bispectrum} closes this gap.
   \item \textbf{Library.} We implement selective
     $G$-bispectra for \emph{seven group actions} as differentiable modules. We provide an efficient implementation with sub-millisecond GPU forward passes and a fully unit-tested codebase (98.5\% line coverage).
   \item \textbf{Spherical invariant.}
-    We introduce the augmented selective spherical bispectrum for 3D rotations acting on spherical images: at band limit $L$, a selective subset of the bispectrum together with a few Clebsch--Gordan power coefficients, reducing the number of coefficients from $\Theta(L^3)$ to $\Theta(L^2)$. Its per-degree Jacobian has full rank by construction, and a degree-by-degree solver recovers every test signal from it at $L{=}15$. We conjecture that it is generically complete.
+    We introduce the augmented selective spherical bispectrum for 3D rotations acting on spherical images. At band limit $L$, it combines a selective subset of the bispectrum with a few Clebsch--Gordan power coefficients, reducing the number of coefficients from $\Theta(L^3)$ to $\Theta(L^2)$. Its per-degree Jacobian has full rank by construction, and a degree-by-degree solver recovers every test signal from it at $L{=}15$. We conjecture that it is generically complete.
  \item \textbf{Evaluation.} We evaluate bispectral
   pooling in $G$-equivariant networks on 2D histopathology ($C_8$) and 3D organ
   ($O$) classification, against norm pooling, gated pooling, Fourier-ELU
@@ -405,13 +405,13 @@ incomplete. They discard inter-scale phase information.
     Full bispectrum ($\SO(3)$/$S^2$)  & Yes & $\Theta(L^3)$ & $O(L^5)$  & Cubic cost \\
     \midrule
     Selective bispectrum (finite $G$) & Yes       & $O(|G|)$      & $O(|G|^2)$ & Genericity assumption$^\dagger$ \\
-    Selective bispectrum ($\SO(2)$/disk) & Yes    & $O(m)$        & $O(m^2)$   & Genericity assumption$^\dagger$ \\
+    Selective bispectrum ($\SO(2)$/disk) & Yes    & $O(m)$        & $O(m \log m)^\S$ & Genericity assumption$^\dagger$ \\
     \begin{tabular}[t]{@{}l@{}}Selective spherical bispectrum\\ \quad($\SO(3)$/$S^2$, ours)\end{tabular} & Empirical & $\Theta(L^2)$ & $O(L^4)$   & No completeness proof \\
     \bottomrule
   \end{tabular}
 
   \vspace{0.3em}
-  {\small $^\ddagger$The pointwise nonlinearity is equivariant, not invariant, so an invariant still needs pooling over $G$ (max pooling in our experiments), which is incomplete. Aliasing also breaks exact equivariance.}
+  {\small $^\ddagger$The pointwise nonlinearity is equivariant, not invariant, so an invariant still needs pooling over $G$ (max pooling in our experiments), which is incomplete. Aliasing also breaks exact equivariance. $^\S$With the fast disk-harmonic transform of \citet{marshall2023fast}. Our implementation uses an exact dense transform, $O(m^2)$.}
 \end{table}
 
 Of the layers compared in Table~\ref{tab:nonlinearity-comparison}, only the selective
@@ -794,7 +794,7 @@ equivariant spherical backbone is future work.
 \begin{ack}
 A.~M.~L.\ and N.~M.\ acknowledge partial support from NSF grant 2313150, NSF CAREER grant
 2240158, and the Noyce Foundation. A.~M.~L.\ also acknowledges support from an NSF Graduate
-Research Fellowship (GRFP). J.~M.\ thanks his Atmo colleagues Giorgio Sarro, Duncan Axisa, Yves
+Research Fellowship (GRFP) and NSF Grant No. DGE-2125644. J.~M.\ thanks his Atmo colleagues Giorgio Sarro, Duncan Axisa, Yves
 Martin, Alexander Sviridenko, Sander Henning, and Deepika Misra, as well as Creon Levit, for their
 feedback.
 \end{ack}
