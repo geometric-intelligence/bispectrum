@@ -239,7 +239,8 @@ transform}~\citep{diaconis1990fourier} is
   := \sum_{g \in G} f(g)\, \rho_i(g)^{\dagger}
   \;\in\; \C^{d_i \times d_i},
 \end{equation}
-where $d_i = \dim(\rho_i)$. The \emph{full $G$-bispectrum} is
+where $d_i = \dim(\rho_i)$ and $\dagger$ denotes the conjugate transpose. The \emph{full
+$G$-bispectrum} is
 \begin{equation}\label{eq:bispectrum-def}
   \beta(f)_{\rho_1,\rho_2}
   = \bigl[\mathcal{F}(f)_{\rho_1} \otimes
@@ -251,14 +252,17 @@ where $d_i = \dim(\rho_i)$. The \emph{full $G$-bispectrum} is
 \end{equation}
 where $C_{\rho_1,\rho_2}$ is the unitary Clebsch--Gordan matrix that
 block-diagonalizes the tensor product $\rho_1 \otimes \rho_2$ into
-irreducible summands. Each matrix
+irreducible summands, and $\bigoplus$ forms the block-diagonal matrix with one block
+$\mathcal{F}(f)_\rho^\dagger$ for each irrep $\rho$ in the decomposition of
+$\rho_1\otimes\rho_2$, repeated by multiplicity. Each matrix
 $\beta(f)_{\rho_1,\rho_2}$ is $G$-invariant, and the full collection
 $\{\beta(f)_{\rho_1,\rho_2}\}_{(\rho_1,\rho_2)\in\hat{G}^2}$
 is a complete $G$-invariant for generic signals (i.e., those with
 nonsingular Fourier coefficients)~\citep{kakarala1992triple}.
 The full bispectrum has $O(|G|^2)$ scalar entries.
 \citet{mataigne2024selective} show that a breadth-first search over
-the Kronecker product table of $\hat{G}$ selects $O(|G|)$ bispectral
+the Kronecker product table of $\hat{G}$, which lists the irreps in each
+$\rho_i\otimes\rho_j$, selects $O(|G|)$ bispectral
 coefficients that remain complete. For example, the octahedral group
 drops from $576$ to $172$ scalars.
 
@@ -273,7 +277,7 @@ disk harmonics (eigenfunctions of the Laplacian on $\mathbb{D}$):
 where $J_n$ is the Bessel function of order $n$, $\lambda_{nk}$ its
 $k$-th positive root, and $c_{nk}$ a normalization constant.
 The disk harmonic (DH) coefficients $a_{n,k}$ are equivariant to planar
-rotations: if $f' = f \circ R_\phi$ then
+rotations: if $f' = f \circ R_\phi$ for the rotation $R_\phi$ by angle $\phi$, then
 $a^{f'}_{n,k} = e^{in\phi}\, a^{f}_{n,k}$.
 For a band limit yielding $m$ coefficients with maximum angular frequency
 $N_m$, the \emph{full disk bispectrum}~\citep{zhao2014rotationally} is
@@ -282,10 +286,12 @@ $N_m$, the \emph{full disk bispectrum}~\citep{zhao2014rotationally} is
   = a_{n_{j_1},k_{j_1}}\, a_{n_{j_2},k_{j_2}}\,
     a_{n_{j_1}+n_{j_2},\,k_3}^{*},
 \end{equation}
-with $O(m^3 / N_m)$ coefficients, that is $O(m^{5/2})$, since a band limit on the Bessel
+where $j\mapsto(n_j,k_j)$ enumerates the $m$ coefficients. It has $O(m^3 / N_m)$
+coefficients, that is $O(m^{5/2})$, since a band limit on the Bessel
 roots gives $N_m = \Theta(\sqrt{m})$. \citet{myers2025selective} introduce
-the \emph{selective disk bispectrum}, restricting to two families of
-triples that yield $O(m)$ coefficients while remaining a complete
+the \emph{selective disk bispectrum}, which keeps only the products
+$a_{0,1}^2\, a_{0,k}^{*}$ and $a_{1,1}\, a_{n,1}\, a_{n+1,k}^{*}$, one per coefficient and
+so $O(m)$ in total, while remaining a complete
 $\SO(2)$-invariant (under the genericity condition $a_{n,1}\neq 0$ for
 all angular orders $n$).
 
@@ -312,10 +318,10 @@ where $\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$ denotes the
 Clebsch--Gordan coefficient
 $\langle \ell_1, m_1;\, \ell_2, m_2 \mid \ell, m \rangle$.
 The full set has $\Theta(L^3)$ scalars. On homogeneous spaces such as
-$S^2$, the Fourier coefficients are rank-deficient (vectors rather than
-full-rank matrices), so the operator-bispectrum completeness
-of~\citet{kakarala2012bispectrum} does not directly
-apply~\citep{kondor2007novel}. In Section~\ref{sec:so3-selective} we
+$S^2$, where $G$ can move any point to any other, the Fourier coefficients are rank-deficient
+(vectors rather than full-rank matrices), so the completeness theorem
+of~\citet{kakarala2012bispectrum}, which requires nonsingular matrix coefficients, does not
+directly apply~\citep{kondor2007novel}. In Section~\ref{sec:so3-selective} we
 introduce a selective construction that reduces the scalar bispectrum to
 $\Theta(L^2)$ entries and test its completeness empirically by
 signal reconstruction.
@@ -369,7 +375,8 @@ The selective $G$-bispectrum
 construction~\citep{mataigne2024selective} reduces the cost of the
 $G$-bispectrum from $O(|G|^2)$ to $O(|G|)$ scalars on finite groups.
 \citet{myers2025selective} extend the selective construction to the
-disk bispectrum of~\citet{zhao2014rotationally}, where $\SO(2)$ acts on a non-homogeneous space.
+disk bispectrum of~\citet{zhao2014rotationally}, where $\SO(2)$ acts on a non-homogeneous space,
+since rotations preserve the radius.
 \citet{kakarala2012bispectrum} treats the $\SO(3)$-on-$\SO(3)$
 bispectrum and the closely related sphere case via Wigner-$D$ irreps.
 The matrix (vector) bispectrum on $S^2$ is the homogeneous-space form
@@ -532,22 +539,30 @@ $\mathcal{S}_P$ of scalars
 $P_{\ell_1,\ell_2,\ell} := \lVert(\mathbf{F}_{\ell_1}\otimes
 \mathbf{F}_{\ell_2})|_\ell\rVert^2$, the squared norms of
 Clebsch--Gordan projections (Definition~\ref{def:app-cg-power}).
-Both are built degree by degree. Degrees $\ell\le 4$ contribute
-22 bispectral entries and degrees $5\le\ell\le 7$ fixed explicit
-blocks (Table~\ref{tab:Tsmall}). Each degree $\ell\ge 8$ contributes
-up to $2\ell{+}1$ entries $\beta_{a,b,\ell}$ with $1\le a\le b<\ell$,
+Both are built degree by degree. Once the lower degrees are known, an entry
+$\beta_{a,b,\ell}$ with $a,b<\ell$ is linear in $\mathbf{F}_\ell$, so the entries of
+degree $\ell$ form a system in the $2\ell{+}1$ real unknowns of $\mathbf{F}_\ell$.
+Degrees $\ell\le 4$ contribute 22 bispectral entries and degrees $5\le\ell\le 7$ the fixed
+lists $\mathcal{T}^{\mathrm{small}}_\ell$ (Table~\ref{tab:Tsmall}). Each degree $\ell\ge 8$
+contributes up to $2\ell{+}1$ entries $\beta_{a,b,\ell}$ with $1\le a\le b<\ell$,
 one per unordered triple, since on real signals all orderings of a
-triple give the same real equation. At $\ell\in\{8,9\}$, where only
-16 such triples are nonzero, the power entry $\beta_{0,\ell,\ell}$
-and self-couplings fill the remainder. Every degree $\ell\ge 3$ also
-receives the self-couplings $\beta_{\ell,\ell,\ell'}$ for even
-$\ell'\le\ell$ (odd $\ell'$ gives a repeated-index, odd-parity entry
-that vanishes identically on real signals, by
-Proposition~\ref{prop:app-odd-vanishing}) and a fixed family of at
-most seven CG-power scalars. With these included, the per-degree real
-Jacobian of $\Phi_{\mathrm{sel}}$ has full rank $2\ell{+}1$, which
-the test suite checks for $4\le\ell\le 20$ and a verification script
-for $\ell\le 100$. The total size is $\Theta(L^2)$
+triple are proportional (Remark~\ref{rem:app-Tell-rank-deficit}). At $\ell\in\{8,9\}$,
+where only 16 such triples are nonzero, the remainder is filled by the power entry
+$\beta_{0,\ell,\ell}=a_0^0\lVert\mathbf{F}_\ell\rVert^2$ and the self-couplings
+$\beta_{\ell,\ell,\ell'}$, which are nonlinear in $\mathbf{F}_\ell$. Every degree $\ell\ge 3$
+also receives the self-couplings with even $\ell'\le\ell$ and a fixed family of at most seven
+CG-power scalars. Odd $\ell'$ is skipped because an entry with odd $\ell_1{+}\ell_2{+}\ell$
+and a repeated index vanishes identically on real signals
+(Proposition~\ref{prop:app-odd-vanishing}). With these included, the Jacobian of the
+degree-$\ell$ entries with respect to the $2\ell{+}1$ real unknowns of $\mathbf{F}_\ell$ has
+full rank $2\ell{+}1$ at random signals, so $\mathbf{F}_\ell$ is locally determined by the
+lower degrees. The test suite checks this for $4\le\ell\le 20$ and a verification script for
+$\ell\le 100$. Full rank is a local property and does not exclude the mirror image $T_R f$
+of $f$, which is generally not a rotation of $f$. Entries with even $\ell_1{+}\ell_2{+}\ell$
+and all CG powers take the same value on $f$ and $T_R f$. Entries with odd
+$\ell_1{+}\ell_2{+}\ell$ change sign, but they vanish identically up to degree 3, so the
+first that tells $f$ from $T_R f$ is $\beta_{2,3,4}$, which $\Phi_{\mathrm{sel}}$ includes
+(Appendix~\ref{sec:app-parity}). The total size is $\Theta(L^2)$
 (Proposition~\ref{prop:app-output-size}): $380$ (resp.\ $426$) real
 scalars at $L=15$ (resp.\ $16$), against $1{,}124$ (resp.\
 $1{,}341$) entries of the full bispectrum
@@ -626,7 +641,8 @@ aligned images to $0.0014$--$0.0035$ (digits) and $0.0056$--$0.0070$
 different orbits with equal invariants. Gradient descent on the image from noise recovers 9 of 16 digits and none of the random signals, on which it
 stalls at a $7.5\%$ median invariant error, so the failures come from the optimizer.
 This does not prove completeness. We conjecture that
-$\Phi_{\mathrm{sel}}$ is generically complete.
+$\Phi_{\mathrm{sel}}$ is generically complete, that is, complete outside a measure-zero set
+of signals.
 
 
 \section{Experiments}
@@ -647,8 +663,10 @@ DenseNet~\citep{huang2017densenet} backbone following \citet{veeling2018rotation
 report test AUC. OrganMNIST3D~\citep{medmnistv2} has 1{,}742 abdominal CT volumes ($28^3$
 voxels, 11 classes, 971 for training). Every model uses an $O$-equivariant 3D ResNet with
 exact voxel-permutation kernels, and we report test accuracy. Within a dataset the
-equivariant models differ only in the terminal invariant map over the group axis: a maximum
-(Max pool, and the NormReLU, Gated, and Fourier-ELU backbones), the $\ell_2$ norm (Norm pool),
+equivariant models differ only in the terminal invariant map over the group dimension of the
+feature maps: a maximum (Max pool, and the NormReLU and Gated~\citep{weiler2019general} and
+Fourier-ELU~\citep{cesa2022program} backbones, named after their nonlinearity,
+Appendix~\ref{app:pooling}), the $\ell_2$ norm (Norm pool),
 or the selective $G$-bispectrum (128 coefficients for \texttt{CnonCn} with $n{=}8$ and 172 for
 \texttt{OctaonOcta}). The bispectral head applies only fixed injective maps (real and
 imaginary parts, signed logarithm) before a learned $1{\times}1$ projection and a ReLU. A
@@ -721,7 +739,7 @@ $\SO(3)$-equivariant networks run in the same pipeline and matched in size: an
 S2CNN~\citep{cohen2018spherical} with BatchNorm (155K parameters) and a
 Clebsch--Gordan tensor-product network built with \texttt{e3nn}~\citep{geiger2022e3nn}
 (386K). Controls are a power-spectrum MLP (11K parameters, equally invariant but
-\emph{incomplete}, discarding inter-harmonic phase) and a non-invariant CNN on the
+\emph{incomplete}, discarding the relative phases between degrees) and a non-invariant CNN on the
 equirectangular image (185K). Following \citet{cohen2018spherical}, we evaluate over 5 seeds under the
 protocols NR/NR, R/R, and NR/R (train unrotated, test rotated), which tests invariance to
 unseen rotations. The bispectrum and the two equivariant networks are each tuned on validation
@@ -768,8 +786,8 @@ We contribute the augmented selective spherical bispectrum, a $\Theta(L^2)$ $\SO
 $S^2$ (Section~\ref{sec:so3-selective}), which a degree-by-degree solver inverts on every
 signal we tested. We conjecture that it is generically complete. The selective forward pass
 takes under a millisecond on GPU for every module at batch 16. As a pooling layer in
-$G$-CNNs, the selective $G$-bispectrum is never significantly worse than an augmented CNN or than norm,
-gated, Fourier-ELU, or max pooling. It is on par on PCam and improves on max
+$G$-CNNs, the selective $G$-bispectrum is never significantly worse than an augmented CNN, than
+norm or max pooling, or than the NormReLU, Gated, and Fourier-ELU backbones. It is on par on PCam and improves on max
 pooling by 5.0\,pp on OrganMNIST3D. On Spherical MNIST, the augmented selective spherical bispectrum with an
 MLP head is within 0.3\,pp of matched learned-equivariant networks on rotated digits, at
 $4\times$ to $364\times$ lower latency. We speculate that the gain grows with how much
@@ -785,7 +803,7 @@ unknown. On the sphere, a fixed invariant followed by an MLP is less sample-effi
 learned spherical CNN.
 
 \paragraph{Limitations and future work.}
-The degree-by-degree inversion of the augmented selective spherical bispectrum is in our experiment code and not yet in the library, and a formal completeness proof, a characterization of the degenerate set,
+The degree-by-degree inversion of the augmented selective spherical bispectrum is in our experiment code and not yet in the library, and a formal completeness proof, a characterization of the signals on which completeness fails,
 and numerical-conditioning analysis at large band limits remain open. On $S^2$ we compare
 against one tensor-product network, not against MACE~\citep{batatia2022mace} or wavelet
 scattering, and use the invariant with an MLP head. Bispectral pooling at the end of an
@@ -817,7 +835,8 @@ structure of the scalar bispectrum that determines which triples vanish
 identically on real signals. Section~\ref{sec:app-comparison} compares the augmented selective spherical bispectrum with prior
 bispectral constructions, and Section~\ref{sec:app-pixel-complexity} counts its cost in
 pixel space. We do not claim a completeness proof. Generic completeness
-is a conjecture, supported by the full per-degree Jacobian rank and by
+is a conjecture, supported by the full rank of the per-degree Jacobian
+(Section~\ref{sec:so3-selective}) and by
 the reconstructions of Figure~\ref{fig:so3-reconstruction}.
 
 \subsection{Setup and notation}
@@ -888,7 +907,7 @@ inequality, write
 $(\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2})\big|_\ell$
 for the projection of the Kronecker product
 $\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2}$ onto the
-$D^\ell$-isotypic component, realized by contracting with the CG
+component that transforms by $D^\ell$, realized by contracting with the CG
 coefficients $\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$. The
 \emph{CG power spectrum entry} is the squared norm of this projection,
 \begin{equation}\label{eq:app-cg-power}
@@ -903,11 +922,9 @@ coefficients $\CG{\ell_1}{m_1}{\ell_2}{m_2}{\ell}{m}$. The
 This is a degree-$4$, real-valued, $\SO(3)$-invariant polynomial in
 the signal coefficients. The CG-power part $\mathcal{S}_P$ of the
 augmented selective spherical bispectrum is a fixed family of these scalars, at
-most seven per degree and $O(L)$ in total ($77$ at $L=15$), following
-a pattern found by greedy augmentation at $L\le 8$ and extended to
-all degrees (Algorithm~\ref{alg:so3-augmented}). With them included,
-the per-degree real Jacobian of $\Phi_{\mathrm{sel}}$ has full rank
-(Section~\ref{sec:so3-selective}).
+most seven per degree and $O(L)$ in total ($77$ at $L=15$), listed in
+Algorithm~\ref{alg:so3-augmented}. With them included, the per-degree Jacobian of
+Section~\ref{sec:so3-selective} has full rank $2\ell{+}1$.
 \end{definition}
 
 \begin{proposition}[Size of the full bispectrum]\label{prop:app-full-size}
@@ -961,7 +978,9 @@ the coefficients, so the proposition applies.
 
 This subsection describes the index set as implemented in \texttt{bispectrum.so3\_on\_s2}, which
 Algorithm~\ref{alg:so3-augmented} mirrors. The \emph{degree}
-of an entry is its largest index.
+of an entry is its largest index. We call
+$\beta_{0,\ell,\ell}=a_0^0\lVert\mathbf{F}_\ell\rVert^2$ the \emph{power entry} of degree
+$\ell$ and $\beta_{\ell,\ell,\ell'}$ with $\ell'\le\ell$ its \emph{self-couplings}.
 
 \begin{definition}[Augmented selective spherical bispectrum]\label{def:app-selective}
 The \emph{augmented selective spherical bispectrum} $\Phi_{\mathrm{sel}}$ at
@@ -1010,13 +1029,15 @@ identically zero.
   \caption{Entries of $\Phi_{\mathrm{sel}}$ at degrees $\ell\le 7$, as
     implemented in the library. Each triple $(\ell_1,\ell_2,\ell_3)$ denotes
     $\beta_{\ell_1,\ell_2,\ell_3}$ in the bispectral columns and
-    $P_{\ell_1,\ell_2,\ell_3}$ in the CG-power column. The capped column holds at most $2\ell{+}1$
-    entries per degree, except $10$ at $\ell=4$, and the added column holds the even
-    self-couplings appended after the cap. For
-    $4\le\ell\le 7$ the capped entries are the library's explicit blocks
-    $\mathcal{T}_\ell^{\mathrm{small}}$, without the identically-zero rows
-    $(4,5,4)$ and $(6,7,6)$, padded with the power entry $(0,\ell,\ell)$ when the block has fewer than $2\ell{+}1$ entries. In total: 22 bispectral and 10 CG-power entries at $\ell\le4$,
-    69 and 29 at $\ell\le7$.}
+    $P_{\ell_1,\ell_2,\ell_3}$ in the CG-power column. The capped column holds the entries
+    counted against the budget of $2\ell{+}1$ per degree ($10$ at $\ell=4$), and the added
+    column holds the even self-couplings appended beyond it. For
+    $4\le\ell\le 7$ the capped entries are the fixed lists
+    $\mathcal{T}_\ell^{\mathrm{small}}$ of triples $(a,b,\ell)$ and reorderings $(a,\ell,b)$
+    with $a,b<\ell$, without the identically-zero triples
+    $(4,5,4)$ and $(6,7,6)$, padded with the power entry $(0,\ell,\ell)$ when the list has
+    fewer than $2\ell{+}1$ entries. In total, there are 22 bispectral and 10 CG-power entries at
+    $\ell\le4$, and 69 and 29 at $\ell\le7$.}
   \label{tab:Tsmall}
   \centering
   \footnotesize
@@ -1125,8 +1146,9 @@ exploits two structural facts about the scalar bispectrum
 $\beta_{\ell_1,\ell_2,\ell}$: a parity rule that fixes whether each
 entry is real or purely imaginary on real signals (Lemma~\ref{lem:app-parity})
 and the resulting identical vanishing of certain odd-parity entries
-with a repeated index (Proposition~\ref{prop:app-odd-vanishing}). With a permutation identity, the lemma fixes how many distinct real equations the
-bispectral entries of each degree supply (Remark~\ref{rem:app-Tell-rank-deficit}). The
+with a repeated index (Proposition~\ref{prop:app-odd-vanishing}). Together with the
+proportionality of the orderings of a triple, the lemma fixes how many independent equations
+in $\mathbf{F}_\ell$ the bispectral entries of each degree supply (Remark~\ref{rem:app-Tell-rank-deficit}). The
 proposition fixes which candidate entries Algorithm~\ref{alg:so3-augmented} discards.
 
 Let $T_R$ be the reflection $(T_R\cdot f)(\theta,\varphi) :=
@@ -1134,7 +1156,8 @@ f(\theta,-\varphi)$ through the $xz$-plane, an element of
 $\mathrm{O}(3)\setminus\SO(3)$. In the Condon--Shortley convention
 behind the reality condition
 $a_\ell^{-m}=(-1)^m\conj{a_\ell^m}$, it acts on coefficients as
-$a_\ell^m\mapsto(-1)^m a_\ell^{-m}$.
+$a_\ell^m\mapsto(-1)^m a_\ell^{-m}$. The signal $T_R\cdot f$ is the mirror image of $f$, which is
+generally not a rotation of $f$, so a complete $\SO(3)$-invariant must tell them apart.
 
 \begin{lemma}[Parity of the bispectrum]\label{lem:app-parity}
 For any signal (real or complex):
@@ -1179,7 +1202,8 @@ $P_{\ell_1,\ell_2,\ell}(T_R \cdot f) = P_{\ell_1,\ell_2,\ell}(f)$.
 Under $T_R$, the CG-projected component transforms as
 $(\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2})|_\ell^M
   \mapsto (-1)^{\ell_1+\ell_2+\ell+M}\,
-  (\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2})|_\ell^{-M}$.
+  (\mathbf{F}_{\ell_1} \otimes \mathbf{F}_{\ell_2})|_\ell^{-M}$,
+where the superscript $M$ selects the $m=M$ component.
 Taking the squared norm and re-indexing the sum over $M$
 leaves $P$ unchanged.
 \end{proof}
@@ -1228,8 +1252,8 @@ forces $T=-T$, hence $T\equiv 0$ and $\beta\equiv 0$.
 Proposition~\ref{prop:app-odd-vanishing} rules out, for example,
 $(\ell,\ell,\ell')$ with odd $\ell'$, $(2,3,2)$, $(4,5,4)$, and
 $(6,7,6)$. Algorithm~\ref{alg:so3-augmented} discards every such
-candidate, including the rows $(4,5,4)$ and $(6,7,6)$ of the library's
-explicit blocks (Table~\ref{tab:Tsmall}).
+candidate, including the triples $(4,5,4)$ and $(6,7,6)$ of the lists
+$\mathcal{T}^{\mathrm{small}}_\ell$ (Table~\ref{tab:Tsmall}).
 \end{remark}
 
 \begin{remark}[First nonzero odd-parity entries]\label{cor:app-first-odd}
@@ -1241,12 +1265,13 @@ gives a nonzero value), so by Lemma~\ref{lem:app-parity} they change
 sign under $T_R$.
 \end{remark}
 
-\begin{remark}[No parity-breaking at $\ell \le 3$]\label{rem:app-no-parity-breaking-le3}
+\begin{remark}[No odd-parity entries at $\ell \le 3$]\label{rem:app-no-parity-breaking-le3}
 For degrees $\le 3$, every odd-parity triple $(\ell_1,\ell_2,\ell)$
 has at least two indices equal (since $\max(\ell_1,\ell_2,\ell) \le 3$
 and $\ell_1+\ell_2+\ell$ odd forces at least one pair to be equal in this range).
 By Proposition~\ref{prop:app-odd-vanishing}, all odd-parity entries vanish.
-Therefore, the $T_R$ ambiguity cannot be resolved using only degrees $\le 3$.
+Therefore, together with Lemma~\ref{lem:app-P-invariant}, every entry of degree $\le 3$
+takes the same value on $f$ and on its mirror image $T_R\cdot f$.
 \end{remark}
 
 \begin{remark}[Distinct equations per degree]
@@ -1263,10 +1288,10 @@ Only distinct unordered triples therefore count toward the $2\ell{+}1$
 real unknowns of $\mathbf{F}_\ell$, and for $\ell\ge 8$
 Algorithm~\ref{alg:so3-augmented} lists one ordering per triple. At
 $\ell\in\{8,9\}$ only 16 such triples with $a,b<\ell$ are nonzero,
-so the power entry and self-couplings make up the remaining entries. The explicit
-blocks at $4\le\ell\le 7$ (Table~\ref{tab:Tsmall}) list several
+so the power entry and self-couplings make up the remaining entries. The lists
+$\mathcal{T}^{\mathrm{small}}_\ell$ at $4\le\ell\le 7$ (Table~\ref{tab:Tsmall}) contain several
 orderings of some triples and supply 4, 4, 8, and 8 distinct
-bispectral equations from their 10, 10, 13, and 14 nonzero rows.
+bispectral equations from their 10, 10, 13, and 14 nonzero entries.
 \end{remark}
 
 \subsection{Comparison with existing results}
@@ -1274,7 +1299,9 @@ bispectral equations from their 10, 10, 13, and 14 nonzero rows.
 
 \begin{table}[h]
   \caption{Comparison of bispectral invariants for signals on $S^2$ or
-    finite groups.}
+    finite groups. \emph{constr.}\ marks a constructive proof. \citet{bendory2025orbit}
+    recover signals on $\R^3$ sampled on concentric spherical shells by solving linear
+    systems one degree at a time (frequency marching), and three shells suffice.}
   \label{tab:app-comparison}
   \centering
   \small
@@ -1293,7 +1320,7 @@ bispectral equations from their 10, 10, 13, and 14 nonzero rows.
       & $O(L^2)$/shell & Yes (3~shells) \\
     \citet{mataigne2024selective}
       & Sel.\ $G$-bispec.\ (finite)
-      & $O(|G|)$ & Yes (exact) \\
+      & $O(|G|)$ & Yes (generic) \\
     \textbf{This work}
       & \textbf{\begin{tabular}[t]{@{}l@{}}Augmented selective\\ bispectrum\end{tabular}}
       & $\boldsymbol{\Theta(L^2)}$
@@ -1318,7 +1345,8 @@ contraction at $L=64$ ($128\times 256$ grid): the full bispectrum has
 $70{,}257$ entries and $2.67\times 10^{8}$ terms, and
 $\Phi_{\mathrm{sel}}$ has $5{,}610$ entries and $1.08\times 10^{7}$
 terms, a $25\times$ reduction. Between $L=32$ and $L=64$ the term
-counts grow with local exponents $4.86$ and $3.71$.
+counts grow as $L^{4.86}$ (full) and $L^{3.71}$ ($\Phi_{\mathrm{sel}}$), measured as
+log-log slopes.
 
 \section{Extended Benchmark Results}
 \label{app:bench}
@@ -1458,7 +1486,7 @@ $G$-invariant models score identically on the canonical and rotated test sets. O
 $45^\circ$ rotations are bilinearly interpolated, so invariance is exact only at multiples of
 $90^\circ$. Aug.\ CNN is a non-equivariant CNN (3D for OrganMNIST3D) trained with augmentation
 over $G$, so the rotated test is in-distribution for it. All other models are $G$-equivariant,
-trained on canonical data only, and end in an invariant map over the group axis: a maximum (Max
+trained on canonical data only, and end in an invariant map over the group dimension: a maximum (Max
 pool, and the NormReLU, Gated, and Fourier-ELU models, named after their backbone nonlinearity), the $\ell_2$ norm (Norm
 pool, an incomplete invariant), or the selective $G$-bispectrum (complete). Max pool and
 Bispectrum on OrganMNIST3D, and Norm pool and Bispectrum on PCam, share a ReLU backbone and differ
