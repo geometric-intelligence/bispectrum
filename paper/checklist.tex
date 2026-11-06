@@ -5,7 +5,7 @@
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and introduction list three contributions (a PyTorch library for seven group actions, the augmented selective bispectrum with $\Theta(L^2)$ coefficients, and an evaluation on PCam, OrganMNIST3D, and Spherical MNIST) that are substantiated in Sections~\ref{sec:library}--\ref{sec:experiments} and Appendices~\ref{app:so3-proof}--\ref{app:exp}. Empirical claims are stated at the resolution of the Welch tests in Section~\ref{sec:experiments}, and completeness of the augmented selective bispectrum is stated as a conjecture.
+    \item[] Justification: The abstract and introduction list three contributions (a PyTorch library for seven group actions, the augmented selective spherical bispectrum with $\Theta(L^2)$ coefficients, and an evaluation on PCam, OrganMNIST3D, and Spherical MNIST) that are substantiated in Sections~\ref{sec:library}--\ref{sec:experiments} and Appendices~\ref{app:so3-proof}--\ref{app:exp}. Empirical claims are stated at the resolution of the Welch tests in Section~\ref{sec:experiments}, and completeness of the augmented selective spherical bispectrum is stated as a conjecture.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the abstract and introduction do not include the claims made in the paper.
@@ -17,7 +17,7 @@
 \item {\bf Limitations}
     \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Section~\ref{sec:discussion} has ``When not to use the bispectrum'' and ``Limitations and future work'' paragraphs: invariance to one specific group, lower sample efficiency than a learned spherical CNN on $S^2$, inversion of the augmented selective bispectrum living in experiment code, no formal completeness proof, open numerical-conditioning analysis at large band limits, a single tensor-product baseline (no MACE or wavelet scattering), and an MLP head only on $S^2$. Section~\ref{sec:pooling} and Appendix~\ref{app:pooling-grid} state the statistical power of the PCam comparisons. Sections~\ref{sec:background} and~\ref{sec:related} note the genericity assumption for selective bispectra on finite groups, and Appendix~\ref{app:changes} records the bugs fixed since submission.
+    \item[] Justification: Section~\ref{sec:discussion} has ``When not to use the bispectrum'' and ``Limitations and future work'' paragraphs: invariance to one specific group, lower sample efficiency than a learned spherical CNN on $S^2$, inversion of the augmented selective spherical bispectrum living in experiment code, no formal completeness proof, open numerical-conditioning analysis at large band limits, a single tensor-product baseline (no MACE or wavelet scattering), and an MLP head only on $S^2$. Section~\ref{sec:pooling} and Appendix~\ref{app:pooling-grid} state the statistical power of the PCam comparisons. Sections~\ref{sec:background} and~\ref{sec:related} note the genericity assumption for selective bispectra on finite groups, and Appendix~\ref{app:changes} records the bugs fixed since submission.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper has no limitation while the answer \answerNo{} means that the paper has limitations, but those are not discussed in the paper. 
@@ -95,7 +95,7 @@
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Figure~\ref{fig:pooling-grid}, Figure~\ref{fig:smnist} and Table~\ref{tab:smnist-results} report mean $\pm$ sample standard deviation over 10 seeds (OrganMNIST3D), 3--5 seeds (PCam) and 5 seeds (Spherical MNIST). Differences are tested with two-sided Welch $t$-tests; the Spherical MNIST data-efficiency tests are Holm-corrected, and Appendix~\ref{app:pooling-grid} states the power of the PCam tests. The procedure is described in Appendix~\ref{app:exp}.
+    \item[] Justification: Figures~\ref{fig:pooling-grid} and~\ref{fig:smnist} report mean $\pm$ sample standard deviation over 10 seeds (OrganMNIST3D), 3--5 seeds (PCam) and 5 seeds (Spherical MNIST). Differences are tested with two-sided Welch $t$-tests; the Spherical MNIST data-efficiency tests are Holm-corrected, and Appendix~\ref{app:pooling-grid} states the power of the PCam tests. The procedure is described in Appendix~\ref{app:exp}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -112,7 +112,7 @@
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Appendix~\ref{app:exp} lists the training hardware ($8\times$ A100 40\,GB, $2\times$ A100 80\,GB and one H100 80\,GB). Benchmark timings are in Table~\ref{tab:benchmarks} and Appendix~\ref{app:bench}, and Spherical MNIST inference latencies in Table~\ref{tab:smnist-results}.
+    \item[] Justification: Appendix~\ref{app:exp} lists the training hardware ($8\times$ A100 40\,GB, $2\times$ A100 80\,GB and one H100 80\,GB). Benchmark timings are in Table~\ref{tab:benchmarks} and Appendix~\ref{app:bench}, and Spherical MNIST inference latencies in Figure~\ref{fig:smnist}.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
