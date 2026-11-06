@@ -16,6 +16,7 @@ from typing import Literal
 
 PAPER_DIR = Path(__file__).resolve().parent.parent
 CATALOGUE = Path(__file__).with_name('llm_audit.toml')
+STYLE = PAPER_DIR / 'llmaudit.sty'
 SOURCES = ('bispectrum.tex', 'checklist.tex')
 CATEGORIES = 'VRJDSHCMX'
 
@@ -165,6 +166,14 @@ def validate(items: list[Item]) -> None:
         raise AuditError('\n'.join(errors))
 
 
+def check_style_totals(items: list[Item], style: Path = STYLE) -> None:
+    """The index's per-category totals in llmaudit.sty must match the catalogue."""
+    declared = {cat: int(n) for cat, n in re.findall(r'\\@namedef\{llm@total@(\w)\}\{(\d+)\}', style.read_text())}
+    actual = {cat: sum(item.id[0] == cat for item in items) for cat in CATEGORIES}
+    if declared != actual:
+        raise AuditError(f'{style.name} totals {declared} != catalogue {actual}')
+
+
 def _ws_regex(text: str) -> str:
     """Whitespace-insensitive regex for text; leading/trailing blanks become optional."""
     if not text.strip():
@@ -306,7 +315,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         match args.command:
             case 'annotate':
-                counts = annotate(load_catalogue())
+                items = load_catalogue()
+                check_style_totals(items)
+                counts = annotate(items)
                 for name, n in counts.items():
                     print(f'{name}: {n} marks added')
             case 'strip':
@@ -317,7 +328,9 @@ def main(argv: list[str] | None = None) -> int:
                     dest.write_text(stripped)
                     print(f'{name} -> {dest}')
             case 'status':
-                print('\n'.join(status(load_catalogue())))
+                items = load_catalogue()
+                check_style_totals(items)
+                print('\n'.join(status(items)))
     except AuditError as err:
         print(err, file=sys.stderr)
         return 1

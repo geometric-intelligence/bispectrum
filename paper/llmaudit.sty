@@ -3,6 +3,7 @@
 \RequirePackage{xcolor}
 \RequirePackage{hyperref}
 \RequirePackage{enumitem}
+\RequirePackage{booktabs}
 
 % \llm[decision]{ID}{flagged text}{note}   colored span + tag; off: flagged text
 % \llmpt[decision]{ID}{note}               tag only;           off: nothing
@@ -32,8 +33,26 @@
 \def\llm@name@M{Mechanical drift}
 \def\llm@name@X{Deferred to the SO(3) completeness pass}
 
+% Items per category in tools/llm_audit.toml; llm_audit.py checks these.
+% Resolved = total - marks still in the text.
+\@namedef{llm@total@V}{21}
+\@namedef{llm@total@R}{23}
+\@namedef{llm@total@J}{26}
+\@namedef{llm@total@D}{31}
+\@namedef{llm@total@S}{10}
+\@namedef{llm@total@H}{8}
+\@namedef{llm@total@C}{18}
+\@namedef{llm@total@M}{34}
+\@namedef{llm@total@X}{10}
+
 \newcount\llm@count
+\newcount\llm@deccount
+\newcount\llm@sumtotal
+\@tfor\llm@c:=VRJDSHCMX\do{%
+  \expandafter\gdef\csname llm@open@\llm@c\endcsname{0}%
+  \expandafter\gdef\csname llm@dec@\llm@c\endcsname{0}}
 \def\llm@cat#1#2\@nil{#1}
+\def\llm@incr#1{\expandafter\xdef\csname#1\endcsname{\the\numexpr\csname#1\endcsname+1\relax}}
 
 \newcommand\llm@decmark[1]{\if\relax\detokenize{#1}\relax\else:#1\fi}
 
@@ -46,6 +65,11 @@
   \ifcsname llm@seen@#2\endcsname\else
     \global\expandafter\let\csname llm@seen@#2\endcsname\@empty
     \global\advance\llm@count\@ne
+    \llm@incr{llm@open@#4}%
+    \if\relax\detokenize{#1}\relax\else
+      \global\advance\llm@deccount\@ne
+      \llm@incr{llm@dec@#4}%
+    \fi
     \ifcsname llm@list@#4\endcsname\else
       \global\expandafter\let\csname llm@list@#4\endcsname\@empty
     \fi
@@ -77,18 +101,54 @@
 
 \newcommand\llm@printcat[1]{%
   \ifcsname llm@list@#1\endcsname
-    \subsection*{\textcolor{llm#1}{#1: \csname llm@name@#1\endcsname}}
+    \subsection*{\textcolor{llm#1}{#1: \csname llm@name@#1\endcsname}
+      {\normalfont\small(\csname llm@open@#1\endcsname\ left)}}
     \begin{description}[leftmargin=3.2em,labelwidth=2.8em,labelsep=0.4em,
         itemsep=1pt,parsep=0pt,topsep=2pt,font=\normalfont]
       \csname llm@list@#1\endcsname
     \end{description}
   \fi}
 
+\newcommand\llm@statusrow[1]{%
+  \textcolor{llm#1}{\sffamily #1} & \csname llm@name@#1\endcsname
+  & \csname llm@total@#1\endcsname
+  & \the\numexpr\csname llm@total@#1\endcsname-\csname llm@open@#1\endcsname\relax
+  & \ifnum\csname llm@open@#1\endcsname=\z@ \textcolor{llmS}{done}%
+    \else\textbf{\csname llm@open@#1\endcsname}\fi
+  & \ifnum\csname llm@dec@#1\endcsname=\z@ --\else\csname llm@dec@#1\endcsname\fi \\}
+
+\newcommand\llm@sumtotals{%
+  \global\llm@sumtotal\z@
+  \@tfor\llm@c:=VRJDSHCMX\do{%
+    \global\advance\llm@sumtotal\csname llm@total@\llm@c\endcsname\relax}}
+
+\newcommand\llm@statustable{%
+  \begin{center}
+  \begin{tabular}{@{}llrrrr@{}}
+    \toprule
+    & Category & Marked & Resolved & Left & Decided \\
+    \midrule
+    \llm@statusrow{V}\llm@statusrow{R}\llm@statusrow{J}%
+    \llm@statusrow{D}\llm@statusrow{S}\llm@statusrow{H}%
+    \llm@statusrow{C}\llm@statusrow{M}\llm@statusrow{X}%
+    \midrule
+    & Total & \the\llm@sumtotal & \the\numexpr\llm@sumtotal-\llm@count\relax
+      & \textbf{\the\llm@count} & \ifnum\llm@deccount=\z@ --\else\the\llm@deccount\fi \\
+    \bottomrule
+  \end{tabular}
+  \end{center}}
+
 \newcommand\llmprintindex{%
   \ifllmaudit
     \clearpage
     \section*{LLM-style audit index (review copy)}
     {\small
+    \llm@sumtotals
+    \the\llm@count\ of \the\llm@sumtotal\ marks are left.
+    Resolved marks have been applied to the text and removed from the
+    overlay, so the lists below hold only what is left. \emph{Decided}
+    counts marks that have a decision recorded but not yet applied.
+    \llm@statustable
     Every colored span or tag \textsuperscript{\sffamily\tiny[ID]} in the
     text links here; each entry links back to its page. Record a decision
     in the source by adding an optional argument,

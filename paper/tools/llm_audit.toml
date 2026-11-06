@@ -997,7 +997,7 @@ note = '''Double hedge (``plausible'' and ``speculative''). (A) ``We suspect tha
 [[item]]
 id = 'R21c'
 find = '''The rule we adopt is to apply only fixed injective maps (real--imaginary split, signed log) before the first learned layer.'''
-note = '''The rule, stated a third time (see R21a), with a third explanation of the signed log (see D07a). (A) keep it here only.'''
+note = '''The rule now appears only here; the contributions and the Discussion keep just the measured ReLU effect. Its parenthetical (real--imaginary split, signed log) is the third explanation of the signed log (see D07a). (A) keep as is. (B) drop the parenthetical.'''
 
 [[item]]
 id = 'H06'
