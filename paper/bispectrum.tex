@@ -140,18 +140,14 @@ Many machine learning tasks are invariant under the action of a group $G$ of tra
 can be invariant under translations, image
 classification under 2D rotations, and spherical-image classification under 3D rotations.
 %
-One way to build this invariance into a neural network is through $G$-invariants. The $G$-bispectrum is a complete one: it determines the signal up to the group action and has served as a pooling layer in deep networks. Yet it is costly to compute, and existing implementations each cover a single group, which has severely limited its adoption.
+One way to build this invariance into a neural network is through $G$-invariants. The $G$-bispectrum is a complete one: it determines the signal up to the group action and has served as a pooling layer in deep networks. Yet it is costly to compute, and each existing implementation covers a single group, severely limiting its adoption.
 %
 We present \texttt{bispectrum}, an open-source, fully unit-tested
-PyTorch library that implements computationally efficient \emph{selective} $G$-bispectra for seven group actions as differentiable modules. For finite groups $G$, selectivity
-reduces the number of bispectral coefficients from $O(|G|^2)$ to $O(|G|)$. For planar rotations of images on the disk, the selective disk bispectrum reduces it from $O(m^{5/2})$ to $O(m)$ for $m$ disk harmonics. For spherical 3D rotations,
-we introduce an augmented selective spherical bispectrum which, at band limit
-$L$, reduces it from $\Theta(L^3)$ to $\Theta(L^2)$.
-We profile the library, showing that it is invariant up to floating-point error, with its selective $G$-bispectra computed in sub-millisecond time on GPU. We evaluate selective $G$-bispectra as pooling layers in $G$-equivariant networks on PatchCamelyon ($C_8$) and OrganMNIST3D (the octahedral group $O$), against norm pooling,
-gated pooling, Fourier-ELU pooling, max pooling, and a
-data-augmented CNN. Across 46 comparisons, bispectral pooling remains competitive, matching all baselines on PCam and improving on max pooling by 5.0\,pp on OrganMNIST3D.
+PyTorch library that implements computationally efficient \emph{selective} $G$-bispectra for seven group actions as differentiable modules. Selectivity
+reduces the number of bispectral coefficients from $O(|G|^2)$ to $O(|G|)$ for finite groups $G$, from $O(m^{5/2})$ to $O(m)$ for planar rotations on the disk with $m$ harmonics, and, with the augmented selective spherical bispectrum we introduce, from $\Theta(L^3)$ to $\Theta(L^2)$ for spherical 3D rotations at band limit $L$.
+The library is invariant up to floating-point error and computes selective $G$-bispectra in sub-millisecond time on GPU. We evaluate them as pooling layers in $G$-equivariant networks on PatchCamelyon ($C_8$) and OrganMNIST3D (the octahedral group $O$) against five baselines. Across 46 comparisons, bispectral pooling remains competitive, matching all baselines on PCam and improving on max pooling by 5.0\,pp on OrganMNIST3D.
 On Spherical MNIST, the augmented selective spherical bispectrum with an MLP head reaches 95.8\% on rotated test digits, on par with a matched spherical CNN at $4\times$ lower latency and within 0.3\,pp of a tensor-product network at $364\times$ lower latency.
-Selective $G$-bispectra are thus fast and competitive invariant layers that keep far more of the signal than standard pooling, for both finite and continuous groups, and we hope that \texttt{bispectrum} will broaden their use and open new applications for them.
+Selective $G$-bispectra are thus fast and competitive invariant layers that keep far more of the signal than standard pooling, for both finite and continuous groups, and we hope \texttt{bispectrum} will broaden their use to new applications.
 \end{abstract}
 \section{Introduction}
 \label{sec:intro}
