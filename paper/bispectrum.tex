@@ -135,18 +135,16 @@
 
 \maketitle
 \input{firstpage/group-actions}
-\begin{abstract}\llmpt{V17}{Title ``Selective $G$-Bispectra Made Practical'' uses the stock ``X Made Y'' pattern. (A) keep. (B) ``bispectrum: A PyTorch Library of Selective $G$-Bispectra''. (C) ``bispectrum: Fast Complete Invariants for $G$-CNNs and Spherical Signals''.}
+\begin{abstract}
 Many machine learning tasks are invariant under the action of a group $G$ of transformations: signal classification
 can be invariant under translations, image
-classification under 2D rotations, and spherical-image classification under 3D rotations.\llmpt{D04a}{This opening sentence is repeated word for word as the first sentence of the introduction. (A) keep it here and rewrite the intro opening (see D04b). (B) start the abstract with the bispectrum itself.} The $G$-bispectrum is a \llm{V01}{principled \emph{complete} invariant}{``principled'' is filler (used again in the intro). (A) ``a complete invariant''. (B) keep.} of a signal \llm{H07}{(retaining all of the signal's information up to the group action)}{Parenthetical gloss. (A) keep. (B) ``(it determines the signal up to the group action)''. (C) drop; the intro defines completeness.} \llm{V03}{with demonstrated benefits in machine learning and as a pooling layer in deep networks}{Vague promotional phrase; ``demonstrated benefits in machine learning'' says nothing concrete. (A) ``and has been used as a pooling layer in deep networks''. (B) drop.}. However, \llm{V04}{its
-deployment has been hampered by high computational cost and a patchwork of
-group-specific implementations}{``hampered'', ``patchwork'': stock vocabulary. (A) ``the full bispectrum is costly to compute, and each existing implementation covers a single group''. (B) ``it is expensive, and no implementation covers more than one group''.}.
+classification under 2D rotations, and spherical-image classification under 3D rotations.\llmpt{D04a}{This opening sentence is repeated word for word as the first sentence of the introduction. (A) keep it here and rewrite the intro opening (see D04b). (B) start the abstract with the bispectrum itself.} The $G$-bispectrum is a \emph{complete} invariant of a signal \llm{H07}{(retaining all of the signal's information up to the group action)}{Parenthetical gloss. (A) keep. (B) ``(it determines the signal up to the group action)''. (C) drop; the intro defines completeness.} and has been used as a pooling layer in deep networks. However, the full bispectrum is costly to compute, and each existing implementation covers a single group.
 We present \texttt{bispectrum}, an open-source, fully unit-tested
-PyTorch library that implements \emph{selective} $G$-bispectra for \llm{V07}{seven different group actions}{``different'' is filler. (A) ``seven group actions''.}, as differentiable modules that can be directly incorporated into \llm{V11a}{machine learning pipelines and deep learning architectures}{``machine learning pipelines and deep learning architectures/pipelines'': the ML/DL doublet appears four times (abstract, intro twice, closing sentence). (A) ``neural networks''. (B) end the sentence at ``differentiable modules''.}.\llmpt{D05a}{The library sentence (``an open-source, fully unit-tested PyTorch library that implements selective $G$-bispectra ... directly incorporated into ...'') is repeated almost verbatim in the intro Contributions paragraph (D05b). (A) keep it here, shorten the intro copy. (B) keep both.} For finite groups $G$, selectivity
-reduces the computational cost from $O(|G|^2)$ to $O(|G|)$. For planar rotations, \llm{V05}{we leverage the disk bispectrum}{``leverage''. (A) ``we use the selective disk bispectrum''. (B) ``we implement the selective disk bispectrum of Myers et al.''.}. For spherical 3D rotations,
+PyTorch library that implements \emph{selective} $G$-bispectra for seven group actions as differentiable modules.\llmpt{D05a}{The library sentence (``an open-source, fully unit-tested PyTorch library that implements selective $G$-bispectra ... as differentiable modules'') is repeated almost verbatim in the intro Contributions paragraph (D05b). (A) keep it here, shorten the intro copy. (B) keep both.} For finite groups $G$, selectivity
+reduces the computational cost from $O(|G|^2)$ to $O(|G|)$. For planar rotations, we use the selective disk bispectrum. For spherical 3D rotations,
 we introduce an augmented selective bispectrum at \llm{M03a}{band-limit}{Spelling drift: ``band-limit'', ``bandlimit'' and ``band limit'' all occur as the noun (eleven marks, M03a--k). (A) ``band limit'' for the noun and ``band-limited'' for the adjective everywhere. (B) ``bandlimit'' everywhere.}
 $L$ which reduces the cost \llm{M11}{from $O(L^3)$ to $\Theta(L^2)$}{Mixes $O$ and $\Theta$ for the same comparison; the contributions say $\Theta(L^3)$ to $\Theta(L^2)$. (A) ``from $\Theta(L^3)$ to $\Theta(L^2)$''.} coefficients.
-We profile the entire library \llm{H01}{(for which we implemented various compute optimizations)}{Vague, defensive parenthetical (and ``the entire library'' just before it: ``entire'' is filler). (A) drop. (B) name the optimizations, e.g. ``(precomputed CG tables, CUDA-graph replay for SO3onS2)''.}, showing that it \llm{V06}{delivers near-exact $G$-invariance}{``delivers''; ``near-exact'' is vague. (A) ``is $G$-invariant to floating-point precision''. (B) ``is invariant up to floating-point error''.} with its selective $G$-bispectra computed in sub-millisecond time on GPU \llm{H02}{(up to commonly used bandlimits)}{Vague hedge, plus the ``bandlimits'' spelling (see M03a). (A) ``(at $L{=}16$ on $S^2$)''. (B) drop.}. We evaluate selective $G$-bispectra as pooling layers in $G$-equivariant networks on PatchCamelyon ($C_8$) and OrganMNIST3D (the octahedral group $O$), against norm pooling,
+We profile the entire library \llm{H01}{(for which we implemented various compute optimizations)}{Vague, defensive parenthetical (and ``the entire library'' just before it: ``entire'' is filler). (A) drop. (B) name the optimizations, e.g. ``(precomputed CG tables, CUDA-graph replay for SO3onS2)''.}, showing that it is invariant up to floating-point error, with its selective $G$-bispectra computed in sub-millisecond time on GPU \llm{H02}{(up to commonly used bandlimits)}{Vague hedge, plus the ``bandlimits'' spelling (see M03a). (A) ``(at $L{=}16$ on $S^2$)''. (B) drop.}. We evaluate selective $G$-bispectra as pooling layers in $G$-equivariant networks on PatchCamelyon ($C_8$) and OrganMNIST3D (the octahedral group $O$), against norm pooling,
 gated pooling, Fourier-ELU pooling, max pooling, and a (non-equivariant)
 data-augmented CNN. \llm{D01a}{Across 46 comparisons, bispectral pooling is never significantly worse than any of them; it is on par on PCam and improves on max pooling by 5.0\,pp on OrganMNIST3D.}{Headline pooling result, stated six times (abstract, contributions, Figure 3 caption, Results, Discussion, Appendix C statistics; D01a--f). (A) keep it here, in Results and in the figure caption; cut the others. (B) keep all.}
 On Spherical MNIST, the augmented selective bispectrum with an MLP head reaches 95.8\% on rotated test digits, \llm{D02a}{on par with a matched spherical CNN at $4\times$ lower latency and within 0.3\,pp of a tensor-product network at $364\times$ lower latency}{Spherical MNIST headline (0.3 pp, $4\times$, $364\times$), stated five times (abstract, contributions, Table 4 caption, Results, Discussion; D02a--e). (A) keep it here and in Results. (B) keep all.}.
@@ -162,23 +160,24 @@ aggregation~\citep{weiler2019general}) are simple but
 \emph{incomplete}: they discard information that a complete
 group-invariant representation would preserve. For instance, norm pooling retains only the power spectrum of the feature map, so two signals that share the same per-frequency magnitudes but differ in their relative phases \llm{H03}{(and are therefore not related by any group element)}{Defensive aside with loose logic: sharing per-frequency magnitudes does not imply that two signals are unrelated by the group. (A) drop. (B) ``two signals that share per-frequency magnitudes but are not related by any group element are mapped to the same descriptor''.} are mapped to the same invariant descriptor.
 
-The $G$-bispectrum is \llm{V02}{a principled
-alternative}{Second ``principled''; the next sentence restarts with ``The $G$-bispectrum is''. (A) ``The $G$-bispectrum is a complete alternative''. (B) merge the two sentences: ``The $G$-bispectrum [cites], a complex-valued $G$-invariant descriptor, avoids this.'' (C) keep.}~\citep{giannakis1989bispectrum, kakarala2012bispectrum,
-sanborn2023bispectral, mataigne2024selective, myers2025selective}. The $G$-bispectrum is a complex-valued descriptor of a signal that is invariant under the action of a group $G$. \llm{R04}{It has three properties that make it particularly suited to learning on structured data:}{Setup colon (``particularly suited to'') followed by an em-dash definition list, ``(i) completeness --- ...; (ii) inversion --- ...; (iii) selectivity --- ...''. (A) ``It is complete (it preserves all information up to the group action), invertible (...), and selective (...).'' (B) keep the list but use colons instead of em-dashes.} (i)~\textit{completeness} --- it preserves all signal
-information up to the group action; (ii)~\textit{inversion} --- the signal can be
-recovered from the invariant up to a group action; and
-(iii)~\textit{selectivity} --- a small subset of the $G$-bispectrum's entries suffices for completeness on generic signals, a fact first observed for translations by~\citet{giannakis1989bispectrum} and recently extended to finite groups and the disk~\citep{mataigne2024selective,myers2025selective}.
+The $G$-bispectrum~\citep{giannakis1989bispectrum, kakarala2012bispectrum,
+sanborn2023bispectral, mataigne2024selective, myers2025selective}, a complex-valued
+$G$-invariant descriptor, avoids this. It is \textit{complete} (it preserves all signal
+information up to the group action), \textit{invertible} (the signal can be recovered from
+it up to a group action), and \textit{selective} (a small subset of its entries suffices for
+completeness on generic signals). Selectivity was first observed for translations
+by~\citet{giannakis1989bispectrum} and recently extended to finite groups and the
+disk~\citep{mataigne2024selective,myers2025selective}.
 
-\paragraph{Existing constructions of $G$-bispectra are scattered across theoretical papers and group-specific implementations.}\llmpt{R01}{Full-sentence claim used as a paragraph header. (A) \textbf{Prior implementations.} (B) \textbf{Related constructions.} (C) keep.} The selective $G$-bispectrum
+\paragraph{Prior implementations.} The selective $G$-bispectrum
 of~\citet{mataigne2024selective} covers signals defined over finite groups. The selective disk bispectrum from
-\citet{myers2025selective} proposes a bispectrum for 2D images defined over the disk, with invariance with respect to planar rotations. The spherical bispectrum of \citet{kakarala2012bispectrum} provides a representation of spherical images that is invariant to 3D rotations; \citet{oreiller2020solid} use it as a locally rotation-invariant layer in 3D CNNs, keeping all $\Theta(L^3)$ coefficients up to a maximal degree~$L$, and \citet{chevalley2024bispectral} build a bispectral layer into a 3D U-Net for segmentation. The classical translation bispectrum~\citep{giannakis1989bispectrum} is well-known in signal processing but lacks an open, GPU-ready implementation. \citet{sanborn2023bispectral} learn the bispectrum of compact commutative groups from data with bispectral neural networks; this form does not cover non-commutative groups. \llm{R02}{The absence of a unified, efficient, and differentiable implementation across group actions has limited the bispectrum's adoption as a practical building block in modern deep learning pipelines.}{Grand closer: tricolon (``unified, efficient, and differentiable''), ``practical building block'', ``modern deep learning pipelines''. (A) drop. (B) ``No library covers these groups behind one differentiable interface.'' (C) keep.}
+\citet{myers2025selective} proposes a bispectrum for 2D images defined over the disk, with invariance with respect to planar rotations. The spherical bispectrum of \citet{kakarala2012bispectrum} provides a representation of spherical images that is invariant to 3D rotations; \citet{oreiller2020solid} use it as a locally rotation-invariant layer in 3D CNNs, keeping all $\Theta(L^3)$ coefficients up to a maximal degree~$L$, and \citet{chevalley2024bispectral} build a bispectral layer into a 3D U-Net for segmentation. The classical translation bispectrum~\citep{giannakis1989bispectrum} is well-known in signal processing but lacks an open, GPU-ready implementation. \citet{sanborn2023bispectral} learn the bispectrum of compact commutative groups from data with bispectral neural networks; this form does not cover non-commutative groups.
 
-\paragraph{Contributions.} \llm{R03}{We present, profile, and evaluate}{Tricolon of verbs. (A) ``We present''.} \texttt{bispectrum}, an open-source, fully unit-tested
-PyTorch library that implements \emph{selective} $G$-bispectra as differentiable modules that can be directly incorporated into \llm{V11b}{machine learning pipelines and deep learning architectures}{ML/DL doublet again (see V11a).}.\llmpt{D05b}{Repeats the abstract library sentence (D05a). (A) shorten to ``We present \texttt{bispectrum}, an open-source PyTorch library of selective $G$-bispectra.'' (B) keep.} Our contributions are:
+\paragraph{Contributions.} We present \texttt{bispectrum}, an open-source, fully unit-tested
+PyTorch library that implements \emph{selective} $G$-bispectra as differentiable modules.\llmpt{D05b}{Repeats the abstract library sentence (D05a). (A) shorten to ``We present \texttt{bispectrum}, an open-source PyTorch library of selective $G$-bispectra.'' (B) keep.} Our contributions are:
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Software: \llm{M01}{Pytorch}{Typo: ``PyTorch''.} Library.}\llmpt{C14a}{Bold ``Category: Title.'' labels on the three contribution items (C14a--c). (A) short bold nouns: \textbf{Library.}, \textbf{Spherical invariant.}, \textbf{Evaluation.} (B) no bold labels. (C) keep.} We implement selective
-    $G$-bispectra for \emph{seven group actions} as \llm{V08a}{drop-in}{``drop-in'' (also in Related Work and the Table 2 caption). (A) delete the word. (B) ``as standard \texttt{nn.Module}s''.} differentiable modules with a
-    \llm{V09a}{uniform API}{``uniform API/interface'' appears four times (V09a--d). (A) keep only the one in Section 4 (Design and implementation). (B) ``with one interface''.} \llm{V10}{unlocking practical deployment across machine learning and deep learning pipelines}{Promotional phrase with ``unlocking'' and the ML/DL doublet. (A) drop; end the sentence at ``uniform API''. (B) keep.}. We provide an efficient implementation with sub-millisecond GPU forward \llm{M02}{passes  and}{Double space in the source (``passes and''); invisible in the PDF. (A) single space.} a fully unit-tested codebase (98.5\% line coverage).
+    $G$-bispectra for \emph{seven group actions} as differentiable modules. We provide an efficient implementation with sub-millisecond GPU forward \llm{M02}{passes  and}{Double space in the source (``passes and''); invisible in the PDF. (A) single space.} a fully unit-tested codebase (98.5\% line coverage).
   \item \textbf{Theory: Augmented Selective Bispectrum for Spherical Rotations.}\llmpt{C14b}{Same bold ``Category: Title.'' pattern (see C14a).}
     We introduce the augmented selective bispectrum for 3D rotations acting on spherical images: at \llm{M03b}{bandlimit}{``bandlimit'' (see M03a).} $L$, a selective subset of the bispectrum together with a few Clebsch--Gordan power coefficients, reducing the number of coefficients from $\Theta(L^3)$ to $\Theta(L^2)$. Its per-degree Jacobian has full rank by construction, and a degree-by-degree solver recovers every test signal from it at $L{=}15$; we conjecture that it is generically complete.
  \item \textbf{Experiments: Unified Evaluation.}\llmpt{C14c}{Same pattern (see C14a); ``Unified Evaluation'' is also vague.} We evaluate bispectral
@@ -188,12 +187,9 @@ PyTorch library that implements \emph{selective} $G$-bispectra as differentiable
   never significantly worse than any of them; it is on par on PCam and
   improves on max pooling by 5.0\,pp on OrganMNIST3D.}{Repeats the abstract headline numbers (see D01a). (A) state it without numbers: ``it is never significantly worse than five baselines and beats max pooling on OrganMNIST3D''. (B) keep.} On Spherical MNIST, the
   augmented selective bispectrum with an MLP head \llm{D02b}{is within 0.3\,pp of matched learned-equivariant
-  networks on rotated digits at $4\times$ to $364\times$ lower latency}{Repeats the abstract Spherical MNIST numbers (see D02a). (A) drop the numbers here. (B) keep.}. \llm{R21a}{We also find
-  that the invariant must reach the classifier through fixed injective maps:}{Aphoristic rule (``must reach the classifier through fixed injective maps''), stated three times: here, in the Discussion (R21b) and in Appendix F (R21c, ``The rule we adopt''). (A) keep the rule once, in Appendix F, and state only the measured effect elsewhere. (B) keep.} \llm{D03a}{a
+  networks on rotated digits at $4\times$ to $364\times$ lower latency}{Repeats the abstract Spherical MNIST numbers (see D02a). (A) drop the numbers here. (B) keep.}. We also find that \llm{D03a}{a
   ReLU before the first learned projection costs 4--5\,pp on OrganMNIST3D}{The 4--5 pp ReLU result is stated five times (contributions, Results, Discussion, Appendix F text, Table 14 caption). (A) keep it in Results and Appendix F. (B) keep all.}.
 \end{enumerate}
-
-\llm{R05}{Together, these contributions close the gap between the theoretical appeal of $G$-bispectra and their practical use in modern machine learning and deep learning pipelines.}{Grand closer (``close the gap between the theoretical appeal ... and their practical use''), with the ML/DL doublet once more. (A) drop. (B) keep.}
 
 \section{Mathematical Background}
 \label{sec:background}
@@ -217,8 +213,8 @@ features to invariant ones.
 
 \paragraph{Bispectrum on finite groups.}
 The $G$-bispectrum~\citep{kakarala1992triple, mataigne2024selective}
-provides a \llm{V13}{complete invariant pooling mechanism}{``mechanism'' is filler. (A) ``a complete invariant''. (B) ``a complete invariant, usable as a pooling layer''.} for signals on finite
-groups. Given a signal $\Theta : G \to \R$ on a finite group $G$ with
+provides a complete invariant for signals on finite
+groups, usable as a pooling layer. Given a signal $\Theta : G \to \R$ on a finite group $G$ with
 unitary irreps $\{\rho_i\}_{i\in\hat{G}}$, the \emph{$G$-Fourier
 transform}~\citep{diaconis1990fourier} is
 \begin{equation}\label{eq:fourier-finite}
@@ -326,10 +322,7 @@ provides general Lie-group representation primitives (irreducible
 representations, Clebsch--Gordan decompositions, tensor products) on
 top of which custom equivariant layers can be built. These libraries
 implement equivariant \emph{feature maps} but leave the choice of
-invariant pooling to the user (typically norm or gate). \llm{R06}{Our library is
-complementary: it provides the invariant map as a drop-in
-\texttt{nn.Module} that plugs into architectures built with any of these
-frameworks.}{Colon reveal (``is complementary:''), plus ``drop-in'' and ``plugs into''. (A) ``Our modules provide that invariant map and work with any of these libraries.'' (B) keep.}
+invariant pooling to the user (typically norm or gate). Our modules provide the invariant map and work with any of these libraries.
 
 \paragraph{Bispectral approaches in neural networks.}
 \citet{sanborn2023bispectral} introduced bispectral neural networks (BNNs),
@@ -370,9 +363,6 @@ translation-invariant representations via iterated modulus operations;
 \citet{mcewen2022scattering} extend it to the sphere. Unlike the
 $G$-bispectrum, scattering representations are stable but generally
 incomplete; they discard inter-scale phase information.
-The $G$-bispectrum's completeness
-guarantee~\citep{giannakis1989bispectrum, kakarala2012bispectrum} \llm{R07}{is
-its distinguishing theoretical advantage}{Grand closer. (A) drop the sentence; the previous one already makes the contrast. (B) ``Unlike scattering, the $G$-bispectrum is complete.'' (C) keep.}.
 
 \begin{table}[t]
   \caption{Trade-offs among invariant nonlinearities. The selective
@@ -405,16 +395,9 @@ its distinguishing theoretical advantage}{Grand closer. (A) drop the sentence; t
   {\small $^\ddagger$The pointwise nonlinearity is equivariant, not invariant: an invariant still needs pooling over $G$ (max pooling in our experiments), which is incomplete. Aliasing also breaks exact equivariance.}
 \end{table}
 
-\llm{R08}{Table~\ref{tab:nonlinearity-comparison} summarizes the trade-offs between
-exactness, completeness, and computational cost across existing invariant
-pooling layers. Norm pooling and gated nonlinearities are exact
-invariants but \emph{incomplete}. Fourier-space pointwise
-nonlinearities are equivariant rather than invariant, still need an
-incomplete pooling step, and lose exact equivariance through
-\mbox{aliasing~\citep{weiler2019general}}. The full bispectrum is exact and
-complete but costs $O(|G|^2)$ coefficients. The \emph{selective}
-bispectrum (Section~\ref{sec:background}) preserves both exactness and completeness
-while using only $O(|G|)$ coefficients on generic signals.}{The paragraph restates Table 1 as a parallel ladder (``X are exact but incomplete ... The full bispectrum is exact and complete but ... The selective bispectrum preserves both ...''), opened by the tricolon ``exactness, completeness, and computational cost''. (A) one sentence: ``Table 1 compares these layers; only the selective bispectrum is complete with $O(|G|)$ coefficients.'' (B) keep only the last sentence. (C) keep.}
+Of the layers compared in Table~\ref{tab:nonlinearity-comparison}, only the selective
+bispectrum (Section~\ref{sec:background}) is complete on generic signals with
+$O(|G|)$ coefficients.
 
 
 \section{The \texttt{bispectrum} Library}
@@ -423,7 +406,7 @@ while using only $O(|G|)$ coefficients on generic signals.}{The paragraph restat
 \paragraph{Design and implementation.} \label{sec:design} Every $G$/domain pair is a \texttt{torch.nn.Module} named
 \texttt{\{Group\}on\{Domain\}} (e.g.\ \texttt{SO3onS2});
 Table~\ref{tab:supported-groups} lists all seven modules. Each exposes a
-\llm{V09b}{uniform API}{``uniform API'': keep this one if the others go (see V09a).}: \texttt{forward(f)} returns the selective invariants,
+uniform API: \texttt{forward(f)} returns the selective invariants,
 \texttt{fourier(f)} the group Fourier coefficients, and
 \texttt{invert(beta)} the reconstructed signal up to group-action
 indeterminacy (where available). Modules default to $O(|G|)$
@@ -436,8 +419,7 @@ and \texttt{torch\_harmonics}~\citep{bonev2023spherical} (for
 usage example is in Appendix~\ref{app:api-example}.
 
 \begin{table}[tbp]
-  \caption{Seven group/domain pairs in the \texttt{bispectrum} library,
-    \llm{V08c}{each a drop-in \texttt{nn.Module} with uniform API}{The caption repeats ``drop-in'' and ``uniform API''. (A) ``Seven group/domain pairs in the \texttt{bispectrum} library.'' (B) keep.}.
+  \caption{Seven group/domain pairs in the \texttt{bispectrum} library.
     \texttt{SO2onS1} is the continuous-$n$ limit of \texttt{CnonCn}.}
   \label{tab:supported-groups}
   \centering
@@ -602,13 +584,13 @@ $1{,}341$) entries of the full bispectrum
 
 \paragraph{Empirical evidence of completeness.}
 \label{sec:so3-recon}
-Whether $\Phi_{\mathrm{sel}}$ is a \emph{complete} $\SO(3)$-invariant
-\llm{R09}{---i.e., whether $\Phi_{\mathrm{sel}}(f) = \Phi_{\mathrm{sel}}(g)$
-implies $f, g$ lie in the same orbit---}{Em-dash aside. (A) parentheses. (B) a separate sentence defining completeness. (C) keep.}can be probed empirically by
-attempting to invert it: if $\Phi_{\mathrm{sel}}$ is complete, any
+We call $\Phi_{\mathrm{sel}}$ a \emph{complete} $\SO(3)$-invariant if
+$\Phi_{\mathrm{sel}}(f) = \Phi_{\mathrm{sel}}(g)$ implies that $f$ and $g$ lie in the same
+orbit. Completeness can be probed empirically by attempting to invert $\Phi_{\mathrm{sel}}$:
+if it is complete, any
 signal $\hat f$ matching $\Phi_{\mathrm{sel}}(f)$ must agree
 with $f$ up to a global rotation, so consistent recovery of
-the input is \llm{V18}{operational evidence}{``operational evidence'': jargon. (A) ``evidence''. (B) ``empirical evidence''. Touches the completeness pass.} that no orbit information is lost.
+the input is evidence that no orbit information is lost.
 We run this test at the classifier's band limit $L{=}15$, where
 $\Phi_{\mathrm{sel}}$ has 380 coefficients, on 8 Spherical MNIST digits
 (each in its original and one random orientation) and 16 random
@@ -643,8 +625,8 @@ aligned images to $0.0014$--$0.0035$ (digits) and $0.0056$--$0.0070$
 different orbits with equal invariants. Gradient descent on the
 image from noise, \llm{J09}{the method we fixed before running the solver}{Preregistration-style aside. (A) drop. (B) ``our original method''.},
 recovers 9 of 16 digits and none of the random signals, on which it
-stalls at a $7.5\%$ median invariant error: \llm{R10}{the bottleneck is the
-optimizer, not the invariant. This is evidence, not a proof:}{Two ``X, not Y'' aphorisms in a row; the first is also the Appendix D header (R14). (A) ``so the failures come from the optimizer. This does not prove completeness; we conjecture ...'' (B) keep. Completeness pass.} we conjecture that
+stalls at a $7.5\%$ median invariant error, so the failures come from the optimizer.
+This does not prove completeness. We conjecture that
 $\Phi_{\mathrm{sel}}$ is generically complete.
 
 
@@ -722,9 +704,8 @@ negative coefficient and costs 4--5\,pp on OrganMNIST3D}{ReLU result (see D03a).
 
 \llm{S06}{The preceding experiments validate bispectral pooling for finite groups
 ($C_8$ and the octahedral group $O$). To evaluate the library's continuous
-group support, we test}{Signposting, and ``validate'' overclaims a ``never worse, better on one dataset'' result. (A) ``We test \texttt{SO3onS2} on Spherical MNIST, the standard benchmark for rotation invariance on $S^2$.'' (B) keep.} \texttt{SO3onS2}\llm{R11}{---the augmented selective
-bispectrum on the 2-sphere
-(Section~\ref{sec:so3-selective})---}{Em-dash aside. (A) parentheses. (B) drop; the module is known by now.}on Spherical
+group support, we test}{Signposting, and ``validate'' overclaims a ``never worse, better on one dataset'' result. (A) ``We test \texttt{SO3onS2} on Spherical MNIST, the standard benchmark for rotation invariance on $S^2$.'' (B) keep.} \texttt{SO3onS2} (the augmented selective
+bispectrum on the 2-sphere, Section~\ref{sec:so3-selective}) on Spherical
 MNIST~\citep{cohen2018spherical}, the standard benchmark for
 rotation invariance on $S^2$.
 
@@ -743,9 +724,9 @@ S2CNN~\citep{cohen2018spherical} with BatchNorm (155K parameters) and a
 Clebsch--Gordan tensor-product network built with \texttt{e3nn}~\citep{geiger2022e3nn}
 (386K). Controls are a power-spectrum MLP (11K parameters; equally invariant but
 \emph{incomplete}, discarding inter-harmonic phase) and a non-invariant CNN on the
-equirectangular image (185K). Following \citet{cohen2018spherical}, we evaluate under the
-protocols NR/NR, R/R, and \llm{V16}{the most challenging}{``the most challenging''. (A) ``and NR/R''. (B) ``and NR/R, which tests invariance to unseen rotations''.} NR/R (train unrotated, test rotated), over
-5 seeds. The bispectrum and the two equivariant networks are each tuned on validation
+equirectangular image (185K). Following \citet{cohen2018spherical}, we evaluate over 5 seeds under the
+protocols NR/NR, R/R, and NR/R (train unrotated, test rotated), which tests invariance to
+unseen rotations. The bispectrum and the two equivariant networks are each tuned on validation
 accuracy at full data, and the selected settings are reused at every training-set size.
 
 \begin{table}[tbp]
@@ -788,7 +769,7 @@ from NR/NR to NR/R, whereas S2CNN, which leads on NR/NR ($97.1\%$) and R/R ($96.
 about 1\,pp; the planar CNN collapses from $99.1\%$ to $13.4\%$. The power spectrum is equally
 invariant but reaches only $77.7\%$, and scaling its MLP $48\times$ to 550K parameters lifts
 it only to $80.1\%$, below the bispectrum with 25K parameters ($94.1\%$;
-Appendix~\ref{app:smnist-capacity}): \llm{R12}{completeness, not capacity, is the bottleneck}{``X, not Y'' aphorism. (A) ``so more capacity does not close the gap''. (B) drop the clause.}. With
+Appendix~\ref{app:smnist-capacity}), so more capacity does not close the gap. With
 less data, the learned spherical CNN is more sample-efficient: \llm{D11b}{S2CNN leads at every
 training-set size below the full set (by 13.0\,pp at $n{=}100$ and 1.3\,pp at 12.5K, Holm
 $p<10^{-3}$), while Bispectrum + MLP beats the tensor-product network up to $n{=}2{,}500$
@@ -800,7 +781,7 @@ $p<10^{-3}$), while Bispectrum + MLP beats the tensor-product network up to $n{=
 
 We have presented \texttt{bispectrum}, a PyTorch library that makes
 selective $G$-bispectral invariants practical, covering seven
-group actions through a \llm{V09d}{uniform \texttt{nn.Module} interface}{Fourth ``uniform API/interface'' (see V09a). (A) ``one \texttt{nn.Module} interface''. (B) drop.}.
+group actions through one \texttt{nn.Module} interface.
 We contribute the augmented selective bispectrum, a $\Theta(L^2)$ $\SO(3)$ invariant on
 $S^2$ (Section~\ref{sec:so3-selective}), which a degree-by-degree solver inverts on every
 signal we tested; we conjecture that it is generically complete. The selective forward pass
@@ -811,8 +792,7 @@ pooling by 5.0\,pp on OrganMNIST3D}{Headline result again (see D01a).}. On Spher
 MLP head \llm{D02e}{is within 0.3\,pp of matched learned-equivariant networks on rotated digits, at
 $4\times$ to $364\times$ lower latency}{Spherical MNIST headline again (see D02a).}. We speculate that the gain grows with how much
 information incomplete pooling discards: per channel, norm pooling keeps one value per irrep,
-5 of 8 for $C_8$ but 5 of 24 for $O$, and max pooling keeps 1 of $|G|$. \llm{R21b}{The invariant must
-also reach the classifier through fixed injective maps:}{The rule again (see R21a).} \llm{D03c}{a ReLU before the first learned
+5 of 8 for $C_8$ but 5 of 24 for $O$, and max pooling keeps 1 of $|G|$. We also find that \llm{D03c}{a ReLU before the first learned
 projection costs 4--5\,pp on OrganMNIST3D}{ReLU result again (see D03a).}.
 
 \paragraph{When not to use the bispectrum.}\llmpt{C12}{Blog-style header. (A) merge into Limitations and future work. (B) \textbf{Scope.} (C) keep.}
@@ -822,8 +802,7 @@ unknown. \llm{D14}{On the sphere, a fixed invariant followed by an MLP is less s
 learned spherical CNN: S2CNN leads at every training-set size below the full set.}{Repeats the data-efficiency result of Section 6.2. (A) keep only the first clause. (B) keep.}
 
 \paragraph{Limitations and future work.}
-The degree-by-degree inversion of the augmented selective bispectrum \llm{R13}{lives in our experiment code, not
-in the library}{``X, not Y'' plus ``lives''. (A) ``is in our experiment code and not yet in the library''. (B) ``is not yet part of the library''.}, and a formal completeness proof, a characterization of the degenerate set,
+The degree-by-degree inversion of the augmented selective bispectrum is in our experiment code and not yet in the library, and a formal completeness proof, a characterization of the degenerate set,
 and numerical-conditioning analysis at large \llm{M03e}{band-limits}{``band-limits'' (see M03a).} remain open. On $S^2$ we compare
 against one tensor-product network, not against MACE~\citep{batatia2022mace} or wavelet
 scattering, and use the invariant with an MLP head; bispectral pooling at the end of an
@@ -1799,10 +1778,9 @@ measuring the relative image error. The solver lives in
   \end{tabular}
 \end{table}
 
-\paragraph{Gradient descent is the bottleneck, not the invariant.}\llmpt{R14}{Full-sentence ``X, not Y'' header that repeats the end of Section 5 (R10). (A) \textbf{Results.} (B) keep. Completeness pass.} Gradient descent recovers
+\paragraph{Results.} Gradient descent recovers
 no random signal: it stalls at a 7.5\% median invariant error. The degree-by-degree solver
-\llm{X04}{recovers all 32 targets exactly}{Completeness pass: ``exactly'' conflicts with image errors of 0.0014--0.0070. (A) ``recovers all 32 targets up to the interpolation error''.}. Refitting all degrees after each new one \llm{R15}{is what makes it
-reliable}{``is what makes it'' construction. (A) ``Refitting all degrees after each new one is necessary:'' (B) ``We refit all degrees after each new one; holding the lower degrees fixed ...'' (C) keep.}: holding the lower degrees fixed instead lets the residual drift just past the
+\llm{X04}{recovers all 32 targets exactly}{Completeness pass: ``exactly'' conflicts with image errors of 0.0014--0.0070. (A) ``recovers all 32 targets up to the interpolation error''.}. Refitting all degrees after each new one is necessary: holding the lower degrees fixed instead lets the residual drift just past the
 $10^{-10}$ acceptance threshold, which lost a ``1'' at $\ell{=}15$ and a ``0'' at $\ell{=}10$.
 \llm{X05c}{The remaining image error is the interpolation of rotating on the grid:}{Completeness pass (see X05a).} rotating a target and
 rotating it back already costs ${\approx}0.004$--$0.006$ (digits) and ${\approx}0.013$
@@ -1834,8 +1812,7 @@ f_rec = bsp.invert(beta)
 \section{Changes Since Submission}
 \label{app:changes}
 
-Every experiment in this version was re-run after we found \llm{R16}{three classes of bugs following the
-author response: in the library, in the training protocol, and in the pooling head}{Colon plus tricolon. (A) ``Every experiment was re-run after the author response, when we found bugs in the library, the training protocol and the pooling head.'' (B) keep.}.
+Every experiment in this version was re-run after the author response, when we found bugs in the library, the training protocol, and the pooling head.
 Several numbers therefore differ from the submitted version and from the author response; this
 section records what changed and why.
 
@@ -1872,7 +1849,7 @@ section records what changed and why.
     evaluated at the best-validation
     checkpoint (Appendix~\ref{app:exp}).
   \item \textbf{Also changed.} Aug.\ CNN is trained with augmentation at every training-set size;
-    the rotated test is \llm{V15}{the headline metric}{``headline''. (A) ``the primary metric''.}; norm pooling is added as an incomplete-invariant
+    the rotated test is the primary metric; norm pooling is added as an incomplete-invariant
     baseline; we use 10, 3--5 and 5 seeds on OrganMNIST3D, PCam and Spherical MNIST, report the
     sample standard deviation, and test differences with Welch $t$-tests; and S2CNN and a
     tensor-product network are re-run under our protocol with matched tuning
@@ -1885,9 +1862,9 @@ The submitted pooling head computed $\mathrm{proj}(\mathrm{ReLU}(\mathrm{signlog
 which zeroes every negative $G$-bispectral coefficient before the $1{\times}1$ projection. The
 camera-ready head computes $\mathrm{ReLU}(\mathrm{proj}(\mathrm{signlog}(\beta)))$; it was chosen
 on validation AUC alone (Table~\ref{tab:head-ablation}). Spherical MNIST never used this head.
-\llm{R17}{Completeness does not explain the gap:}{Colon reveal. (A) give the evidence first and end with ``so Jacobian rank does not explain the gap''. (B) keep.} on $O$ the truncated invariant keeps full Jacobian rank
+On $O$ the truncated invariant keeps full Jacobian rank
 (200 of 200 random inputs) yet costs ${\approx}5$\,pp, while on $C_8$ it is rank-deficient
-(24 of 200) yet costs nothing measurable. \llm{H05}{A plausible mechanism (speculative) is that}{Double hedge (``plausible'' and ``speculative''). (A) ``We suspect that''. (B) ``One possible mechanism is that''.} the
+(24 of 200) yet costs nothing measurable, so Jacobian rank does not explain the gap. \llm{H05}{A plausible mechanism (speculative) is that}{Double hedge (``plausible'' and ``speculative''). (A) ``We suspect that''. (B) ``One possible mechanism is that''.} the
 surviving subset changes with every input, so the fixed projection reads different coordinates
 at every voxel, and the zeroed entries pass no gradient. \llm{R21c}{The rule we adopt is to apply only fixed
 injective maps (real--imaginary split, signed log) before the first learned layer.}{The rule, stated a third time (see R21a), with a third explanation of the signed log (see D07a). (A) keep it here only.} \llm{H06}{We compared
@@ -1896,7 +1873,7 @@ norm pooling cannot truncate in the same way because its outputs are non-negativ
 
 \begin{table}[h]
   \centering
-  \caption{\textbf{\llm{R18}{Applying the ReLU after the projection, not before,}{``X, not Y'' in a caption title. (A) ``Moving the ReLU after the projection adds 4--5 pp on OrganMNIST3D at full data.'' (B) keep.} adds 4--5\,pp on
+  \caption{\textbf{Moving the ReLU after the projection adds 4--5\,pp on
     OrganMNIST3D at full data.} Test accuracy (OrganMNIST3D, \%) or AUC (PCam) at the
     best-validation checkpoint, mean $\pm$ std over 3 seeds. The submission head applied the
     ReLU to the signed-log bispectrum before the $1{\times}1$ projection, which zeroes every
@@ -1929,7 +1906,8 @@ norm pooling cannot truncate in the same way because its outputs are non-negativ
 
 Table~\ref{tab:smnist-augmentation} repeats the ablation of the augmented selective bispectrum
 on the corrected \texttt{SO3onS2}. Only the Clebsch--Gordan power spectra measurably help
-accuracy; \llm{R19}{the self-couplings matter for the Jacobian rank, not for accuracy}{``X, not Y''. (A) ``the self-couplings do not change accuracy; they are there for the Jacobian rank''. Completeness pass.}. The classifier uses
+accuracy. The self-couplings do not change accuracy and are included for the Jacobian rank.
+The classifier uses
 all 760 real features.
 
 \begin{table}[h]
@@ -1960,7 +1938,7 @@ The following statements from the submission or the author response no longer ho
 \begin{itemize}
   \item \textbf{OrganMNIST3D at 6.3M parameters.} We attributed max pooling's lead to an
     optimization or capacity limitation of the bispectral model (best regularized 72.5\% vs.\
-    76.7\%). \llm{R20}{It was the pooling head:}{Colon reveal. (A) ``The cause was the pooling head; with the corrected head ...'' (B) keep.} with the corrected head and 10 seeds, bispectral pooling
+    76.7\%). The cause was the pooling head. With the corrected head and 10 seeds, bispectral pooling
     reaches 77.6\% vs.\ 76.0\% ($p{=}0.10$). Likewise, the submitted tie with max pooling at
     0.46M parameters (72.6\% vs.\ 73.0\%) becomes 78.5\% vs.\ 73.6\% ($p < 10^{-3}$).
   \item \textbf{Spherical feature ablation.} We stated that each augmentation stage changes

@@ -9,11 +9,13 @@
 #             target inside a longer context (for a point, the insertion is at ]])
 # occurrence  1-based index when find matches more than once
 # note        problem and alternatives; no %, #, &, \cite or \ref
+# resolved    decision applied to the text; annotate skips the item
 
 # ---------------------------------------------------------------- abstract
 
 [[item]]
 id = 'V17'
+resolved = 'keep'
 kind = 'point'
 find = '''\begin{abstract}'''
 note = '''Title ``Selective $G$-Bispectra Made Practical'' uses the stock ``X Made Y'' pattern. (A) keep. (B) ``bispectrum: A PyTorch Library of Selective $G$-Bispectra''. (C) ``bispectrum: Fast Complete Invariants for $G$-CNNs and Spherical Signals''.'''
@@ -27,6 +29,7 @@ note = '''This opening sentence is repeated word for word as the first sentence 
 
 [[item]]
 id = 'V01'
+resolved = 'A'
 find = '''principled \emph{complete} invariant'''
 note = '''``principled'' is filler (used again in the intro). (A) ``a complete invariant''. (B) keep.'''
 
@@ -37,21 +40,25 @@ note = '''Parenthetical gloss. (A) keep. (B) ``(it determines the signal up to t
 
 [[item]]
 id = 'V03'
+resolved = 'A'
 find = '''with demonstrated benefits in machine learning and as a pooling layer in deep networks'''
 note = '''Vague promotional phrase; ``demonstrated benefits in machine learning'' says nothing concrete. (A) ``and has been used as a pooling layer in deep networks''. (B) drop.'''
 
 [[item]]
 id = 'V04'
+resolved = 'A'
 find = '''its deployment has been hampered by high computational cost and a patchwork of group-specific implementations'''
 note = '''``hampered'', ``patchwork'': stock vocabulary. (A) ``the full bispectrum is costly to compute, and each existing implementation covers a single group''. (B) ``it is expensive, and no implementation covers more than one group''.'''
 
 [[item]]
 id = 'V07'
+resolved = 'A'
 find = '''seven different group actions'''
 note = '''``different'' is filler. (A) ``seven group actions''.'''
 
 [[item]]
 id = 'V11a'
+resolved = 'B'
 find = '''machine learning pipelines and deep learning architectures'''
 occurrence = 1
 note = '''``machine learning pipelines and deep learning architectures/pipelines'': the ML/DL doublet appears four times (abstract, intro twice, closing sentence). (A) ``neural networks''. (B) end the sentence at ``differentiable modules''.'''
@@ -59,12 +66,12 @@ note = '''``machine learning pipelines and deep learning architectures/pipelines
 [[item]]
 id = 'D05a'
 kind = 'point'
-find = '''directly incorporated into machine learning pipelines and deep learning architectures.'''
-occurrence = 1
-note = '''The library sentence (``an open-source, fully unit-tested PyTorch library that implements selective $G$-bispectra ... directly incorporated into ...'') is repeated almost verbatim in the intro Contributions paragraph (D05b). (A) keep it here, shorten the intro copy. (B) keep both.'''
+find = '''$G$-bispectra for seven group actions as differentiable modules.'''
+note = '''The library sentence (``an open-source, fully unit-tested PyTorch library that implements selective $G$-bispectra ... as differentiable modules'') is repeated almost verbatim in the intro Contributions paragraph (D05b). (A) keep it here, shorten the intro copy. (B) keep both.'''
 
 [[item]]
 id = 'V05'
+resolved = 'A'
 find = '''we leverage the disk bispectrum'''
 note = '''``leverage''. (A) ``we use the selective disk bispectrum''. (B) ``we implement the selective disk bispectrum of Myers et al.''.'''
 
@@ -85,6 +92,7 @@ note = '''Vague, defensive parenthetical (and ``the entire library'' just before
 
 [[item]]
 id = 'V06'
+resolved = 'B'
 find = '''delivers near-exact $G$-invariance'''
 note = '''``delivers''; ``near-exact'' is vague. (A) ``is $G$-invariant to floating-point precision''. (B) ``is invariant up to floating-point error''.'''
 
@@ -119,32 +127,38 @@ note = '''Defensive aside with loose logic: sharing per-frequency magnitudes doe
 
 [[item]]
 id = 'V02'
+resolved = 'B'
 find = '''a principled alternative'''
 note = '''Second ``principled''; the next sentence restarts with ``The $G$-bispectrum is''. (A) ``The $G$-bispectrum is a complete alternative''. (B) merge the two sentences: ``The $G$-bispectrum [cites], a complex-valued $G$-invariant descriptor, avoids this.'' (C) keep.'''
 
 [[item]]
 id = 'R04'
+resolved = 'A'
 find = '''It has three properties that make it particularly suited to learning on structured data:'''
 note = '''Setup colon (``particularly suited to'') followed by an em-dash definition list, ``(i) completeness --- ...; (ii) inversion --- ...; (iii) selectivity --- ...''. (A) ``It is complete (it preserves all information up to the group action), invertible (...), and selective (...).'' (B) keep the list but use colons instead of em-dashes.'''
 
 [[item]]
 id = 'R01'
+resolved = 'A'
 kind = 'point'
 find = '''\paragraph{Existing constructions of $G$-bispectra are scattered across theoretical papers and group-specific implementations.}'''
 note = '''Full-sentence claim used as a paragraph header. (A) \textbf{Prior implementations.} (B) \textbf{Related constructions.} (C) keep.'''
 
 [[item]]
 id = 'R02'
+resolved = 'A'
 find = '''The absence of a unified, efficient, and differentiable implementation across group actions has limited the bispectrum's adoption as a practical building block in modern deep learning pipelines.'''
 note = '''Grand closer: tricolon (``unified, efficient, and differentiable''), ``practical building block'', ``modern deep learning pipelines''. (A) drop. (B) ``No library covers these groups behind one differentiable interface.'' (C) keep.'''
 
 [[item]]
 id = 'R03'
+resolved = 'A'
 find = '''We present, profile, and evaluate'''
 note = '''Tricolon of verbs. (A) ``We present''.'''
 
 [[item]]
 id = 'V11b'
+resolved = 'B'
 find = '''machine learning pipelines and deep learning architectures'''
 occurrence = 2
 note = '''ML/DL doublet again (see V11a).'''
@@ -152,8 +166,7 @@ note = '''ML/DL doublet again (see V11a).'''
 [[item]]
 id = 'D05b'
 kind = 'point'
-find = '''directly incorporated into machine learning pipelines and deep learning architectures.'''
-occurrence = 2
+find = '''\emph{selective} $G$-bispectra as differentiable modules.'''
 note = '''Repeats the abstract library sentence (D05a). (A) shorten to ``We present \texttt{bispectrum}, an open-source PyTorch library of selective $G$-bispectra.'' (B) keep.'''
 
 [[item]]
@@ -169,16 +182,19 @@ note = '''Bold ``Category: Title.'' labels on the three contribution items (C14a
 
 [[item]]
 id = 'V08a'
+resolved = 'A'
 find = '''as [[drop-in]] differentiable modules'''
 note = '''``drop-in'' (also in Related Work and the Table 2 caption). (A) delete the word. (B) ``as standard \texttt{nn.Module}s''.'''
 
 [[item]]
 id = 'V09a'
+resolved = 'A'
 find = '''[[uniform API]] unlocking'''
 note = '''``uniform API/interface'' appears four times (V09a--d). (A) keep only the one in Section 4 (Design and implementation). (B) ``with one interface''.'''
 
 [[item]]
 id = 'V10'
+resolved = 'A'
 find = '''unlocking practical deployment across machine learning and deep learning pipelines'''
 note = '''Promotional phrase with ``unlocking'' and the ML/DL doublet. (A) drop; end the sentence at ``uniform API''. (B) keep.'''
 
@@ -216,6 +232,7 @@ note = '''Repeats the abstract Spherical MNIST numbers (see D02a). (A) drop the 
 
 [[item]]
 id = 'R21a'
+resolved = 'A'
 find = '''We also find that the invariant must reach the classifier through fixed injective maps:'''
 note = '''Aphoristic rule (``must reach the classifier through fixed injective maps''), stated three times: here, in the Discussion (R21b) and in Appendix F (R21c, ``The rule we adopt''). (A) keep the rule once, in Appendix F, and state only the measured effect elsewhere. (B) keep.'''
 
@@ -227,6 +244,7 @@ note = '''The 4--5 pp ReLU result is stated five times (contributions, Results, 
 
 [[item]]
 id = 'R05'
+resolved = 'A'
 find = '''Together, these contributions close the gap between the theoretical appeal of $G$-bispectra and their practical use in modern machine learning and deep learning pipelines.'''
 note = '''Grand closer (``close the gap between the theoretical appeal ... and their practical use''), with the ML/DL doublet once more. (A) drop. (B) keep.'''
 
@@ -239,6 +257,7 @@ note = '''Signposting sentence. (A) drop.'''
 
 [[item]]
 id = 'V13'
+resolved = 'B'
 find = '''complete invariant pooling mechanism'''
 note = '''``mechanism'' is filler. (A) ``a complete invariant''. (B) ``a complete invariant, usable as a pooling layer''.'''
 
@@ -272,6 +291,7 @@ note = '''Roadmap sentence that repeats the four paragraph headers, with ``build
 
 [[item]]
 id = 'R06'
+resolved = 'A'
 find = '''Our library is complementary: it provides the invariant map as a drop-in \texttt{nn.Module} that plugs into architectures built with any of these frameworks.'''
 note = '''Colon reveal (``is complementary:''), plus ``drop-in'' and ``plugs into''. (A) ``Our modules provide that invariant map and work with any of these libraries.'' (B) keep.'''
 
@@ -283,6 +303,7 @@ note = '''The header promises invariant theory, but the paragraph covers only sc
 
 [[item]]
 id = 'R07'
+resolved = 'A'
 find = '''is its distinguishing theoretical advantage'''
 note = '''Grand closer. (A) drop the sentence; the previous one already makes the contrast. (B) ``Unlike scattering, the $G$-bispectrum is complete.'' (C) keep.'''
 
@@ -294,6 +315,7 @@ note = '''``Key limitation'' column: terse labels (``Scalar bottleneck'', ``Proo
 
 [[item]]
 id = 'R08'
+resolved = 'A'
 find = '''Table~\ref{tab:nonlinearity-comparison} summarizes the trade-offs between exactness, completeness, and computational cost across existing invariant pooling layers. Norm pooling and gated nonlinearities are exact invariants but \emph{incomplete}. Fourier-space pointwise nonlinearities are equivariant rather than invariant, still need an incomplete pooling step, and lose exact equivariance through \mbox{aliasing~\citep{weiler2019general}}. The full bispectrum is exact and complete but costs $O(|G|^2)$ coefficients. The \emph{selective} bispectrum (Section~\ref{sec:background}) preserves both exactness and completeness while using only $O(|G|)$ coefficients on generic signals.'''
 note = '''The paragraph restates Table 1 as a parallel ladder (``X are exact but incomplete ... The full bispectrum is exact and complete but ... The selective bispectrum preserves both ...''), opened by the tricolon ``exactness, completeness, and computational cost''. (A) one sentence: ``Table 1 compares these layers; only the selective bispectrum is complete with $O(|G|)$ coefficients.'' (B) keep only the last sentence. (C) keep.'''
 
@@ -301,11 +323,13 @@ note = '''The paragraph restates Table 1 as a parallel ladder (``X are exact but
 
 [[item]]
 id = 'V09b'
+resolved = 'keep'
 find = '''Each exposes a [[uniform API]]:'''
 note = '''``uniform API'': keep this one if the others go (see V09a).'''
 
 [[item]]
 id = 'V08c'
+resolved = 'A'
 find = '''[[each a drop-in \texttt{nn.Module} with uniform API]].'''
 note = '''The caption repeats ``drop-in'' and ``uniform API''. (A) ``Seven group/domain pairs in the \texttt{bispectrum} library.'' (B) keep.'''
 
@@ -352,11 +376,13 @@ note = '''``band-limit'' (see M03a).'''
 
 [[item]]
 id = 'R09'
+resolved = 'B'
 find = '''---i.e., whether $\Phi_{\mathrm{sel}}(f) = \Phi_{\mathrm{sel}}(g)$ implies $f, g$ lie in the same orbit---'''
 note = '''Em-dash aside. (A) parentheses. (B) a separate sentence defining completeness. (C) keep.'''
 
 [[item]]
 id = 'V18'
+resolved = 'A'
 find = '''operational evidence'''
 note = '''``operational evidence'': jargon. (A) ``evidence''. (B) ``empirical evidence''. Touches the completeness pass.'''
 
@@ -394,6 +420,7 @@ note = '''Preregistration-style aside. (A) drop. (B) ``our original method''.'''
 
 [[item]]
 id = 'R10'
+resolved = 'A'
 find = '''the bottleneck is the optimizer, not the invariant. This is evidence, not a proof:'''
 note = '''Two ``X, not Y'' aphorisms in a row; the first is also the Appendix D header (R14). (A) ``so the failures come from the optimizer. This does not prove completeness; we conjecture ...'' (B) keep. Completeness pass.'''
 
@@ -438,6 +465,7 @@ note = '''Signposting, and ``validate'' overclaims a ``never worse, better on on
 
 [[item]]
 id = 'R11'
+resolved = 'A'
 find = '''---the augmented selective bispectrum on the 2-sphere (Section~\ref{sec:so3-selective})---'''
 note = '''Em-dash aside. (A) parentheses. (B) drop; the module is known by now.'''
 
@@ -474,6 +502,7 @@ note = '''Defensive rationale that does not justify the choice: injectivity says
 
 [[item]]
 id = 'V16'
+resolved = 'B'
 find = '''the most challenging'''
 note = '''``the most challenging''. (A) ``and NR/R''. (B) ``and NR/R, which tests invariance to unseen rotations''.'''
 
@@ -506,6 +535,7 @@ note = '''Latency ratios again (see D02a); this is the Results copy to keep.'''
 
 [[item]]
 id = 'R12'
+resolved = 'A'
 find = '''completeness, not capacity, is the bottleneck'''
 note = '''``X, not Y'' aphorism. (A) ``so more capacity does not close the gap''. (B) drop the clause.'''
 
@@ -524,6 +554,7 @@ note = '''The first Discussion paragraph re-summarizes the abstract (library, $\
 
 [[item]]
 id = 'V09d'
+resolved = 'A'
 find = '''uniform \texttt{nn.Module} interface'''
 note = '''Fourth ``uniform API/interface'' (see V09a). (A) ``one \texttt{nn.Module} interface''. (B) drop.'''
 
@@ -539,6 +570,7 @@ note = '''Spherical MNIST headline again (see D02a).'''
 
 [[item]]
 id = 'R21b'
+resolved = 'A'
 find = '''The invariant must also reach the classifier through fixed injective maps:'''
 note = '''The rule again (see R21a).'''
 
@@ -561,6 +593,7 @@ note = '''Repeats the data-efficiency result of Section 6.2. (A) keep only the f
 
 [[item]]
 id = 'R13'
+resolved = 'A'
 find = '''lives in our experiment code, not in the library'''
 note = '''``X, not Y'' plus ``lives''. (A) ``is in our experiment code and not yet in the library''. (B) ``is not yet part of the library''.'''
 
@@ -879,6 +912,7 @@ note = '''Code-speak. (A) ``with hidden width 128''.'''
 
 [[item]]
 id = 'R14'
+resolved = 'A'
 kind = 'point'
 find = '''\paragraph{Gradient descent is the bottleneck, not the invariant.}'''
 note = '''Full-sentence ``X, not Y'' header that repeats the end of Section 5 (R10). (A) \textbf{Results.} (B) keep. Completeness pass.'''
@@ -890,6 +924,7 @@ note = '''Completeness pass: ``exactly'' conflicts with image errors of 0.0014--
 
 [[item]]
 id = 'R15'
+resolved = 'A'
 find = '''is what makes it reliable'''
 note = '''``is what makes it'' construction. (A) ``Refitting all degrees after each new one is necessary:'' (B) ``We refit all degrees after each new one; holding the lower degrees fixed ...'' (C) keep.'''
 
@@ -908,6 +943,7 @@ note = '''API example: \texttt{SO2onDisk} and \texttt{OctaonOcta} are imported b
 
 [[item]]
 id = 'R16'
+resolved = 'A'
 find = '''three classes of bugs following the author response: in the library, in the training protocol, and in the pooling head'''
 note = '''Colon plus tricolon. (A) ``Every experiment was re-run after the author response, when we found bugs in the library, the training protocol and the pooling head.'' (B) keep.'''
 
@@ -918,11 +954,13 @@ note = '''Metaphor. (A) ``a map whose Jacobian misses one continuous direction''
 
 [[item]]
 id = 'V15'
+resolved = 'A'
 find = '''the headline metric'''
 note = '''``headline''. (A) ``the primary metric''.'''
 
 [[item]]
 id = 'R17'
+resolved = 'A'
 find = '''Completeness does not explain the gap:'''
 note = '''Colon reveal. (A) give the evidence first and end with ``so Jacobian rank does not explain the gap''. (B) keep.'''
 
@@ -943,11 +981,13 @@ note = '''Non sequitur (``so''). (A) ``Because we compared four heads for the bi
 
 [[item]]
 id = 'R18'
+resolved = 'A'
 find = '''Applying the ReLU after the projection, not before,'''
 note = '''``X, not Y'' in a caption title. (A) ``Moving the ReLU after the projection adds 4--5 pp on OrganMNIST3D at full data.'' (B) keep.'''
 
 [[item]]
 id = 'R19'
+resolved = 'A'
 find = '''the self-couplings matter for the Jacobian rank, not for accuracy'''
 note = '''``X, not Y''. (A) ``the self-couplings do not change accuracy; they are there for the Jacobian rank''. Completeness pass.'''
 
@@ -964,6 +1004,7 @@ note = '''Code name used as a table row label. (A) ``Base bispectral entries''. 
 
 [[item]]
 id = 'R20'
+resolved = 'A'
 find = '''It was the pooling head:'''
 note = '''Colon reveal. (A) ``The cause was the pooling head; with the corrected head ...'' (B) keep.'''
 

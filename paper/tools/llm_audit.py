@@ -38,6 +38,7 @@ class Item:
     find: str
     note: str
     occurrence: int | None = None
+    resolved: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +131,7 @@ def load_catalogue(path: Path = CATALOGUE) -> list[Item]:
             find=entry['find'],
             note=' '.join(entry['note'].split()),
             occurrence=entry.get('occurrence'),
+            resolved=entry.get('resolved'),
         )
         for entry in raw['item']
     ]
@@ -157,6 +159,8 @@ def validate(items: list[Item]) -> None:
                 errors.append(f'{item.id}: note contains {bad!r}')
         if not _balanced(item.note):
             errors.append(f'{item.id}: unbalanced braces or math delimiters in note')
+        if item.resolved is not None and not item.resolved.strip():
+            errors.append(f'{item.id}: empty resolved decision')
     if errors:
         raise AuditError('\n'.join(errors))
 
@@ -261,7 +265,7 @@ def annotate(items: list[Item], paper_dir: Path = PAPER_DIR) -> dict[str, int]:
     for name in SOURCES:
         path = paper_dir / name
         src = path.read_text()
-        edits = plan_edits(src, [item for item in items if item.file == name])
+        edits = plan_edits(src, [item for item in items if item.file == name and item.resolved is None])
         planned[path] = (src, edits)
         counts[name] = len(edits)
     for path, (src, edits) in planned.items():
@@ -280,7 +284,11 @@ def status(items: list[Item], paper_dir: Path = PAPER_DIR) -> list[str]:
             line = src.count('\n', 0, mark.start) + 1
             snippet = ' '.join((mark.text or '').split())[:60]
             rows.append(f'{mark.id:6} {mark.decision or "-":8} {name}:{line:<5} {snippet}')
-    rows.extend(f'{item.id:6} {"gone":8} (not in sources)' for item in items if item.id not in found)
+    for item in items:
+        if item.id in found:
+            continue
+        label = f'done:{item.resolved}' if item.resolved else 'gone'
+        rows.append(f'{item.id:6} {label:8} (not in sources)')
     return rows
 
 
