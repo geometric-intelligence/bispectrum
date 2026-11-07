@@ -182,7 +182,8 @@ COLUMN_KINDS: Final = ('split', 'params', 'data')
 
 # \input{caption.tex} in the paper's figure environment and \input{caption_details.tex} in the
 # appendix; preview.tex typesets both. @name@ fields are filled by tell_story() from the plotted data.
-CAPTION_TEX: Final = r"""\caption{\textbf{A complete invariant pays off on the octahedral group and is on par on $C_8$.}
+CAPTION_TEX: Final = r"""\caption{\textbf{Selective $G$-bispectral pooling matches baselines on PCam ($G{=}C_8$) and
+  outperforms them on OrganMNIST3D ($G{=}O$).}
   On PCam ($C_8$), no model is significantly better than bispectral pooling at any training-set size.
   On OrganMNIST3D ($O$), bispectral pooling beats max pooling on the same backbone by @gain@\,pp;
   its smallest model beats max pooling's largest, which has $@ratio@\times$ the parameters; and with

@@ -614,7 +614,7 @@ def paper_fig_coefficients() -> None:
         ),
         (r'$D_n$', 'DnonDn', [{'n': n} for n in [4, 8, 16, 32, 64, 128, 256]], c['DnonDn'], '^'),
         (
-            r'$\mathrm{SO}(2)/D^2$',
+            r'$\mathrm{SO}(2)/\mathbb{D}$',
             'SO2onDisk',
             [{'L': L} for L in [8, 16, 32]],
             c['SO2onDisk'],
@@ -1236,7 +1236,8 @@ def write_timing_captions(data: PaperTimings) -> None:
     linear = [m for m, k in slopes.items() if 0.8 <= k <= 1.2]
     o_ms = inv['OctaonOcta'][0][1]
     slope_text = _and([rf'{k:.1f} for {CAPTION_NAMES[m]}' for m, k in slopes.items()])
-    scaling = rf"""\caption{{\textbf{{Millions of signals per second on one GPU, and invertible.}}
+    scaling = rf"""\caption{{\textbf{{Selective $G$-bispectra have high throughput of millions of samples/s
+    on one {device} and are invertible.}}
     (a)~Selective forward throughput against batch size, {device}, autograd enabled ($C_{{128}}$,
     $C_{{32}}{{\times}}C_{{32}}$, $D_{{32}}$, $S^2$ at $L{{=}}16$, $O$): {_and(fast)} exceed $10^7$ samples/s,
     $O$ reaches ${_tex_sci(rates['OctaonOcta'])}$, and $\mathrm{{SO}}(3)$ on $S^2$ saturates near
