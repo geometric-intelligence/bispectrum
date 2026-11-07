@@ -7,5 +7,6 @@ pip install -e "../../[dev]"
 python train.py --model bispectrum --train_mode NR
 ./run_sweep.sh            # full sweep: 3 models x 2 modes x 3 seeds
 ./run_capacity_sweep.sh   # accuracy-vs-params curves (power_spectrum, bispectrum)
+python analyze_capacity.py  # capacity table (rotated-test accuracy vs MLP size)
 ./run_data_efficiency.sh  # accuracy-vs-train-size curves
 ```

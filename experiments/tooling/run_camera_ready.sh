@@ -288,6 +288,9 @@ analyze() {
   banner "ablation summary"
   "$PYTHON" experiments/tooling/analyze_smnist_ablation.py --results-dir "$RESULTS/smnist_ablation" \
     --output "$RESULTS/smnist_ablation/summary.json"
+  banner "capacity table"
+  "$PYTHON" experiments/spherical_mnist/analyze_capacity.py \
+    --results_dir experiments/spherical_mnist/smnist_results_capacity | tee "$out/smnist_capacity.md"
   banner "device timings"
   local jsons=()
   for f in "$RESULTS"/device_bench/*_cuda.json "$RESULTS"/device_bench/*_mps.json \
