@@ -15,8 +15,8 @@ include = [
 
 [project]
 name = "bispectrum"
-version = "0.5.0"
-description = "Bispectrum analysis for machine learning"
+version = "0.5.1"
+description = "Fast, exact, lossless symmetry invariants for PyTorch."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12,<3.13"

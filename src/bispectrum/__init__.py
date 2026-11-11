@@ -1,4 +1,4 @@
-"""Bispectrum analysis for machine learning."""
+"""Fast, exact, lossless symmetry invariants for PyTorch."""
 
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
