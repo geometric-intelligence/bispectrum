@@ -8,6 +8,7 @@
 <p align="center">Selective G-bispectra for PyTorch.</p>
 
 <p align="center">
+  <a href="#citation"><img alt="NeurIPS 2026" src="https://img.shields.io/badge/NeurIPS-2026-B53E20"></a>
   <a href="https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/geometric-intelligence/bispectrum/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml"><img alt="Pre-commit" src="https://github.com/geometric-intelligence/bispectrum/actions/workflows/pre-commit.yml/badge.svg"></a>
   <a href="https://codecov.io/github/geometric-intelligence/bispectrum"><img alt="codecov" src="https://codecov.io/github/geometric-intelligence/bispectrum/graph/badge.svg?token=J6GGY4VK1E"></a>
@@ -165,14 +166,17 @@ pre-commit autoupdate
 
 ## Citation
 
-If you use `bispectrum` in your research, please cite the paper:
+The paper appears at **NeurIPS 2026**. If you use `bispectrum` in your research, please cite it:
 
 ```bibtex
-@article{mathe2026bispectrum,
-  title   = {bispectrum: Selective $G$-Bispectra Made Practical},
-  author  = {Mathe, Johan and Myers, Adele and Mataigne, Simon and Miolane, Nina},
-  journal = {arXiv preprint arXiv:2605.07270},
-  year    = {2026}
+@inproceedings{mathe2026bispectrum,
+  title         = {bispectrum: Selective $G$-Bispectra Made Practical},
+  author        = {Mathe, Johan and {Myers Lantow}, Adele and Mataigne, Simon and Miolane, Nina},
+  booktitle     = {Advances in Neural Information Processing Systems},
+  volume        = {39},
+  year          = {2026},
+  eprint        = {2605.07270},
+  archivePrefix = {arXiv}
 }
 ```
 
