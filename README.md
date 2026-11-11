@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-<p align="center">Selective G-bispectra for PyTorch.</p>
+<p align="center">Fast, exact, lossless symmetry invariants for PyTorch.</p>
 
 <p align="center">
   <a href="#citation"><img alt="NeurIPS 2026" src="https://img.shields.io/badge/NeurIPS-2026-B53E20"></a>
@@ -17,7 +17,11 @@
 
 Many learning problems come with a group of transformations the answer should not depend on: shifts of a signal, rotations of an image, rotations of the sphere. The G-bispectrum is an invariant to such a group that is also *complete*. It discards the transformation and nothing else, so a signal can be recovered from it up to the group action.
 
-`bispectrum` is an open-source, fully unit-tested PyTorch library that implements *selective* G-bispectra for seven group actions as differentiable `torch.nn.Module`s, ready to plug into ML pipelines and to sit in deep networks as invariant pooling layers. Selectivity reduces the cost from O(|G|²) to O(|G|) coefficients for finite groups, and from O(L³) to Θ(L²) for SO(3) on S².
+`bispectrum` turns a signal into features that ignore a group action and keep everything else. It is an open-source, fully unit-tested PyTorch library that implements *selective* G-bispectra for seven group actions as differentiable `torch.nn.Module`s, ready to plug into ML pipelines or to sit at the end of an equivariant network in place of max pooling.
+
+- **Fast**: O(|G|) coefficients instead of O(|G|²) on finite groups, and Θ(L²) instead of O(L³) for SO(3) on S². 0.03–0.2 ms per batch of 16 on an H100.
+- **Exact**: invariant by construction, up to floating-point error (band-limited signals on continuous domains).
+- **Lossless**: complete for generic signals, so the input is recoverable up to the group action. Proven for finite groups and the disk, conjectured for SO(3) on S².
 
 ## Installation
 
